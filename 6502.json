@@ -1,0 +1,1545 @@
+[
+    {
+        "name": "ADC",
+        "description": "Add Memory to Accumulator with Carry",
+        "flags": {
+            "overflow": 8,
+            "carry": 8,
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "69",
+                "cycles": 2,
+                "mode": 0,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "65",
+                "cycles": 3,
+                "mode": 1,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "75",
+                "cycles": 4,
+                "mode": 2,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "6D",
+                "cycles": 4,
+                "mode": 4,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "7D",
+                "cycles": 4,
+                "mode": 5,
+                "cycleModifier": 1
+            },
+            {
+                "opcode": "79",
+                "cycles": 4,
+                "mode": 6,
+                "cycleModifier": 1
+            },
+            {
+                "opcode": "61",
+                "cycles": 6,
+                "mode": 8,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "71",
+                "cycles": 5,
+                "mode": 9,
+                "cycleModifier": 1
+            }
+        ],
+        "type": "assignment",
+        "expression": "A + M + C",
+        "assignee": "A"
+    },
+    {
+        "name": "AND",
+        "description": "AND Memory with Accumulator",
+        "flags": {
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "29",
+                "cycles": 2,
+                "mode": 0,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "25",
+                "cycles": 3,
+                "mode": 1,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "35",
+                "cycles": 4,
+                "mode": 2,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "2D",
+                "cycles": 4,
+                "mode": 4,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "3D",
+                "cycles": 4,
+                "mode": 5,
+                "cycleModifier": 1
+            },
+            {
+                "opcode": "39",
+                "cycles": 4,
+                "mode": 6,
+                "cycleModifier": 1
+            },
+            {
+                "opcode": "21",
+                "cycles": 6,
+                "mode": 8,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "31",
+                "cycles": 5,
+                "mode": 9,
+                "cycleModifier": 1
+            }
+        ],
+        "type": "assignment",
+        "expression": "A & M",
+        "assignee": "A"
+    },
+    {
+        "name": "ASL",
+        "description": "Shift Left One Bit (Memory or Accumulator)",
+        "flags": {
+            "carry": 8,
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "0A",
+                "cycles": 2,
+                "mode": 10,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "06",
+                "cycles": 5,
+                "mode": 1,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "16",
+                "cycles": 6,
+                "mode": 2,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "0E",
+                "cycles": 6,
+                "mode": 4,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "1E",
+                "cycles": 7,
+                "mode": 5,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "assignment",
+        "expression": "M << 1",
+        "assignee": "M"
+    },
+    {
+        "name": "BCC",
+        "description": "Branch on Carry Clear",
+        "flags": {},
+        "addressingModes": [
+            {
+                "opcode": "90",
+                "cycles": 2,
+                "mode": 11,
+                "cycleModifier": 2
+            }
+        ],
+        "type": "branch",
+        "condition": "C = 0"
+    },
+    {
+        "name": "BCS",
+        "description": "Branch on Carry Set",
+        "flags": {},
+        "addressingModes": [
+            {
+                "opcode": "B0",
+                "cycles": 2,
+                "mode": 11,
+                "cycleModifier": 2
+            }
+        ],
+        "type": "branch",
+        "condition": "C = 1"
+    },
+    {
+        "name": "BEQ",
+        "description": "Branch on Result Zero",
+        "flags": {},
+        "addressingModes": [
+            {
+                "opcode": "F0",
+                "cycles": 2,
+                "mode": 11,
+                "cycleModifier": 2
+            }
+        ],
+        "type": "branch",
+        "condition": "Z = 1"
+    },
+    {
+        "name": "BIT",
+        "description": "Test Bits in Memory with Accumulator",
+        "flags": {
+            "overflow": 6,
+            "zero": 8,
+            "negative": 7
+        },
+        "addressingModes": [
+            {
+                "opcode": "24",
+                "cycles": 3,
+                "mode": 1,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "2C",
+                "cycles": 4,
+                "mode": 4,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "test",
+        "condition": "(A & M)"
+    },
+    {
+        "name": "BMI",
+        "description": "Branch on Result Minus",
+        "flags": {},
+        "addressingModes": [
+            {
+                "opcode": "30",
+                "cycles": 2,
+                "mode": 11,
+                "cycleModifier": 2
+            }
+        ],
+        "type": "branch",
+        "condition": "N = 1"
+    },
+    {
+        "name": "BNE",
+        "description": "Branch on Result not Zero",
+        "flags": {},
+        "addressingModes": [
+            {
+                "opcode": "D0",
+                "cycles": 2,
+                "mode": 11,
+                "cycleModifier": 2
+            }
+        ],
+        "type": "branch",
+        "condition": "Z = 0"
+    },
+    {
+        "name": "BPL",
+        "description": "Branch on Result Plus",
+        "flags": {},
+        "addressingModes": [
+            {
+                "opcode": "10",
+                "cycles": 2,
+                "mode": 11,
+                "cycleModifier": 2
+            }
+        ],
+        "type": "branch",
+        "condition": "N = 0"
+    },
+    {
+        "name": "BRK",
+        "description": "Break",
+        "flags": {},
+        "addressingModes": [
+            {
+                "opcode": "00",
+                "cycles": 7,
+                "mode": 12,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "empty"
+    },
+    {
+        "name": "BVC",
+        "description": "Branch on Overflow Clear",
+        "flags": {},
+        "addressingModes": [
+            {
+                "opcode": "50",
+                "cycles": 2,
+                "mode": 11,
+                "cycleModifier": 2
+            }
+        ],
+        "type": "branch",
+        "condition": "V = 0"
+    },
+    {
+        "name": "BVS",
+        "description": "Branch on Overflow Set",
+        "flags": {},
+        "addressingModes": [
+            {
+                "opcode": "70",
+                "cycles": 2,
+                "mode": 11,
+                "cycleModifier": 2
+            }
+        ],
+        "type": "branch",
+        "condition": "V = 1"
+    },
+    {
+        "name": "CLC",
+        "description": "Clear Carry Flag",
+        "flags": {
+            "carry": 11
+        },
+        "addressingModes": [
+            {
+                "opcode": "18",
+                "cycles": 2,
+                "mode": 12,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "empty"
+    },
+    {
+        "name": "CLD",
+        "description": "Clear Decimal Mode",
+        "flags": {
+            "decimal": 11
+        },
+        "addressingModes": [
+            {
+                "opcode": "D8",
+                "cycles": 2,
+                "mode": 12,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "empty"
+    },
+    {
+        "name": "CLI",
+        "description": "Clear Interrupt Disable Bit",
+        "flags": {
+            "interrupt": 11
+        },
+        "addressingModes": [
+            {
+                "opcode": "58",
+                "cycles": 2,
+                "mode": 12,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "empty"
+    },
+    {
+        "name": "CLV",
+        "description": "Clear Overflow Flag",
+        "flags": {
+            "overflow": 11
+        },
+        "addressingModes": [
+            {
+                "opcode": "B8",
+                "cycles": 2,
+                "mode": 12,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "empty"
+    },
+    {
+        "name": "CMP",
+        "description": "Compare Memory with Accumulator",
+        "flags": {
+            "carry": 8,
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "C9",
+                "cycles": 2,
+                "mode": 0,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "C5",
+                "cycles": 3,
+                "mode": 1,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "D5",
+                "cycles": 4,
+                "mode": 2,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "CD",
+                "cycles": 4,
+                "mode": 4,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "DD",
+                "cycles": 4,
+                "mode": 5,
+                "cycleModifier": 1
+            },
+            {
+                "opcode": "D9",
+                "cycles": 4,
+                "mode": 6,
+                "cycleModifier": 1
+            },
+            {
+                "opcode": "C1",
+                "cycles": 6,
+                "mode": 8,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "D1",
+                "cycles": 5,
+                "mode": 9,
+                "cycleModifier": 1
+            }
+        ],
+        "type": "test",
+        "condition": "A - M"
+    },
+    {
+        "name": "CPX",
+        "description": "Compare Memory and Index X",
+        "flags": {
+            "carry": 8,
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "E0",
+                "cycles": 2,
+                "mode": 0,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "E4",
+                "cycles": 3,
+                "mode": 1,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "EC",
+                "cycles": 4,
+                "mode": 4,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "test",
+        "condition": "X - M"
+    },
+    {
+        "name": "CPY",
+        "description": "Compare Memory and Index Y",
+        "flags": {
+            "carry": 8,
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "C0",
+                "cycles": 2,
+                "mode": 0,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "C4",
+                "cycles": 3,
+                "mode": 1,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "CC",
+                "cycles": 4,
+                "mode": 4,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "test",
+        "condition": "Y - M"
+    },
+    {
+        "name": "DEC",
+        "description": "Decrement Memory by One",
+        "flags": {
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "C6",
+                "cycles": 5,
+                "mode": 1,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "D6",
+                "cycles": 6,
+                "mode": 2,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "CE",
+                "cycles": 6,
+                "mode": 4,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "DE",
+                "cycles": 7,
+                "mode": 5,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "assignment",
+        "expression": "M - 1",
+        "assignee": "M"
+    },
+    {
+        "name": "DEX",
+        "description": "Decrement Index X by One",
+        "flags": {
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "CA",
+                "cycles": 2,
+                "mode": 12,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "assignment",
+        "expression": "X - 1",
+        "assignee": "X"
+    },
+    {
+        "name": "DEY",
+        "description": "Decrement Index Y by One",
+        "flags": {
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "88",
+                "cycles": 2,
+                "mode": 12,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "assignment",
+        "expression": "Y - 1",
+        "assignee": "Y"
+    },
+    {
+        "name": "EOR",
+        "description": "Exclusive-OR Memory with Accumulator",
+        "flags": {
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "49",
+                "cycles": 2,
+                "mode": 0,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "45",
+                "cycles": 3,
+                "mode": 1,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "55",
+                "cycles": 4,
+                "mode": 2,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "4D",
+                "cycles": 4,
+                "mode": 4,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "5D",
+                "cycles": 4,
+                "mode": 5,
+                "cycleModifier": 1
+            },
+            {
+                "opcode": "59",
+                "cycles": 4,
+                "mode": 6,
+                "cycleModifier": 1
+            },
+            {
+                "opcode": "41",
+                "cycles": 6,
+                "mode": 8,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "51",
+                "cycles": 5,
+                "mode": 9,
+                "cycleModifier": 1
+            }
+        ],
+        "type": "assignment",
+        "expression": "A ^ M",
+        "assignee": "A"
+    },
+    {
+        "name": "INC",
+        "description": "Increment Memory by One",
+        "flags": {
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "E6",
+                "cycles": 5,
+                "mode": 1,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "F6",
+                "cycles": 6,
+                "mode": 2,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "EE",
+                "cycles": 6,
+                "mode": 4,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "FE",
+                "cycles": 7,
+                "mode": 5,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "assignment",
+        "expression": "M + 1",
+        "assignee": "M"
+    },
+    {
+        "name": "INX",
+        "description": "Increment Index X by One",
+        "flags": {
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "E8",
+                "cycles": 2,
+                "mode": 12,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "assignment",
+        "expression": "X + 1",
+        "assignee": "X"
+    },
+    {
+        "name": "INY",
+        "description": "Increment Index Y by One",
+        "flags": {
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "C8",
+                "cycles": 2,
+                "mode": 12,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "assignment",
+        "expression": "Y + 1",
+        "assignee": "Y"
+    },
+    {
+        "name": "JMP",
+        "description": "Jump to New Location",
+        "flags": {},
+        "addressingModes": [
+            {
+                "opcode": "4C",
+                "cycles": 3,
+                "mode": 4,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "6C",
+                "cycles": 5,
+                "mode": 7,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "jump"
+    },
+    {
+        "name": "JSR",
+        "description": "Jump to Subroutine",
+        "flags": {},
+        "addressingModes": [
+            {
+                "opcode": "20",
+                "cycles": 6,
+                "mode": 4,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "assignment",
+        "expression": "M",
+        "assignee": "PC"
+    },
+    {
+        "name": "LDA",
+        "description": "Load Accumulator with Memory",
+        "flags": {
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "A9",
+                "cycles": 2,
+                "mode": 0,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "A5",
+                "cycles": 3,
+                "mode": 1,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "B5",
+                "cycles": 4,
+                "mode": 2,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "AD",
+                "cycles": 4,
+                "mode": 4,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "BD",
+                "cycles": 4,
+                "mode": 5,
+                "cycleModifier": 1
+            },
+            {
+                "opcode": "B9",
+                "cycles": 4,
+                "mode": 6,
+                "cycleModifier": 1
+            },
+            {
+                "opcode": "A1",
+                "cycles": 6,
+                "mode": 8,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "B1",
+                "cycles": 5,
+                "mode": 9,
+                "cycleModifier": 1
+            }
+        ],
+        "type": "assignment",
+        "expression": "M",
+        "assignee": "A"
+    },
+    {
+        "name": "LDX",
+        "description": "Load Index X with Memory",
+        "flags": {
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "A2",
+                "cycles": 2,
+                "mode": 0,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "A6",
+                "cycles": 3,
+                "mode": 1,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "B6",
+                "cycles": 4,
+                "mode": 3,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "AE",
+                "cycles": 4,
+                "mode": 4,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "BE",
+                "cycles": 4,
+                "mode": 6,
+                "cycleModifier": 1
+            }
+        ],
+        "type": "assignment",
+        "expression": "M",
+        "assignee": "X"
+    },
+    {
+        "name": "LDY",
+        "description": "Load Index Y with Memory",
+        "flags": {
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "A0",
+                "cycles": 2,
+                "mode": 0,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "A4",
+                "cycles": 3,
+                "mode": 1,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "B4",
+                "cycles": 4,
+                "mode": 2,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "AC",
+                "cycles": 4,
+                "mode": 4,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "BC",
+                "cycles": 4,
+                "mode": 5,
+                "cycleModifier": 1
+            }
+        ],
+        "type": "assignment",
+        "expression": "M",
+        "assignee": "Y"
+    },
+    {
+        "name": "LSR",
+        "description": "Shift One Bit Right (Memory or Accumulator)",
+        "flags": {
+            "carry": 0,
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "4A",
+                "cycles": 2,
+                "mode": 10,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "46",
+                "cycles": 5,
+                "mode": 1,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "56",
+                "cycles": 6,
+                "mode": 2,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "4E",
+                "cycles": 6,
+                "mode": 4,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "5E",
+                "cycles": 7,
+                "mode": 5,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "assignment",
+        "expression": "M >> 1",
+        "assignee": "M"
+    },
+    {
+        "name": "NOP",
+        "description": "No Operation",
+        "flags": {},
+        "addressingModes": [
+            {
+                "opcode": "EA",
+                "cycles": 2,
+                "mode": 12,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "empty"
+    },
+    {
+        "name": "ORA",
+        "description": "OR Memory with Accumulator",
+        "flags": {
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "09",
+                "cycles": 2,
+                "mode": 0,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "05",
+                "cycles": 3,
+                "mode": 1,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "15",
+                "cycles": 4,
+                "mode": 2,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "0D",
+                "cycles": 4,
+                "mode": 4,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "1D",
+                "cycles": 4,
+                "mode": 5,
+                "cycleModifier": 1
+            },
+            {
+                "opcode": "19",
+                "cycles": 4,
+                "mode": 6,
+                "cycleModifier": 1
+            },
+            {
+                "opcode": "01",
+                "cycles": 6,
+                "mode": 8,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "11",
+                "cycles": 5,
+                "mode": 9,
+                "cycleModifier": 1
+            }
+        ],
+        "type": "assignment",
+        "expression": "A | M",
+        "assignee": "A"
+    },
+    {
+        "name": "PHA",
+        "description": "Push Accumulator on Stack",
+        "flags": {},
+        "addressingModes": [
+            {
+                "opcode": "48",
+                "cycles": 3,
+                "mode": 12,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "push",
+        "expression": "A"
+    },
+    {
+        "name": "PHP",
+        "description": "Push Processor Status on Stack",
+        "flags": {},
+        "addressingModes": [
+            {
+                "opcode": "08",
+                "cycles": 3,
+                "mode": 12,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "push",
+        "expression": "SR"
+    },
+    {
+        "name": "PLA",
+        "description": "Pull Accumulator from Stack",
+        "flags": {
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "68",
+                "cycles": 4,
+                "mode": 12,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "pop",
+        "assignee": "A"
+    },
+    {
+        "name": "PLP",
+        "description": "Pull Processor Status from Stack",
+        "flags": {},
+        "addressingModes": [
+            {
+                "opcode": "28",
+                "cycles": 4,
+                "mode": 12,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "pop",
+        "assignee": "SR"
+    },
+    {
+        "name": "ROL",
+        "description": "Rotate One Bit Left (Memory or Accumulator)",
+        "flags": {
+            "carry": 8,
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "2A",
+                "cycles": 2,
+                "mode": 10,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "26",
+                "cycles": 5,
+                "mode": 1,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "36",
+                "cycles": 6,
+                "mode": 2,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "2E",
+                "cycles": 6,
+                "mode": 4,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "3E",
+                "cycles": 7,
+                "mode": 5,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "assignment",
+        "expression": "(M << 1) + C",
+        "assignee": "M"
+    },
+    {
+        "name": "ROR",
+        "description": "Rotate One Bit Right (Memory or Accumulator)",
+        "flags": {
+            "carry": 0,
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "6A",
+                "cycles": 2,
+                "mode": 10,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "66",
+                "cycles": 5,
+                "mode": 1,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "76",
+                "cycles": 6,
+                "mode": 2,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "6E",
+                "cycles": 6,
+                "mode": 4,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "7E",
+                "cycles": 7,
+                "mode": 5,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "assignment",
+        "expression": "(M >> 1) + (C * 0x80)",
+        "assignee": "M"
+    },
+    {
+        "name": "RTI",
+        "description": "Return from Interrupt",
+        "flags": {
+            "overflow": 8,
+            "decimal": 8,
+            "interrupt": 8,
+            "carry": 8,
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "40",
+                "cycles": 6,
+                "mode": 12,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "empty"
+    },
+    {
+        "name": "RTS",
+        "description": "Return from Subroutine",
+        "flags": {},
+        "addressingModes": [
+            {
+                "opcode": "60",
+                "cycles": 6,
+                "mode": 12,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "empty"
+    },
+    {
+        "name": "SBC",
+        "description": "Subtract Memory from Accumulator with Borrow",
+        "flags": {
+            "overflow": 8,
+            "carry": 8,
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "E9",
+                "cycles": 2,
+                "mode": 0,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "E5",
+                "cycles": 3,
+                "mode": 1,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "F5",
+                "cycles": 4,
+                "mode": 2,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "ED",
+                "cycles": 4,
+                "mode": 4,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "FD",
+                "cycles": 4,
+                "mode": 5,
+                "cycleModifier": 1
+            },
+            {
+                "opcode": "F9",
+                "cycles": 4,
+                "mode": 6,
+                "cycleModifier": 1
+            },
+            {
+                "opcode": "E1",
+                "cycles": 6,
+                "mode": 8,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "F1",
+                "cycles": 5,
+                "mode": 9,
+                "cycleModifier": 1
+            }
+        ],
+        "type": "assignment",
+        "expression": "A - M - (1 - C)",
+        "assignee": "A"
+    },
+    {
+        "name": "SEC",
+        "description": "Set Carry Flag",
+        "flags": {
+            "carry": 10
+        },
+        "addressingModes": [
+            {
+                "opcode": "38",
+                "cycles": 2,
+                "mode": 12,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "empty"
+    },
+    {
+        "name": "SED",
+        "description": "Set Decimal Flag",
+        "flags": {
+            "decimal": 10
+        },
+        "addressingModes": [
+            {
+                "opcode": "F8",
+                "cycles": 2,
+                "mode": 12,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "empty"
+    },
+    {
+        "name": "SEI",
+        "description": "Set Interrupt Disable Status",
+        "flags": {
+            "interrupt": 10
+        },
+        "addressingModes": [
+            {
+                "opcode": "78",
+                "cycles": 2,
+                "mode": 12,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "empty"
+    },
+    {
+        "name": "STA",
+        "description": "Store Accumulator in Memory",
+        "flags": {},
+        "addressingModes": [
+            {
+                "opcode": "85",
+                "cycles": 3,
+                "mode": 1,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "95",
+                "cycles": 4,
+                "mode": 2,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "8D",
+                "cycles": 4,
+                "mode": 4,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "9D",
+                "cycles": 5,
+                "mode": 5,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "99",
+                "cycles": 5,
+                "mode": 6,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "81",
+                "cycles": 6,
+                "mode": 8,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "91",
+                "cycles": 6,
+                "mode": 9,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "assignment",
+        "expression": "A",
+        "assignee": "M"
+    },
+    {
+        "name": "STX",
+        "description": "Store Index X in Memory",
+        "flags": {},
+        "addressingModes": [
+            {
+                "opcode": "86",
+                "cycles": 3,
+                "mode": 1,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "96",
+                "cycles": 4,
+                "mode": 3,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "8E",
+                "cycles": 4,
+                "mode": 4,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "assignment",
+        "expression": "X",
+        "assignee": "M"
+    },
+    {
+        "name": "STY",
+        "description": "Store Index Y in Memory",
+        "flags": {},
+        "addressingModes": [
+            {
+                "opcode": "84",
+                "cycles": 3,
+                "mode": 1,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "94",
+                "cycles": 4,
+                "mode": 2,
+                "cycleModifier": 0
+            },
+            {
+                "opcode": "8C",
+                "cycles": 4,
+                "mode": 4,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "assignment",
+        "expression": "Y",
+        "assignee": "M"
+    },
+    {
+        "name": "TAX",
+        "description": "Transfer Accumulator to Index X",
+        "flags": {
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "AA",
+                "cycles": 2,
+                "mode": 12,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "assignment",
+        "expression": "A",
+        "assignee": "X"
+    },
+    {
+        "name": "TAY",
+        "description": "Transfer Accumulator to Index Y",
+        "flags": {
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "A8",
+                "cycles": 2,
+                "mode": 12,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "assignment",
+        "expression": "A",
+        "assignee": "Y"
+    },
+    {
+        "name": "TSX",
+        "description": "Transfer Index X to Stack Pointer",
+        "flags": {
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "BA",
+                "cycles": 2,
+                "mode": 12,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "assignment",
+        "expression": "SP",
+        "assignee": "X"
+    },
+    {
+        "name": "TXA",
+        "description": "Transfer Index X to Accumulator",
+        "flags": {
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "8A",
+                "cycles": 2,
+                "mode": 12,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "assignment",
+        "expression": "X",
+        "assignee": "A"
+    },
+    {
+        "name": "TXS",
+        "description": "Transfer Index X to Stack Pointer",
+        "flags": {},
+        "addressingModes": [
+            {
+                "opcode": "9A",
+                "cycles": 2,
+                "mode": 12,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "assignment",
+        "expression": "X",
+        "assignee": "SP"
+    },
+    {
+        "name": "TYA",
+        "description": "Transfer Index Y to Accumulator",
+        "flags": {
+            "zero": 8,
+            "negative": 8
+        },
+        "addressingModes": [
+            {
+                "opcode": "98",
+                "cycles": 2,
+                "mode": 12,
+                "cycleModifier": 0
+            }
+        ],
+        "type": "assignment",
+        "expression": "Y",
+        "assignee": "A"
+    }
+]

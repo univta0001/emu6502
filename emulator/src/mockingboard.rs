@@ -1,0 +1,802 @@
+use serde::{Deserialize, Serialize};
+
+const AY_RESET: u8 = 0;
+const AY_INACTIVE: u8 = 4;
+const AY_READ_DATA: u8 = 5;
+const AY_WRITE_DATA: u8 = 6;
+const AY_SET_PSG_REG: u8 = 7;
+
+const AY_AFINE: u8 = 0x00;
+const AY_ACOARSE: u8 = 0x01;
+const AY_BFINE: u8 = 0x02;
+const AY_BCOARSE: u8 = 0x03;
+const AY_CFINE: u8 = 0x04;
+const AY_CCOARSE: u8 = 0x05;
+const AY_NOISE_PERIOD: u8 = 0x06;
+const AY_ENABLE: u8 = 0x07;
+const AY_AVOL: u8 = 0x08;
+const AY_BVOL: u8 = 0x09;
+const AY_CVOL: u8 = 0x0a;
+const AY_EAFINE: u8 = 0x0b;
+const AY_EACOARSE: u8 = 0x0c;
+const AY_EASHAPE: u8 = 0x0d;
+const AY_PORTA: u8 = 0x0e;
+const AY_PORTB: u8 = 0x0f;
+
+const AY_ENV_CONT: u8 = 8;
+const AY_ENV_ATTACK: u8 = 4;
+const AY_ENV_ALT: u8 = 2;
+const AY_ENV_HOLD: u8 = 1;
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Noise {
+    period: u8,
+    count: usize,
+    level: bool,
+}
+
+impl Noise {
+    fn new() -> Self {
+        Noise {
+            period: 0,
+            count: 0,
+            level: false,
+        }
+    }
+
+    fn set_period(&mut self, value: u8) {
+        self.period = value & 0x1f;
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Envelope {
+    period: u16,
+    count: usize,
+    step: i8,
+    volume: u8,
+    hold: bool,
+    holding: bool,
+    alternate: bool,
+    attack: u8,
+    shape: u8,
+}
+
+impl Envelope {
+    fn new() -> Self {
+        Envelope {
+            period: 0,
+            count: 0,
+            step: 0,
+            volume: 0,
+            hold: false,
+            holding: false,
+            alternate: false,
+            attack: 0,
+            shape: 0,
+        }
+    }
+
+    fn reset(&mut self) {
+        self.period = 0;
+        self.step = 0;
+        self.volume = 0;
+        self.alternate = false;
+        self.attack = 0;
+        self.holding = false;
+        self.hold = false;
+        self.count = 0;
+    }
+
+    fn set_period(&mut self, fine: u8, coarse: u8) {
+        self.period = (coarse as u16) * 256 + (fine as u16)
+    }
+
+    fn set_shape(&mut self, shape: u8) {
+        self.shape = shape;
+        self.attack = if shape & AY_ENV_ATTACK > 0 { 0xf } else { 0 };
+        if shape & AY_ENV_CONT == 0 {
+            self.hold = true;
+            self.alternate = self.attack > 0;
+        } else {
+            self.hold = shape & AY_ENV_HOLD > 0;
+            self.alternate = shape & AY_ENV_ALT > 0;
+        }
+        self.step = 0xf;
+        self.holding = false;
+        self.volume = (0xf ^ self.attack) as u8;
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Tone {
+    period: u16,
+    volume: u8,
+    level: bool,
+    count: usize,
+}
+
+impl Tone {
+    fn new() -> Self {
+        Tone {
+            period: 0,
+            volume: 0,
+            level: false,
+            count: 0,
+        }
+    }
+
+    fn reset(&mut self) {
+        self.period = 0;
+        self.volume = 0;
+    }
+
+    fn set_period(&mut self, fine: u8, coarse: u8) {
+        self.period = ((coarse & 0xf) as u16) * 256 + (fine as u16);
+    }
+
+    fn set_volume(&mut self, val: u8) {
+        self.volume = val & 0x1f;
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct AY8910 {
+    _name: String,
+    current_reg: u8,
+    reg: Vec<u8>,
+    tone: Vec<Tone>,
+    envelope: Envelope,
+    noise: Noise,
+    rng: usize,
+}
+
+impl AY8910 {
+    fn new(name: &str) -> Self {
+        AY8910 {
+            _name: name.to_string(),
+            current_reg: 0,
+            reg: vec![0; 16],
+            tone: vec![Tone::new(), Tone::new(), Tone::new()],
+            envelope: Envelope::new(),
+            noise: Noise::new(),
+            rng: 1,
+        }
+    }
+
+    fn tick(&mut self) {
+        self.update_tone();
+        self.update_envelope();
+        self.update_noise();
+    }
+
+    fn update_tone(&mut self) {
+        for item in &mut self.tone {
+            if item.period > 0 {
+                let env_period = item.period as usize;
+                item.count += 1;
+                if item.count >= env_period {
+                    item.count -= env_period;
+                    item.level = !item.level
+                }
+            }
+        }
+    }
+
+    fn update_noise(&mut self) {
+        if self.noise.period == 0 {
+            return;
+        }
+
+        let env_period = self.noise.period as usize;
+        self.noise.count += 1;
+        if self.noise.count >= env_period {
+            self.noise.count -= env_period;
+            let rng_value = self.get_noise_value();
+            self.noise.level = rng_value & 0x1 > 0;
+        }
+    }
+
+    fn update_envelope(&mut self) {
+        let mut item = &mut self.envelope;
+        if item.period > 0 {
+            let env_period = item.period as usize * 2;
+            if !item.holding {
+                item.count += 1;
+                if item.count >= env_period {
+                    item.count -= env_period;
+                    item.step -= 1;
+                    if item.step < 0 {
+                        if item.hold {
+                            if item.alternate {
+                                item.attack ^= 0xf;
+                            }
+                            item.holding = true;
+                            item.step = 0;
+                        } else {
+                            if item.alternate && ((item.step & 0x10) > 0) {
+                                item.attack ^= 0xf;
+                            }
+                            item.step &= 0xf;
+                        }
+                    }
+                }
+            }
+            item.volume = (item.step ^ item.attack as i8) as u8;
+        }
+    }
+
+    fn get_noise_value(&mut self) -> usize {
+        let bit0 = self.rng & 0x1;
+        let bit3 = self.rng >> 3 & 0x1;
+        self.rng = (self.rng >> 1) | ((bit0 ^ bit3) << 16);
+        self.rng
+
+        // Galois configuration
+        /*
+        if self.rng & 1 > 0 {
+            self.rng ^= 0x24000;
+        }
+        self.rng >>= 1;
+        self.rng
+        */
+    }
+
+    fn reset(&mut self) {
+        self.current_reg = 0;
+
+        for item in &mut self.tone {
+            item.reset();
+        }
+
+        self.envelope.reset();
+    }
+
+    fn read_register(&self) -> u8 {
+        self.reg[self.current_reg as usize]
+    }
+
+    fn set_register(&mut self, value: u8) {
+        self.current_reg = value;
+    }
+
+    fn write_register(&mut self, value: u8) {
+        self.reg[self.current_reg as usize] = value;
+
+        match self.current_reg {
+            AY_AFINE | AY_ACOARSE => {
+                /*
+                if self.current_reg == AY_AFINE {
+                    eprintln!("{} - AY_AFINE = 0x{:02X}",self._name, value);
+                } else {
+                    eprintln!("{} - AY_ACOARSE = 0x{:02X} 0x{:04X}",self._name, value, self.tone[0].period);
+                }
+                */
+                let coarse = self.reg[AY_ACOARSE as usize];
+                self.tone[0].set_period(self.reg[AY_AFINE as usize], coarse)
+            }
+            AY_BFINE | AY_BCOARSE => {
+                /*
+                if self.current_reg == AY_BFINE {
+                    eprintln!("{} - AY_BFINE = 0x{:02X}",self._name, value);
+                } else {
+                    eprintln!("{} - AY_BCOARSE = 0x{:02X} 0x{:04X}",self._name, value, self.tone[1].period);
+                }
+                */
+                let coarse = self.reg[AY_BCOARSE as usize];
+                self.tone[1].set_period(self.reg[AY_BFINE as usize], coarse)
+            }
+            AY_CFINE | AY_CCOARSE => {
+                /*
+                if self.current_reg == AY_CFINE {
+                    eprintln!("{} - AY_CFINE = 0x{:02X}",self._name, value);
+                } else {
+                    eprintln!("{} - AY_CCOARSE = 0x{:02X} 0x{:04X}",self._name, value, self.tone[2].period);
+                }
+                */
+                let coarse = self.reg[AY_CCOARSE as usize];
+                self.tone[2].set_period(self.reg[AY_CFINE as usize], coarse);
+            }
+            AY_AVOL => {
+                /*
+                eprintln!("{} - AY_AVOL = 0x{:02X}",self._name, value);
+                */
+                self.tone[0].set_volume(self.reg[AY_AVOL as usize])
+            }
+            AY_BVOL => {
+                /*
+                eprintln!("{} - AY_BVOL = 0x{:02X}",self._name, value);
+                */
+                self.tone[1].set_volume(self.reg[AY_BVOL as usize])
+            }
+            AY_CVOL => {
+                /*
+                eprintln!("{} - AY_CVOL = 0x{:02X}",self._name, value);
+                */
+                self.tone[2].set_volume(self.reg[AY_CVOL as usize])
+            }
+            AY_EAFINE | AY_EACOARSE => {
+                /*
+                if self.current_reg == AY_EAFINE {
+                    eprintln!("{} - AY_EAFINE",self._name);
+                } else {
+                    eprintln!("{} - AY_EACOARSE",self._name);
+                }
+                */
+                let coarse = self.reg[AY_EACOARSE as usize];
+                self.envelope
+                    .set_period(self.reg[AY_EAFINE as usize], coarse)
+            }
+            AY_EASHAPE => {
+                /*
+                eprintln!("{} - AY_EASHAPE 0x{:02X}",self._name, value);
+                */
+                self.envelope.set_shape(self.reg[AY_EASHAPE as usize])
+            }
+            AY_NOISE_PERIOD => {
+                /*
+                eprintln!("{} - AY_NOISE_PERIOD 0x{:02X}",self._name, value);
+                */
+                self.noise.set_period(self.reg[AY_NOISE_PERIOD as usize])
+            }
+            AY_ENABLE => {
+                /*
+                eprintln!("{} - AY_ENABLE = 0x{:02X}", self._name, value);
+                */
+            }
+            AY_PORTA => {}
+            AY_PORTB => {}
+
+            _ => {
+                //eprintln!("UNIMPL Register {:02X}", self.current_reg)
+            }
+        }
+    }
+
+    fn get_enable(&self) -> u8 {
+        self.reg[AY_ENABLE as usize]
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct W65C22 {
+    _name: String,
+    orb: u8,
+    ora: u8,
+    ddrb: u8,
+    ddra: u8,
+    t1c: u32,
+    t1l: u16,
+    t1_loading: bool,
+    t1_loaded: bool,
+    t2c: u32,
+    t2ll: u8,
+    t2_loading: bool,
+    t2_loaded: bool,
+    sr: u8,
+    acr: u8,
+    pcr: u8,
+    ifr: u8,
+    ier: u8,
+    cycles: usize,
+    state: u8,
+    ay8910: AY8910,
+    irq_happen: usize,
+}
+
+impl W65C22 {
+    fn new(name: &str) -> Self {
+        W65C22 {
+            _name: name.to_string(),
+            orb: 0,
+            ora: 0,
+            ddrb: 0,
+            ddra: 0,
+            t1c: 0,
+            t1l: 0xffff,
+            t1_loading: false,
+            t1_loaded: false,
+            t2c: 0xffff,
+            t2ll: 0xff,
+            t2_loading: false,
+            t2_loaded: false,
+            sr: 0,
+            acr: 0,
+            pcr: 0,
+            ifr: 0x0,
+            ier: 0x0,
+            cycles: 0,
+            state: AY_INACTIVE,
+            ay8910: AY8910::new(name),
+            irq_happen: 0,
+        }
+    }
+
+    fn tick(&mut self) {
+        self.cycles += 1;
+
+        if !self.t1_loading {
+            self.t1c = self.t1c.wrapping_sub(1);
+
+            if self.t1c == 0xffffffff {
+                if self.t1_loaded {
+                    self.ifr |= 0x40;
+                    self.irq_happen = self.cycles;
+                }
+
+                if self.acr & 0x40 == 0 {
+                    self.t1_loaded = false;
+                }
+            }
+
+            if self.t1c == 0xfffffffe {
+                self.t1c = self.t1l as u32;
+            }
+        } else {
+            self.t1_loading = false;
+        }
+
+        if !self.t2_loading {
+            self.t2c = self.t2c.wrapping_sub(1);
+
+            if self.t2c == 0xffffffff {
+                if self.t2_loaded {
+                    self.ifr |= 0x20;
+                    self.irq_happen = self.cycles;
+                }
+
+                if self.acr & 0x20 == 0 {
+                    self.t2_loaded = false;
+                }
+            }
+        } else {
+            self.t2_loading = false;
+        }
+
+        if self.cycles % 8 == 0 {
+            self.ay8910.tick();
+        }
+    }
+
+    fn reset(&mut self) {
+        self.orb = 0;
+        self.ora = 0;
+        self.ddrb = 0;
+        self.ddra = 0;
+        self.t1_loaded = false;
+        self.t2_loaded = false;
+        self.sr = 0;
+        self.acr = 0;
+        self.pcr = 0;
+        self.ifr = 0x0;
+        self.ier = 0x0;
+        self.state = AY_INACTIVE;
+
+        self.ay8910.reset();
+    }
+
+    fn poll_irq(&mut self) -> Option<usize> {
+        let irqb = self.ier & self.ifr;
+
+        if irqb > 0 {
+            Some(self.irq_happen)
+        } else {
+            None
+        }
+    }
+
+    fn ay8910_write(&mut self, value: u8) {
+        if value == AY_RESET {
+            self.ay8910.reset();
+        } else if self.state == AY_INACTIVE {
+            match value {
+                AY_READ_DATA => self.ora = self.ay8910.read_register() & (self.ddra ^ 0xff),
+                AY_WRITE_DATA => self.ay8910.write_register(self.ora),
+                AY_SET_PSG_REG => {
+                    if self.ora <= 0x0f {
+                        self.ay8910.set_register(self.ora & 0xf);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn update_ifr(&mut self, value: u8) {
+        self.ifr &= !value;
+        let input_value = self.ifr;
+        let irq = input_value & self.ier & 0x7f;
+        if irq > 0 {
+            self.ifr = input_value | 0x80;
+        } else {
+            self.ifr = input_value;
+        }
+    }
+
+    fn io_access(&mut self, addr: u8, value: u8, write_flag: bool) -> u8 {
+        let mut return_addr: u8 = 0;
+        match addr {
+            // ORB
+            0x10 | 0x00 => {
+                if write_flag {
+                    self.orb = value & self.ddrb;
+                    self.ay8910_write(value & 0xf);
+                } else {
+                    //eprintln!("Read ORB {:02X} with {:02X}", addr, self.orb);
+                    self.ifr &= !0x18;
+                    return_addr = self.orb;
+                }
+            }
+
+            // ORA
+            0x11 | 0x01 => {
+                if write_flag {
+                    //eprintln!("Write ORA {:02X} with {:02X}", addr, value);
+                    self.ora = value & self.ddra;
+                } else {
+                    //eprintln!("Read ORA {:02X} with {:02X}", addr, self.ora);
+                    self.ifr &= !0x03;
+                    return_addr = self.ora;
+                }
+            }
+
+            // DDRB
+            0x12 | 0x02 => {
+                if write_flag {
+                    //eprintln!("Write DDRB {:02X} with {:02X}", addr, value);
+                    self.ddrb = value;
+                } else {
+                    //eprintln!("Read DDRB {:02X} with {:02X}", addr, self.ddrb);
+                    return_addr = self.ddrb;
+                }
+            }
+
+            // DDRA
+            0x13 | 0x03 => {
+                if write_flag {
+                    //eprintln!("Write DDRA {:02X} with {:02X}", addr, value);
+                    self.ddra = value;
+                } else {
+                    //eprintln!("Read DDRA {:02X} with {:02X}", addr, self.ddra);
+                    return_addr = self.ddra;
+                }
+            }
+
+            // T1C-L
+            0x14 | 0x04 => {
+                if write_flag {
+                    self.t1l = self.t1l & 0xff00 | value as u16;
+                } else {
+                    self.ifr &= !0x40;
+                    return_addr = (self.t1c & 0xff) as u8;
+                }
+            }
+
+            // T1C-H
+            0x15 | 0x05 => {
+                if write_flag {
+                    self.ifr &= !0x40;
+                    self.t1l = ((value as u16) << 8) | self.t1l & 0x00ff;
+                    self.t1c = ((self.t1l & 0xff00) | (self.t1l & 0xff)) as u32;
+                    self.t1_loading = true;
+                    self.t1_loaded = true;
+                } else {
+                    return_addr = (self.t1c >> 8) as u8;
+                }
+            }
+
+            // T1L-L
+            0x16 | 0x06 => {
+                if write_flag {
+                    self.t1l = self.t1l & 0xff00 | value as u16;
+                } else {
+                    return_addr = (self.t1l & 0x00ff) as u8;
+                }
+            }
+
+            // T1L-H
+            0x17 | 0x07 => {
+                if write_flag {
+                    self.ifr &= !0x40;
+                    self.t1l = ((value as u16) << 8) | self.t1l & 0x0ff;
+                } else {
+                    return_addr = ((self.t1l & 0xff00) >> 8) as u8;
+                }
+            }
+
+            // T2C-L
+            0x18 | 0x08 => {
+                if write_flag {
+                    self.t2ll = value;
+                    self.t2c = (self.t2c & 0xff00) | value as u32;
+                } else {
+                    self.ifr &= !0x20;
+                    return_addr = (self.t2c & 0xff) as u8;
+                }
+            }
+
+            // T2C-H
+            0x19 | 0x09 => {
+                if write_flag {
+                    self.t2c = (value as u32) << 8 | self.t2ll as u32;
+                    self.t2_loading = true;
+                    self.t2_loaded = true;
+                    self.ifr &= !0x20;
+                } else {
+                    return_addr = (self.t2c >> 8) as u8;
+                }
+            }
+
+            // SR
+            0x1a | 0x0a => {
+                if !write_flag {
+                    return_addr = self.sr;
+                } else {
+                    self.sr = value;
+                }
+            }
+
+            // ACR
+            0x1b | 0x0b => {
+                if !write_flag {
+                    return_addr = self.acr;
+                } else {
+                    self.acr = value;
+                }
+            }
+
+            // PCR
+            0x1c | 0x0c => {
+                if !write_flag {
+                    return_addr = self.pcr;
+                } else {
+                    self.pcr = value;
+                }
+            }
+
+            // IFR
+            0x1d | 0x0d => {
+                if !write_flag {
+                    let input_value = self.ifr & 0x7f;
+
+                    let irq = input_value & self.ier & 0x7f;
+                    if irq > 0 {
+                        return_addr = input_value | 0x80;
+                    } else {
+                        return_addr = input_value;
+                    }
+                } else {
+                    self.update_ifr(value);
+                }
+            }
+
+            // IER
+            0x1e | 0x0e => {
+                if !write_flag {
+                    return_addr = self.ier | 0x80;
+                } else if value > 0x80 {
+                    self.ier |= value & 0x7f;
+                } else {
+                    self.ier &= value ^ 0x7f;
+                }
+            }
+
+            _ => {
+                //eprintln!("{} - UNIMP 6522 Register 0x{:02x}", self._name, addr)
+            }
+        }
+        return_addr
+    }
+}
+
+impl Default for W65C22 {
+    fn default() -> Self {
+        Self::new("")
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Mockingboard {
+    w65c22: Vec<W65C22>,
+    slot_address: u16,
+    rng: usize,
+}
+
+impl Mockingboard {
+    pub fn new() -> Self {
+        Self::new_with_slot(4)
+    }
+
+    pub fn new_with_slot(slot: usize) -> Self {
+        let slot_address: u16 = ((0xc0 + slot) as u16) << 8;
+        Mockingboard {
+            w65c22: vec![W65C22::new("#1"), W65C22::new("#2")],
+            slot_address,
+            rng: 1,
+        }
+    }
+
+    pub fn tick(&mut self) {
+        self.w65c22[0].tick();
+        self.w65c22[1].tick();
+    }
+
+    pub fn reset(&mut self) {
+        self.w65c22[0].reset();
+        self.w65c22[1].reset();
+        self.rng = 1;
+    }
+
+    pub fn poll_irq(&mut self) -> Option<usize> {
+        let result1 = self.w65c22[0].poll_irq();
+        let result2 = self.w65c22[1].poll_irq();
+        if result1.is_some() {
+            result1
+        } else if result2.is_some() {
+            result2
+        } else {
+            None
+        }
+    }
+
+    pub fn get_tone_level(&self, chip: usize, channel: usize) -> bool {
+        self.w65c22[chip].ay8910.tone[channel].level
+    }
+
+    pub fn get_tone_period(&self, chip: usize, channel: usize) -> usize {
+        self.w65c22[chip].ay8910.tone[channel].period as usize
+    }
+
+    pub fn get_tone_volume(&self, chip: usize, channel: usize) -> usize {
+        let vol = self.w65c22[chip].ay8910.tone[channel].volume as usize;
+        if vol & 0x10 > 0 {
+            // Envelope volume mode
+            self.w65c22[chip].ay8910.envelope.volume as usize & 0xf
+        } else {
+            vol & 0xf
+        }
+    }
+
+    pub fn get_noise_level(&self, chip: usize) -> bool {
+        self.w65c22[chip].ay8910.noise.level
+    }
+
+    pub fn get_noise_period(&self, chip: usize) -> usize {
+        self.w65c22[chip].ay8910.noise.period as usize
+    }
+
+    pub fn get_noise_value(&mut self) -> usize {
+        /*
+        let bit0 = self.rng & 0x1;
+        let bit3 = self.rng >> 3 & 0x1;
+        self.rng = (self.rng >> 1) | ((bit0 ^ bit3) << 16);
+        self.rng
+        */
+        // Galois configuration
+        if self.rng & 1 > 0 {
+            self.rng ^= 0x24000;
+        }
+        self.rng >>= 1;
+        self.rng
+    }
+
+    pub fn get_channel_enable(&self, chip: usize) -> u8 {
+        self.w65c22[chip].ay8910.get_enable()
+    }
+
+    pub fn io_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
+        let map_addr = (addr - self.slot_address) as u8;
+        if map_addr < 0x80 {
+            self.w65c22[0].io_access(map_addr, value, write_flag)
+        } else {
+            self.w65c22[1].io_access(map_addr - 0x80, value, write_flag)
+        }
+    }
+}
+
+impl Default for Mockingboard {
+    // Default to use mockingboard in slot 4
+    fn default() -> Self {
+        Self::new()
+    }
+}

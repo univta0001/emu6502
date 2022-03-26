@@ -1,0 +1,19 @@
+[workspace]
+members = [
+    "emulator",
+    "sdl_frontend",
+    "self_test",
+]
+
+[profile.test]
+opt-level = 3
+
+[profile.dev]
+opt-level = 1
+
+[profile.release]
+lto = true
+opt-level = 3
+codegen-units = 1
+debug = true
+

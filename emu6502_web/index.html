@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Apple ][ Emulator</title>
+    <!-- <script src="https://cdn.tailwindcss.com"></script> -->
+    <link rel="stylesheet" type="text/css" href="style.css" media="screen" />
+</head>
+<body>
+    <div class= "flex flex-col justify-center items-center my-4">
+        <div class="relative">
+            <div class="emu6502">
+                <canvas width="1120" height="768"></canvas>
+                <audio></audio>
+            </div>
+            <div id="motor" class="absolute top-0 left-0 opacity-25" style="visibility:hidden">
+                <svg height="20" width="20">
+                    <circle cx="10" cy="10" r="5" fill="red" />
+                </svg>
+            </div>
+        </div>
+    </div>
+    <center>
+    <div id="drive">
+        <!-- <span id = "speed"> </span> -->
+        <a id="disk1" class="button shadow hover:shadow-lg border-2 rounded-full font-bold py-2 px-3 cursor-pointer hover:bg-sky-400" href="#">Insert D1</a> 
+        <a id="disk2" class="button shadow hover:shadow-lg border-2 rounded-full font-bold py-2 px-3 cursor-pointer hover:bg-sky-400" href="#">Insert D2</a> 
+        <a id="joystick" class="button shadow hover:shadow-lg border-2 rounded-full font-bold py-2 px-3 cursor-pointer hover:bg-sky-400" href="#">Toggle Joystick</a> 
+        <input type="checkbox" id="video50hz" name="video50hz"> 50Hz Video </input>
+    </div>
+    </center>
+
+    <script type="module">
+        import init, * as wasm from './pkg/emu6502_web.js';
+
+        (async () => {
+            await init();
+            const emu6502 = await wasm.init_emul();
+
+            const load_disk = (success, filter=".dsk,.po,.woz") => {
+                var frm = document.createElement("form");
+                var upload = document.createElement("input");
+                upload.type = "file";
+                upload.accept = filter;
+                upload.style.opacity = 0;
+                upload.oninput = function(e) {
+
+                    if (upload.files.length > 0) {
+                        var f = upload.files[0];
+                        f.arrayBuffer().then(content => {
+                            var length = content.byteLength;
+                            if (success != null) {
+                              success( f.name, new Uint8ClampedArray(content));
+                            }
+                        }).catch( err => {
+                            console.log("Error reading file: "+err);
+                        });
+                    }
+                    document.body.removeChild(frm);
+                };
+                frm.appendChild(upload);
+                document.body.appendChild(frm);
+                upload.click();
+            };
+    
+            document.getElementById("disk1").addEventListener("click", function() {
+                load_disk( (name, content) => {
+                    emu6502.load_disk(name,content,0);
+                });        
+            }); 
+
+            document.getElementById("disk2").addEventListener("click", function() {
+                load_disk( (name, content) => {
+                    emu6502.load_disk(name,content,1);
+                });        
+            }); 
+
+            document.getElementById("joystick").addEventListener("click", function() {
+                emu6502.toggle_joystick();
+            });     
+
+            document.getElementById("video50hz").addEventListener("change", function(e) {
+                if (e.currentTarget.checked) {
+                    emu6502.video_50hz(true);
+                } else {
+                    emu6502.video_50hz(false);
+                }
+            });
+
+            const ascii_to_int = (ch) => ch.charCodeAt(0);
+
+            // Setup Keyboard Handler
+            const onKeydown = (e) => {
+                if (e.isComposing || e.keyCode === 229) {
+                    return; 
+                }
+               
+                if (e.keyCode == 37) {
+                    // Keycode.Left
+                    return emu6502.keyboard_latch(8);
+                }
+
+                if (e.keyCode == 39) {
+                    // Keycode.Right
+                    return emu6502.keyboard_latch(21);
+                }
+
+                if (e.keyCode == ascii_to_int(']') && e.ctrlKey) {
+                    return emu6502.keyboard_latch(29);
+                }
+
+                let value = e.keyCode & 0x7f;
+                let apple2e = emu6502.is_apple2e();
+                let shift_mode = e.shiftKey;
+                let ctrl_mode = e.ctrlKey;
+                let caps_mode = e.getModifierState("CapsLock");
+                let leftAlt = e.keyCode == 18 && e.location == 1;
+                let rightAlt = e.keyCode == 18 && e.location == 2;
+
+                if (e.keyCode == 20) {
+                    key_caps = caps_mode;
+                }
+
+                // Handle reset key
+                if (ctrl_mode && (e.keyCode == 123 || e.keyCode == 19)) {
+                    emu6502.interrupt_reset();
+                    return
+                }
+
+                if (leftAlt) {
+                    emu6502.pushbutton_latch(0,0x80);
+                }
+
+                if (rightAlt) {
+                    emu6502.pushbutton_latch(1,0x80);
+                }
+
+                // Handle keypad joystick
+                // Numpad 4
+                if (e.keyCode == 100) {
+                    emu6502.set_paddle(0,0);
+                    return;
+                }
+
+                // Numpad 6
+                if (e.keyCode == 102) {
+                    emu6502.set_paddle(0,0xff);
+                    return;
+                }
+
+                // Numpad 8
+                if (e.keyCode == 104) {
+                    emu6502.set_paddle(1,0);
+                    return;
+                }
+
+                // Numpad 2 
+                if (e.keyCode == 98) {
+                    emu6502.set_paddle(1,0xff);
+                    return;
+                }
+                
+
+                if (ascii_to_int('A') <= value && value <= ascii_to_int('Z') && 
+                    (apple2e && !shift_mode && !ctrl_mode && !key_caps)) {
+                    value += 32;
+                }
+
+                if (e.keyCode == 221) {
+                    value = ascii_to_int(']');
+                }
+
+                if (e.keyCode == 188) {
+                    value = ascii_to_int(',');
+                }
+
+                if (e.keyCode == 190) {
+                    value = ascii_to_int('.');
+                }
+
+                if (e.keyCode == 191) {
+                    value = ascii_to_int('/');
+                }
+
+                if (e.keyCode == 186) {
+                    value = ascii_to_int(';');
+                }
+
+                if (e.keyCode == 222) {
+                    value = ascii_to_int('\'');
+                }
+
+                if (e.keyCode == 192) {
+                    value = ascii_to_int('`');
+                }
+
+                if (shift_mode) {
+                    switch (e.keyCode) {
+                        // Backquote
+                        case 192 : value = ascii_to_int('~'); break;
+                        // Num 1
+                        case 49: value = ascii_to_int('!'); break;
+                        // Num 2
+                        case 50: value = ascii_to_int('@'); break;
+                        // Num 3
+                        case 51: value = ascii_to_int('#'); break;
+                        // Num 4
+                        case 52: value = ascii_to_int('$'); break;
+                        // Num 5
+                        case 53: value = ascii_to_int('%'); break;
+                        // Num 6
+                        case 54: value = ascii_to_int('^'); break;
+                        // Num 7
+                        case 55: value = ascii_to_int('&'); break;
+                        // Num 8
+                        case 56: value = ascii_to_int('*'); break;
+                        // Num 9
+                        case 57: value = ascii_to_int('('); break;
+                        // Num 0
+                        case 48: value = ascii_to_int(')'); break;
+                        // Minus
+                        case 173: value = ascii_to_int('_'); break;
+                        // Equals
+                        case 61: value = ascii_to_int('+'); break;
+                        // Semicolon
+                        case 59: value = ascii_to_int(':'); break;
+                        // Quote
+                        case 222: value = ascii_to_int('"'); break;
+                        // Comma
+                        case 188: value = ascii_to_int('<'); break;
+                        // Period
+                        case 190: value = ascii_to_int('>'); break;
+                        // Slash
+                        case 191: value = ascii_to_int('?'); break;
+                    }
+
+                    if (!apple2e) {
+                        switch (e.keyCode) {
+                            case 77 : value = ascii_to_int(']'); break;
+                            case 78 : value = ascii_to_int('^'); break;
+                            case 80 : value = ascii_to_int('@'); break;
+                        }
+                    } else {
+                        switch (e.keyCode) {
+                            case 220 : value = ascii_to_int('|'); break;
+                            case 219 : value = ascii_to_int('{'); break;
+                            case 221 : value = ascii_to_int('}'); break;
+                        }
+                    }
+                }
+
+                if (ctrl_mode && ((ascii_to_int('A') <= value && value <= ascii_to_int('Z'))
+                    || (value == ascii_to_int(']'))
+                    || (value == ascii_to_int('^'))
+                    || (value == ascii_to_int('@'))))
+                {
+                    value -= 64;
+                }
+
+                // Ignore Shift, CTRL and Caps Lock keys
+                if (e.keyCode == 16 || e.keyCode == 17 || e.keyCode == 20) {
+                    return;
+                }
+
+                return emu6502.keyboard_latch(value);
+            }
+
+            const onKeyup = (e) => {
+                if (e.isComposing || e.keyCode === 229) {
+                    return; 
+                }
+                
+                let leftAlt = e.keyCode == 18 && e.location == 1;
+                let rightAlt = e.keyCode == 18 && e.location == 2;
+
+                if (leftAlt) {
+                    emu6502.pushbutton_latch(0,0x0);
+                }
+
+                if (rightAlt) {
+                    emu6502.pushbutton_latch(1,0x0);
+                }     
+
+                // Handle keypad joystick
+                // Numpad 4
+                if (e.keyCode == 100) {
+                    emu6502.reset_paddle(0);
+                    return;
+                }
+
+                // Numpad 6
+                if (e.keyCode == 102) {
+                    emu6502.reset_paddle(0);
+                    return;
+                }
+
+                // Numpad 8
+                if (e.keyCode == 104) {
+                    emu6502.reset_paddle(1);
+                    return;
+                }
+
+                // Numpad 2 
+                if (e.keyCode == 98) {
+                    emu6502.reset_paddle(1);
+                    return;
+                }
+
+            }
+
+            const setupKeyHandler = () => {
+                if (typeof window !== 'undefined') {
+                    document.addEventListener('keydown', onKeydown);
+                    document.addEventListener('keyup', onKeyup);
+                }
+            };
+
+            setupKeyHandler();
+
+            // Graphics Context 
+            const canvas = document.querySelector("canvas");
+            const canvas_width = canvas.width;
+            const canvas_height = canvas.height;
+            const ctx_2d = canvas.getContext('2d');
+
+            // Audio Context
+            window.AudioContext = window.AudioContext || window.webkitAudioContext;
+            const ctx_audio = new AudioContext();
+
+            const update_ui = () => {
+                let arr = emu6502.frame_buffer();
+                let imageData = new ImageData(arr, 560);
+                createImageBitmap(imageData).then(renderer =>
+                    ctx_2d.drawImage(renderer,0,0, canvas_width, canvas_height)
+                );
+
+                if (emu6502.is_disk_motor_on()) {
+                    let motor = document.getElementById("motor");
+                    if (motor != null) {
+                        motor.style.visibility = "visible";
+                    }
+                } else {
+                    let motor = document.getElementById("motor");
+                    if (motor != null) {
+                        motor.style.visibility = "hidden";
+                    }
+                }
+            }
+
+            const update_audio = () => {
+                let data = emu6502.sound_buffer();
+                if (data.length >= 8192*4)
+                {
+                    let audio_buffer = ctx_audio.createBuffer(2, data.length/2, 48000);
+                    let left_audio = audio_buffer.getChannelData(0);
+                    let right_audio = audio_buffer.getChannelData(1);
+                    for (var i=0;i<data.length/2;i++) {
+                        left_audio[i] = data[2*i] / 32768.0;
+                        right_audio[i] = data[2*i+1] / 32768.0;
+                    }
+                    let audio_source = ctx_audio.createBufferSource();
+                    let audio_gain = ctx_audio.createGain();
+                    audio_gain.gain.value = 1.0;
+                    audio_source.buffer = audio_buffer;
+                    audio_source.connect(audio_gain);
+                    audio_gain.connect(ctx_audio.destination);
+                    audio_source.start(ctx_audio.currentTime);
+
+                    emu6502.clear_sound_buffer();
+                }
+            }
+            
+            var then = 0;
+            var start_time = performance.now();
+            var prev_cycles = 0;
+            var cpu_delta = 0;
+            var key_caps = true;
+
+            const runloop = async (now) => {
+                if (!then) { then = now; }
+
+                let delta = now - then;
+
+                let cpu_6502_cycles = 17030;
+                let cpu_refresh = 16;
+
+                if (emu6502.is_video_50hz()) {
+                    cpu_6502_cycles = 20280;
+                    cpu_refresh = 20;
+                }
+
+                if (delta >= cpu_refresh) 
+                //delta = 0;
+                {
+                    then = now - (delta % cpu_refresh);
+
+                    while (emu6502.cpu_cycles()-prev_cycles + cpu_delta < cpu_6502_cycles) 
+                    {
+                        emu6502.step_cpu();
+                    } 
+                    cpu_delta=(emu6502.cpu_cycles()-prev_cycles+cpu_delta) % cpu_6502_cycles;
+                    prev_cycles = emu6502.cpu_cycles();
+                    update_ui();
+                    update_audio();  
+                }
+
+                //console.log(emu6502.cpu_cycles());
+                //console.log(emu6502.sound_buffer().length);
+
+                let elapsed = performance.now() - start_time;
+                let cycles = emu6502.cpu_cycles();
+                let mhz = cycles/(1000.0*elapsed);
+                let speed = document.getElementById("speed");
+
+                if (speed != null) {
+                    speed.innerHTML = `Estimated Mhz: ${mhz.toFixed(4)} Mhz`;
+                }
+
+                window.requestAnimationFrame(runloop);
+            };
+
+            await runloop();
+
+        })()
+
+    </script>
+</body>
+</html>

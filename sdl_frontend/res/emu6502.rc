@@ -1,0 +1,8 @@
+#include "windows.h"
+#include "resource.h"
+
+// Icon with lowest ID value placed first to ensure application icon
+// remains consistent on all systems.
+IDC_APPLE2              ICON                    "apple2.ico"
+APPLE2_ICON             ICON                    "apple2.ico"
+
