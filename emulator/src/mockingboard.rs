@@ -154,7 +154,7 @@ struct AY8910 {
 impl AY8910 {
     fn new(name: &str) -> Self {
         AY8910 {
-            _name: name.to_string(),
+            _name: name.to_owned(),
             current_reg: 0,
             reg: vec![0; 16],
             tone: vec![Tone::new(), Tone::new(), Tone::new()],
@@ -369,7 +369,7 @@ struct W65C22 {
     t1l: u16,
     t1_loading: bool,
     t1_loaded: bool,
-    t2c: u32,
+    t2c: u16,
     t2ll: u8,
     t2_loading: bool,
     t2_loaded: bool,
@@ -387,7 +387,7 @@ struct W65C22 {
 impl W65C22 {
     fn new(name: &str) -> Self {
         W65C22 {
-            _name: name.to_string(),
+            _name: name.to_owned(),
             orb: 0,
             ora: 0,
             ddrb: 0,
@@ -439,7 +439,7 @@ impl W65C22 {
         if !self.t2_loading {
             self.t2c = self.t2c.wrapping_sub(1);
 
-            if self.t2c == 0xffffffff {
+            if self.t2c == 0xffff {
                 if self.t2_loaded {
                     self.ifr |= 0x20;
                     self.irq_happen = self.cycles;
@@ -608,7 +608,7 @@ impl W65C22 {
             0x18 | 0x08 => {
                 if write_flag {
                     self.t2ll = value;
-                    self.t2c = (self.t2c & 0xff00) | value as u32;
+                    self.t2c = (self.t2c & 0xff00) | value as u16;
                 } else {
                     self.ifr &= !0x20;
                     return_addr = (self.t2c & 0xff) as u8;
@@ -618,7 +618,7 @@ impl W65C22 {
             // T2C-H
             0x19 | 0x09 => {
                 if write_flag {
-                    self.t2c = (value as u32) << 8 | self.t2ll as u32;
+                    self.t2c = (value as u16) << 8 | self.t2ll as u16;
                     self.t2_loading = true;
                     self.t2_loaded = true;
                     self.ifr &= !0x20;
@@ -799,4 +799,100 @@ impl Default for Mockingboard {
     fn default() -> Self {
         Self::new()
     }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn setup(w65c22: &mut W65C22) {
+        // Write to T1C-L and T1C-H
+        w65c22.io_access(0x04,0x05,true);
+        w65c22.io_access(0x08,0x05,true);
+
+        // Write to T1C-H and T2C-H
+        w65c22.io_access(0x05,0x00,true);
+        w65c22.io_access(0x09,0x00,true);
+    }
+
+    #[test]
+    fn test_w65c22_t1_loading() {
+        let mut w65c22 = W65C22::new("#1");
+        setup(&mut w65c22);
+        assert_eq!(w65c22.t1_loading, true, "T1C T1 loading should be true");
+    }
+
+    #[test]
+    fn test_w65c22_t1_loaded() {
+        let mut w65c22 = W65C22::new("#1");
+        setup(&mut w65c22);
+        assert_eq!(w65c22.t1_loaded, true, "T1C T1 loaded should be true");
+    }    
+
+    #[test]
+    fn test_w65c22_t1_load_ifr() {
+        let mut w65c22 = W65C22::new("#1");
+        setup(&mut w65c22);
+        assert_eq!(w65c22.ifr & 0x40 == 0, true, "T1 IFR should be cleared");
+    }
+
+    #[test]
+    fn test_w65c22_t1_load_value() {
+        let mut w65c22 = W65C22::new("#1");
+        setup(&mut w65c22);
+        assert_eq!(w65c22.ifr & 0x40 == 0, true, "T1 IFR should be cleared");
+        assert_eq!(w65c22.t1c, 0x05, "T1 counter should be 5");
+    }
+
+
+    #[test]
+    fn test_w65c22_t1_initial_load() {
+        let mut w65c22 = W65C22::new("#1");
+        setup(&mut w65c22);
+        w65c22.tick();
+        assert_eq!(w65c22.t1c, 0x05, "T1 counter initial load should be 5");
+    }    
+
+    #[test]
+    fn test_w65c22_t1_countdown() {
+        let mut w65c22 = W65C22::new("#1");
+        setup(&mut w65c22);
+        for _ in 0..6 {
+            w65c22.tick();
+        }
+        assert_eq!(w65c22.t1c, 0x00, "T1 counter after tick should be 0");
+        assert_eq!(w65c22.ifr & 0x40 == 0, true, "T1 IFR should not be set");
+    }    
+
+    #[test]
+    fn test_w65c22_t1_underflow() {
+        let mut w65c22 = W65C22::new("#1");
+        setup(&mut w65c22);
+        for _ in 0..7 {
+            w65c22.tick();
+        }
+        assert_eq!(w65c22.ifr & 0x40 > 0, true, "T1 IFR is should be set");
+        w65c22.tick();
+        assert_eq!(w65c22.t1c, 0x05, "T1 counter should be reset after underflow");
+    }   
+
+    #[test]
+    fn test_w65c22_t1_reload() {
+        let mut w65c22 = W65C22::new("#1");
+        setup(&mut w65c22);
+        for _ in 0..8 {
+            w65c22.tick();
+        }
+        w65c22.io_access(0x04,0x00,false);
+        assert_eq!(w65c22.ifr & 0x40 == 0, true, "T1 IFR should be cleared");
+        assert_eq!(w65c22.t1c, 0x05, "T1 counter should be reset to 5");
+        assert_eq!(w65c22.t2c, 0xfffe, "T2 counter should be 0xfffe");
+
+        w65c22.tick();
+        assert_eq!(w65c22.t1c, 0x04, "T1 counter after IRQ load should be 4");
+        for _ in 0..5 {
+            w65c22.tick();
+        }        
+        assert_eq!(w65c22.ifr & 0x40 == 0, true, "T1 IFR should not be set as T1 is not loaded");
+    }   
 }

@@ -20,3 +20,5 @@ criterion = { version = "0.3.5", features = ['html_reports'] }
 name = "cpu_bench"
 harness = false
 
+[lib]
+doctest = false

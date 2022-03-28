@@ -1548,7 +1548,7 @@ impl DiskDrive {
 
     pub fn set_disk_filename(&mut self, filename: &str) {
         let disk = &mut self.drive[self.drive_select];
-        disk.filename = filename.to_string();
+        disk.filename = filename.to_owned();
     }
 
     pub fn set_loaded(&mut self, state: bool) {
@@ -1562,7 +1562,7 @@ impl DiskDrive {
         disk.head_mask = 0x80;
         disk.head_bit = 0;
         disk.write_protect = false;
-        disk.filename = "".to_string();
+        disk.filename = "".to_owned();
         disk.modified = false;
         disk.po_mode = false;
 
@@ -1830,7 +1830,7 @@ impl Disk {
             motor_status: false,
             modified: false,
             po_mode: false,
-            filename: "".to_string(),
+            filename: "".to_owned(),
             loaded: false,
         }
     }
