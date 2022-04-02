@@ -15,7 +15,7 @@ sdl2 = "0.35.2"
 #sdl2 = { version = "0.35.2", features = ['bundled', 'static-link'] }
 
 [build-dependencies]
-embed-resource = "1.7.1"
+embed-resource = "1.7.2"
 
 [[bin]]
 name = "emu6502"
