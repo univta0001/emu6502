@@ -12,6 +12,7 @@ instant = { version = "0.1.12", features = ["wasm-bindgen"] }
 [target.x86_64-unknown-linux-gnu.dependencies]
 pprof = { version = "0.7.0", features = ["flamegraph","protobuf"] }
 symbolic-demangle = "8.7.0"
+inferno = "0.11.1"
 
 [[bin]]
 name = "self_test"
