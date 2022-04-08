@@ -315,7 +315,7 @@ fn decode_4x4_value(val1: u8, val2: u8) -> u8 {
     ((val1 << 1) | 0x1) & val2
 }
 
-fn bits_write_byte(buf: &mut Vec<u8>, index: usize, value: u8) -> usize {
+fn bits_write_byte(buf: &mut [u8], index: usize, value: u8) -> usize {
     let shift = index & 7;
     let byte_position = index >> 3;
 
@@ -326,13 +326,13 @@ fn bits_write_byte(buf: &mut Vec<u8>, index: usize, value: u8) -> usize {
     index + 8
 }
 
-fn bits_write_4_and_4(buf: &mut Vec<u8>, indx: usize, value: u8) -> usize {
+fn bits_write_4_and_4(buf: &mut [u8], indx: usize, value: u8) -> usize {
     let mut index = bits_write_byte(buf, indx, (value >> 1) | 0xAA);
     index = bits_write_byte(buf, index, value | 0xAA);
     index
 }
 
-fn bits_write_sync(buf: &mut Vec<u8>, index: usize) -> usize {
+fn bits_write_sync(buf: &mut [u8], index: usize) -> usize {
     let index = bits_write_byte(buf, index, 0xFF);
     index + 2
 }
