@@ -603,7 +603,6 @@ impl Video {
     }
 
     pub fn update_video(&mut self) {
-
         let val = if !self.video_50hz {
             self.cycles % CYCLES_PER_FIELD_60HZ
         } else {
@@ -732,7 +731,7 @@ impl Video {
                 } else {
                     self.cycles % CYCLES_PER_FIELD_50HZ
                 };
-                
+
                 let row = val / CYCLES_PER_ROW;
                 if row < 192 {
                     return 0x80;

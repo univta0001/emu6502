@@ -159,7 +159,14 @@ pub const OPCODES: [OpCode; 256] = [
     OpCode::new(0x79, "ADC", 3, 4, AddressingMode::Absolute_Y, false),
     OpCode::new(0x7a, "PLY", 1, 4, AddressingMode::NoneAddressing, true),
     OpCode::new(0x7b, "???", 1, 1, AddressingMode::NoneAddressing, true),
-    OpCode::new(0x7c, "JMP", 3, 6, AddressingMode::Indirect_Absolute_X, false),
+    OpCode::new(
+        0x7c,
+        "JMP",
+        3,
+        6,
+        AddressingMode::Indirect_Absolute_X,
+        false,
+    ),
     OpCode::new(0x7d, "ADC", 3, 4, AddressingMode::Absolute_X, false),
     OpCode::new(0x7e, "ROR", 3, 7, AddressingMode::Absolute_X, false),
     OpCode::new(0x7f, "BBR7", 3, 5, AddressingMode::ZeroPage_Relative, true),
@@ -1310,9 +1317,9 @@ impl CPU {
 
             // If the interrupt happens on the last cycle of the opcode, execute the opcode and
             // then the interrupt handling routine
-            if cycles_elapsed > 0 { 
+            if cycles_elapsed > 0 {
                 self.interrupt(interrupt::IRQ);
-            } 
+            }
         }
 
         self.callback = true;
@@ -1641,13 +1648,12 @@ impl CPU {
             }
 
             /* NOP1 */
-            0x03 | 0x13 | 0x23 | 0x33 | 0x43 | 0x53 | 0x63 | 0x73 | 0x83 | 0x93 | 0xa3 |
-            0xb3 | 0xc3 | 0xd3 | 0xe3 | 0xf3 | 0x0b | 0x1b | 0x2b | 0x3b | 0x4b | 0x5b | 
-            0x6b | 0x7b | 0x8b | 0x9b | 0xab | 0xbb | 0xcb | 0xdb | 0xeb | 0xfb => {
-            }
+            0x03 | 0x13 | 0x23 | 0x33 | 0x43 | 0x53 | 0x63 | 0x73 | 0x83 | 0x93 | 0xa3 | 0xb3
+            | 0xc3 | 0xd3 | 0xe3 | 0xf3 | 0x0b | 0x1b | 0x2b | 0x3b | 0x4b | 0x5b | 0x6b | 0x7b
+            | 0x8b | 0x9b | 0xab | 0xbb | 0xcb | 0xdb | 0xeb | 0xfb => {}
 
             /* NOP */
-            0xea => { 
+            0xea => {
                 //do nothing
                 self.tick();
             }
@@ -1747,7 +1753,6 @@ impl CPU {
                     self.tick();
                     self.tick();
                 }
-
             }
 
             /* NOPs */
@@ -2221,14 +2226,14 @@ mod test {
         cpu.m65c02 = true;
         for step in (0..=255).step_by(16) {
             cpu.bus.set_cycles(0);
-            cpu.load_and_run(&[0x03+step,0x00]);
+            cpu.load_and_run(&[0x03 + step, 0x00]);
             assert_eq!(cpu.bus.get_cycles(), 1, "NOP1 opcodes should have 1 cycle");
 
             cpu.bus.set_cycles(0);
-            cpu.load_and_run(&[0x0b+step,0x00]);
-            assert_eq!(cpu.bus.get_cycles(), 1, "NOP1 opcodes should have 1 cycle");            
+            cpu.load_and_run(&[0x0b + step, 0x00]);
+            assert_eq!(cpu.bus.get_cycles(), 1, "NOP1 opcodes should have 1 cycle");
         }
-    }   
+    }
 
     #[test]
     fn test_65c02_nop_ldd() {
@@ -2236,13 +2241,17 @@ mod test {
         let mut cpu = CPU::new(bus);
         cpu.reset();
         cpu.m65c02 = true;
-        let opcodes = [0x02,0x22,0x42,0x62,0x82,0xc2,0xe2];
+        let opcodes = [0x02, 0x22, 0x42, 0x62, 0x82, 0xc2, 0xe2];
         for code in opcodes {
             cpu.bus.set_cycles(0);
-            cpu.load_and_run(&[code,0x00,0x00]);
-            assert_eq!(cpu.bus.get_cycles(), 2, "NOP ldd opcodes should have 2 cycles");
+            cpu.load_and_run(&[code, 0x00, 0x00]);
+            assert_eq!(
+                cpu.bus.get_cycles(),
+                2,
+                "NOP ldd opcodes should have 2 cycles"
+            );
         }
-    }      
+    }
 
     #[test]
     fn test_65c02_nop_ldd_zpg() {
@@ -2253,10 +2262,14 @@ mod test {
         let opcodes = [0x44];
         for code in opcodes {
             cpu.bus.set_cycles(0);
-            cpu.load_and_run(&[code,0x00,0x00]);
-            assert_eq!(cpu.bus.get_cycles(), 3, "NOP ldd zpg opcodes should have 3 cycles");
+            cpu.load_and_run(&[code, 0x00, 0x00]);
+            assert_eq!(
+                cpu.bus.get_cycles(),
+                3,
+                "NOP ldd zpg opcodes should have 3 cycles"
+            );
         }
-    }    
+    }
 
     #[test]
     fn test_65c02_nop_ldd_zpg_x() {
@@ -2264,13 +2277,17 @@ mod test {
         let mut cpu = CPU::new(bus);
         cpu.reset();
         cpu.m65c02 = true;
-        let opcodes = [0x54,0xd4,0xf4];
+        let opcodes = [0x54, 0xd4, 0xf4];
         for code in opcodes {
             cpu.bus.set_cycles(0);
-            cpu.load_and_run(&[code,0x00,0x00]);
-            assert_eq!(cpu.bus.get_cycles(), 4, "NOP ldd zpg,x opcodes should have 4 cycles");
+            cpu.load_and_run(&[code, 0x00, 0x00]);
+            assert_eq!(
+                cpu.bus.get_cycles(),
+                4,
+                "NOP ldd zpg,x opcodes should have 4 cycles"
+            );
         }
-    } 
+    }
 
     #[test]
     fn test_65c02_nop_5c() {
@@ -2281,10 +2298,14 @@ mod test {
         let opcodes = [0x5c];
         for code in opcodes {
             cpu.bus.set_cycles(0);
-            cpu.load_and_run(&[code,0x00,0x00,0x00]);
-            assert_eq!(cpu.bus.get_cycles(), 8, "NOP opcode 0x5c should have 8 cycles");
+            cpu.load_and_run(&[code, 0x00, 0x00, 0x00]);
+            assert_eq!(
+                cpu.bus.get_cycles(),
+                8,
+                "NOP opcode 0x5c should have 8 cycles"
+            );
         }
-    }    
+    }
 
     #[test]
     fn test_65c02_nop_ldd_abs() {
@@ -2292,12 +2313,54 @@ mod test {
         let mut cpu = CPU::new(bus);
         cpu.reset();
         cpu.m65c02 = true;
-        let opcodes = [0xdc,0xfc];
+        let opcodes = [0xdc, 0xfc];
         for code in opcodes {
             cpu.bus.set_cycles(0);
-            cpu.load_and_run(&[code,0x00,0x00,0x00]);
-            assert_eq!(cpu.bus.get_cycles(), 4, "NOP ldd abs opcodes should have 4 cycles");
+            cpu.load_and_run(&[code, 0x00, 0x00, 0x00]);
+            assert_eq!(
+                cpu.bus.get_cycles(),
+                4,
+                "NOP ldd abs opcodes should have 4 cycles"
+            );
         }
-    }    
+    }
 
+    /*
+    #[test]
+    // Counter test from steve2
+    // https://github.com/trudnai/Steve2/blob/work/src/cpu/65C02.c
+    fn test_counter_speed() {
+        let bus = Bus::new();
+        let mut cpu = CPU::new(bus);
+        let counter_code = [
+            0xA0, 0x06, // 00            LDY   #$06
+            0x84, 0x06, // 02            STY   #DIGITS
+            0xA6, 0x06, // 04            LDY   DIGITS
+            0xA9, 0xB0, // 06   CLEAR    LDA   #ZERO
+            0x99, 0x00, 0x04, // 08      STA   SCREEN,Y
+            0x88, // 0B                  DEY
+            0x10, 0xF8, // 0C            BPL   CLEAR
+            0xA6, 0x06, // 0E   START    LDX   DIGITS
+            0xA9, 0xBA, // 10            LDA   #CARRY
+            0xFE, 0x00, 0x04, // 12 ONES INC   SCREEN,X
+            0xDD, 0x00, 0x04, // 15      CMP   SCREEN,X
+            0xD0, 0xF8, // 18            BNE   ONES
+            0xA9, 0xB0, // 1A   NEXT     LDA   #ZERO
+            0x9D, 0x00, 0x04, // 1C      STA   SCREEN,X
+            0xCA, // 1F                  DEX
+            0x30, 0x0C, // 20            BMI   END
+            0xFE, 0x00, 0x04, // 22      INC   SCREEN,X
+            0xBD, 0x00, 0x04, // 25      LDA   SCREEN,X
+            0xC9, 0xBA, // 28            CMP   #CARRY
+            0xD0, 0xE2, // 2A            BNE   START
+            0xF0, 0xEC, // 2C            BEQ   NEXT
+            0x00, // 2E   END            BRK
+        ];
+
+        cpu.reset();
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run_offset(&counter_code, 0x1000, 0x1000);
+        assert_eq!(cpu.bus.get_cycles(), 174222295);
+    }
+    */
 }

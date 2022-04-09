@@ -807,12 +807,12 @@ mod test {
 
     fn setup(w65c22: &mut W65C22) {
         // Write to T1C-L and T1C-H
-        w65c22.io_access(0x04,0x05,true);
-        w65c22.io_access(0x08,0x05,true);
+        w65c22.io_access(0x04, 0x05, true);
+        w65c22.io_access(0x08, 0x05, true);
 
         // Write to T1C-H and T2C-H
-        w65c22.io_access(0x05,0x00,true);
-        w65c22.io_access(0x09,0x00,true);
+        w65c22.io_access(0x05, 0x00, true);
+        w65c22.io_access(0x09, 0x00, true);
     }
 
     #[test]
@@ -827,7 +827,7 @@ mod test {
         let mut w65c22 = W65C22::new("#1");
         setup(&mut w65c22);
         assert_eq!(w65c22.t1_loaded, true, "T1C T1 loaded should be true");
-    }    
+    }
 
     #[test]
     fn test_w65c22_t1_load_ifr() {
@@ -844,14 +844,13 @@ mod test {
         assert_eq!(w65c22.t1c, 0x05, "T1 counter should be 5");
     }
 
-
     #[test]
     fn test_w65c22_t1_initial_load() {
         let mut w65c22 = W65C22::new("#1");
         setup(&mut w65c22);
         w65c22.tick();
         assert_eq!(w65c22.t1c, 0x05, "T1 counter initial load should be 5");
-    }    
+    }
 
     #[test]
     fn test_w65c22_t1_countdown() {
@@ -862,7 +861,7 @@ mod test {
         }
         assert_eq!(w65c22.t1c, 0x00, "T1 counter after tick should be 0");
         assert_eq!(w65c22.ifr & 0x40 == 0, true, "T1 IFR should not be set");
-    }    
+    }
 
     #[test]
     fn test_w65c22_t1_underflow() {
@@ -873,8 +872,11 @@ mod test {
         }
         assert_eq!(w65c22.ifr & 0x40 > 0, true, "T1 IFR is should be set");
         w65c22.tick();
-        assert_eq!(w65c22.t1c, 0x05, "T1 counter should be reset after underflow");
-    }   
+        assert_eq!(
+            w65c22.t1c, 0x05,
+            "T1 counter should be reset after underflow"
+        );
+    }
 
     #[test]
     fn test_w65c22_t1_reload() {
@@ -883,7 +885,7 @@ mod test {
         for _ in 0..8 {
             w65c22.tick();
         }
-        w65c22.io_access(0x04,0x00,false);
+        w65c22.io_access(0x04, 0x00, false);
         assert_eq!(w65c22.ifr & 0x40 == 0, true, "T1 IFR should be cleared");
         assert_eq!(w65c22.t1c, 0x05, "T1 counter should be reset to 5");
         assert_eq!(w65c22.t2c, 0xfffe, "T2 counter should be 0xfffe");
@@ -892,7 +894,11 @@ mod test {
         assert_eq!(w65c22.t1c, 0x04, "T1 counter after IRQ load should be 4");
         for _ in 0..5 {
             w65c22.tick();
-        }        
-        assert_eq!(w65c22.ifr & 0x40 == 0, true, "T1 IFR should not be set as T1 is not loaded");
-    }   
+        }
+        assert_eq!(
+            w65c22.ifr & 0x40 == 0,
+            true,
+            "T1 IFR should not be set as T1 is not loaded"
+        );
+    }
 }

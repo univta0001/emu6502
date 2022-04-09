@@ -812,11 +812,7 @@ fn convert_woz_to_dsk(disk: &mut Disk) -> io::Result<()> {
         let mut bit: u8 = 0;
         let mut mask: u8 = 0x80;
 
-        let ordering = if disk.po_mode {
-            _DSK_PO
-        } else {
-            _DSK_DO
-        };
+        let ordering = if disk.po_mode { _DSK_PO } else { _DSK_DO };
 
         for (s, dos_sector) in ordering.iter().enumerate() {
             let sector = read_woz_sector(
