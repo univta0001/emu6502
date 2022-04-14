@@ -377,7 +377,7 @@ mod interrupt {
         itype: InterruptType::BRK,
         vector_addr: 0xfffe,
         b_flag_mask: 0b00110000,
-        cpu_cycles: 2,
+        cpu_cycles: 1,
     };
 }
 
