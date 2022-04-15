@@ -1293,11 +1293,6 @@ impl CPU {
     where
         F: FnMut(&mut CPU),
     {
-        #[cfg(not(test))]
-        {
-            self.setup_emulator();
-        }
-
         loop {
             if !self.step_cpu_with_callback(&mut callback) {
                 break;

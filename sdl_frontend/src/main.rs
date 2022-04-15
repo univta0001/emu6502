@@ -580,6 +580,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     let mut key_caps = true;
 
+    cpu.setup_emulator();
     cpu.run_with_callback(|_cpu| {
         dcyc += _cpu.bus.get_cycles() - previous_cycles;
         previous_cycles = _cpu.bus.get_cycles();
