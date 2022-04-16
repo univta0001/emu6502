@@ -728,6 +728,9 @@ impl CPU {
 
     fn stz(&mut self, op: &OpCode) {
         let addr = self.get_operand_address(op, self.program_counter);
+        if op.code == 0x9e {
+            self.bus.tick();
+        }
         self.bus.addr_write(addr, 0);
     }
 
