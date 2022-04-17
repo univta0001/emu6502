@@ -728,7 +728,6 @@ impl CPU {
 
     fn stz(&mut self, op: &OpCode) {
         let addr = self.get_operand_address(op, self.program_counter);
-        self.bus.tick();
         if op.code == 0x9e {
             self.bus.tick();
         }
@@ -2335,32 +2334,32 @@ mod test {
         cpu.load_and_run(&opcodes);
         assert_eq!(
             cpu.bus.get_cycles(),
-            4,
-            "STZ zeropage opcodes should have 4 cycles"
+            3,
+            "STZ zeropage opcodes should have 3 cycles"
         );
         opcodes = [0x74,0x00,0x00,0x00];
         cpu.bus.set_cycles(0);
         cpu.load_and_run(&opcodes);
         assert_eq!(
             cpu.bus.get_cycles(),
-            5,
-            "STZ zeropage,x opcodes should have 5 cycles"
+            4,
+            "STZ zeropage,x opcodes should have 4 cycles"
         );
         opcodes = [0x9c,0x00,0x00,0x00];
         cpu.bus.set_cycles(0);
         cpu.load_and_run(&opcodes);
         assert_eq!(
             cpu.bus.get_cycles(),
-            5,
-            "STZ absolute opcodes should have 5 cycles"
+            4,
+            "STZ absolute opcodes should have 4 cycles"
         );
         opcodes = [0x9e,0x00,0x00,0x00];
         cpu.bus.set_cycles(0);
         cpu.load_and_run(&opcodes);
         assert_eq!(
             cpu.bus.get_cycles(),
-            6,
-            "STZ absolute,x opcodes should have 6 cycles"
+            5,
+            "STZ absolute,x opcodes should have 5 cycles"
         );
     }
 
