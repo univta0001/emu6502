@@ -46,7 +46,7 @@ pub const OPCODES: [OpCode; 256] = [
     OpCode::new(0x08, "PHP", 1, 3, AddressingMode::NoneAddressing, false),
     OpCode::new(0x09, "ORA", 2, 2, AddressingMode::Immediate, false),
     OpCode::new(0x0a, "ASL", 1, 2, AddressingMode::NoneAddressing, false),
-    OpCode::new(0x0b, "???", 1, 2, AddressingMode::NoneAddressing, true),
+    OpCode::new(0x0b, "???", 1, 1, AddressingMode::NoneAddressing, true),
     OpCode::new(0x0c, "TSB", 3, 6, AddressingMode::Absolute, true),
     OpCode::new(0x0d, "ORA", 3, 4, AddressingMode::Absolute, false),
     OpCode::new(0x0e, "ASL", 3, 6, AddressingMode::Absolute, false),
