@@ -728,6 +728,7 @@ impl CPU {
 
     fn stz(&mut self, op: &OpCode) {
         let addr = self.get_operand_address(op, self.program_counter);
+        self.bus.tick();
         if op.code == 0x9e {
             self.bus.tick();
         }
@@ -2321,6 +2322,46 @@ mod test {
                 "NOP ldd abs opcodes should have 4 cycles"
             );
         }
+    }
+
+    #[test]
+    fn test_65c02_stz() {
+        let bus = Bus::new();
+        let mut cpu = CPU::new(bus);
+        cpu.reset();
+        cpu.m65c02 = true;
+        let mut opcodes = [0x64,0x00,0x00,0x00];
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&opcodes);
+        assert_eq!(
+            cpu.bus.get_cycles(),
+            4,
+            "STZ zeropage opcodes should have 4 cycles"
+        );
+        opcodes = [0x74,0x00,0x00,0x00];
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&opcodes);
+        assert_eq!(
+            cpu.bus.get_cycles(),
+            5,
+            "STZ zeropage,x opcodes should have 5 cycles"
+        );
+        opcodes = [0x9c,0x00,0x00,0x00];
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&opcodes);
+        assert_eq!(
+            cpu.bus.get_cycles(),
+            5,
+            "STZ absolute opcodes should have 5 cycles"
+        );
+        opcodes = [0x9e,0x00,0x00,0x00];
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&opcodes);
+        assert_eq!(
+            cpu.bus.get_cycles(),
+            6,
+            "STZ absolute,x opcodes should have 6 cycles"
+        );
     }
 
     /*
