@@ -8,12 +8,13 @@ Features in the emulator
 
 - 6502 / 65C02 cycle accurate emulation
 - Disk II interface for floppy disk drives
-- Language Card for Apple ][+]
+- Language Card for Apple ][+
 - Mockingboard support at Slot 4
 - Parallel printer card
 - Apple IIe Extended 80-Column Text Card
 - RGB cards: Apple's Extended 80-Column Text/AppleColor Adaptor Card, 'Le Chat Mauve' Féline and Eve.
-- Support for Vapor-lock cycle counting demos
+- 60 Hz / 50Hz display mode support
+- Support for Vapor-lock cycle counting demos e.g. megademo, mad2
 
 ## Tested Platform
 
