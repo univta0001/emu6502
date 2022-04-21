@@ -8,9 +8,11 @@ use emu6502::cpu_stats::CpuStats;
 use emu6502::trace::disassemble;
 
 use nfd2::Response;
+use sdl2::GameControllerSubsystem;
 use sdl2::audio::AudioSpecDesired;
 use sdl2::controller::Axis;
 use sdl2::controller::Button;
+use sdl2::controller::GameController;
 use sdl2::event::Event;
 use sdl2::event::EventType::DropFile;
 use sdl2::keyboard::Keycode;
@@ -20,6 +22,7 @@ use sdl2::rect::Rect;
 use std::error::Error;
 use std::path::Path;
 use std::time::Instant;
+use std::collections::HashMap;
 
 //use sdl2::surface::Surface;
 //use sdl2::image::LoadSurface;
@@ -137,7 +140,7 @@ fn translate_key_to_apple_key(
     (true, value)
 }
 
-fn handle_event(cpu: &mut CPU, event: Event, key_caps: &mut bool, estimated_mhz: f32) {
+fn handle_event(cpu: &mut CPU, event: Event, game_controller: &GameControllerSubsystem, gamepads: &mut HashMap<u32, GameController>, key_caps: &mut bool, estimated_mhz: f32) {
     match event {
         Event::Quit { .. } => std::process::exit(0),
 
@@ -148,16 +151,10 @@ fn handle_event(cpu: &mut CPU, event: Event, key_caps: &mut bool, estimated_mhz:
             // [-32768, 32767]. Let's simulate a very rough dead
             // zone to ignore spurious events.
             match axis {
-                Axis::LeftX => {
+                Axis::LeftX | Axis::RightX => {
                     cpu.bus.paddle_latch[0] = (val / 256 + 128) as u8;
                 }
-                Axis::LeftY => {
-                    cpu.bus.paddle_latch[1] = (val / 256 + 128) as u8;
-                }
-                Axis::RightX => {
-                    cpu.bus.paddle_latch[0] = (val / 256 + 128) as u8;
-                }
-                Axis::RightY => {
+                Axis::LeftY | Axis::RightY => {
                     cpu.bus.paddle_latch[1] = (val / 256 + 128) as u8;
                 }
                 _ => {}
@@ -184,7 +181,7 @@ fn handle_event(cpu: &mut CPU, event: Event, key_caps: &mut bool, estimated_mhz:
                 cpu.bus.paddle_latch[0] = 0xff;
             }
             _ => {}
-        },
+        }
 
         Event::ControllerButtonUp { button, .. } => match button {
             Button::A => {
@@ -193,20 +190,24 @@ fn handle_event(cpu: &mut CPU, event: Event, key_caps: &mut bool, estimated_mhz:
             Button::B => {
                 cpu.bus.pushbutton_latch[1] = 0x00;
             }
-            Button::DPadUp => {
+            Button::DPadUp | Button::DPadDown => {
                 cpu.bus.reset_paddle_latch(1);
             }
-            Button::DPadDown => {
-                cpu.bus.reset_paddle_latch(1);
-            }
-            Button::DPadLeft => {
-                cpu.bus.reset_paddle_latch(0);
-            }
-            Button::DPadRight => {
+            Button::DPadLeft | Button::DPadRight => {
                 cpu.bus.reset_paddle_latch(0);
             }
             _ => {}
-        },
+        }
+
+        Event::ControllerDeviceAdded { which, .. } => {
+            if let Ok(controller) = game_controller.open(which) {
+                gamepads.insert(which, controller);
+            }
+        }
+
+        Event::ControllerDeviceRemoved { which, .. } => {
+            gamepads.remove(&(which as u32));
+        }
 
         Event::KeyDown {
             keycode: Some(Keycode::ScrollLock) | Some(Keycode::F12),
@@ -501,19 +502,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     // Create the game controller
     let game_controller = sdl_context.game_controller()?;
-    let controller_available = game_controller.num_joysticks()?;
-
-    let mut _controller = (0..std::cmp::min(1,controller_available))
-        .find_map(|id| {
-            if !game_controller.is_game_controller(id) {
-                return None;
-            }
-
-            match game_controller.open(id) {
-                Ok(c) => Some(c),
-                _ => None,
-            }
-        });
+    let mut gamepads: HashMap<u32, GameController> = HashMap::new();
 
     // Set apple2 icon
     /*
@@ -721,7 +710,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
             let mut event = _event_pump.poll_event();
             while let Some(event_value) = event {
-                handle_event(_cpu, event_value, &mut key_caps, estimated_mhz);
+                handle_event(_cpu, event_value,&game_controller,&mut gamepads, &mut key_caps, estimated_mhz);
                 event = _event_pump.poll_event();
             }
             let video_cpu_update = t.elapsed().as_micros();
