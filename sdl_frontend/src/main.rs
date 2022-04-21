@@ -9,6 +9,8 @@ use emu6502::trace::disassemble;
 
 use nfd2::Response;
 use sdl2::audio::AudioSpecDesired;
+use sdl2::controller::Axis;
+use sdl2::controller::Button;
 use sdl2::event::Event;
 use sdl2::event::EventType::DropFile;
 use sdl2::keyboard::Keycode;
@@ -138,6 +140,73 @@ fn translate_key_to_apple_key(
 fn handle_event(cpu: &mut CPU, event: Event, key_caps: &mut bool, estimated_mhz: f32) {
     match event {
         Event::Quit { .. } => std::process::exit(0),
+
+        Event::ControllerAxisMotion {
+            axis, value: val, ..
+        } => {
+            // Axis motion is an absolute value in the range
+            // [-32768, 32767]. Let's simulate a very rough dead
+            // zone to ignore spurious events.
+            match axis {
+                Axis::LeftX => {
+                    cpu.bus.paddle_latch[0] = (val / 256 + 128) as u8;
+                }
+                Axis::LeftY => {
+                    cpu.bus.paddle_latch[1] = (val / 256 + 128) as u8;
+                }
+                Axis::RightX => {
+                    cpu.bus.paddle_latch[0] = (val / 256 + 128) as u8;
+                }
+                Axis::RightY => {
+                    cpu.bus.paddle_latch[1] = (val / 256 + 128) as u8;
+                }
+                _ => {}
+            }
+        }
+
+        Event::ControllerButtonDown { button, .. } => match button {
+            Button::A => {
+                cpu.bus.pushbutton_latch[0] = 0x80;
+            }
+            Button::B => {
+                cpu.bus.pushbutton_latch[1] = 0x80;
+            }
+            Button::DPadUp => {
+                cpu.bus.paddle_latch[1] = 0x0;
+            }
+            Button::DPadDown => {
+                cpu.bus.paddle_latch[1] = 0xff;
+            }
+            Button::DPadLeft => {
+                cpu.bus.paddle_latch[0] = 0x0;
+            }
+            Button::DPadRight => {
+                cpu.bus.paddle_latch[0] = 0xff;
+            }
+            _ => {}
+        },
+
+        Event::ControllerButtonUp { button, .. } => match button {
+            Button::A => {
+                cpu.bus.pushbutton_latch[0] = 0x00;
+            }
+            Button::B => {
+                cpu.bus.pushbutton_latch[1] = 0x00;
+            }
+            Button::DPadUp => {
+                cpu.bus.reset_paddle_latch(1);
+            }
+            Button::DPadDown => {
+                cpu.bus.reset_paddle_latch(1);
+            }
+            Button::DPadLeft => {
+                cpu.bus.reset_paddle_latch(0);
+            }
+            Button::DPadRight => {
+                cpu.bus.reset_paddle_latch(0);
+            }
+            _ => {}
+        },
 
         Event::KeyDown {
             keycode: Some(Keycode::ScrollLock) | Some(Keycode::F12),
@@ -420,15 +489,31 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let bus = Bus::default();
 
     // Create the SDL2 context
-    let sdl_context = sdl2::init().unwrap();
+    let sdl_context = sdl2::init()?;
 
     // Create window
-    let video_subsystem = sdl_context.video().unwrap();
+    let video_subsystem = sdl_context.video()?;
     let window = video_subsystem
         .window("Apple ][ emulator", 1120_u32, 768_u32)
         .position_centered()
         .build()
         .unwrap();
+
+    // Create the game controller
+    let game_controller = sdl_context.game_controller()?;
+    let controller_available = game_controller.num_joysticks()?;
+
+    let mut _controller = (0..std::cmp::min(1,controller_available))
+        .find_map(|id| {
+            if !game_controller.is_game_controller(id) {
+                return None;
+            }
+
+            match game_controller.open(id) {
+                Ok(c) => Some(c),
+                _ => None,
+            }
+        });
 
     // Set apple2 icon
     /*

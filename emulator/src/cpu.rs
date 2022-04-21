@@ -2329,7 +2329,7 @@ mod test {
         let mut cpu = CPU::new(bus);
         cpu.reset();
         cpu.m65c02 = true;
-        let mut opcodes = [0x64,0x00,0x00,0x00];
+        let mut opcodes = [0x64, 0x00, 0x00, 0x00];
         cpu.bus.set_cycles(0);
         cpu.load_and_run(&opcodes);
         assert_eq!(
@@ -2337,7 +2337,7 @@ mod test {
             3,
             "STZ zeropage opcodes should have 3 cycles"
         );
-        opcodes = [0x74,0x00,0x00,0x00];
+        opcodes = [0x74, 0x00, 0x00, 0x00];
         cpu.bus.set_cycles(0);
         cpu.load_and_run(&opcodes);
         assert_eq!(
@@ -2345,7 +2345,7 @@ mod test {
             4,
             "STZ zeropage,x opcodes should have 4 cycles"
         );
-        opcodes = [0x9c,0x00,0x00,0x00];
+        opcodes = [0x9c, 0x00, 0x00, 0x00];
         cpu.bus.set_cycles(0);
         cpu.load_and_run(&opcodes);
         assert_eq!(
@@ -2353,7 +2353,7 @@ mod test {
             4,
             "STZ absolute opcodes should have 4 cycles"
         );
-        opcodes = [0x9e,0x00,0x00,0x00];
+        opcodes = [0x9e, 0x00, 0x00, 0x00];
         cpu.bus.set_cycles(0);
         cpu.load_and_run(&opcodes);
         assert_eq!(
