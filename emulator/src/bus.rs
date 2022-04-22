@@ -27,6 +27,7 @@ pub struct Bus {
     pub disable_disk: bool,
     pub disable_audio: bool,
     pub joystick_flag: bool,
+    pub joystick_jitter: bool,
     pub paddle_trigger: usize,
 
     pub mem: Option<Rc<RefCell<Mmu>>>,
@@ -110,6 +111,7 @@ impl Bus {
             paddle_y_trim: 0,
             paddle_trigger: 0,
             joystick_flag: true,
+            joystick_jitter: false,
             cycles: 0,
             disk: Some(DiskDrive::default()),
             video: Some(Video::new(mem.clone())),
@@ -220,6 +222,10 @@ impl Bus {
     pub fn toggle_joystick(&mut self) {
         self.joystick_flag = !self.joystick_flag;
         self.update_joystick();
+    }
+
+    pub fn toggle_joystick_jitter(&mut self) {
+        self.joystick_jitter = !self.joystick_jitter;
     }
 
     pub fn set_joystick(&mut self, flag: bool) {
@@ -663,7 +669,7 @@ impl Bus {
             0x64 => {
                 // Apple PADDLE need to read value every 11 clock cycles to update counter
                 let delta = self.cycles - self.paddle_trigger;
-                let value = self.get_jitter_value(self.paddle_latch[0]);
+                let value = self.get_joystick_value(self.paddle_latch[0]);
                 if delta < (value as usize * 11) {
                     0x80
                 } else {
@@ -673,7 +679,7 @@ impl Bus {
 
             0x65 => {
                 let delta = self.cycles - self.paddle_trigger;
-                let value = self.get_jitter_value(self.paddle_latch[1]);
+                let value = self.get_joystick_value(self.paddle_latch[1]);
                 if delta < (value as usize * 11) {
                     0x80
                 } else {
@@ -683,7 +689,7 @@ impl Bus {
             0x66 => {
                 // Apple PADDLE need to read value every 11 clock cycles to update counter
                 let delta = self.cycles - self.paddle_trigger;
-                let value = self.get_jitter_value(self.paddle_latch[2]);
+                let value = self.get_joystick_value(self.paddle_latch[2]);
                 if delta < (value as usize * 11) {
                     0x80
                 } else {
@@ -692,7 +698,7 @@ impl Bus {
             }
             0x67 => {
                 let delta = self.cycles - self.paddle_trigger;
-                let value = self.get_jitter_value(self.paddle_latch[3]);
+                let value = self.get_joystick_value(self.paddle_latch[3]);
                 if delta < (value as usize * 11) {
                     0x80
                 } else {
@@ -802,14 +808,18 @@ impl Bus {
         }
     }
 
-    fn get_jitter_value(&self, value: u8) -> u8 {
-        let mut rng = rand::thread_rng();
-        let jitter: i8 = rng.gen_range(-4..5);
-        if jitter < 0 {
-            value.saturating_sub((-jitter) as u8)
+    fn get_joystick_value(&self, value: u8) -> u8 {
+        if !self.joystick_jitter {
+            value
         } else {
-            value.saturating_add(jitter as u8)
-        }
+            let mut rng = rand::thread_rng();
+            let jitter: i8 = rng.gen_range(-4..5);
+            if jitter < 0 {
+                value.saturating_sub((-jitter) as u8)
+            } else {
+                value.saturating_add(jitter as u8)
+            }
+        } 
     }
 
     fn audio_io_access(&mut self) -> u8 {

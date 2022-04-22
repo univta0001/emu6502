@@ -200,12 +200,15 @@ fn handle_event(cpu: &mut CPU, event: Event, game_controller: &GameControllerSub
         }
 
         Event::ControllerDeviceAdded { which, .. } => {
+            // Which refers to joystick device index
             if let Ok(controller) = game_controller.open(which) {
-                gamepads.insert(which, controller);
+                let instance_id = controller.instance_id();
+                gamepads.insert(instance_id, controller);
             }
         }
 
         Event::ControllerDeviceRemoved { which, .. } => {
+            // Which refers to instance id
             gamepads.remove(&(which as u32));
         }
 
@@ -315,6 +318,12 @@ fn handle_event(cpu: &mut CPU, event: Event, game_controller: &GameControllerSub
             ..
         } => {
             cpu.full_speed = !cpu.full_speed;
+        }
+        Event::KeyDown {
+            keycode: Some(Keycode::F7),
+            ..
+        } => {
+            cpu.bus.toggle_joystick_jitter();
         }
         Event::KeyDown {
             keycode: Some(Keycode::F6),
@@ -450,6 +459,7 @@ Function Keys:
     F4                Disable / Enable Joystick
     F5                Disable / Enable Fask Disk emulation
     F6                Disable / Enable monochrome video
+    F7                Disable / Enable Joystick jitter
     F8                Disable / Enable 50/60 Hz video
     F9                Disable / Enable full speed emulation
     F12 / Break       Reset
