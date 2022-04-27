@@ -19,7 +19,7 @@ pub struct Bus {
     pub audio: Option<Audio>,
     pub parallel: Option<ParallelCard>,
     pub keyboard_latch: u8,
-    pub pushbutton_latch: [u8; 2],
+    pub pushbutton_latch: [u8; 4],
     pub paddle_latch: [u8; 4],
     pub paddle_x_trim: i8,
     pub paddle_y_trim: i8,
@@ -105,7 +105,7 @@ impl Bus {
         let mem = Rc::new(RefCell::new(Mmu::default()));
         let mut bus = Bus {
             keyboard_latch: 0,
-            pushbutton_latch: [0x0, 0x0],
+            pushbutton_latch: [0x0, 0x0, 0x0, 0x0],
             paddle_latch: [0x80, 0x80, 0x80, 0x80],
             paddle_x_trim: 0,
             paddle_y_trim: 0,
@@ -665,6 +665,7 @@ impl Bus {
 
             0x61 => self.pushbutton_latch[0],
             0x62 => self.pushbutton_latch[1],
+            0x63 => self.pushbutton_latch[2],
 
             0x64 => {
                 // Apple PADDLE need to read value every 11 clock cycles to update counter
@@ -819,7 +820,7 @@ impl Bus {
             } else {
                 value.saturating_add(jitter as u8)
             }
-        } 
+        }
     }
 
     fn audio_io_access(&mut self) -> u8 {

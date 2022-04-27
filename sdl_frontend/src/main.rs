@@ -8,7 +8,6 @@ use emu6502::cpu_stats::CpuStats;
 use emu6502::trace::disassemble;
 
 use nfd2::Response;
-use sdl2::GameControllerSubsystem;
 use sdl2::audio::AudioSpecDesired;
 use sdl2::controller::Axis;
 use sdl2::controller::Button;
@@ -19,10 +18,11 @@ use sdl2::keyboard::Keycode;
 use sdl2::keyboard::Mod;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::rect::Rect;
+use sdl2::GameControllerSubsystem;
+use std::collections::HashMap;
 use std::error::Error;
 use std::path::Path;
 use std::time::Instant;
-use std::collections::HashMap;
 
 //use sdl2::surface::Surface;
 //use sdl2::image::LoadSurface;
@@ -140,70 +140,101 @@ fn translate_key_to_apple_key(
     (true, value)
 }
 
-fn handle_event(cpu: &mut CPU, event: Event, game_controller: &GameControllerSubsystem, gamepads: &mut HashMap<u32, GameController>, key_caps: &mut bool, estimated_mhz: f32) {
+fn handle_event(
+    cpu: &mut CPU,
+    event: Event,
+    game_controller: &GameControllerSubsystem,
+    gamepads: &mut HashMap<u32, (u32, GameController)>,
+    key_caps: &mut bool,
+    estimated_mhz: f32,
+) {
     match event {
         Event::Quit { .. } => std::process::exit(0),
 
         Event::ControllerAxisMotion {
-            axis, value: val, ..
+            which,
+            axis,
+            value: val,
+            ..
         } => {
-            // Axis motion is an absolute value in the range
-            // [-32768, 32767]. Let's simulate a very rough dead
-            // zone to ignore spurious events.
-            match axis {
-                Axis::LeftX | Axis::RightX => {
-                    cpu.bus.paddle_latch[0] = (val / 256 + 128) as u8;
+            if let Some(entry) = gamepads.get(&which) {
+                let joystick_id = entry.0;
+                // Axis motion is an absolute value in the range
+                // [-32768, 32767]. Let's simulate a very rough dead
+                // zone to ignore spurious events.
+                if joystick_id < 2 {
+                    match axis {
+                        Axis::LeftX | Axis::RightX => {
+                            cpu.bus.paddle_latch[2 * joystick_id as usize] =
+                                (val / 256 + 128) as u8;
+                        }
+                        Axis::LeftY | Axis::RightY => {
+                            cpu.bus.paddle_latch[2 * joystick_id as usize + 1] =
+                                (val / 256 + 128) as u8;
+                        }
+                        _ => {}
+                    }
                 }
-                Axis::LeftY | Axis::RightY => {
-                    cpu.bus.paddle_latch[1] = (val / 256 + 128) as u8;
-                }
-                _ => {}
             }
         }
 
-        Event::ControllerButtonDown { button, .. } => match button {
-            Button::A => {
-                cpu.bus.pushbutton_latch[0] = 0x80;
+        Event::ControllerButtonDown { which, button, .. } => {
+            if let Some(entry) = gamepads.get(&which) {
+                let joystick_id = entry.0;
+                if joystick_id < 2 {
+                    match button {
+                        Button::A => {
+                            cpu.bus.pushbutton_latch[2*joystick_id as usize] = 0x80;
+                        }
+                        Button::B => {
+                            cpu.bus.pushbutton_latch[2*joystick_id as usize+1] = 0x80;
+                        }
+                        Button::DPadUp => {
+                            cpu.bus.paddle_latch[2*joystick_id as usize + 1] = 0x0;
+                        }
+                        Button::DPadDown => {
+                            cpu.bus.paddle_latch[2*joystick_id as usize + 1] = 0xff;
+                        }
+                        Button::DPadLeft => {
+                            cpu.bus.paddle_latch[2*joystick_id as usize] = 0x0;
+                        }
+                        Button::DPadRight => {
+                            cpu.bus.paddle_latch[2*joystick_id as usize] = 0xff;
+                        }
+                        _ => {}
+                    }
+                }
             }
-            Button::B => {
-                cpu.bus.pushbutton_latch[1] = 0x80;
-            }
-            Button::DPadUp => {
-                cpu.bus.paddle_latch[1] = 0x0;
-            }
-            Button::DPadDown => {
-                cpu.bus.paddle_latch[1] = 0xff;
-            }
-            Button::DPadLeft => {
-                cpu.bus.paddle_latch[0] = 0x0;
-            }
-            Button::DPadRight => {
-                cpu.bus.paddle_latch[0] = 0xff;
-            }
-            _ => {}
-        }
+        },
 
-        Event::ControllerButtonUp { button, .. } => match button {
-            Button::A => {
-                cpu.bus.pushbutton_latch[0] = 0x00;
-            }
-            Button::B => {
-                cpu.bus.pushbutton_latch[1] = 0x00;
-            }
-            Button::DPadUp | Button::DPadDown => {
-                cpu.bus.reset_paddle_latch(1);
-            }
-            Button::DPadLeft | Button::DPadRight => {
-                cpu.bus.reset_paddle_latch(0);
-            }
-            _ => {}
-        }
+        Event::ControllerButtonUp { which, button, .. } => {
+            if let Some(entry) = gamepads.get(&which) {
+                let joystick_id = entry.0;
+                if joystick_id < 2 {
+                    match button {
+                        Button::A => {
+                            cpu.bus.pushbutton_latch[2*joystick_id as usize] = 0x00;
+                        }
+                        Button::B => {
+                            cpu.bus.pushbutton_latch[2*joystick_id as usize+1] = 0x00;
+                        }
+                        Button::DPadUp | Button::DPadDown => {
+                            cpu.bus.reset_paddle_latch(2*joystick_id as usize + 1);
+                        }
+                        Button::DPadLeft | Button::DPadRight => {
+                            cpu.bus.reset_paddle_latch(2*joystick_id as usize);
+                        }
+                        _ => {}
+                    }
+                }
+            } 
+        },
 
         Event::ControllerDeviceAdded { which, .. } => {
             // Which refers to joystick device index
             if let Ok(controller) = game_controller.open(which) {
                 let instance_id = controller.instance_id();
-                gamepads.insert(instance_id, controller);
+                gamepads.insert(instance_id, (which, controller));
             }
         }
 
@@ -512,7 +543,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     // Create the game controller
     let game_controller = sdl_context.game_controller()?;
-    let mut gamepads: HashMap<u32, GameController> = HashMap::new();
+    let mut gamepads: HashMap<u32, (u32,GameController)> = HashMap::new();
 
     // Set apple2 icon
     /*

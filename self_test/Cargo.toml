@@ -10,9 +10,9 @@ emu6502 = { path = "../emulator" }
 instant = { version = "0.1.12", features = ["wasm-bindgen"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
-pprof = { version = "0.7.0", features = ["flamegraph","protobuf"] }
+pprof = { version = "0.8.0", features = ["flamegraph","protobuf"] }
 symbolic-demangle = "8.7.0"
-inferno = "0.11.1"
+inferno = "0.11.2"
 
 [[bin]]
 name = "self_test"
