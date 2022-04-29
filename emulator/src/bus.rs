@@ -375,7 +375,6 @@ impl Bus {
             0x07 => {
                 if write_flag {
                     self.intcxrom = true;
-                    self.slotc3rom = false;
                 }
                 self.keyboard_latch
             }
