@@ -501,8 +501,8 @@ impl CPU {
                 self.bus.unclocked_addr_read(base & 0xff00 | addr & 0xff);
             }
 
-            // Only implement false read for INC ABS,X to pass a2audit test
-            if op.code == 0xfe {
+            // Implement false read for RMW ABS,X instructions to pass a2audit test
+            if matches!(op.code, 0x1e | 0x3e | 0x5e | 0x7e | 0xde | 0xfe) {
                 self.bus.unclocked_addr_read(addr);
             }
 
