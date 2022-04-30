@@ -18,6 +18,11 @@ use sdl2::keyboard::Keycode;
 use sdl2::keyboard::Mod;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::rect::Rect;
+use sdl2::rect::Point;
+use sdl2::render::Canvas;
+use sdl2::render::BlendMode;
+use sdl2::render::RenderTarget;
+use sdl2::pixels::Color;
 use sdl2::GameControllerSubsystem;
 use std::collections::HashMap;
 use std::error::Error;
@@ -509,6 +514,33 @@ fn load_disk(cpu: &mut CPU, path: &Path, drive: usize) -> Result<(), Box<dyn Err
     Ok(())
 }
 
+fn draw_circle<T: RenderTarget>(canvas: &mut Canvas<T>, x: i32, y: i32, radius: i32) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let mut offsetx = 0;
+    let mut offsety = radius;
+    let mut d = radius-1;
+
+    while offsety >= offsetx {
+
+        canvas.draw_line(Point::new(x-offsety, y+offsetx), Point::new(x+offsety, y+offsetx))?;
+        canvas.draw_line(Point::new(x-offsetx, y+offsety), Point::new(x+offsetx, y+offsety))?;
+        canvas.draw_line(Point::new(x-offsetx, y-offsety), Point::new(x+offsetx, y-offsety))?;
+        canvas.draw_line(Point::new(x-offsety, y-offsetx), Point::new(x+offsety, y-offsetx))?;
+
+        if d >= 2*offsetx {
+            d -= 2*offsetx + 1;
+            offsetx +=1;
+        } else if d < 2 * (radius - offsety) {
+            d += 2 * offsety - 1;
+            offsety -= 1;
+        } else {
+            d += 2 * (offsety - offsetx - 1);
+            offsety -= 1;
+            offsetx += 1;
+        }
+    }
+    Ok(())
+}
+
 #[rustfmt::skip]
 fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut pargs = pico_args::Arguments::from_env();
@@ -734,15 +766,34 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     }   
                     */
 
+                    canvas.set_blend_mode(BlendMode::Blend);
                     for region in dirty_region {
                         let start = region.0 * 16;
                         let end = 16 * ((region.1 - region.0) + 1);
                         let rect = Rect::new(0, start as i32, 560, end as u32);
                         texture.update(rect, &display.frame[start*4*560..], 560*4).unwrap();
                         canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
-                        canvas.present();
                     }
+                    canvas.present();
                     display.clear_video_dirty();
+
+                    let disk_is_on = if let Some(drive) = &_cpu.bus.disk {
+                        drive.is_motor_on()
+                    } else {
+                        false
+                    };
+
+                    if disk_is_on {
+                        let rect = Rect::new(0, 0, 560, 16);
+                        texture.update(rect, &display.frame[0..], 560*4).unwrap();
+                        canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
+                        canvas.present();
+                        canvas.set_draw_color(Color::RGBA(255, 0, 0, 128));
+                        let _result = draw_circle(&mut canvas, 560 - 4, 4, 2);
+                    } else {
+                        canvas.set_draw_color(Color::RGBA(0, 0, 0, 16));
+                        let _result = draw_circle(&mut canvas, 560 - 4,4,2);
+                    }
                 }
 
                 video_offset = video_elapsed % 16_667;

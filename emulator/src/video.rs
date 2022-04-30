@@ -552,6 +552,7 @@ impl Video {
                 frame[x * 4 + y * 560 * 4] = 0x00;
                 frame[x * 4 + 1 + y * 560 * 4] = 0x00;
                 frame[x * 4 + 2 + y * 560 * 4] = 0x00;
+                frame[x * 4 + 3 + y * 560 * 4] = 0xff;
             }
         }
 
