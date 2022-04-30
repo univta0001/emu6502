@@ -241,9 +241,13 @@ pub fn disassemble(output: &mut String, cpu: &mut CPU) {
 }
 
 pub fn trace(output: &mut String, cpu: &mut CPU) {
+    let addr = cpu.program_counter;
+    trace_addr(output, cpu, addr);
+}
+
+pub fn trace_addr(output: &mut String, cpu: &mut CPU, addr: u16) {
     let old_callback = cpu.callback;
     cpu.callback = true;
-    let addr = cpu.program_counter;
     dump_trace(output, cpu, addr, true);
     cpu.callback = old_callback;
 }
