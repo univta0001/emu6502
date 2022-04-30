@@ -38,7 +38,7 @@ pub fn pad(output: &mut String, len: usize, input: &str, pad_left: bool) {
 
 fn dump_addr(output: &mut String, addr: u16) {
     hex_u16(output, addr);
-    output.push_str("  ");
+    output.push_str(": ");
 }
 
 fn dump_opcodes(output: &mut String, program_counter: u16, cpu: &mut CPU, op: &OpCode) {
@@ -68,7 +68,7 @@ fn dump_opcodes(output: &mut String, program_counter: u16, cpu: &mut CPU, op: &O
         _ => {}
     }
 
-    for _ in 0..9 - 3 * op.len {
+    for _ in 0..10 - 3 * op.len {
         output.push(' ');
     }
 }
@@ -79,7 +79,7 @@ fn dump_mnemonic(output: &mut String, cpu: &CPU, op: &OpCode) {
     } else {
         op.mnemonic
     };
-    pad(output, 4, op_mnemonic, true);
+    pad(output, 5, op_mnemonic, false);
     output.push(' ');
 }
 
@@ -394,11 +394,11 @@ mod test {
     #[test]
     fn test_format_trace() {
         let mut bus = Bus::default();
-        bus.mem_write(100, 0xa2);
-        bus.mem_write(101, 0x01);
-        bus.mem_write(102, 0xca);
-        bus.mem_write(103, 0x88);
-        bus.mem_write(104, 0x00);
+        bus.mem_write(0x64, 0xa2);
+        bus.mem_write(0x65, 0x01);
+        bus.mem_write(0x66, 0xca);
+        bus.mem_write(0x67, 0x88);
+        bus.mem_write(0x68, 0x00);
 
         let mut cpu = CPU::new(bus);
         cpu.program_counter = 0x64;
@@ -412,15 +412,15 @@ mod test {
             result.push(s);
         });
         assert_eq!(
-            "0064  A2 01     LDX #$01                        A:01 X:02 Y:03 P:24 SP:FD",
+            "0064: A2 01     LDX   #$01                        A:01 X:02 Y:03 P:24 SP:FD",
             result[0]
         );
         assert_eq!(
-            "0066  CA        DEX                             A:01 X:01 Y:03 P:24 SP:FD",
+            "0066: CA        DEX                               A:01 X:01 Y:03 P:24 SP:FD",
             result[1]
         );
         assert_eq!(
-            "0067  88        DEY                             A:01 X:00 Y:03 P:26 SP:FD",
+            "0067: 88        DEY                               A:01 X:00 Y:03 P:26 SP:FD",
             result[2]
         );
     }
@@ -429,8 +429,8 @@ mod test {
     fn test_format_mem_access() {
         let mut bus = Bus::default();
         // ORA ($33), Y
-        bus.mem_write(100, 0x11);
-        bus.mem_write(101, 0x33);
+        bus.mem_write(0x64, 0x11);
+        bus.mem_write(0x65, 0x33);
 
         //data
         bus.mem_write(0x33, 00);
@@ -449,7 +449,7 @@ mod test {
             result.push(s);
         });
         assert_eq!(
-            "0064  11 33     ORA ($33),Y = 0400 @ 0400 = AA  A:00 X:00 Y:00 P:24 SP:FD",
+            "0064: 11 33     ORA   ($33),Y = 0400 @ 0400 = AA  A:00 X:00 Y:00 P:24 SP:FD",
             result[0]
         );
     }
@@ -478,19 +478,19 @@ mod test {
             result.push(s);
         });
         assert_eq!(
-            "1000  A9 01     LDA #$01                        A:00 X:00 Y:00 P:24 SP:FD",
+            "1000: A9 01     LDA   #$01                        A:00 X:00 Y:00 P:24 SP:FD",
             result[0]
         );
         assert_eq!(
-            "1002  F0 FF     BEQ $1003                       A:01 X:00 Y:00 P:24 SP:FD",
+            "1002: F0 FF     BEQ   $1003                       A:01 X:00 Y:00 P:24 SP:FD",
             result[1]
         );
         assert_eq!(
-            "1004  4C 07 10  JMP $1007                       A:01 X:00 Y:00 P:24 SP:FD",
+            "1004: 4C 07 10  JMP   $1007                       A:01 X:00 Y:00 P:24 SP:FD",
             result[2]
         );
         assert_eq!(
-            "1007  7C 34 12  JMP ($1234,X) @ 1234 = FFFF     A:01 X:00 Y:00 P:24 SP:FD",
+            "1007: 7C 34 12  JMP   ($1234,X) @ 1234 = FFFF     A:01 X:00 Y:00 P:24 SP:FD",
             result[3]
         );
     }
