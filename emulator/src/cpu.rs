@@ -2363,6 +2363,57 @@ mod test {
         );
     }
 
+    #[test]
+    fn test_bank_1_writing() {
+        let bus = Bus::new();
+        let mut cpu = CPU::new(bus);
+        cpu.reset();
+        let bank2_code = [
+            0xAD, 0x8B, 0xC0, // 00       LDA $C08B
+            0xAD, 0x8B, 0xC0, // 03       LDA $C08B
+            0x8D, 0x89, 0xC0, // 06       STA $C089
+            0xAD, 0x89, 0xC0, // 09       LDA $C089
+            0xA9, 0xA1, // 0C             LDA #$A1
+            0x8D, 0x00, 0xD0, // 0E       STA $D000
+            0xAD, 0x8B, 0xC0, // 11       LDA $C08B
+            0xAD, 0x8B, 0xC0, // 14       LDA $C08B
+            0xAD, 0x00, 0xD0, // 17       LDA $D000
+            0x00, // END
+        ];
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&bank2_code);
+        assert_eq!(
+            cpu.register_a,
+            0xa1,
+            "Bank 1 address should be written with 0xA1"
+        );
+    }
+
+    #[test]
+    fn test_bank_2_writing() {
+        let bus = Bus::new();
+        let mut cpu = CPU::new(bus);
+        cpu.reset();
+        let bank2_code = [
+            0xAD, 0x83, 0xC0, // 00       LDA $C083
+            0xAD, 0x83, 0xC0, // 03       LDA $C083
+            0x8D, 0x81, 0xC0, // 06       STA $C081
+            0xAD, 0x81, 0xC0, // 09       LDA $C081
+            0xA9, 0xA2, // 0C             LDA #$A2
+            0x8D, 0x00, 0xD0, // 0E       STA $D000
+            0xAD, 0x83, 0xC0, // 11       LDA $C083
+            0xAD, 0x83, 0xC0, // 14       LDA $C083
+            0xAD, 0x00, 0xD0, // 17       LDA $D000
+            0x00, // END
+        ];
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&bank2_code);
+        assert_eq!(
+            cpu.register_a,
+            0xa2,
+            "Bank 2 address should be written with 0xA2"
+        );
+    }
     /*
     #[test]
     // Counter test from steve2

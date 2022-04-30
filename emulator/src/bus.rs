@@ -727,8 +727,8 @@ impl Bus {
                 self.bank1 = false;
                 if !write_flag {
                     self.writebsr = self.prewrite;
-                }
-                self.prewrite = !write_flag;
+                    self.prewrite = !write_flag;
+                } 
                 0
             }
 
@@ -742,11 +742,11 @@ impl Bus {
 
             0x83 | 0x87 => {
                 self.readbsr = true;
+                self.bank1 = false;
                 if !write_flag {
                     self.writebsr = self.prewrite;
+                    self.prewrite = !write_flag;
                 }
-                self.bank1 = false;
-                self.prewrite = !write_flag;
                 0
             }
 
@@ -760,11 +760,11 @@ impl Bus {
 
             0x89 | 0x8d => {
                 self.readbsr = false;
+                self.bank1 = true;
                 if !write_flag {
                     self.writebsr = self.prewrite;
+                    self.prewrite = !write_flag;
                 }
-                self.bank1 = true;
-                self.prewrite = !write_flag;
                 0
             }
 
@@ -778,11 +778,11 @@ impl Bus {
 
             0x8b | 0x8f => {
                 self.readbsr = true;
+                self.bank1 = true;
                 if !write_flag {
                     self.writebsr = self.prewrite;
+                    self.prewrite = !write_flag;
                 }
-                self.bank1 = true;
-                self.prewrite = !write_flag;
                 0
             }
 
