@@ -774,7 +774,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         texture.update(rect, &display.frame[start*4*560..], 560*4).unwrap();
                         canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
                     }
-                    canvas.present();
                     display.clear_video_dirty();
 
                     let disk_is_on = if let Some(drive) = &_cpu.bus.disk {
@@ -787,13 +786,14 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         let rect = Rect::new(0, 0, 560, 16);
                         texture.update(rect, &display.frame[0..], 560*4).unwrap();
                         canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
-                        canvas.present();
                         canvas.set_draw_color(Color::RGBA(255, 0, 0, 128));
                         let _result = draw_circle(&mut canvas, 560 - 4, 4, 2);
                     } else {
-                        canvas.set_draw_color(Color::RGBA(0, 0, 0, 16));
-                        let _result = draw_circle(&mut canvas, 560 - 4,4,2);
+                        let rect = Rect::new(0, 0, 560, 16);
+                        texture.update(rect, &display.frame[0..], 560*4).unwrap();
+                        canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
                     }
+                    canvas.present();
                 }
 
                 video_offset = video_elapsed % 16_667;
