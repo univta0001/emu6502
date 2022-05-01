@@ -514,29 +514,32 @@ fn load_disk(cpu: &mut CPU, path: &Path, drive: usize) -> Result<(), Box<dyn Err
     Ok(())
 }
 
-fn draw_circle<T: RenderTarget>(canvas: &mut Canvas<T>, x: i32, y: i32, radius: i32) -> Result<(), Box<dyn Error + Send + Sync>> {
-    let mut offsetx = 0;
-    let mut offsety = radius;
-    let mut d = radius-1;
+fn draw_circle<T: RenderTarget>(canvas: &mut Canvas<T>, cx: i32, cy: i32, r: i32) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let mut x = r;
+    let mut y = 0;
+    let mut d = 1 - r;
 
-    while offsety >= offsetx {
+    canvas.draw_line(Point::new(cx-x, cy), Point::new(cx+x, cy))?;
 
-        canvas.draw_line(Point::new(x-offsety, y+offsetx), Point::new(x+offsety, y+offsetx))?;
-        canvas.draw_line(Point::new(x-offsetx, y+offsety), Point::new(x+offsetx, y+offsety))?;
-        canvas.draw_line(Point::new(x-offsetx, y-offsety), Point::new(x+offsetx, y-offsety))?;
-        canvas.draw_line(Point::new(x-offsety, y-offsetx), Point::new(x+offsety, y-offsetx))?;
+    while x > y {
+        
+        y += 1;
 
-        if d >= 2*offsetx {
-            d -= 2*offsetx + 1;
-            offsetx +=1;
-        } else if d < 2 * (radius - offsety) {
-            d += 2 * offsety - 1;
-            offsety -= 1;
+        if d <= 0 {
+            d += 2*y + 1;
         } else {
-            d += 2 * (offsety - offsetx - 1);
-            offsety -= 1;
-            offsetx += 1;
+            x -= 1;
+            d += 2*y - 2*x + 1;
         }
+
+        if x < y {
+            break
+        }
+
+        canvas.draw_line(Point::new(cx-x, cy+y), Point::new(cx+x, cy+y))?;
+        canvas.draw_line(Point::new(cx-x, cy-y), Point::new(cx+x, cy-y))?;
+        canvas.draw_line(Point::new(cx-y, cy+x), Point::new(cx+y, cy+x))?;
+        canvas.draw_line(Point::new(cx-y, cy-x), Point::new(cx+y, cy-x))?;
     }
     Ok(())
 }
