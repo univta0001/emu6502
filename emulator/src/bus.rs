@@ -664,7 +664,7 @@ impl Bus {
 
             // 0x60 PB3 should only works in real Apple 2GS
             0x60 => self.pushbutton_latch[3],
-            
+
             0x61 => self.pushbutton_latch[0],
             0x62 => self.pushbutton_latch[1],
             0x63 => self.pushbutton_latch[2],
@@ -728,7 +728,7 @@ impl Bus {
                 if !write_flag {
                     self.writebsr = self.prewrite;
                     self.prewrite = !write_flag;
-                } 
+                }
                 0
             }
 

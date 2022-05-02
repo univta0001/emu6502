@@ -2383,8 +2383,7 @@ mod test {
         cpu.bus.set_cycles(0);
         cpu.load_and_run(&bank2_code);
         assert_eq!(
-            cpu.register_a,
-            0xa1,
+            cpu.register_a, 0xa1,
             "Bank 1 address should be written with 0xA1"
         );
     }
@@ -2409,8 +2408,7 @@ mod test {
         cpu.bus.set_cycles(0);
         cpu.load_and_run(&bank2_code);
         assert_eq!(
-            cpu.register_a,
-            0xa2,
+            cpu.register_a, 0xa2,
             "Bank 2 address should be written with 0xA2"
         );
     }

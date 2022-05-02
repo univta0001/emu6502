@@ -1611,7 +1611,10 @@ impl DiskDrive {
 
         let mut rng = rand::thread_rng();
 
-        if self.lss_cycle >= disk.optimal_timing as f32 / 4.0 {
+        // Only add disk jitter for read operations
+        let disk_jitter = if rng.gen::<f32>() > 0.5 && !self.q7 { 0.025 } else { 0.0 };
+
+        if self.lss_cycle >= (disk.optimal_timing as f32 + disk_jitter) / 4.0 {
             disk.head_mask >>= 1;
             disk.head_bit += 1;
 
@@ -1673,7 +1676,7 @@ impl DiskDrive {
                 };
             }
 
-            self.lss_cycle -= (disk.optimal_timing as f32) / 4.0;
+            self.lss_cycle -= (disk.optimal_timing as f32 + disk_jitter) / 4.0;
         }
     }
 

@@ -16,13 +16,13 @@ use sdl2::event::Event;
 use sdl2::event::EventType::DropFile;
 use sdl2::keyboard::Keycode;
 use sdl2::keyboard::Mod;
-use sdl2::pixels::PixelFormatEnum;
-use sdl2::rect::Rect;
-use sdl2::rect::Point;
-use sdl2::render::Canvas;
-use sdl2::render::BlendMode;
-use sdl2::render::RenderTarget;
 use sdl2::pixels::Color;
+use sdl2::pixels::PixelFormatEnum;
+use sdl2::rect::Point;
+use sdl2::rect::Rect;
+use sdl2::render::BlendMode;
+use sdl2::render::Canvas;
+use sdl2::render::RenderTarget;
 use sdl2::GameControllerSubsystem;
 use std::collections::HashMap;
 use std::error::Error;
@@ -189,28 +189,28 @@ fn handle_event(
                 if joystick_id < 2 {
                     match button {
                         Button::A => {
-                            cpu.bus.pushbutton_latch[2*joystick_id as usize] = 0x80;
+                            cpu.bus.pushbutton_latch[2 * joystick_id as usize] = 0x80;
                         }
                         Button::B => {
-                            cpu.bus.pushbutton_latch[2*joystick_id as usize+1] = 0x80;
+                            cpu.bus.pushbutton_latch[2 * joystick_id as usize + 1] = 0x80;
                         }
                         Button::DPadUp => {
-                            cpu.bus.paddle_latch[2*joystick_id as usize + 1] = 0x0;
+                            cpu.bus.paddle_latch[2 * joystick_id as usize + 1] = 0x0;
                         }
                         Button::DPadDown => {
-                            cpu.bus.paddle_latch[2*joystick_id as usize + 1] = 0xff;
+                            cpu.bus.paddle_latch[2 * joystick_id as usize + 1] = 0xff;
                         }
                         Button::DPadLeft => {
-                            cpu.bus.paddle_latch[2*joystick_id as usize] = 0x0;
+                            cpu.bus.paddle_latch[2 * joystick_id as usize] = 0x0;
                         }
                         Button::DPadRight => {
-                            cpu.bus.paddle_latch[2*joystick_id as usize] = 0xff;
+                            cpu.bus.paddle_latch[2 * joystick_id as usize] = 0xff;
                         }
                         _ => {}
                     }
                 }
             }
-        },
+        }
 
         Event::ControllerButtonUp { which, button, .. } => {
             if let Some(entry) = gamepads.get(&which) {
@@ -218,22 +218,22 @@ fn handle_event(
                 if joystick_id < 2 {
                     match button {
                         Button::A => {
-                            cpu.bus.pushbutton_latch[2*joystick_id as usize] = 0x00;
+                            cpu.bus.pushbutton_latch[2 * joystick_id as usize] = 0x00;
                         }
                         Button::B => {
-                            cpu.bus.pushbutton_latch[2*joystick_id as usize+1] = 0x00;
+                            cpu.bus.pushbutton_latch[2 * joystick_id as usize + 1] = 0x00;
                         }
                         Button::DPadUp | Button::DPadDown => {
-                            cpu.bus.reset_paddle_latch(2*joystick_id as usize + 1);
+                            cpu.bus.reset_paddle_latch(2 * joystick_id as usize + 1);
                         }
                         Button::DPadLeft | Button::DPadRight => {
-                            cpu.bus.reset_paddle_latch(2*joystick_id as usize);
+                            cpu.bus.reset_paddle_latch(2 * joystick_id as usize);
                         }
                         _ => {}
                     }
                 }
-            } 
-        },
+            }
+        }
 
         Event::ControllerDeviceAdded { which, .. } => {
             // Which refers to joystick device index
@@ -514,32 +514,36 @@ fn load_disk(cpu: &mut CPU, path: &Path, drive: usize) -> Result<(), Box<dyn Err
     Ok(())
 }
 
-fn draw_circle<T: RenderTarget>(canvas: &mut Canvas<T>, cx: i32, cy: i32, r: i32) -> Result<(), Box<dyn Error + Send + Sync>> {
+fn draw_circle<T: RenderTarget>(
+    canvas: &mut Canvas<T>,
+    cx: i32,
+    cy: i32,
+    r: i32,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut x = r;
     let mut y = 0;
     let mut d = 1 - r;
 
-    canvas.draw_line(Point::new(cx-x, cy), Point::new(cx+x, cy))?;
+    canvas.draw_line(Point::new(cx - x, cy), Point::new(cx + x, cy))?;
 
     while x > y {
-        
         y += 1;
 
         if d <= 0 {
-            d += 2*y + 1;
+            d += 2 * y + 1;
         } else {
             x -= 1;
-            d += 2*y - 2*x + 1;
+            d += 2 * y - 2 * x + 1;
         }
 
         if x < y {
-            break
+            break;
         }
 
-        canvas.draw_line(Point::new(cx-x, cy+y), Point::new(cx+x, cy+y))?;
-        canvas.draw_line(Point::new(cx-x, cy-y), Point::new(cx+x, cy-y))?;
-        canvas.draw_line(Point::new(cx-y, cy+x), Point::new(cx+y, cy+x))?;
-        canvas.draw_line(Point::new(cx-y, cy-x), Point::new(cx+y, cy-x))?;
+        canvas.draw_line(Point::new(cx - x, cy + y), Point::new(cx + x, cy + y))?;
+        canvas.draw_line(Point::new(cx - x, cy - y), Point::new(cx + x, cy - y))?;
+        canvas.draw_line(Point::new(cx - y, cy + x), Point::new(cx + y, cy + x))?;
+        canvas.draw_line(Point::new(cx - y, cy - x), Point::new(cx + y, cy - x))?;
     }
     Ok(())
 }
