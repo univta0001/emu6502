@@ -238,13 +238,17 @@ pub fn adjust_disassemble_addr(cpu: &mut CPU, addr: u16, step: i16) -> u16 {
         let neg_step = -step;
         for i in (1 * neg_step..=neg_step * 3).rev() {
             let mut pc = addr.wrapping_sub(i as u16);
+            let mut m6502_invalid = false;
             for _ in 0..neg_step {
                 let code = cpu.bus.unclocked_addr_read(pc);
                 let ops = &OPCODES[code as usize];
+                if ops.m65c02 {
+                    m6502_invalid = true
+                }
                 pc = pc.wrapping_add(ops.len as u16);
             }
 
-            if pc == addr {
+            if pc == addr && !m6502_invalid {
                 adj_addr = addr.wrapping_sub(i as u16);
                 break;
             }
