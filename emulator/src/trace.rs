@@ -226,10 +226,51 @@ fn dump_indirect_absolute_x_addr(output: &mut String, addr: u16, mem_addr: u16, 
     output.push(' ');
 }
 
+pub fn adjust_disassemble_addr(cpu: &mut CPU, addr: u16, step: i16) -> u16 {
+    let mut adj_addr = addr;
+    if step > 0 {
+        for _ in 0..step {
+            let code = cpu.bus.unclocked_addr_read(adj_addr);
+            let ops = &OPCODES[code as usize];
+            adj_addr = adj_addr.wrapping_add(ops.len as u16);
+        }
+    } else if step < 0 {
+        let neg_step = -step;
+        for i in (1 * neg_step..=neg_step * 3).rev() {
+            let mut pc = addr.wrapping_sub(i as u16);
+            for _ in 0..neg_step {
+                let code = cpu.bus.unclocked_addr_read(pc);
+                let ops = &OPCODES[code as usize];
+                pc = pc.wrapping_add(ops.len as u16);
+            }
+
+            if pc == addr {
+                adj_addr = addr.wrapping_sub(i as u16);
+                break;
+            }
+        }
+    }
+    adj_addr
+}
+
 pub fn disassemble(output: &mut String, cpu: &mut CPU) {
     let old_callback = cpu.callback;
     cpu.callback = true;
     let mut pc = cpu.program_counter;
+    for _ in 0..20 {
+        let code = cpu.bus.unclocked_addr_read(pc);
+        let ops = &OPCODES[code as usize];
+        dump_trace(output, cpu, pc, false);
+        output.push_str("\r\n");
+        pc = pc.wrapping_add(ops.len as u16);
+    }
+    cpu.callback = old_callback;
+}
+
+pub fn disassemble_addr(output: &mut String, cpu: &mut CPU, addr: u16) {
+    let old_callback = cpu.callback;
+    cpu.callback = true;
+    let mut pc = addr;
     for _ in 0..20 {
         let code = cpu.bus.unclocked_addr_read(pc);
         let ops = &OPCODES[code as usize];
