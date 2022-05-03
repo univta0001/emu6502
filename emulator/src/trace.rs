@@ -4,6 +4,7 @@ use crate::cpu::CPU;
 //use std::collections::HashMap;
 use crate::cpu::OPCODES;
 use crate::opcodes::OpCode;
+use std::cmp::Ordering;
 
 pub fn hex_from_digit(num: u8) -> char {
     if num < 10 {
@@ -228,31 +229,40 @@ fn dump_indirect_absolute_x_addr(output: &mut String, addr: u16, mem_addr: u16, 
 
 pub fn adjust_disassemble_addr(cpu: &mut CPU, addr: u16, step: i16) -> u16 {
     let mut adj_addr = addr;
-    if step > 0 {
-        for _ in 0..step {
-            let code = cpu.bus.unclocked_addr_read(adj_addr);
-            let ops = &OPCODES[code as usize];
-            adj_addr = adj_addr.wrapping_add(ops.len as u16);
-        }
-    } else if step < 0 {
-        let neg_step = -step;
-        for i in (1 * neg_step..=neg_step * 3).rev() {
-            let mut pc = addr.wrapping_sub(i as u16);
-            let mut m6502_invalid = false;
-            for _ in 0..neg_step {
-                let code = cpu.bus.unclocked_addr_read(pc);
+    match step.cmp(&0) {
+        Ordering::Greater => {
+            for _ in 0..step {
+                let code = cpu.bus.unclocked_addr_read(adj_addr);
                 let ops = &OPCODES[code as usize];
-                if ops.m65c02 {
-                    m6502_invalid = true
-                }
-                pc = pc.wrapping_add(ops.len as u16);
+                adj_addr = adj_addr.wrapping_add(ops.len as u16);
             }
+        } 
+        Ordering::Less => {
+            let neg_step = -step;
+            let mut found_addr = false;
+            for i in (neg_step..=neg_step * 3).rev() {
+                let mut pc = addr.wrapping_sub(i as u16);
+                let mut m6502_invalid = false;
+                for _ in 0..neg_step {
+                    let code = cpu.bus.unclocked_addr_read(pc);
+                    let ops = &OPCODES[code as usize];
+                    if ops.m65c02 {
+                        m6502_invalid = true
+                    }
+                    pc = pc.wrapping_add(ops.len as u16);
+                }
 
-            if pc == addr && !m6502_invalid {
-                adj_addr = addr.wrapping_sub(i as u16);
-                break;
+                if pc == addr && !m6502_invalid {
+                    adj_addr = addr.wrapping_sub(i as u16);
+                    found_addr = true;
+                    break;
+                }
+            }
+            if !found_addr {
+                adj_addr = addr.wrapping_sub(neg_step as u16);
             }
         }
+        _ => {}
     }
     adj_addr
 }
@@ -305,7 +315,7 @@ pub fn dump_trace(output: &mut String, cpu: &mut CPU, addr: u16, status: bool) {
         AddressingMode::Immediate | AddressingMode::NoneAddressing => (0, 0),
         _ => {
             let addr = cpu.get_operand_address(ops, addr);
-            (addr, cpu.bus.unclocked_addr_read(addr))
+            (addr, cpu.bus.mem_read(addr))
         }
     };
 

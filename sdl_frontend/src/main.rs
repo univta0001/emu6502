@@ -6,6 +6,8 @@ use emu6502::bus::Bus;
 use emu6502::cpu::CPU;
 use emu6502::cpu_stats::CpuStats;
 use emu6502::trace::disassemble;
+use emu6502::trace::disassemble_addr;
+use emu6502::trace::adjust_disassemble_addr;
 
 use nfd2::Response;
 use sdl2::audio::AudioSpecDesired;
@@ -151,6 +153,7 @@ fn handle_event(
     game_controller: &GameControllerSubsystem,
     gamepads: &mut HashMap<u32, (u32, GameController)>,
     key_caps: &mut bool,
+    display_running_disassembly: &mut bool,
     estimated_mhz: f32,
 ) {
     match event {
@@ -379,9 +382,15 @@ fn handle_event(
         }
         Event::KeyDown {
             keycode: Some(Keycode::F4),
+            keymod,
             ..
         } => {
-            cpu.bus.toggle_joystick();
+            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                //let output = serde_yaml::to_string(&cpu).unwrap();
+                //eprintln!("{}", output);
+            } else {
+                cpu.bus.toggle_joystick();
+            }
         }
 
         Event::KeyDown {
@@ -390,8 +399,7 @@ fn handle_event(
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                //let output = serde_yaml::to_string(&cpu).unwrap();
-                //eprintln!("{}", output);
+                *display_running_disassembly = !*display_running_disassembly;
             } else if let Some(drive) = &mut cpu.bus.disk {
                 drive.swap_drive();
             }
@@ -733,6 +741,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut video_offset = 0;
 
     let mut key_caps = true;
+    let mut display_running_disassembly = false;
 
     cpu.setup_emulator();
     cpu.run_with_callback(|_cpu| {
@@ -803,13 +812,30 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     canvas.present();
                 }
 
+                if display_running_disassembly {
+                    let pc = adjust_disassemble_addr(_cpu,_cpu.program_counter,-10);
+                    let mut output = String::new();
+                    disassemble_addr(&mut output, _cpu, pc);
+                    if let Some(display) = &mut _cpu.bus.video {
+                        let mut row = 1;
+                        for str in output.lines() {
+                            display.draw_string_raw_a2_alpha(1,row,str,false,128);
+                            row += 1;
+                        }
+                        let rect = Rect::new(0, 0, 560, 192);
+                        texture.update(rect, &display.frame[0..], 560*4).unwrap();
+                        canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
+                        canvas.present();
+                    }
+                }
+
                 video_offset = video_elapsed % 16_667;
                 video_refresh = Instant::now();
             }
 
             let mut event = _event_pump.poll_event();
             while let Some(event_value) = event {
-                handle_event(_cpu, event_value,&game_controller,&mut gamepads, &mut key_caps, estimated_mhz);
+                handle_event(_cpu, event_value,&game_controller,&mut gamepads, &mut key_caps, &mut display_running_disassembly, estimated_mhz);
                 event = _event_pump.poll_event();
             }
             let video_cpu_update = t.elapsed().as_micros();
