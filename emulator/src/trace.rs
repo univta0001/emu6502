@@ -236,7 +236,7 @@ pub fn adjust_disassemble_addr(cpu: &mut CPU, addr: u16, step: i16) -> u16 {
                 let ops = &OPCODES[code as usize];
                 adj_addr = adj_addr.wrapping_add(ops.len as u16);
             }
-        } 
+        }
         Ordering::Less => {
             let neg_step = -step;
             let mut found_addr = false;
@@ -281,11 +281,11 @@ pub fn disassemble(output: &mut String, cpu: &mut CPU) {
     cpu.callback = old_callback;
 }
 
-pub fn disassemble_addr(output: &mut String, cpu: &mut CPU, addr: u16) {
+pub fn disassemble_addr(output: &mut String, cpu: &mut CPU, addr: u16, size: usize) {
     let old_callback = cpu.callback;
     cpu.callback = true;
     let mut pc = addr;
-    for _ in 0..20 {
+    for _ in 0..size {
         let code = cpu.bus.unclocked_addr_read(pc);
         let ops = &OPCODES[code as usize];
         dump_trace(output, cpu, pc, false);
@@ -315,7 +315,11 @@ pub fn dump_trace(output: &mut String, cpu: &mut CPU, addr: u16, status: bool) {
         AddressingMode::Immediate | AddressingMode::NoneAddressing => (0, 0),
         _ => {
             let addr = cpu.get_operand_address(ops, addr);
-            (addr, cpu.bus.mem_read(addr))
+            if addr >> 8 & 0xff == 0xc0 {
+                (addr, cpu.bus.mem_read(addr))
+            } else {
+                (addr, cpu.bus.unclocked_addr_read(addr))
+            }
         }
     };
 

@@ -1134,10 +1134,13 @@ impl Video {
     pub fn set_pixel_blend_alpha(&mut self, x: usize, y: usize, rgb: Rgb, alpha: u8) {
         let base = y * 4 * Video::WIDTH + x * 4;
         let [r, g, b] = rgb;
-        let alpha_ratio: f32 = alpha as f32/255.0;
-        self.frame[base] = (self.frame[base] as f32 * (1.0 - alpha_ratio)) as u8 + (r as f32 * alpha_ratio) as u8;
-        self.frame[base + 1] = (self.frame[base+1] as f32 * (1.0 - alpha_ratio)) as u8 + (g as f32 * alpha_ratio) as u8;
-        self.frame[base + 2] = (self.frame[base+2] as f32 * (1.0 - alpha_ratio)) as u8 + (b as f32 * alpha_ratio) as u8;
+        let alpha_ratio: f32 = alpha as f32 / 255.0;
+        self.frame[base] =
+            (self.frame[base] as f32 * (1.0 - alpha_ratio)) as u8 + (r as f32 * alpha_ratio) as u8;
+        self.frame[base + 1] = (self.frame[base + 1] as f32 * (1.0 - alpha_ratio)) as u8
+            + (g as f32 * alpha_ratio) as u8;
+        self.frame[base + 2] = (self.frame[base + 2] as f32 * (1.0 - alpha_ratio)) as u8
+            + (b as f32 * alpha_ratio) as u8;
     }
 
     pub fn set_pixel_count(&mut self, x: usize, y: usize, rgb: Rgb, count: usize) {
@@ -1223,9 +1226,17 @@ impl Video {
 
     pub fn draw_char_raw_a2(&mut self, x1: usize, y1: usize, ch: u8, scale: bool, alpha: u8) {
         debug_assert!(x1 < 80);
-        debug_assert!(y1 < 24);
-        
-        let val = if (0x40..0x80).contains(&ch) { ch - 0x40 } else { ch };
+        if !scale {
+            debug_assert!(y1 < 48);
+        } else {
+            debug_assert!(y1 < 24);
+        }
+
+        let val = if (0x40..0x80).contains(&ch) {
+            ch - 0x40
+        } else {
+            ch
+        };
 
         let back_color = COLOR_BLACK;
         let fore_color = COLOR_WHITE;
@@ -1243,8 +1254,8 @@ impl Video {
                     back_color
                 };
                 if scale {
-                    self.set_pixel_blend_alpha(xindex, y1offset + 2*yindex, color, alpha);
-                    self.set_pixel_blend_alpha(xindex, y1offset + 2*yindex + 1, color, alpha);
+                    self.set_pixel_blend_alpha(xindex, y1offset + 2 * yindex, color, alpha);
+                    self.set_pixel_blend_alpha(xindex, y1offset + 2 * yindex + 1, color, alpha);
                 } else {
                     self.set_pixel_blend_alpha(xindex, y1offset + yindex, color, alpha);
                 }
@@ -1254,14 +1265,21 @@ impl Video {
     }
 
     pub fn draw_string_raw_a2(&mut self, x1: usize, y1: usize, str: &str, scale: bool) {
-        self.draw_string_raw_a2_alpha(x1,y1,str,scale,255);
-    }    
+        self.draw_string_raw_a2_alpha(x1, y1, str, scale, 255);
+    }
 
-    pub fn draw_string_raw_a2_alpha(&mut self, x1: usize, y1: usize, str: &str, scale: bool, alpha: u8) {
+    pub fn draw_string_raw_a2_alpha(
+        &mut self,
+        x1: usize,
+        y1: usize,
+        str: &str,
+        scale: bool,
+        alpha: u8,
+    ) {
         let mut x = x1;
         for ch in str.chars() {
             if x < 80 {
-                self.draw_char_raw_a2(x,y1,ch as u8,scale, alpha);
+                self.draw_char_raw_a2(x, y1, ch as u8, scale, alpha);
             }
             x += 1;
         }

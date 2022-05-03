@@ -5,9 +5,9 @@ use emu6502::bus::Bus;
 //use emu6502::trace::trace;
 use emu6502::cpu::CPU;
 use emu6502::cpu_stats::CpuStats;
+use emu6502::trace::adjust_disassemble_addr;
 use emu6502::trace::disassemble;
 use emu6502::trace::disassemble_addr;
-use emu6502::trace::adjust_disassemble_addr;
 
 use nfd2::Response;
 use sdl2::audio::AudioSpecDesired;
@@ -154,6 +154,7 @@ fn handle_event(
     gamepads: &mut HashMap<u32, (u32, GameController)>,
     key_caps: &mut bool,
     display_running_disassembly: &mut bool,
+    display_refresh: &mut bool,
     estimated_mhz: f32,
 ) {
     match event {
@@ -400,6 +401,7 @@ fn handle_event(
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 *display_running_disassembly = !*display_running_disassembly;
+                *display_refresh = true;
             } else if let Some(drive) = &mut cpu.bus.disk {
                 drive.swap_drive();
             }
@@ -742,6 +744,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     let mut key_caps = true;
     let mut display_running_disassembly = false;
+    let mut display_refresh = false;
 
     cpu.setup_emulator();
     cpu.run_with_callback(|_cpu| {
@@ -783,13 +786,22 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     */
 
                     canvas.set_blend_mode(BlendMode::Blend);
-                    for region in dirty_region {
-                        let start = region.0 * 16;
-                        let end = 16 * ((region.1 - region.0) + 1);
-                        let rect = Rect::new(0, start as i32, 560, end as u32);
-                        texture.update(rect, &display.frame[start*4*560..], 560*4).unwrap();
+                    if !display_refresh {
+                        for region in dirty_region {
+                            let start = region.0 * 16;
+                            let end = 16 * ((region.1 - region.0) + 1);
+                            let rect = Rect::new(0, start as i32, 560, end as u32);
+                            texture.update(rect, &display.frame[start*4*560..], 560*4).unwrap();
+                            canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
+                        }
+                    } else {
+                        display_refresh = false;
+                        let rect = Rect::new(0, 0, 560, 384);
+                        texture.update(rect, &display.frame[0..], 560*4).unwrap();
                         canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
+                        canvas.present();
                     }
+
                     display.clear_video_dirty();
 
                     let disk_is_on = if let Some(drive) = &_cpu.bus.disk {
@@ -813,16 +825,25 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 }
 
                 if display_running_disassembly {
-                    let pc = adjust_disassemble_addr(_cpu,_cpu.program_counter,-10);
+                    let pc = adjust_disassemble_addr(_cpu,_cpu.program_counter,-20);
                     let mut output = String::new();
-                    disassemble_addr(&mut output, _cpu, pc);
+                    disassemble_addr(&mut output, _cpu, pc, 40);
                     if let Some(display) = &mut _cpu.bus.video {
                         let mut row = 1;
                         for str in output.lines() {
                             display.draw_string_raw_a2_alpha(1,row,str,false,128);
                             row += 1;
                         }
-                        let rect = Rect::new(0, 0, 560, 192);
+            
+                        // Display Status
+                        let status_label=format!("A  X  Y  P  S  PC");
+                        let status_value=format!("{:02X} {:02X} {:02X} {:02X} {:02X} {:04X}", 
+                            _cpu.register_a, _cpu.register_x, _cpu.register_y,
+                            _cpu.status.bits(), _cpu.stack_pointer,_cpu.program_counter);
+                        display.draw_string_raw_a2_alpha(51,1,&status_label, false, 128); 
+                        display.draw_string_raw_a2_alpha(51,2,&status_value, false, 128); 
+
+                        let rect = Rect::new(0, 0, 560, 384);
                         texture.update(rect, &display.frame[0..], 560*4).unwrap();
                         canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
                         canvas.present();
@@ -835,7 +856,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
             let mut event = _event_pump.poll_event();
             while let Some(event_value) = event {
-                handle_event(_cpu, event_value,&game_controller,&mut gamepads, &mut key_caps, &mut display_running_disassembly, estimated_mhz);
+                handle_event(_cpu, event_value,&game_controller,&mut gamepads, &mut key_caps, &mut display_running_disassembly, &mut display_refresh, estimated_mhz);
                 event = _event_pump.poll_event();
             }
             let video_cpu_update = t.elapsed().as_micros();
