@@ -1224,7 +1224,15 @@ impl Video {
         }
     }
 
-    pub fn draw_char_raw_a2(&mut self, x1: usize, y1: usize, ch: u8, scale: bool, alpha: u8) {
+    pub fn draw_char_raw_a2(
+        &mut self,
+        x1: usize,
+        y1: usize,
+        ch: u8,
+        scale: bool,
+        alpha: u8,
+        altflag: bool,
+    ) {
         debug_assert!(x1 < 80);
         if !scale {
             debug_assert!(y1 < 48);
@@ -1232,8 +1240,12 @@ impl Video {
             debug_assert!(y1 < 24);
         }
 
-        let val = if (0x40..0x80).contains(&ch) {
-            ch - 0x40
+        let val = if !altflag {
+            if (0x40..0x80).contains(&ch) {
+                ch - 0x40
+            } else {
+                ch
+            }
         } else {
             ch
         };
@@ -1264,8 +1276,15 @@ impl Video {
         }
     }
 
-    pub fn draw_string_raw_a2(&mut self, x1: usize, y1: usize, str: &str, scale: bool) {
-        self.draw_string_raw_a2_alpha(x1, y1, str, scale, 255);
+    pub fn draw_string_raw_a2(
+        &mut self,
+        x1: usize,
+        y1: usize,
+        str: &str,
+        scale: bool,
+        altflag: bool,
+    ) {
+        self.draw_string_raw_a2_alpha(x1, y1, str, scale, 255, altflag);
     }
 
     pub fn draw_string_raw_a2_alpha(
@@ -1275,11 +1294,12 @@ impl Video {
         str: &str,
         scale: bool,
         alpha: u8,
+        altflag: bool,
     ) {
         let mut x = x1;
         for ch in str.chars() {
             if x < 80 {
-                self.draw_char_raw_a2(x, y1, ch as u8, scale, alpha);
+                self.draw_char_raw_a2(x, y1, ch as u8, scale, alpha, altflag);
             }
             x += 1;
         }

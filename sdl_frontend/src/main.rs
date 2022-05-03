@@ -156,11 +156,7 @@ fn translate_key_to_apple_key(
     (true, value)
 }
 
-fn handle_event(
-    cpu: &mut CPU,
-    event: Event,
-    event_param: &mut EventParam,
-) {
+fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
     match event {
         Event::Quit { .. } => std::process::exit(0),
 
@@ -420,7 +416,11 @@ fn handle_event(
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                eprintln!("MHz: {:.3} Cycles: {}", event_param.estimated_mhz, cpu.bus.get_cycles());
+                eprintln!(
+                    "MHz: {:.3} Cycles: {}",
+                    event_param.estimated_mhz,
+                    cpu.bus.get_cycles()
+                );
             } else {
                 let result = nfd2::open_file_dialog(Some("dsk,po,woz,dsk.gz,po.gz,woz.gz"), None)
                     .expect("Unable to open file dialog");
@@ -838,7 +838,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     if let Some(display) = &mut _cpu.bus.video {
                         let mut row = 1;
                         for str in output.lines() {
-                            display.draw_string_raw_a2_alpha(1,row,str,false,128);
+                            display.draw_string_raw_a2_alpha(1,row,str,false,128,false);
                             row += 1;
                         }
             
@@ -847,8 +847,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         let status_value=format!("{:02X} {:02X} {:02X} {:02X} {:02X} {:04X}", 
                             _cpu.register_a, _cpu.register_x, _cpu.register_y,
                             _cpu.status.bits(), _cpu.stack_pointer,_cpu.program_counter);
-                        display.draw_string_raw_a2_alpha(51,1,&status_label, false, 128); 
-                        display.draw_string_raw_a2_alpha(51,2,&status_value, false, 128); 
+                        display.draw_string_raw_a2_alpha(51,1,&status_label, false, 128,false); 
+                        display.draw_string_raw_a2_alpha(51,2,&status_value, false, 128,false); 
 
                         let rect = Rect::new(0, 0, 560, 384);
                         texture.update(rect, &display.frame[0..], 560*4).unwrap();
