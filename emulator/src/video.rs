@@ -718,11 +718,17 @@ impl Video {
             0xc00e => {
                 if write_flag {
                     self.altchar = false;
+                    for i in 0..self.video_dirty.len() {
+                        self.video_dirty[i]=1;
+                    }
                 }
             }
             0xc00f => {
                 if write_flag {
                     self.altchar = true;
+                    for i in 0..self.video_dirty.len() {
+                        self.video_dirty[i]=1;
+                    }
                 }
             }
 

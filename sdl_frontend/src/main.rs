@@ -843,11 +843,11 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         }
             
                         // Display Status
-                        let status_label=format!("A  X  Y  P  S  PC");
+                        let status_label="A  X  Y  P  S  PC";
                         let status_value=format!("{:02X} {:02X} {:02X} {:02X} {:02X} {:04X}", 
                             _cpu.register_a, _cpu.register_x, _cpu.register_y,
                             _cpu.status.bits(), _cpu.stack_pointer,_cpu.program_counter);
-                        display.draw_string_raw_a2_alpha(51,1,&status_label, false, 128,false); 
+                        display.draw_string_raw_a2_alpha(51,1,status_label, false, 128,false); 
                         display.draw_string_raw_a2_alpha(51,2,&status_value, false, 128,false); 
 
                         let rect = Rect::new(0, 0, 560, 384);
