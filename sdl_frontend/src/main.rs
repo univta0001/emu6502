@@ -836,19 +836,22 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     let mut output = String::new();
                     disassemble_addr(&mut output, _cpu, pc, 40);
                     if let Some(display) = &mut _cpu.bus.video {
-                        let mut row = 1;
+                        let mut row = 2;
                         for str in output.lines() {
                             display.draw_string_raw_a2_alpha(1,row,str,false,128,false);
                             row += 1;
                         }
-            
+
+                        // Draw box
+                        display.draw_box_raw_a2(0,0,51,43,false,128);
+                        display.draw_box_raw_a2(50,0,22,5,false,128);
                         // Display Status
                         let status_label="A  X  Y  P  S  PC";
                         let status_value=format!("{:02X} {:02X} {:02X} {:02X} {:02X} {:04X}", 
                             _cpu.register_a, _cpu.register_x, _cpu.register_y,
                             _cpu.status.bits(), _cpu.stack_pointer,_cpu.program_counter);
-                        display.draw_string_raw_a2_alpha(51,1,status_label, false, 128,false); 
-                        display.draw_string_raw_a2_alpha(51,2,&status_value, false, 128,false); 
+                        display.draw_string_raw_a2_alpha(51,2,status_label, false, 128,false); 
+                        display.draw_string_raw_a2_alpha(51,3,&status_value, false, 128,false); 
 
                         let rect = Rect::new(0, 0, 560, 384);
                         texture.update(rect, &display.frame[0..], 560*4).unwrap();

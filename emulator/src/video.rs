@@ -719,7 +719,7 @@ impl Video {
                 if write_flag {
                     self.altchar = false;
                     for i in 0..self.video_dirty.len() {
-                        self.video_dirty[i]=1;
+                        self.video_dirty[i] = 1;
                     }
                 }
             }
@@ -727,7 +727,7 @@ impl Video {
                 if write_flag {
                     self.altchar = true;
                     for i in 0..self.video_dirty.len() {
-                        self.video_dirty[i]=1;
+                        self.video_dirty[i] = 1;
                     }
                 }
             }
@@ -1256,8 +1256,16 @@ impl Video {
             ch
         };
 
-        let back_color = COLOR_BLACK;
-        let fore_color = COLOR_WHITE;
+        let back_color;
+        let fore_color;
+
+        if altflag {
+            back_color = COLOR_WHITE;
+            fore_color = COLOR_BLACK;
+        } else {
+            back_color = COLOR_BLACK;
+            fore_color = COLOR_WHITE;
+        }
 
         let x1offset = x1 * 7;
         let y1offset = if scale { y1 * 16 } else { y1 * 8 };
@@ -1279,6 +1287,39 @@ impl Video {
                 }
                 shift >>= 1;
             }
+        }
+    }
+
+    pub fn draw_box_raw_a2(
+        &mut self,
+        x: usize,
+        y: usize,
+        w: usize,
+        h: usize,
+        scale: bool,
+        alpha: u8,
+    ) {
+        // Draw top edge
+        for i in 0..w - 1 {
+            self.draw_char_raw_a2(x + i, y, b'_', scale, alpha, false);
+        }
+
+        // Draw left edge
+        for i in 1..h - 1 {
+            self.draw_char_raw_a2(x, y + i, b'_', scale, alpha, true);
+        }
+
+        // Draw right edge
+        for i in 1..h {
+            self.draw_char_raw_a2(x + w - 1, y + i, b'_', scale, alpha, true);
+        }
+
+        // Draw left corner
+        self.draw_char_raw_a2(x, y + h - 1, b'T', scale, alpha, true);
+
+        // Draw bottom edge
+        for i in 1..w - 1 {
+            self.draw_char_raw_a2(x + i, y + h - 1, b'_', scale, alpha, false);
         }
     }
 
