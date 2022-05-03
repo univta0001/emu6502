@@ -42,6 +42,15 @@ const CPU_6502_MHZ: usize = 157500 / 11 * 65 / 912;
 
 const VERSION: &str = "0.1.0";
 
+struct EventParam<'a> {
+    game_controller: &'a GameControllerSubsystem,
+    gamepads: &'a mut HashMap<u32, (u32, GameController)>,
+    key_caps: &'a mut bool,
+    display_running_disassembly: &'a mut bool,
+    display_refresh: &'a mut bool,
+    estimated_mhz: &'a mut f32,
+}
+
 fn translate_key_to_apple_key(
     apple2e: bool,
     key_caps: &mut bool,
@@ -150,12 +159,7 @@ fn translate_key_to_apple_key(
 fn handle_event(
     cpu: &mut CPU,
     event: Event,
-    game_controller: &GameControllerSubsystem,
-    gamepads: &mut HashMap<u32, (u32, GameController)>,
-    key_caps: &mut bool,
-    display_running_disassembly: &mut bool,
-    display_refresh: &mut bool,
-    estimated_mhz: f32,
+    event_param: &mut EventParam,
 ) {
     match event {
         Event::Quit { .. } => std::process::exit(0),
@@ -166,7 +170,7 @@ fn handle_event(
             value: val,
             ..
         } => {
-            if let Some(entry) = gamepads.get(&which) {
+            if let Some(entry) = event_param.gamepads.get(&which) {
                 let joystick_id = entry.0;
                 // Axis motion is an absolute value in the range
                 // [-32768, 32767]. Let's simulate a very rough dead
@@ -188,7 +192,7 @@ fn handle_event(
         }
 
         Event::ControllerButtonDown { which, button, .. } => {
-            if let Some(entry) = gamepads.get(&which) {
+            if let Some(entry) = event_param.gamepads.get(&which) {
                 let joystick_id = entry.0;
                 if joystick_id < 2 {
                     match button {
@@ -217,7 +221,7 @@ fn handle_event(
         }
 
         Event::ControllerButtonUp { which, button, .. } => {
-            if let Some(entry) = gamepads.get(&which) {
+            if let Some(entry) = event_param.gamepads.get(&which) {
                 let joystick_id = entry.0;
                 if joystick_id < 2 {
                     match button {
@@ -241,15 +245,17 @@ fn handle_event(
 
         Event::ControllerDeviceAdded { which, .. } => {
             // Which refers to joystick device index
-            if let Ok(controller) = game_controller.open(which) {
+            if let Ok(controller) = event_param.game_controller.open(which) {
                 let instance_id = controller.instance_id();
-                gamepads.insert(instance_id, (which, controller));
+                event_param
+                    .gamepads
+                    .insert(instance_id, (which, controller));
             }
         }
 
         Event::ControllerDeviceRemoved { which, .. } => {
             // Which refers to instance id
-            gamepads.remove(&(which as u32));
+            event_param.gamepads.remove(&(which as u32));
         }
 
         Event::KeyDown {
@@ -400,8 +406,9 @@ fn handle_event(
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                *display_running_disassembly = !*display_running_disassembly;
-                *display_refresh = true;
+                *event_param.display_running_disassembly =
+                    !*event_param.display_running_disassembly;
+                *event_param.display_refresh = true;
             } else if let Some(drive) = &mut cpu.bus.disk {
                 drive.swap_drive();
             }
@@ -413,7 +420,7 @@ fn handle_event(
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                eprintln!("MHz: {:.3} Cycles: {}", estimated_mhz, cpu.bus.get_cycles());
+                eprintln!("MHz: {:.3} Cycles: {}", event_param.estimated_mhz, cpu.bus.get_cycles());
             } else {
                 let result = nfd2::open_file_dialog(Some("dsk,po,woz,dsk.gz,po.gz,woz.gz"), None)
                     .expect("Unable to open file dialog");
@@ -455,7 +462,7 @@ fn handle_event(
             ..
         } => {
             let (status, value) =
-                translate_key_to_apple_key(cpu.is_apple2e(), key_caps, value, keymod);
+                translate_key_to_apple_key(cpu.is_apple2e(), event_param.key_caps, value, keymod);
             if status {
                 cpu.bus.keyboard_latch = (value + 128) as u8;
             }
@@ -856,7 +863,16 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
             let mut event = _event_pump.poll_event();
             while let Some(event_value) = event {
-                handle_event(_cpu, event_value,&game_controller,&mut gamepads, &mut key_caps, &mut display_running_disassembly, &mut display_refresh, estimated_mhz);
+                let mut event_param = EventParam {
+                    game_controller: &game_controller,
+                    gamepads: &mut gamepads,
+                    key_caps: &mut key_caps,
+                    display_running_disassembly: &mut display_running_disassembly,
+                    display_refresh: &mut display_refresh,
+                    estimated_mhz: &mut estimated_mhz,
+                };
+
+                handle_event(_cpu, event_value,&mut event_param);
                 event = _event_pump.poll_event();
             }
             let video_cpu_update = t.elapsed().as_micros();
