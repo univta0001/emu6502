@@ -818,14 +818,14 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     };
 
                     if disk_is_on {
-                        let rect = Rect::new(554, 2, 5, 5);
-                        texture.update(rect, &display.frame[0..], 560*4).unwrap();
+                        let rect = Rect::new(554, 0, 10, 10);
+                        texture.update(rect, &display.frame[554*4..], 560*4).unwrap();
                         canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
                         canvas.set_draw_color(Color::RGBA(255, 0, 0, 128));
                         let _result = draw_circle(&mut canvas, 560 - 4, 4, 2);
                     } else {
-                        let rect = Rect::new(554, 2, 5, 5);
-                        texture.update(rect, &display.frame[0..], 560*4).unwrap();
+                        let rect = Rect::new(554, 0, 10, 10);
+                        texture.update(rect, &display.frame[554*4..], 560*4).unwrap();
                         canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
                     }
                     canvas.present();
