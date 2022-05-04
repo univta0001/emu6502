@@ -33,7 +33,7 @@ pub struct Video {
     lut_hires_pal: Vec<usize>,
 
     #[serde(skip)]
-    video_cache: Vec<u16>,
+    video_cache: Vec<u32>,
 
     #[serde(skip)]
     video_dirty: Vec<u8>,
@@ -634,6 +634,7 @@ impl Video {
         // 25 clock cycle of horizontal blank
         // followed by 40 clock cycles displayed line
         let video_value = self.read_video_data(val, col, row);
+        let video_aux_latch = self.read_aux_video_data(val, col, row);
         self.video_latch = self.prev_video_data;
         self.prev_video_data = video_value;
 
@@ -643,13 +644,11 @@ impl Video {
 
         let visible_col = col - CYCLES_PER_HBL;
         let video_mode = self._get_video_mode();
-        let video_data = video_value as u16 | video_mode;
+        let video_data = video_value as u32 | (video_aux_latch as u32) << 8 | video_mode;
 
         if row < 192 && col >= CYCLES_PER_HBL
         //&& (self.video_cache[visible_col + row * 40] != video_data)
         {
-            let video_aux_latch = self.read_aux_video_data(val, col, row);
-
             // If data does not match video_cache, invalidate cache
             if self.video_cache[visible_col + row * 40] != video_data {
                 self.video_dirty[row / 8] = 1;
@@ -833,8 +832,8 @@ impl Video {
         vec
     }
 
-    fn _get_video_mode(&self) -> u16 {
-        let mut mode: u16 = 0;
+    fn _get_video_mode(&self) -> u32 {
+        let mut mode: u32 = 0;
         if self.graphics_mode {
             mode |= 0x1;
         }
@@ -857,7 +856,7 @@ impl Video {
             mode |= 0x80;
         }
 
-        mode << 8
+        mode << 16
     }
 
     fn read_video_data(&mut self, cycle: usize, _c: usize, r: usize) -> u8 {
