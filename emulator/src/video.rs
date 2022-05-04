@@ -654,13 +654,13 @@ impl Video {
                 self.video_dirty[row / 8] = 1;
 
                 // Invalidate also the neighboring cols (col-1 and col+1) if possible
-                if self.video_cache[visible_col + row * 40] != 0xffff {
+                if self.video_cache[visible_col + row * 40] != 0xffffffff {
                     if visible_col >= 1 {
-                        self.video_cache[visible_col - 1 + row * 40] = 0xffff;
+                        self.video_cache[visible_col - 1 + row * 40] = 0xffffffff;
                     }
 
                     if visible_col <= 38 {
-                        self.video_cache[visible_col + 1 + row * 40] = 0xffff;
+                        self.video_cache[visible_col + 1 + row * 40] = 0xffffffff;
                     }
                 }
             }
