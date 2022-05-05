@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 const AY_RESET: u8 = 0;
+const AY_INACTIVE: u8 = 4;
 const AY_READ_DATA: u8 = 5;
 const AY_WRITE_DATA: u8 = 6;
 const AY_SET_PSG_REG: u8 = 7;
@@ -377,6 +378,7 @@ struct W65C22 {
     pcr: u8,
     ifr: u8,
     ier: u8,
+    state: u8,
     cycles: usize,
     ay8910: AY8910,
     irq_happen: usize,
@@ -403,6 +405,7 @@ impl W65C22 {
             pcr: 0,
             ifr: 0x0,
             ier: 0x0,
+            state: 0,
             cycles: 0,
             ay8910: AY8910::new(name),
             irq_happen: 0,
@@ -469,6 +472,7 @@ impl W65C22 {
         self.ier = 0x0;
 
         self.ay8910.reset();
+        self.state = AY_INACTIVE;
     }
 
     fn poll_irq(&mut self) -> Option<usize> {
@@ -482,16 +486,19 @@ impl W65C22 {
     }
 
     fn ay8910_write(&mut self, value: u8) {
-        match value & 0x07 {
-            AY_RESET => self.ay8910.reset(),
-            AY_READ_DATA => self.ora = self.ay8910.read_register() & (self.ddra ^ 0xff),
-            AY_WRITE_DATA => self.ay8910.write_register(self.ora),
-            AY_SET_PSG_REG => {
-                if self.ora <= 0x0f {
-                    self.ay8910.set_register(self.ora & 0xf);
+        if value & 0x07 == AY_RESET {
+            self.ay8910.reset()
+        } else if self.state == AY_INACTIVE {
+            match value & 0x07 {
+                AY_READ_DATA => self.ora = self.ay8910.read_register() & (self.ddra ^ 0xff),
+                AY_WRITE_DATA => self.ay8910.write_register(self.ora),
+                AY_SET_PSG_REG => {
+                    if self.ora <= 0x0f {
+                        self.ay8910.set_register(self.ora & 0xf);
+                    }
                 }
+                _ => {}
             }
-            _ => {}
         }
     }
 
