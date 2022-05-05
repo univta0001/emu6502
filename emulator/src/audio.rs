@@ -21,8 +21,6 @@ pub struct Audio {
     fcycles: f32,
     fcycles_per_sample: f32,
     dc_filter: usize,
-    freq_level: [i8; 6],
-    noise_level: [i8; 6],
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -43,8 +41,6 @@ impl Audio {
             fcycles: 0.0,
             fcycles_per_sample: CPU_6502_MHZ as f32 / DEFAULT_RATE as f32,
             dc_filter: 32768 + 12000,
-            freq_level: [-1; 6],
-            noise_level: [0; 6],
             mboard: Mockingboard::default(),
         }
     }
@@ -80,7 +76,6 @@ impl Audio {
     }
 
     fn update_phase(&mut self, phase: &mut Channel, channel: usize) {
-        let triple_channel = 3 * channel;
         for tone in 0..3 {
             let tone_volume = AY_LEVEL[self.mboard.get_tone_volume(channel, tone)];
 
@@ -108,45 +103,16 @@ impl Audio {
             // The 8910 has three outputs, each output is the mix of one of the three
             // tone generators and of the (single) noise generator. The two are mixed
             // BEFORE going into the DAC. The formula to mix each channel is:
-            // (ToneOutput | ToneEnable) & (NoiseOutput | NoiseEnable).
+            // (ToneOutput | ToneDisable) & (NoiseOutput | NoiseDisable).
             // Note that this means that if both tone and noise are disabled, the output
             // is 1, not 0, and can be modulated changing the volume.
 
-            let index = triple_channel + tone;
-            if tone_enabled {
-                if self.mboard.get_tone_level(channel, tone) {
-                    self.freq_level[index] = 1;
-                } else {
-                    self.freq_level[index] = -1;
-                }
-            }
-
-            if noise_enabled {
-                if self.mboard.get_noise_level(channel) {
-                    self.noise_level[index] = -self.freq_level[index];
-                } else {
-                    self.noise_level[index] = 0;
-                }
-            }
-
-            let mut mix = self.freq_level[index] + self.noise_level[index] as i8;
-
-            if mix > 1 {
-                mix = 1;
-            } else if mix < -1 {
-                mix = -1;
-            }
-
-            if mix != 0 {
-                *phase += volume * (mix.signum() as i16);
-            }
-            /*
-            if mix > 0 {
-                *phase += volume
-            } else if mix < 0 {
-                *phase -= volume
-            }
-            */
+            let mix = 2
+                * (((self.mboard.get_tone_level(channel, tone) | !tone_enabled)
+                    & (self.mboard.get_noise_level(channel) | !noise_enabled))
+                    as i8)
+                - 1;
+            *phase += volume * (mix.signum() as i16);
         }
     }
 
