@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 const AY_RESET: u8 = 0;
-const AY_INACTIVE: u8 = 4;
-const AY_READ_DATA: u8 = 5;
+const AY_INACTIVE: u8 = 2;
+const AY_READ_DATA: u8 = 3;
 const AY_WRITE_DATA: u8 = 6;
 const AY_SET_PSG_REG: u8 = 7;
 
