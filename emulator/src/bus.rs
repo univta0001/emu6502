@@ -924,7 +924,7 @@ impl Mem for Bus {
             0xc400..=0xc4ff => {
                 if !self.intcxrom {
                     if let Some(sound) = &mut self.audio {
-                        if sound.mboard.len() >= 1 {
+                        if !sound.mboard.is_empty() {
                             sound.mboard[0].io_access(addr, 0, false)
                         } else {
                             self.read_video_latch()
@@ -1022,7 +1022,7 @@ impl Mem for Bus {
 
             0xc400..=0xc4ff => {
                 if let Some(sound) = &mut self.audio {
-                    if sound.mboard.len() >= 1 {
+                    if !sound.mboard.is_empty() {
                         let _write = sound.mboard[0].io_access(addr, data, true);
                     }
                 }

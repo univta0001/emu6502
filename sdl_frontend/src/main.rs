@@ -8,7 +8,7 @@ use emu6502::cpu_stats::CpuStats;
 use emu6502::trace::adjust_disassemble_addr;
 use emu6502::trace::disassemble;
 use emu6502::trace::disassemble_addr;
-
+use emu6502::mockingboard::Mockingboard;
 use nfd2::Response;
 use sdl2::audio::AudioSpecDesired;
 use sdl2::controller::Axis;
@@ -498,6 +498,7 @@ FLAGS:
     --weakbit rate    Set the random weakbit error rate (Default is 0.3)
     --opt_timing rate Override the optimal timing (Default is 0)
     --rgb             Enable RGB mode (Default: RGB mode disabled)
+    --mboard 0|1|2    Number of mockingboards to enable
 
 ARGS:
     [disk 1]          Disk 1 file (woz, dsk, po file). File can be in gz format
@@ -652,7 +653,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     //cpu.load(apple2e_rom, 0xc000);
     cpu.load(&apple2ee_rom, 0xc000);
     //cpu.load(_function_test, 0x0);
-    cpu.reset();
     //cpu.program_counter = 0x0400;
     //cpu.self_test = true;
     //cpu.m65c02 = true;
@@ -719,6 +719,20 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         load_disk(&mut cpu, path, 1)?;
     }    
 
+    if let Some(mboard) = pargs.opt_value_from_str::<_,u8>("--mboard")? {
+        if mboard > 2 {
+            panic!("mboard only accepts 0, 1 or 2 as value");
+        }
+        
+        if let Some(sound) = &mut cpu.bus.audio {
+            sound.mboard.clear();
+            for i in 0..mboard {
+                let slot = 4+i;
+                sound.mboard.push(Mockingboard::new_with_slot(slot.into()));
+            }
+        }   
+    }
+
     // Load dsk image
     if let Ok(input_file) = pargs.free_from_str::<String>() {
         let path = Path::new(&input_file);
@@ -753,6 +767,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut display_running_disassembly = false;
     let mut display_refresh = false;
 
+    cpu.reset();
     cpu.setup_emulator();
     cpu.run_with_callback(|_cpu| {
         dcyc += _cpu.bus.get_cycles() - previous_cycles;
