@@ -178,7 +178,7 @@ impl Bus {
 
         if !self.disable_audio {
             if let Some(sound) = &mut self.audio {
-                sound.mboard.reset();
+                sound.mboard.iter_mut().for_each(|mb| { mb.reset() })
             }
         }
 
@@ -284,7 +284,7 @@ impl Bus {
     pub fn irq(&mut self) -> Option<usize> {
         if !self.disable_audio {
             if let Some(sound) = &mut self.audio {
-                sound.mboard.poll_irq()
+                sound.mboard.iter_mut().find_map(|mb| mb.poll_irq())
             } else {
                 None
             }
@@ -896,7 +896,7 @@ impl Mem for Bus {
                 }
             }
 
-            0xc200..=0xc2ff | 0xc500..=0xc5ff | 0xc700..=0xc7ff => {
+            0xc200..=0xc2ff | 0xc700..=0xc7ff => {
                 if !self.intcxrom {
                     self.read_video_latch()
                 } else {
@@ -924,7 +924,27 @@ impl Mem for Bus {
             0xc400..=0xc4ff => {
                 if !self.intcxrom {
                     if let Some(sound) = &mut self.audio {
-                        sound.mboard.io_access(addr, 0, false)
+                        if sound.mboard.len() >= 1 {
+                            sound.mboard[0].io_access(addr, 0, false)
+                        } else {
+                            self.read_video_latch()
+                        }
+                    } else {
+                        self.read_video_latch()
+                    }
+                } else {
+                    self.mem_read(addr)
+                }
+            }
+
+            0xc500..=0xc5ff => {
+                if !self.intcxrom {
+                    if let Some(sound) = &mut self.audio {
+                        if sound.mboard.len() >= 2 {
+                            sound.mboard[1].io_access(addr, 0, false)
+                        } else {
+                            self.read_video_latch()
+                        }
                     } else {
                         self.read_video_latch()
                     }
@@ -1002,11 +1022,21 @@ impl Mem for Bus {
 
             0xc400..=0xc4ff => {
                 if let Some(sound) = &mut self.audio {
-                    let _write = sound.mboard.io_access(addr, data, true);
+                    if sound.mboard.len() >= 1 {
+                        let _write = sound.mboard[0].io_access(addr, data, true);
+                    }
                 }
             }
 
-            0xc500..=0xcffe => {
+            0xc500..=0xc5ff => {
+                if let Some(sound) = &mut self.audio {
+                    if sound.mboard.len() >= 2 {
+                        let _write = sound.mboard[1].io_access(addr, data, true);
+                    }
+                }
+            }
+
+            0xc600..=0xcffe => {
                 /*
                 eprintln!(
                     "UNIMP WRITE to addr 0x{:04X} with value 0x{:02x}",

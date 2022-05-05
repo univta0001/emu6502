@@ -7,7 +7,7 @@ type HigherChannel = i32;
 const NTSC_14M: usize = 157500000 / 11;
 const CPU_6502_MHZ: usize = NTSC_14M * 65 / 912;
 const DEFAULT_RATE: usize = 48000;
-const DEFAULT_VOLUME: Channel = 0x2000;
+const DEFAULT_VOLUME: Channel = 0x1000;
 
 const AY_LEVEL: [u16; 16] = [
     0x0000, 0x0385, 0x053d, 0x0770, 0x0ad7, 0x0fd5, 0x15b0, 0x230c, 0x2b4c, 0x43c1, 0x5a4c, 0x732f,
@@ -17,7 +17,7 @@ const AY_LEVEL: [u16; 16] = [
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Audio {
     pub data: AudioData,
-    pub mboard: Mockingboard,
+    pub mboard: Vec<Mockingboard>,
     fcycles: f32,
     fcycles_per_sample: f32,
     dc_filter: usize,
@@ -41,13 +41,14 @@ impl Audio {
             fcycles: 0.0,
             fcycles_per_sample: CPU_6502_MHZ as f32 / DEFAULT_RATE as f32,
             dc_filter: 32768 + 12000,
-            mboard: Mockingboard::default(),
+            mboard: vec![Mockingboard::default()],
         }
     }
 
     pub fn tick(&mut self) {
         self.fcycles += 1.0;
-        self.mboard.tick();
+
+        self.mboard.iter_mut().for_each(|mb| { mb.tick() } );
 
         if self.fcycles >= (self.fcycles_per_sample) {
             self.fcycles -= self.fcycles_per_sample;
@@ -76,43 +77,45 @@ impl Audio {
     }
 
     fn update_phase(&mut self, phase: &mut Channel, channel: usize) {
-        for tone in 0..3 {
-            let tone_volume = AY_LEVEL[self.mboard.get_tone_volume(channel, tone)];
+        for mboard in &self.mboard {
+            for tone in 0..3 {
+                let tone_volume = AY_LEVEL[mboard.get_tone_volume(channel, tone)];
 
-            if tone_volume == 0 {
-                continue;
+                if tone_volume == 0 {
+                    continue;
+                }
+
+                let volume: i16 = (DEFAULT_VOLUME as u32 * tone_volume as u32 / 0xffff) as i16;
+                let channel_flag = mboard.get_channel_enable(channel);
+
+                let tone_enabled = match tone {
+                    0 => channel_flag & 0x1 == 0,
+                    1 => channel_flag & 0x2 == 0,
+                    2 => channel_flag & 0x4 == 0,
+                    _ => false,
+                };
+
+                let noise_enabled = match tone {
+                    0 => channel_flag & 0x8 == 0,
+                    1 => channel_flag & 0x10 == 0,
+                    2 => channel_flag & 0x20 == 0,
+                    _ => false,
+                };
+
+                // The 8910 has three outputs, each output is the mix of one of the three
+                // tone generators and of the (single) noise generator. The two are mixed
+                // BEFORE going into the DAC. The formula to mix each channel is:
+                // (ToneOutput | ToneDisable) & (NoiseOutput | NoiseDisable).
+                // Note that this means that if both tone and noise are disabled, the output
+                // is 1, not 0, and can be modulated changing the volume.
+
+                let mix = 2
+                    * (((mboard.get_tone_level(channel, tone) | !tone_enabled)
+                        & (mboard.get_noise_level(channel) | !noise_enabled))
+                        as i8)
+                    - 1;
+                *phase += volume * (mix.signum() as i16);
             }
-
-            let volume: i16 = (DEFAULT_VOLUME as u32 * tone_volume as u32 / 0xffff) as i16;
-            let channel_flag = self.mboard.get_channel_enable(channel);
-
-            let tone_enabled = match tone {
-                0 => channel_flag & 0x1 == 0,
-                1 => channel_flag & 0x2 == 0,
-                2 => channel_flag & 0x4 == 0,
-                _ => false,
-            };
-
-            let noise_enabled = match tone {
-                0 => channel_flag & 0x8 == 0,
-                1 => channel_flag & 0x10 == 0,
-                2 => channel_flag & 0x20 == 0,
-                _ => false,
-            };
-
-            // The 8910 has three outputs, each output is the mix of one of the three
-            // tone generators and of the (single) noise generator. The two are mixed
-            // BEFORE going into the DAC. The formula to mix each channel is:
-            // (ToneOutput | ToneDisable) & (NoiseOutput | NoiseDisable).
-            // Note that this means that if both tone and noise are disabled, the output
-            // is 1, not 0, and can be modulated changing the volume.
-
-            let mix = 2
-                * (((self.mboard.get_tone_level(channel, tone) | !tone_enabled)
-                    & (self.mboard.get_noise_level(channel) | !noise_enabled))
-                    as i8)
-                - 1;
-            *phase += volume * (mix.signum() as i16);
         }
     }
 
