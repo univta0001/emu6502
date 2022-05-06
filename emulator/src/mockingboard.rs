@@ -46,6 +46,7 @@ impl Noise {
 
     fn set_period(&mut self, value: u8) {
         self.period = value & 0x1f;
+        self.count = 0;
     }
 }
 
