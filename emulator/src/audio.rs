@@ -48,7 +48,7 @@ impl Audio {
     pub fn tick(&mut self) {
         self.fcycles += 1.0;
 
-        self.mboard.iter_mut().for_each(|mb| { mb.tick() } );
+        self.mboard.iter_mut().for_each(|mb| mb.tick());
 
         if self.fcycles >= (self.fcycles_per_sample) {
             self.fcycles -= self.fcycles_per_sample;

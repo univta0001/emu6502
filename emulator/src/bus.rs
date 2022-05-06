@@ -178,7 +178,7 @@ impl Bus {
 
         if !self.disable_audio {
             if let Some(sound) = &mut self.audio {
-                sound.mboard.iter_mut().for_each(|mb| { mb.reset() })
+                sound.mboard.iter_mut().for_each(|mb| mb.reset())
             }
         }
 
