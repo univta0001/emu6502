@@ -7,7 +7,7 @@ type HigherChannel = i32;
 const NTSC_14M: usize = 157500000 / 11;
 const CPU_6502_MHZ: usize = NTSC_14M * 65 / 912;
 const DEFAULT_RATE: usize = 48000;
-const DEFAULT_VOLUME: Channel = 0x1000;
+const MAX_AMPLITUDE: Channel = 0x7fff;
 
 const AY_LEVEL: [u16; 16] = [
     0x0000, 0x0385, 0x053d, 0x0770, 0x0ad7, 0x0fd5, 0x15b0, 0x230c, 0x2b4c, 0x43c1, 0x5a4c, 0x732f,
@@ -33,7 +33,7 @@ impl Audio {
     pub fn new() -> Self {
         let data = AudioData {
             sample: Vec::new(),
-            phase: -DEFAULT_VOLUME,
+            phase: -MAX_AMPLITUDE,
         };
 
         Audio {
@@ -47,7 +47,6 @@ impl Audio {
 
     pub fn tick(&mut self) {
         self.fcycles += 1.0;
-
         self.mboard.iter_mut().for_each(|mb| mb.tick());
 
         if self.fcycles >= (self.fcycles_per_sample) {
@@ -55,8 +54,8 @@ impl Audio {
             //if self.data.sample.len() < AUDIO_SAMPLE_SIZE*2
             {
                 let beep = self.dc_filter(self.data.phase);
-                let mut left_phase: Channel = 0;
-                let mut right_phase: Channel = 0;
+                let mut left_phase: HigherChannel = 0;
+                let mut right_phase: HigherChannel = 0;
 
                 // Update left channel
                 self.update_phase(&mut left_phase, 0);
@@ -64,19 +63,21 @@ impl Audio {
                 // Update right channel
                 self.update_phase(&mut right_phase, 1);
 
-                left_phase = left_phase.saturating_add(beep);
-                right_phase = right_phase.saturating_add(beep);
+                left_phase = left_phase.saturating_add(beep as HigherChannel);
+                right_phase = right_phase.saturating_add(beep as HigherChannel);
+
+                let ratio = (3 * self.mboard.len() + 1) as HigherChannel;
 
                 // Left audio
-                self.data.sample.push(left_phase);
+                self.data.sample.push((left_phase / ratio) as Channel);
 
                 // Right audio
-                self.data.sample.push(right_phase);
+                self.data.sample.push((right_phase / ratio) as Channel);
             }
         }
     }
 
-    fn update_phase(&mut self, phase: &mut Channel, channel: usize) {
+    fn update_phase(&mut self, phase: &mut HigherChannel, channel: usize) {
         for mboard in &self.mboard {
             for tone in 0..3 {
                 let tone_volume = AY_LEVEL[mboard.get_tone_volume(channel, tone)];
@@ -85,7 +86,8 @@ impl Audio {
                     continue;
                 }
 
-                let volume: i16 = (DEFAULT_VOLUME as u32 * tone_volume as u32 / 0xffff) as i16;
+                let volume: HigherChannel =
+                    (MAX_AMPLITUDE as u32 * tone_volume as u32 / 0xffff) as HigherChannel;
                 let channel_flag = mboard.get_channel_enable(channel);
 
                 let tone_enabled = match tone {
@@ -114,7 +116,7 @@ impl Audio {
                         & (mboard.get_noise_level(channel) | !noise_enabled))
                         as i8)
                     - 1;
-                *phase += volume * (mix.signum() as i16);
+                *phase += volume * (mix.signum() as HigherChannel);
             }
         }
     }
