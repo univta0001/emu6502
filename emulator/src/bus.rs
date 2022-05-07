@@ -303,6 +303,7 @@ impl Bus {
 
     pub fn io_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
         let io_addr = (addr & 0xff) as u8;
+        let io_slot = ((addr - 0x0080) & 0xf0) as u8;
 
         match io_addr {
             0x00 => {
@@ -788,7 +789,7 @@ impl Bus {
 
             0x90..=0x9f => {
                 if let Some(printer) = &self.parallel {
-                    printer.io_access(addr, value, write_flag)
+                    printer.io_access(io_addr - io_slot, value, write_flag)
                 } else {
                     0
                 }
@@ -833,8 +834,11 @@ impl Bus {
     }
 
     fn disk_io_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
+        let io_addr = (addr & 0xff) as u8;
+        let io_slot = ((addr - 0x0080) & 0xf0) as u8;
+
         if let Some(drive) = &mut self.disk {
-            drive.io_access(addr, value, !write_flag)
+            drive.io_access(io_addr - io_slot, value, !write_flag)
         } else {
             0
         }
@@ -887,7 +891,7 @@ impl Mem for Bus {
             0xc100..=0xc1ff => {
                 if !self.intcxrom {
                     if let Some(printer) = &self.parallel {
-                        printer.read_rom(addr)
+                        printer.read_rom(addr & 0xff)
                     } else {
                         self.read_video_latch()
                     }
@@ -925,7 +929,8 @@ impl Mem for Bus {
                 if !self.intcxrom {
                     if let Some(sound) = &mut self.audio {
                         if !sound.mboard.is_empty() {
-                            sound.mboard[0].io_access(addr, 0, false)
+                            let io_addr = (addr & 0xff) as u8;
+                            sound.mboard[0].io_access(io_addr, 0, false)
                         } else {
                             self.read_video_latch()
                         }
@@ -941,7 +946,8 @@ impl Mem for Bus {
                 if !self.intcxrom {
                     if let Some(sound) = &mut self.audio {
                         if sound.mboard.len() >= 2 {
-                            sound.mboard[1].io_access(addr, 0, false)
+                            let io_addr = (addr & 0xff) as u8;
+                            sound.mboard[1].io_access(io_addr, 0, false)
                         } else {
                             self.read_video_latch()
                         }
@@ -956,7 +962,7 @@ impl Mem for Bus {
             0xc600..=0xc6ff => {
                 if !self.intcxrom {
                     if let Some(drive) = &self.disk {
-                        drive.read_rom(addr)
+                        drive.read_rom(addr & 0xff)
                     } else {
                         self.read_video_latch()
                     }
@@ -1023,7 +1029,8 @@ impl Mem for Bus {
             0xc400..=0xc4ff => {
                 if let Some(sound) = &mut self.audio {
                     if !sound.mboard.is_empty() {
-                        let _write = sound.mboard[0].io_access(addr, data, true);
+                        let io_addr = (addr & 0xff) as u8;
+                        let _write = sound.mboard[0].io_access(io_addr, data, true);
                     }
                 }
             }
@@ -1031,7 +1038,8 @@ impl Mem for Bus {
             0xc500..=0xc5ff => {
                 if let Some(sound) = &mut self.audio {
                     if sound.mboard.len() >= 2 {
-                        let _write = sound.mboard[1].io_access(addr, data, true);
+                        let io_addr = (addr & 0xff) as u8;
+                        let _write = sound.mboard[1].io_access(io_addr, data, true);
                     }
                 }
             }

@@ -726,9 +726,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         
         if let Some(sound) = &mut cpu.bus.audio {
             sound.mboard.clear();
-            for i in 0..mboard {
-                let slot = 4+i;
-                sound.mboard.push(Mockingboard::new_with_slot(slot.into()));
+            for _ in 0..mboard {
+                sound.mboard.push(Mockingboard::new());
             }
         }   
     }

@@ -1175,15 +1175,11 @@ impl DiskDrive {
         self.latch
     }
 
-    pub fn read_rom(&self, addr: u16) -> u8 {
-        let slot_addr = (0xc000 + self.slot * 256) as u16;
-        let offset = addr - slot_addr;
+    pub fn read_rom(&self, offset: u16) -> u8 {
         ROM[offset as usize]
     }
 
-    pub fn io_access(&mut self, addr: u16, value: u8, read_mode: bool) -> u8 {
-        let slot_addr = (0xc000 + self.slot * 16) as u16;
-        let map_addr = (addr - slot_addr) as u8;
+    pub fn io_access(&mut self, map_addr: u8, value: u8, read_mode: bool) -> u8 {
         match map_addr {
             LOC_PHASE0OFF => {
                 self.set_phase(0, false);
@@ -1243,7 +1239,7 @@ impl DiskDrive {
 
         let mut return_value = 0;
         if read_mode {
-            if addr & 0x1 == 0 {
+            if map_addr & 0x1 == 0 {
                 return_value = self.latch
             } else {
                 return_value = 0

@@ -700,20 +700,13 @@ impl Default for W65C22 {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Mockingboard {
     w65c22: Vec<W65C22>,
-    slot_address: u16,
     rng: usize,
 }
 
 impl Mockingboard {
     pub fn new() -> Self {
-        Self::new_with_slot(4)
-    }
-
-    pub fn new_with_slot(slot: usize) -> Self {
-        let slot_address: u16 = ((0xc0 + slot) as u16) << 8;
         Mockingboard {
             w65c22: vec![W65C22::new("#1"), W65C22::new("#2")],
-            slot_address,
             rng: 1,
         }
     }
@@ -786,8 +779,7 @@ impl Mockingboard {
         self.w65c22[chip].ay8910.get_enable()
     }
 
-    pub fn io_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
-        let map_addr = (addr - self.slot_address) as u8;
+    pub fn io_access(&mut self, map_addr: u8, value: u8, write_flag: bool) -> u8 {
         if map_addr < 0x80 {
             self.w65c22[0].io_access(map_addr, value, write_flag)
         } else {

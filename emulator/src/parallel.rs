@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ParallelCard {
-    slot: usize,
 }
 
 const ROM: [u8; 256] = [
@@ -26,22 +25,14 @@ const ROM: [u8; 256] = [
 
 impl ParallelCard {
     pub fn new() -> Self {
-        Self::new_with_slot(1)
+        ParallelCard {}
     }
 
-    pub fn new_with_slot(slot: usize) -> Self {
-        ParallelCard { slot }
-    }
-
-    pub fn read_rom(&self, addr: u16) -> u8 {
-        let slot_addr = (0xc000 + self.slot * 256) as u16;
-        let offset = addr - slot_addr;
+    pub fn read_rom(&self, offset: u16) -> u8 {
         ROM[offset as usize]
     }
 
-    pub fn io_access(&self, addr: u16, value: u8, write_flag: bool) -> u8 {
-        let slot_addr = (0xc000 + self.slot * 16) as u16;
-        let map_addr = (addr - slot_addr) as u8;
+    pub fn io_access(&self, map_addr: u8, value: u8, write_flag: bool) -> u8 {
         match map_addr {
             // Load output
             0x80 => {
