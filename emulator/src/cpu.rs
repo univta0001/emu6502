@@ -311,6 +311,7 @@ pub struct CPU {
     pub bus: Bus,
     pub m65c02: bool,
     pub callback: bool,
+    pub halt_cpu: bool,
     pub self_test: bool,
     pub bench_test: bool,
     pub full_speed: bool,
@@ -414,6 +415,7 @@ impl CPU {
             bus,
             m65c02: false,
             callback: false,
+            halt_cpu: false,
             self_test: false,
             bench_test: false,
             full_speed: false,
@@ -827,6 +829,10 @@ impl CPU {
     pub fn interrupt_reset(&mut self) {
         self.bus.reset();
         self.interrupt(interrupt::RESET);
+    }
+
+    pub fn halt_cpu(&mut self) {
+        self.halt_cpu = true;
     }
 
     fn set_carry_flag(&mut self) {
@@ -1825,6 +1831,12 @@ impl CPU {
             }
             return false;
         }
+
+        if self.halt_cpu {
+            self.halt_cpu = false;
+            return false;
+        }
+
         true
     }
 }

@@ -158,7 +158,7 @@ fn translate_key_to_apple_key(
 
 fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
     match event {
-        Event::Quit { .. } => std::process::exit(0),
+        Event::Quit { .. } => cpu.halt_cpu(),
 
         Event::ControllerAxisMotion {
             which,
