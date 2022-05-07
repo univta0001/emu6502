@@ -71,7 +71,6 @@ struct Disk {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DiskDrive {
-    slot: usize,
     drive: Vec<Disk>,
     drive_select: usize,
     bus: u8,
@@ -1038,13 +1037,8 @@ fn read_woz_sector(
 
 impl DiskDrive {
     pub fn new() -> Self {
-        Self::new_with_slot(6)
-    }
-
-    pub fn new_with_slot(slot: usize) -> Self {
         let disk = vec![Disk::default(), Disk::default()];
         DiskDrive {
-            slot,
             drive: disk,
             drive_select: 0,
             bus: 0,
