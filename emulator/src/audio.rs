@@ -80,7 +80,6 @@ impl Audio {
     fn update_phase(&mut self, phase: &mut HigherChannel, channel: usize) {
         for mboard in &self.mboard {
             for tone in 0..3 {
-
                 // The max tone volume is 0xffff. Normalized it by dividing by 2
                 let volume = (AY_LEVEL[mboard.get_tone_volume(channel, tone)] / 2) as HigherChannel;
 

@@ -1,14 +1,26 @@
 use crate::bus::Mem;
-use serde::{Deserialize, Serialize};
+use serde::de::Error;
+use serde::{Deserialize, Serialize, Serializer, Deserializer};
+use std::collections::BTreeMap;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Mmu {
+    #[serde(serialize_with = "as_hex", deserialize_with = "from_hex")]
     cpu_memory: Vec<u8>,
+
+    #[serde(serialize_with = "as_hex", deserialize_with = "from_hex")]
     aux_memory: Vec<u8>,
 
+    #[serde(serialize_with = "as_hex", deserialize_with = "from_hex")]
     pub bank1_memory: Vec<u8>,
+
+    #[serde(serialize_with = "as_hex", deserialize_with = "from_hex")]
     pub aux_bank1_memory: Vec<u8>,
+
+    #[serde(serialize_with = "as_hex", deserialize_with = "from_hex")]
     pub bank2_memory: Vec<u8>,
+
+    #[serde(serialize_with = "as_hex", deserialize_with = "from_hex")]
     pub aux_bank2_memory: Vec<u8>,
 
     pub rdcardram: bool,
@@ -165,4 +177,76 @@ impl Default for Mmu {
     fn default() -> Self {
         Self::new()
     }
+}
+
+// Serialization / Deserialization functions
+fn hex_to_u8(c: u8) -> std::io::Result<u8> {
+    match c {
+        b'A'..=b'F' => Ok(c - b'A' + 10),
+        b'a'..=b'f' => Ok(c - b'a' + 10),
+        b'0'..=b'9' => Ok(c - b'0'),
+        _ => Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Invalid hex char",
+        )),
+    }
+}
+
+fn as_hex<S: Serializer>(v: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error> {
+    let mut map = BTreeMap::new();
+    let mut addr = 0;
+    let mut count = 0;
+    let mut s = String::new();
+    for value in v {
+        if count >= 0x40 {
+            let addr_key = format!("{:04X}", addr);
+            map.insert(addr_key, s);
+            s = String::new();
+            count = 0;
+            addr += 0x40;
+        }
+        let hex = format!("{:02X}", value);
+        s.push_str(&hex);
+        count += 1;
+    }
+
+    if s.len() > 0 {
+        let addr_key = format!("{:04X}", addr);
+        map.insert(addr_key, s);
+    }
+
+    //String::serialize(&base64, s)
+    BTreeMap::serialize(&map, serializer)
+}
+
+fn from_hex<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
+    let map = BTreeMap::<String, String>::deserialize(deserializer)?;
+    let mut v = Vec::new();
+    let mut addr = 0;
+    for key in map.keys() {
+        let addr_value = format!("{:04X}", addr);
+        if *key != addr_value {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid key. Addr not in sequence",
+            ))
+            .map_err(Error::custom);
+        }
+
+        let value = &map[key];
+        if value.len() % 2 != 0 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid hex length",
+            ))
+            .map_err(Error::custom);
+        }
+        for pair in value.chars().collect::<Vec<_>>().chunks(2) {
+            let result = hex_to_u8(pair[0] as u8).map_err(Error::custom)? << 4
+                | hex_to_u8(pair[1] as u8).map_err(Error::custom)?;
+            v.push(result);
+        }
+        addr += 0x40;
+    }
+    Ok(v)
 }

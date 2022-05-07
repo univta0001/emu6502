@@ -390,7 +390,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 //let output = serde_yaml::to_string(&cpu).unwrap();
-                //eprintln!("{}", output);
+                //eprintln!("{}", output.replace("\"\"","''").replace("\"",""));
             } else {
                 cpu.bus.toggle_joystick();
             }
