@@ -45,13 +45,13 @@ const DETRANS62: [u8; 128] = [
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Disk {
-    #[serde(skip_serializing)]
+    #[serde(skip)]
     raw_track_data: Vec<Vec<u8>>,
 
-    #[serde(skip_serializing)]
+    #[serde(skip)]
     raw_track_bits: Vec<usize>,
 
-    #[serde(skip_serializing)]
+    #[serde(skip)]
     tmap_data: Vec<u8>,
 
     optimal_timing: u8,
