@@ -520,10 +520,13 @@ ARGS:
     [disk 2]          Disk 2 file (woz, dsk, po file). File can be in gz format
 
 Function Keys:
-    F1:               Load Disk 1 file
-    F2:               Load Disk 2 file
     Ctrl-F1           Display emulation speed
     Ctrl-F2           Disassemble current instructions
+    Ctrl-F3           Disassembly overlay
+    Ctrl-F4           Save state in YAML file
+    Ctrl-F5           Load state from YAML file    
+    F1:               Load Disk 1 file
+    F2:               Load Disk 2 file
     F3                Swap Disk 1 and Disk 2
     F4                Disable / Enable Joystick
     F5                Disable / Enable Fask Disk emulation

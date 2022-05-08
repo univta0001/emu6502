@@ -9,6 +9,7 @@ use std::io::prelude::*;
 use std::io::Read;
 use std::io::{self};
 use std::path::Path;
+use std::path::PathBuf;
 
 const DSK_IMAGE_SIZE: usize = 143360;
 const DSK_TRACK_SIZE: usize = 160;
@@ -449,7 +450,10 @@ fn encode_bits_for_track(data: &[u8], track: u8, sector_format_prodos: bool) -> 
     (buf, bit_index)
 }
 
-fn check_file_extension(file_ext: &OsStr, stem: &Path, ext: &str) -> bool {
+fn check_file_extension<P>(file_ext: &OsStr, stem_path: P, ext: &str) -> bool 
+where P: AsRef<Path>
+{
+    let stem = stem_path.as_ref();
     file_ext.eq_ignore_ascii_case(OsStr::new(ext))
         || (file_ext.eq_ignore_ascii_case(OsStr::new("gz"))
             && stem.extension().is_some()
@@ -1251,7 +1255,10 @@ impl DiskDrive {
         return_value
     }
 
-    fn convert_dsk_po_to_woz(&mut self, filename: &Path, po_mode: bool) -> io::Result<()> {
+    fn convert_dsk_po_to_woz<P>(&mut self, filename_path: P, po_mode: bool) -> io::Result<()> 
+    where P: AsRef<Path>
+    {
+        let filename = filename_path.as_ref();
         let dsk: Vec<u8> = if filename
             .extension()
             .unwrap()
@@ -1334,7 +1341,10 @@ impl DiskDrive {
         Ok(())
     }
 
-    fn load_woz_file(&mut self, filename: &Path) -> io::Result<()> {
+    fn load_woz_file<P>(&mut self, filename_path: P) -> io::Result<()> 
+    where P: AsRef<Path>
+    {
+        let filename = filename_path.as_ref();
         let dsk: Vec<u8> = if filename
             .extension()
             .unwrap()
@@ -1539,9 +1549,29 @@ impl DiskDrive {
         }
     }
 
-    pub fn set_disk_filename(&mut self, filename: &str) {
-        let disk = &mut self.drive[self.drive_select];
-        disk.filename = filename.to_owned();
+    fn absolute_path(&self, path: impl AsRef<Path>) -> io::Result<PathBuf> {
+        let path = path.as_ref();
+
+        let absolute_path = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            std::env::current_dir()?.join(path)
+        };
+
+        Ok(absolute_path)
+    }
+
+    pub fn set_disk_filename<P>(&mut self, filename_path: P) 
+    where P: AsRef<Path>
+    {
+        let filename = filename_path.as_ref();
+        if let Ok(real_path) = self.absolute_path(filename) {
+            let disk = &mut self.drive[self.drive_select];
+            disk.filename = real_path.display().to_string();
+        } else {
+            let disk = &mut self.drive[self.drive_select];
+            disk.filename = filename.display().to_string();
+        }
     }
 
     pub fn get_disk_filename(&self) -> String {
@@ -1574,7 +1604,10 @@ impl DiskDrive {
         disk.tmap_data = vec![0xffu8; WOZ_TMAP_SIZE];
     }
 
-    pub fn load_disk_image(&mut self, filename: &Path) -> io::Result<()> {
+    pub fn load_disk_image<P>(&mut self, file_path: P) -> io::Result<()> 
+    where P: AsRef<Path>
+    {
+        let filename = file_path.as_ref();
         let file_stem = filename.file_stem().unwrap();
         let stem_path = Path::new(file_stem);
 
