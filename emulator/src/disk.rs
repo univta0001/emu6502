@@ -450,8 +450,9 @@ fn encode_bits_for_track(data: &[u8], track: u8, sector_format_prodos: bool) -> 
     (buf, bit_index)
 }
 
-fn check_file_extension<P>(file_ext: &OsStr, stem_path: P, ext: &str) -> bool 
-where P: AsRef<Path>
+fn check_file_extension<P>(file_ext: &OsStr, stem_path: P, ext: &str) -> bool
+where
+    P: AsRef<Path>,
 {
     let stem = stem_path.as_ref();
     file_ext.eq_ignore_ascii_case(OsStr::new(ext))
@@ -1255,8 +1256,9 @@ impl DiskDrive {
         return_value
     }
 
-    fn convert_dsk_po_to_woz<P>(&mut self, filename_path: P, po_mode: bool) -> io::Result<()> 
-    where P: AsRef<Path>
+    fn convert_dsk_po_to_woz<P>(&mut self, filename_path: P, po_mode: bool) -> io::Result<()>
+    where
+        P: AsRef<Path>,
     {
         let filename = filename_path.as_ref();
         let dsk: Vec<u8> = if filename
@@ -1341,8 +1343,9 @@ impl DiskDrive {
         Ok(())
     }
 
-    fn load_woz_file<P>(&mut self, filename_path: P) -> io::Result<()> 
-    where P: AsRef<Path>
+    fn load_woz_file<P>(&mut self, filename_path: P) -> io::Result<()>
+    where
+        P: AsRef<Path>,
     {
         let filename = filename_path.as_ref();
         let dsk: Vec<u8> = if filename
@@ -1561,8 +1564,9 @@ impl DiskDrive {
         Ok(absolute_path)
     }
 
-    pub fn set_disk_filename<P>(&mut self, filename_path: P) 
-    where P: AsRef<Path>
+    pub fn set_disk_filename<P>(&mut self, filename_path: P)
+    where
+        P: AsRef<Path>,
     {
         let filename = filename_path.as_ref();
         if let Ok(real_path) = self.absolute_path(filename) {
@@ -1574,8 +1578,8 @@ impl DiskDrive {
         }
     }
 
-    pub fn get_disk_filename(&self) -> String {
-        let disk = &self.drive[self.drive_select];
+    pub fn get_disk_filename(&self, drive: usize) -> String {
+        let disk = &self.drive[drive];
         disk.filename.to_owned()
     }
 
@@ -1584,8 +1588,8 @@ impl DiskDrive {
         disk.loaded = state;
     }
 
-    pub fn is_loaded(&self) -> bool {
-        let disk = &self.drive[self.drive_select];
+    pub fn is_loaded(&self, drive: usize) -> bool {
+        let disk = &self.drive[drive];
         disk.loaded
     }
 
@@ -1604,8 +1608,9 @@ impl DiskDrive {
         disk.tmap_data = vec![0xffu8; WOZ_TMAP_SIZE];
     }
 
-    pub fn load_disk_image<P>(&mut self, file_path: P) -> io::Result<()> 
-    where P: AsRef<Path>
+    pub fn load_disk_image<P>(&mut self, file_path: P) -> io::Result<()>
+    where
+        P: AsRef<Path>,
     {
         let filename = file_path.as_ref();
         let file_stem = filename.file_stem().unwrap();

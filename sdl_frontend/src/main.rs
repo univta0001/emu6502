@@ -556,23 +556,17 @@ where
     Ok(())
 }
 
-fn is_disk_loaded(cpu: &mut CPU, drive: usize) -> bool {
-    if let Some(disk_drive) = &mut cpu.bus.disk {
-        let drive_selected = disk_drive.drive_selected();
-        disk_drive.drive_select(drive);
-        let is_loaded = disk_drive.is_loaded();
-        disk_drive.drive_select(drive_selected);
+fn is_disk_loaded(cpu: &CPU, drive: usize) -> bool {
+    if let Some(disk_drive) = &cpu.bus.disk {
+        let is_loaded = disk_drive.is_loaded(drive);
         return is_loaded;
     }
     false
 }
 
-fn get_disk_filename(cpu: &mut CPU, drive: usize) -> Option<String> {
-    if let Some(disk_drive) = &mut cpu.bus.disk {
-        let drive_selected = disk_drive.drive_selected();
-        disk_drive.drive_select(drive);
-        let filename = disk_drive.get_disk_filename();
-        disk_drive.drive_select(drive_selected);
+fn get_disk_filename(cpu: &CPU, drive: usize) -> Option<String> {
+    if let Some(disk_drive) = &cpu.bus.disk {
+        let filename = disk_drive.get_disk_filename(drive);
         return Some(filename);
     }
     None
@@ -1018,8 +1012,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     // Load the loaded disk into the new cpu
                     if let Some(_) = &mut new_cpu.bus.disk {
                         for drive in 0..2 {
-                            if let Some(disk_filename) = get_disk_filename(&mut new_cpu, drive) {
-                                if is_disk_loaded(&mut new_cpu, drive) {
+                            if is_disk_loaded(&new_cpu, drive) {
+                                if let Some(disk_filename) = get_disk_filename(&new_cpu, drive) {
                                     let result = load_disk(&mut new_cpu, &disk_filename, drive);
                                     if let Err(e) = result {
                                         eprintln!(
