@@ -1,6 +1,6 @@
 use crate::bus::Mem;
-use serde::de::{Unexpected,Error};
-use serde::{Deserialize, Serialize, Serializer, Deserializer};
+use serde::de::{Error, Unexpected};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::BTreeMap;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -224,12 +224,15 @@ fn from_hex<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Er
     for key in map.keys() {
         let addr_value = format!("{:04X}", addr);
         if *key != addr_value {
-            return Err(Error::invalid_value(Unexpected::Seq, &"Invalid key. Addr not in sequence"))
+            return Err(Error::invalid_value(
+                Unexpected::Seq,
+                &"Invalid key. Addr not in sequence",
+            ));
         }
 
         let value = &map[key];
         if value.len() % 2 != 0 {
-            return Err(Error::invalid_value(Unexpected::Seq, &"Invalid hex length"))
+            return Err(Error::invalid_value(Unexpected::Seq, &"Invalid hex length"));
         }
         for pair in value.chars().collect::<Vec<_>>().chunks(2) {
             let result = hex_to_u8(pair[0] as u8).map_err(Error::custom)? << 4
@@ -245,7 +248,10 @@ fn from_hex_64k<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D
     let result = from_hex(deserializer);
     if let Ok(ref value) = result {
         if value.len() != 0x10000 {
-            return Err(Error::invalid_value(Unexpected::Seq, &"Array should be 64K"))
+            return Err(Error::invalid_value(
+                Unexpected::Seq,
+                &"Array should be 64K",
+            ));
         }
     }
     result
@@ -255,7 +261,10 @@ fn from_hex_12k<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D
     let result = from_hex(deserializer);
     if let Ok(ref value) = result {
         if value.len() != 0x3000 {
-            return Err(Error::invalid_value(Unexpected::Seq, &"Array should be 12K"))
+            return Err(Error::invalid_value(
+                Unexpected::Seq,
+                &"Array should be 12K",
+            ));
         }
     }
     result

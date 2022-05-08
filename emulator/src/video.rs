@@ -8,34 +8,43 @@ type Rgb = [u8; 3];
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Video {
-    #[serde(skip)]
+    #[serde(skip_serializing)]
+    #[serde(default = "default_frame")]
     pub frame: Vec<u8>,
 
     #[serde(skip)]
-    mem: Rc<RefCell<Mmu>>,
+    pub mem: Rc<RefCell<Mmu>>,
 
-    #[serde(skip)]
+    #[serde(skip_serializing)]
+    #[serde(default = "default_lut_text")]
     lut_text: Vec<usize>,
 
-    #[serde(skip)]
+    #[serde(skip_serializing)]
+    #[serde(default = "default_lut_text_2e")]
     lut_text_2e: Vec<usize>,
 
-    #[serde(skip)]
+    #[serde(skip_serializing)]
+    #[serde(default = "default_lut_hires")]
     lut_hires: Vec<usize>,
 
-    #[serde(skip)]
+    #[serde(skip_serializing)]
+    #[serde(default = "default_lut_text_pal")]
     lut_text_pal: Vec<usize>,
 
-    #[serde(skip)]
+    #[serde(skip_serializing)]
+    #[serde(default = "default_lut_text_2e_pal")]
     lut_text_2e_pal: Vec<usize>,
 
-    #[serde(skip)]
+    #[serde(skip_serializing)]
+    #[serde(default = "default_lut_hires_pal")]
     lut_hires_pal: Vec<usize>,
 
-    #[serde(skip)]
+    #[serde(skip_serializing)]
+    #[serde(default = "default_video_cache")]
     video_cache: Vec<u32>,
 
-    #[serde(skip)]
+    #[serde(skip_serializing)]
+    #[serde(default = "default_video_dirty")]
     video_dirty: Vec<u8>,
 
     graphics_mode: bool,
@@ -2001,4 +2010,40 @@ fn build_lut(text_mode: bool, apple2e: bool, ntsc: bool) -> Vec<usize> {
         *item = offset;
     }
     output
+}
+
+fn default_lut_text() -> Vec<usize> {
+    build_lut(true, false, true)
+}
+
+fn default_lut_text_2e() -> Vec<usize> {
+    build_lut(true, true, true)
+}
+
+fn default_lut_hires() -> Vec<usize> {
+    build_lut(false, true, true)
+}
+
+fn default_lut_text_pal() -> Vec<usize> {
+    build_lut(true, false, false)
+}
+
+fn default_lut_text_2e_pal() -> Vec<usize> {
+    build_lut(true, true, false)
+}
+
+fn default_lut_hires_pal() -> Vec<usize> {
+    build_lut(false, true, false)
+}
+
+fn default_video_cache() -> Vec<u32> {
+    vec![0x00; 40 * 192]
+}
+
+fn default_video_dirty() -> Vec<u8> {
+    vec![0x00; 24]
+}
+
+fn default_frame() -> Vec<u8> {
+    vec![0xff; Video::WIDTH * Video::HEIGHT * 4]
 }

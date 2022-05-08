@@ -28,6 +28,7 @@ use sdl2::render::RenderTarget;
 use sdl2::GameControllerSubsystem;
 use std::collections::HashMap;
 use std::error::Error;
+use std::fs;
 use std::path::Path;
 use std::time::Instant;
 
@@ -49,6 +50,7 @@ struct EventParam<'a> {
     display_running_disassembly: &'a mut bool,
     display_refresh: &'a mut bool,
     estimated_mhz: &'a mut f32,
+    reload_cpu: &'a mut bool,
 }
 
 fn translate_key_to_apple_key(
@@ -377,9 +379,13 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         }
         Event::KeyDown {
             keycode: Some(Keycode::F5),
+            keymod,
             ..
         } => {
-            if let Some(drive) = &mut cpu.bus.disk {
+            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                *event_param.reload_cpu = true;
+                cpu.halt_cpu();
+            } else if let Some(drive) = &mut cpu.bus.disk {
                 drive.set_disable_fast_disk(!drive.get_disable_fast_disk());
             }
         }
@@ -389,8 +395,17 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                //let output = serde_yaml::to_string(&cpu).unwrap();
-                //eprintln!("{}", output.replace("\"\"","''").replace("\"",""));
+                let output = serde_yaml::to_string(&cpu).unwrap();
+                let yaml_output = output.replace("\"\"", "''").replace("\"", "");
+                let result = nfd2::open_save_dialog(Some("yaml"), None)
+                    .expect("Unable to open save file dialog");
+
+                if let Response::Okay(file_path) = result {
+                    let write_result = fs::write(&file_path, yaml_output);
+                    if let Err(e) = write_result {
+                        eprintln!("Unable to write to file {} : {}", file_path.display(), e);
+                    }
+                }
             } else {
                 cpu.bus.toggle_joystick();
             }
@@ -411,6 +426,28 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         }
 
         Event::KeyDown {
+            keycode: Some(Keycode::F2),
+            keymod,
+            ..
+        } => {
+            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                let mut output = String::new();
+                disassemble(&mut output, cpu);
+                eprintln!("{}", output);
+            } else {
+                let result = nfd2::open_file_dialog(Some("dsk,po,woz,dsk.gz,po.gz,woz.gz"), None)
+                    .expect("Unable to open file dialog");
+
+                if let Response::Okay(file_path) = result {
+                    let result = load_disk(cpu, &file_path, 1);
+                    if let Err(e) = result {
+                        eprintln!("Unable to load disk {} : {}", file_path.display(), e);
+                    }
+                }
+            }
+        }
+
+        Event::KeyDown {
             keycode: Some(Keycode::F1),
             keymod,
             ..
@@ -427,28 +464,6 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
 
                 if let Response::Okay(file_path) = result {
                     let result = load_disk(cpu, &file_path, 0);
-                    if let Err(e) = result {
-                        eprintln!("Unable to load disk {} : {}", file_path.display(), e);
-                    }
-                }
-            }
-        }
-
-        Event::KeyDown {
-            keycode: Some(Keycode::F2),
-            keymod,
-            ..
-        } => {
-            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                let mut output = String::new();
-                disassemble(&mut output, cpu);
-                eprintln!("{}", output);
-            } else {
-                let result = nfd2::open_file_dialog(Some("dsk,po,woz,dsk.gz,po.gz,woz.gz"), None)
-                    .expect("Unable to open file dialog");
-
-                if let Response::Okay(file_path) = result {
-                    let result = load_disk(cpu, &file_path, 1);
                     if let Err(e) = result {
                         eprintln!("Unable to load disk {} : {}", file_path.display(), e);
                     }
@@ -522,14 +537,42 @@ Function Keys:
     );
 }
 
-fn load_disk(cpu: &mut CPU, path: &Path, drive: usize) -> Result<(), Box<dyn Error + Send + Sync>> {
+fn load_disk<P>(cpu: &mut CPU, path: P, drive: usize) -> Result<(), Box<dyn Error + Send + Sync>>
+where
+    P: AsRef<Path>,
+{
     if let Some(disk_drive) = &mut cpu.bus.disk {
+        let path_ref = path.as_ref();
+        let drive_selected = disk_drive.drive_selected();
         disk_drive.drive_select(drive);
-        disk_drive.load_disk_image(path)?;
-        disk_drive.set_disk_filename(&path.display().to_string());
+        disk_drive.load_disk_image(path_ref)?;
+        disk_drive.set_disk_filename(&path_ref.display().to_string());
         disk_drive.set_loaded(true);
+        disk_drive.drive_select(drive_selected);
     }
     Ok(())
+}
+
+fn is_disk_loaded(cpu: &mut CPU, drive: usize) -> bool {
+    if let Some(disk_drive) = &mut cpu.bus.disk {
+        let drive_selected = disk_drive.drive_selected();
+        disk_drive.drive_select(drive);
+        let is_loaded = disk_drive.is_loaded();
+        disk_drive.drive_select(drive_selected);
+        return is_loaded;
+    }
+    false
+}
+
+fn get_disk_filename(cpu: &mut CPU, drive: usize) -> Option<String> {
+    if let Some(disk_drive) = &mut cpu.bus.disk {
+        let drive_selected = disk_drive.drive_selected();
+        disk_drive.drive_select(drive);
+        let filename = disk_drive.get_disk_filename();
+        disk_drive.drive_select(drive_selected);
+        return Some(filename);
+    }
+    None
 }
 
 fn draw_circle<T: RenderTarget>(
@@ -566,7 +609,6 @@ fn draw_circle<T: RenderTarget>(
     Ok(())
 }
 
-#[rustfmt::skip]
 fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut pargs = pico_args::Arguments::from_env();
 
@@ -600,7 +642,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     // Create the game controller
     let game_controller = sdl_context.game_controller()?;
-    let mut gamepads: HashMap<u32, (u32,GameController)> = HashMap::new();
+    let mut gamepads: HashMap<u32, (u32, GameController)> = HashMap::new();
 
     // Set apple2 icon
     /*
@@ -629,7 +671,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let audio_subsystem = sdl_context.audio().unwrap();
     let desired_spec = AudioSpecDesired {
         freq: Some(48000_i32),
-        channels: Some(2),       // stereo
+        channels: Some(2),      // stereo
         samples: Some(800_u16), // default sample size
     };
     let audio_device = audio_subsystem
@@ -668,11 +710,11 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         cpu.bus.set_joystick(false);
     }
 
-    if let Some(xtrim) = pargs.opt_value_from_str::<_,i8>("--xtrim")? {
+    if let Some(xtrim) = pargs.opt_value_from_str::<_, i8>("--xtrim")? {
         cpu.bus.set_joystick_xtrim(xtrim);
     }
 
-    if let Some(ytrim) = pargs.opt_value_from_str::<_,i8>("--ytrim")? {
+    if let Some(ytrim) = pargs.opt_value_from_str::<_, i8>("--ytrim")? {
         cpu.bus.set_joystick_ytrim(ytrim);
     }
 
@@ -680,7 +722,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         if let Some(display) = &mut cpu.bus.video {
             display.set_rgb_mode(false);
         }
-    }    
+    }
 
     if pargs.contains("--rgb") {
         if let Some(display) = &mut cpu.bus.video {
@@ -688,48 +730,48 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         }
     }
 
-    if let Some(model) = pargs.opt_value_from_str::<_,String>(["-m","--model"])? {
+    if let Some(model) = pargs.opt_value_from_str::<_, String>(["-m", "--model"])? {
         match &model[..] {
-            "apple2p" => cpu.load(&apple2_rom,0xd000),
-            "apple2e" => cpu.load(&apple2e_rom,0xc000),
-            "apple2ee" => cpu.load(&apple2ee_rom,0xc000),
-            _ => {}, 
+            "apple2p" => cpu.load(&apple2_rom, 0xd000),
+            "apple2e" => cpu.load(&apple2e_rom, 0xc000),
+            "apple2ee" => cpu.load(&apple2ee_rom, 0xc000),
+            _ => {}
         }
     }
 
-    if let Some(input_rate) = pargs.opt_value_from_str::<_,f32>("--weakbit")? {
+    if let Some(input_rate) = pargs.opt_value_from_str::<_, f32>("--weakbit")? {
         if let Some(drive) = &mut cpu.bus.disk {
             drive.set_random_one_rate(input_rate);
         }
-    }    
+    }
 
-    if let Some(input_rate) = pargs.opt_value_from_str::<_,u8>("--opt_timing")? {
+    if let Some(input_rate) = pargs.opt_value_from_str::<_, u8>("--opt_timing")? {
         if let Some(drive) = &mut cpu.bus.disk {
             drive.set_override_optimal_timing(input_rate);
         }
-    }    
+    }
 
-    if let Some(input_file) = pargs.opt_value_from_str::<_,String>("--d1")? {
+    if let Some(input_file) = pargs.opt_value_from_str::<_, String>("--d1")? {
         let path = Path::new(&input_file);
         load_disk(&mut cpu, path, 0)?;
     }
 
-    if let Some(input_file) = pargs.opt_value_from_str::<_,String>("--d2")? {
+    if let Some(input_file) = pargs.opt_value_from_str::<_, String>("--d2")? {
         let path = Path::new(&input_file);
         load_disk(&mut cpu, path, 1)?;
-    }    
+    }
 
-    if let Some(mboard) = pargs.opt_value_from_str::<_,u8>("--mboard")? {
+    if let Some(mboard) = pargs.opt_value_from_str::<_, u8>("--mboard")? {
         if mboard > 2 {
             panic!("mboard only accepts 0, 1 or 2 as value");
         }
-        
+
         if let Some(sound) = &mut cpu.bus.audio {
             sound.mboard.clear();
             for _ in 0..mboard {
                 sound.mboard.push(Mockingboard::new());
             }
-        }   
+        }
     }
 
     // Load dsk image
@@ -765,155 +807,235 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut key_caps = true;
     let mut display_running_disassembly = false;
     let mut display_refresh = false;
+    let mut reload_cpu = false;
 
     cpu.reset();
     cpu.setup_emulator();
-    cpu.run_with_callback(|_cpu| {
-        dcyc += _cpu.bus.get_cycles() - previous_cycles;
-        previous_cycles = _cpu.bus.get_cycles();
 
-        let mut cpu_cycles = CPU_CYCLES_PER_FRAME_60HZ;
-        let mut cpu_period = 16_667;
-
-        if let Some(display) = &_cpu.bus.video {
-            if display.is_video_50hz() {
-                cpu_cycles = CPU_CYCLES_PER_FRAME_50HZ;
-                cpu_period = 20_000;
-            }   
+    loop {
+        if reload_cpu {
+            reload_cpu = false;
         }
 
-        if dcyc >= cpu_cycles {
+        cpu.run_with_callback(|_cpu| {
+            dcyc += _cpu.bus.get_cycles() - previous_cycles;
+            previous_cycles = _cpu.bus.get_cycles();
 
-            let video_elapsed = video_refresh.elapsed().as_micros() + video_offset;
-            if video_elapsed >= 16_667 {
-                if let Some(sound) = &mut _cpu.bus.audio {
-                    if audio_device.size() < AUDIO_SAMPLE_SIZE*2*4 {
-                        let _ = audio_device.queue_audio(&sound.data.sample[..]);
-                        sound.clear_buffer();
-                    } else {
-                        sound.clear_buffer();
-                    }
+            let mut cpu_cycles = CPU_CYCLES_PER_FRAME_60HZ;
+            let mut cpu_period = 16_667;
+
+            if let Some(display) = &_cpu.bus.video {
+                if display.is_video_50hz() {
+                    cpu_cycles = CPU_CYCLES_PER_FRAME_50HZ;
+                    cpu_period = 20_000;
                 }
-                
-                if let Some(display) = &mut _cpu.bus.video {
-                    let dirty_region = display.get_dirty_region();
+            }
 
-                    /*
-                    if dirty_region.len() > 0 
-                    && !(dirty_region.len() == 1 && dirty_region[0].0 == 0 && dirty_region[0].1 == 23) 
-                    {
-                        eprintln!("UI updates = {} {:?}", dirty_region.len() , dirty_region);
-                    }   
-                    */
+            if dcyc >= cpu_cycles {
+                let video_elapsed = video_refresh.elapsed().as_micros() + video_offset;
+                if video_elapsed >= 16_667 {
+                    if let Some(sound) = &mut _cpu.bus.audio {
+                        if audio_device.size() < AUDIO_SAMPLE_SIZE * 2 * 4 {
+                            let _ = audio_device.queue_audio(&sound.data.sample[..]);
+                            sound.clear_buffer();
+                        } else {
+                            sound.clear_buffer();
+                        }
+                    }
 
-                    canvas.set_blend_mode(BlendMode::Blend);
-                    if !display_refresh {
-                        for region in dirty_region {
-                            let start = region.0 * 16;
-                            let end = 16 * ((region.1 - region.0) + 1);
-                            let rect = Rect::new(0, start as i32, 560, end as u32);
-                            texture.update(rect, &display.frame[start*4*560..], 560*4).unwrap();
+                    if let Some(display) = &mut _cpu.bus.video {
+                        let dirty_region = display.get_dirty_region();
+
+                        /*
+                        if dirty_region.len() > 0
+                        && !(dirty_region.len() == 1 && dirty_region[0].0 == 0 && dirty_region[0].1 == 23)
+                        {
+                            eprintln!("UI updates = {} {:?}", dirty_region.len() , dirty_region);
+                        }
+                        */
+
+                        canvas.set_blend_mode(BlendMode::Blend);
+                        if !display_refresh {
+                            for region in dirty_region {
+                                let start = region.0 * 16;
+                                let end = 16 * ((region.1 - region.0) + 1);
+                                let rect = Rect::new(0, start as i32, 560, end as u32);
+                                texture
+                                    .update(rect, &display.frame[start * 4 * 560..], 560 * 4)
+                                    .unwrap();
+                                canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
+                            }
+                        } else {
+                            display_refresh = false;
+                            let rect = Rect::new(0, 0, 560, 384);
+                            texture.update(rect, &display.frame[0..], 560 * 4).unwrap();
+                            canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
+                            canvas.present();
+                        }
+
+                        display.clear_video_dirty();
+
+                        let disk_is_on = if let Some(drive) = &_cpu.bus.disk {
+                            drive.is_motor_on()
+                        } else {
+                            false
+                        };
+
+                        if disk_is_on {
+                            let rect = Rect::new(552, 0, 8, 8);
+                            texture
+                                .update(rect, &display.frame[552 * 4..], 560 * 4)
+                                .unwrap();
+                            canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
+                            canvas.set_draw_color(Color::RGBA(255, 0, 0, 128));
+                            let _result = draw_circle(&mut canvas, 560 - 4, 4, 2);
+                        } else {
+                            let rect = Rect::new(552, 0, 8, 8);
+                            texture
+                                .update(rect, &display.frame[552 * 4..], 560 * 4)
+                                .unwrap();
                             canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
                         }
-                    } else {
-                        display_refresh = false;
-                        let rect = Rect::new(0, 0, 560, 384);
-                        texture.update(rect, &display.frame[0..], 560*4).unwrap();
-                        canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
                         canvas.present();
                     }
 
-                    display.clear_video_dirty();
+                    if display_running_disassembly {
+                        let pc = adjust_disassemble_addr(_cpu, _cpu.program_counter, -20);
+                        let mut output = String::new();
+                        disassemble_addr(&mut output, _cpu, pc, 40);
+                        if let Some(display) = &mut _cpu.bus.video {
+                            let mut row = 2;
+                            for str in output.lines() {
+                                display.draw_string_raw_a2_alpha(1, row, str, false, 128, false);
+                                row += 1;
+                            }
 
-                    let disk_is_on = if let Some(drive) = &_cpu.bus.disk {
-                        drive.is_motor_on()
-                    } else {
-                        false
+                            // Draw box
+                            display.draw_box_raw_a2(0, 0, 51, 43, false, 128);
+                            display.draw_box_raw_a2(50, 0, 22, 5, false, 128);
+                            // Display Status
+                            let status_label = "A  X  Y  P  S  PC";
+                            let status_value = format!(
+                                "{:02X} {:02X} {:02X} {:02X} {:02X} {:04X}",
+                                _cpu.register_a,
+                                _cpu.register_x,
+                                _cpu.register_y,
+                                _cpu.status.bits(),
+                                _cpu.stack_pointer,
+                                _cpu.program_counter
+                            );
+                            display.draw_string_raw_a2_alpha(
+                                51,
+                                2,
+                                status_label,
+                                false,
+                                128,
+                                false,
+                            );
+                            display.draw_string_raw_a2_alpha(
+                                51,
+                                3,
+                                &status_value,
+                                false,
+                                128,
+                                false,
+                            );
+
+                            let rect = Rect::new(0, 0, 560, 384);
+                            texture.update(rect, &display.frame[0..], 560 * 4).unwrap();
+                            canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
+                            canvas.present();
+                        }
+                    }
+
+                    video_offset = video_elapsed % 16_667;
+                    video_refresh = Instant::now();
+                }
+
+                let mut event = _event_pump.poll_event();
+                while let Some(event_value) = event {
+                    let mut event_param = EventParam {
+                        game_controller: &game_controller,
+                        gamepads: &mut gamepads,
+                        key_caps: &mut key_caps,
+                        display_running_disassembly: &mut display_running_disassembly,
+                        display_refresh: &mut display_refresh,
+                        estimated_mhz: &mut estimated_mhz,
+                        reload_cpu: &mut reload_cpu,
                     };
 
-                    if disk_is_on {
-                        let rect = Rect::new(552, 0, 8, 8);
-                        texture.update(rect, &display.frame[552*4..], 560*4).unwrap();
-                        canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
-                        canvas.set_draw_color(Color::RGBA(255, 0, 0, 128));
-                        let _result = draw_circle(&mut canvas, 560 - 4, 4, 2);
-                    } else {
-                        let rect = Rect::new(552, 0, 8, 8);
-                        texture.update(rect, &display.frame[552*4..], 560*4).unwrap();
-                        canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
-                    }
-                    canvas.present();
+                    handle_event(_cpu, event_value, &mut event_param);
+                    event = _event_pump.poll_event();
                 }
+                let video_cpu_update = t.elapsed().as_micros();
+                let adj_ms =
+                    ((cpu_period * dcyc) / cpu_cycles).saturating_sub(1000000 / CPU_6502_MHZ);
+                let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
 
-                if display_running_disassembly {
-                    let pc = adjust_disassemble_addr(_cpu,_cpu.program_counter,-20);
-                    let mut output = String::new();
-                    disassemble_addr(&mut output, _cpu, pc, 40);
-                    if let Some(display) = &mut _cpu.bus.video {
-                        let mut row = 2;
-                        for str in output.lines() {
-                            display.draw_string_raw_a2_alpha(1,row,str,false,128,false);
-                            row += 1;
-                        }
-
-                        // Draw box
-                        display.draw_box_raw_a2(0,0,51,43,false,128);
-                        display.draw_box_raw_a2(50,0,22,5,false,128);
-                        // Display Status
-                        let status_label="A  X  Y  P  S  PC";
-                        let status_value=format!("{:02X} {:02X} {:02X} {:02X} {:02X} {:04X}", 
-                            _cpu.register_a, _cpu.register_x, _cpu.register_y,
-                            _cpu.status.bits(), _cpu.stack_pointer,_cpu.program_counter);
-                        display.draw_string_raw_a2_alpha(51,2,status_label, false, 128,false); 
-                        display.draw_string_raw_a2_alpha(51,3,&status_value, false, 128,false); 
-
-                        let rect = Rect::new(0, 0, 560, 384);
-                        texture.update(rect, &display.frame[0..], 560*4).unwrap();
-                        canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
-                        canvas.present();
-                    }
-                }
-
-                video_offset = video_elapsed % 16_667;
-                video_refresh = Instant::now();
-            }
-
-            let mut event = _event_pump.poll_event();
-            while let Some(event_value) = event {
-                let mut event_param = EventParam {
-                    game_controller: &game_controller,
-                    gamepads: &mut gamepads,
-                    key_caps: &mut key_caps,
-                    display_running_disassembly: &mut display_running_disassembly,
-                    display_refresh: &mut display_refresh,
-                    estimated_mhz: &mut estimated_mhz,
+                let disk_is_off = if let Some(drive) = &_cpu.bus.disk {
+                    drive.get_disable_fast_disk()
+                        || (!drive.is_motor_on() || drive.is_motor_off_pending())
+                } else {
+                    true
                 };
 
-                handle_event(_cpu, event_value,&mut event_param);
-                event = _event_pump.poll_event();
+                if disk_is_off && adj_time > 0 && !_cpu.full_speed {
+                    std::thread::sleep(std::time::Duration::from_micros(adj_time as u64));
+                }
+
+                let elapsed = t.elapsed().as_micros();
+                estimated_mhz = (dcyc as f32) / elapsed as f32;
+
+                dcyc -= cpu_cycles;
+                t = Instant::now();
             }
-            let video_cpu_update = t.elapsed().as_micros();
-            let adj_ms = ((cpu_period * dcyc) / cpu_cycles).saturating_sub(1000000/CPU_6502_MHZ);
-            let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
+        });
 
-            let disk_is_off = if let Some(drive) = &_cpu.bus.disk {
-                drive.get_disable_fast_disk() || 
-                (!drive.is_motor_on() || drive.is_motor_off_pending())
-            } else {
-                true
-            };
+        if !reload_cpu {
+            break;
+        } else {
+            let result =
+                nfd2::open_file_dialog(Some("yaml"), None).expect("Unable to open file dialog");
 
-            if disk_is_off && adj_time > 0 && !_cpu.full_speed {
-                std::thread::sleep(std::time::Duration::from_micros(adj_time as u64));
+            if let Response::Okay(file_path) = result {
+                let result = fs::read_to_string(&file_path);
+                if let Ok(input) = result {
+                    let mut new_cpu: CPU = serde_yaml::from_str(&input)?;
+
+                    // Initialize the previous cycles
+                    previous_cycles = new_cpu.bus.get_cycles();
+
+                    // Initialize new cpu video memory
+                    if let Some(video) = &mut new_cpu.bus.video {
+                        if let Some(memory) = &new_cpu.bus.mem {
+                            video.mem = memory.clone();
+                        }
+                    }
+
+                    // Load the loaded disk into the new cpu
+                    if let Some(_) = &mut new_cpu.bus.disk {
+                        for drive in 0..2 {
+                            if let Some(disk_filename) = get_disk_filename(&mut new_cpu, drive) {
+                                if is_disk_loaded(&mut new_cpu, drive) {
+                                    let result = load_disk(&mut new_cpu, &disk_filename, drive);
+                                    if let Err(e) = result {
+                                        eprintln!(
+                                            "Unable to load disk {} : {}",
+                                            file_path.display(),
+                                            e
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Replace the old cpu with the new cpu
+                    cpu = new_cpu;
+                }
             }
-
-            let elapsed = t.elapsed().as_micros();
-            estimated_mhz = (dcyc as f32) / elapsed as f32;
-
-            dcyc -= cpu_cycles;
-            t = Instant::now();
         }
-    });
+    }
 
     Ok(())
 }

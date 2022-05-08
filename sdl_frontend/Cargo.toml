@@ -13,6 +13,7 @@ nfd2 = "0.3.1"
 emu6502 = { path = "../emulator" }
 sdl2 = "0.35.2"
 vswhom-sys = "0.1.1"
+serde_yaml = "0.8.24"
 #sdl2 = { version = "0.35.2", features = ['bundled', 'static-link'] }
 
 [build-dependencies]

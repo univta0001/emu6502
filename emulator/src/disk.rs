@@ -45,13 +45,16 @@ const DETRANS62: [u8; 128] = [
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Disk {
-    #[serde(skip)]
+    #[serde(skip_serializing)]
+    #[serde(default = "default_raw_track_data")]
     raw_track_data: Vec<Vec<u8>>,
 
-    #[serde(skip)]
+    #[serde(skip_serializing)]
+    #[serde(default = "default_raw_track_bits")]
     raw_track_bits: Vec<usize>,
 
-    #[serde(skip)]
+    #[serde(skip_serializing)]
+    #[serde(default = "default_tmap_data")]
     tmap_data: Vec<u8>,
 
     optimal_timing: u8,
@@ -1126,6 +1129,10 @@ impl DiskDrive {
         self.drive[(self.drive_select + 1) % 2].motor_status = false;
     }
 
+    pub fn drive_selected(&self) -> usize {
+        self.drive_select
+    }
+
     pub fn swap_drive(&mut self) {
         let disk = self.drive.swap_remove(0);
         let track = disk.track;
@@ -1537,9 +1544,19 @@ impl DiskDrive {
         disk.filename = filename.to_owned();
     }
 
+    pub fn get_disk_filename(&self) -> String {
+        let disk = &self.drive[self.drive_select];
+        disk.filename.to_owned()
+    }
+
     pub fn set_loaded(&mut self, state: bool) {
         let disk = &mut self.drive[self.drive_select];
         disk.loaded = state;
+    }
+
+    pub fn is_loaded(&self) -> bool {
+        let disk = &self.drive[self.drive_select];
+        disk.loaded
     }
 
     pub fn eject(&mut self, drive_select: usize) {
@@ -1839,4 +1856,16 @@ impl Default for DiskDrive {
     fn default() -> Self {
         Self::new()
     }
+}
+
+fn default_raw_track_data() -> Vec<Vec<u8>> {
+    vec![vec![0u8; 0]; DSK_TRACK_SIZE]
+}
+
+fn default_raw_track_bits() -> Vec<usize> {
+    vec![0; DSK_TRACK_SIZE]
+}
+
+fn default_tmap_data() -> Vec<u8> {
+    vec![0xffu8; WOZ_TMAP_SIZE]
 }
