@@ -383,8 +383,9 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                *event_param.reload_cpu = true;
-                cpu.halt_cpu();
+                *event_param.display_running_disassembly =
+                    !*event_param.display_running_disassembly;
+                *event_param.display_refresh = true;
             } else if let Some(drive) = &mut cpu.bus.disk {
                 drive.set_disable_fast_disk(!drive.get_disable_fast_disk());
             }
@@ -395,17 +396,9 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                let output = serde_yaml::to_string(&cpu).unwrap();
-                let yaml_output = output.replace("\"\"", "''").replace("\"", "");
-                let result = nfd2::open_save_dialog(Some("yaml"), None)
-                    .expect("Unable to open save file dialog");
+                *event_param.reload_cpu = true;
+                cpu.halt_cpu();
 
-                if let Response::Okay(file_path) = result {
-                    let write_result = fs::write(&file_path, yaml_output);
-                    if let Err(e) = write_result {
-                        eprintln!("Unable to write to file {} : {}", file_path.display(), e);
-                    }
-                }
             } else {
                 cpu.bus.toggle_joystick();
             }
@@ -417,9 +410,17 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                *event_param.display_running_disassembly =
-                    !*event_param.display_running_disassembly;
-                *event_param.display_refresh = true;
+                let output = serde_yaml::to_string(&cpu).unwrap();
+                let yaml_output = output.replace("\"\"", "''").replace('"', "");
+                let result = nfd2::open_save_dialog(Some("yaml"), None)
+                    .expect("Unable to open save file dialog");
+
+                if let Response::Okay(file_path) = result {
+                    let write_result = fs::write(&file_path, yaml_output);
+                    if let Err(e) = write_result {
+                        eprintln!("Unable to write to file {} : {}", file_path.display(), e);
+                    }
+                }
             } else if let Some(drive) = &mut cpu.bus.disk {
                 drive.swap_drive();
             }
@@ -431,9 +432,13 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                let mut output = String::new();
-                disassemble(&mut output, cpu);
-                eprintln!("{}", output);
+                if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
+                    let mut output = String::new();
+                    disassemble(&mut output, cpu);
+                    eprintln!("{}", output);
+                } else {
+                    eject_disk(cpu,1);
+                }
             } else {
                 let result = nfd2::open_file_dialog(Some("dsk,po,woz,dsk.gz,po.gz,woz.gz"), None)
                     .expect("Unable to open file dialog");
@@ -453,11 +458,15 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                eprintln!(
-                    "MHz: {:.3} Cycles: {}",
-                    event_param.estimated_mhz,
-                    cpu.bus.get_cycles()
-                );
+                if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
+                    eprintln!(
+                        "MHz: {:.3} Cycles: {}",
+                        event_param.estimated_mhz,
+                        cpu.bus.get_cycles()
+                    );
+                } else {
+                    eject_disk(cpu, 0);
+                }
             } else {
                 let result = nfd2::open_file_dialog(Some("dsk,po,woz,dsk.gz,po.gz,woz.gz"), None)
                     .expect("Unable to open file dialog");
@@ -520,11 +529,13 @@ ARGS:
     [disk 2]          Disk 2 file (woz, dsk, po file). File can be in gz format
 
 Function Keys:
-    Ctrl-F1           Display emulation speed
-    Ctrl-F2           Disassemble current instructions
-    Ctrl-F3           Disassembly overlay
-    Ctrl-F4           Save state in YAML file
-    Ctrl-F5           Load state from YAML file    
+    Ctrl-Shift-F1     Display emulation speed
+    Ctrl-Shift-F2     Disassemble current instructions
+    Ctrl-F1           Eject Disk 1
+    Ctrl-F2           Eject Disk 2
+    Ctrl-F3           Save state in YAML file
+    Ctrl-F4           Load state from YAML file
+    Ctrl-F5           Disassembly overlay
     F1:               Load Disk 1 file
     F2:               Load Disk 2 file
     F3                Swap Disk 1 and Disk 2
@@ -554,6 +565,12 @@ where
         disk_drive.drive_select(drive_selected);
     }
     Ok(())
+}
+
+fn eject_disk(cpu: &mut CPU, drive: usize) {
+    if let Some(disk_drive) = &mut cpu.bus.disk {
+        disk_drive.eject(drive);
+    }
 }
 
 fn is_disk_loaded(cpu: &CPU, drive: usize) -> bool {
@@ -1010,7 +1027,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     }
 
                     // Load the loaded disk into the new cpu
-                    if let Some(_) = &mut new_cpu.bus.disk {
+                    if new_cpu.bus.disk.is_some() {
                         for drive in 0..2 {
                             if is_disk_loaded(&new_cpu, drive) {
                                 if let Some(disk_filename) = get_disk_filename(&new_cpu, drive) {
