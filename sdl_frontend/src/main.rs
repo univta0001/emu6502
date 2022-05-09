@@ -168,7 +168,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             value: val,
             ..
         } => {
-            event_param.gamepads.get(&which).map(|entry| {
+            if let Some(entry) = event_param.gamepads.get(&which) {
                 let joystick_id = entry.0;
                 // Axis motion is an absolute value in the range
                 // [-32768, 32767]. Let's simulate a very rough dead
@@ -186,11 +186,11 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                         _ => {}
                     }
                 }
-            });
+            }
         }
 
         Event::ControllerButtonDown { which, button, .. } => {
-            event_param.gamepads.get(&which).map(|entry| {
+            if let Some(entry) = event_param.gamepads.get(&which) {
                 let joystick_id = entry.0;
                 if joystick_id < 2 {
                     match button {
@@ -215,11 +215,11 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                         _ => {}
                     }
                 }
-            });
+            }
         }
 
         Event::ControllerButtonUp { which, button, .. } => {
-            event_param.gamepads.get(&which).map(|entry| {
+            if let Some(entry) = event_param.gamepads.get(&which) {
                 let joystick_id = entry.0;
                 if joystick_id < 2 {
                     match button {
@@ -238,14 +238,16 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                         _ => {}
                     }
                 }
-            });
+            }
         }
 
         Event::ControllerDeviceAdded { which, .. } => {
             // Which refers to joystick device index
             if let Ok(controller) = event_param.game_controller.open(which) {
                 let instance_id = controller.instance_id();
-                event_param.gamepads.insert(instance_id, (which, controller));
+                event_param
+                    .gamepads
+                    .insert(instance_id, (which, controller));
             }
         }
 
@@ -566,9 +568,9 @@ where
 }
 
 fn eject_disk(cpu: &mut CPU, drive: usize) {
-    cpu.bus.disk.as_mut().map(|disk_drive| {
+    if let Some(disk_drive) = &mut cpu.bus.disk {
         disk_drive.eject(drive);
-    });
+    }
 }
 
 fn is_disk_loaded(cpu: &CPU, drive: usize) -> bool {

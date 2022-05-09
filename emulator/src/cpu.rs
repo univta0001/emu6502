@@ -1286,7 +1286,9 @@ impl CPU {
 
     pub fn setup_emulator(&mut self) {
         if self.is_apple2e() {
-            self.bus.video.as_mut().map(|display| display.set_apple2e(true));
+            if let Some(display) = &mut self.bus.video {
+                display.set_apple2e(true);
+            }
         }
 
         if self.is_apple2e_enh() {
