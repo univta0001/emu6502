@@ -88,6 +88,7 @@ pub struct DiskDrive {
     prev_lss_state: u8,
     cycles: usize,
     pending_ticks: usize,
+    speed_ticks: usize,
     io_step: bool,
     random_one_rate: f32,
     override_optimal_timing: u8,
@@ -162,6 +163,7 @@ const _DSK_PO: [u8; 16] = [
 
 // Wait for motor to stop after 1 sec * 1.2
 const PENDING_WAIT: usize = 1_227_600;
+const TEMP_SPEED_BOOST: usize = 100_000;
 const BITS_BLOCKS_PER_TRACK: usize = 13;
 const BITS_BLOCK_SIZE: usize = 512;
 const BITS_TRACK_SIZE: usize = BITS_BLOCKS_PER_TRACK * BITS_BLOCK_SIZE;
@@ -1060,6 +1062,7 @@ impl DiskDrive {
             prev_lss_state: 0,
             cycles: 0,
             pending_ticks: 0,
+            speed_ticks: 0,
             io_step: false,
             random_one_rate: 0.3,
             override_optimal_timing: 0,
@@ -1078,6 +1081,10 @@ impl DiskDrive {
         if self.io_step {
             self.io_step = false;
             return;
+        }
+
+        if self.speed_ticks > 0 {
+            self.speed_ticks -= 1;
         }
 
         if self.pending_ticks > 0 {
@@ -1113,6 +1120,10 @@ impl DiskDrive {
             self.drive[self.drive_select].motor_status = true;
             if self.pending_ticks > 0 {
                 self.pending_ticks = 0;
+            }
+
+            if !self.disable_fast_disk && self.speed_ticks == 0 {
+                self.speed_ticks = TEMP_SPEED_BOOST;
             }
         } else if self.pending_ticks == 0 {
             self.pending_ticks = PENDING_WAIT;
@@ -1738,7 +1749,7 @@ impl DiskDrive {
     }
 
     pub fn get_disable_fast_disk(&self) -> bool {
-        self.disable_fast_disk
+        self.disable_fast_disk || self.speed_ticks == 0
     }
 
     pub fn get_enable_save(&self) -> bool {
