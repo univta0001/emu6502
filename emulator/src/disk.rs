@@ -1659,7 +1659,7 @@ impl DiskDrive {
 
         // Only add disk jitter for read operations
         let disk_jitter = if rng.gen::<f32>() > 0.5 && !self.q7 {
-            0.025
+            0.0125
         } else {
             0.0
         };
