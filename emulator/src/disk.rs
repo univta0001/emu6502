@@ -88,12 +88,14 @@ pub struct DiskDrive {
     prev_lss_state: u8,
     cycles: usize,
     pending_ticks: usize,
-    speed_ticks: usize,
     io_step: bool,
     random_one_rate: f32,
     override_optimal_timing: u8,
     disable_fast_disk: bool,
     enable_save: bool,
+    
+    #[serde(default)]
+    speed_ticks: usize,
 }
 
 // Q0L: Phase 0 OFF
