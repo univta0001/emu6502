@@ -1636,11 +1636,14 @@ impl Video {
             let hbs = (value & 0x80 > 0) as usize;
             let mut offset = 0;
             let mut mask = 0x1;
+            if hbs > 0 && x == 0 {
+                self.set_pixel_count(0, 2 * row, COLOR_BLACK, 1);
+            }
             while mask != 0x80 {
                 if value & mask > 0 {
                     self.set_pixel_count(hbs + x + 2 * offset, 2 * row, COLOR_WHITE, 1);
                     if hbs + x + 2 * offset + 1 < 560 {
-                        self.set_pixel_count(hbs + x + 2 * offset + 1, 2 * row, COLOR_WHITE, 1);
+                        self.set_pixel_count(hbs + x + 2 * offset + 1, 2 * row, COLOR_BLACK, 1);
                     }
                 } else {
                     self.set_pixel_count(hbs + x + 2 * offset, 2 * row, COLOR_BLACK, 1);
