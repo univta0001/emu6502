@@ -9,6 +9,9 @@ use emu6502::mockingboard::Mockingboard;
 use emu6502::trace::adjust_disassemble_addr;
 use emu6502::trace::disassemble;
 use emu6502::trace::disassemble_addr;
+use image::ColorType;
+use image::ImageEncoder;
+use image::codecs::png::PngEncoder;
 use nfd2::Response;
 use sdl2::audio::AudioSpecDesired;
 use sdl2::controller::Axis;
@@ -29,6 +32,7 @@ use sdl2::GameControllerSubsystem;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
+use std::fs::File;
 use std::path::Path;
 use std::time::Instant;
 
@@ -51,6 +55,7 @@ struct EventParam<'a> {
     display_refresh: &'a mut bool,
     estimated_mhz: &'a mut f32,
     reload_cpu: &'a mut bool,
+    save_screenshot: &'a mut bool,
 }
 
 fn translate_key_to_apple_key(
@@ -263,6 +268,16 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 cpu.interrupt_reset();
+            }
+        }
+
+        Event::KeyDown {
+            keycode: Some(Keycode::PrintScreen),
+            keymod,
+            ..
+        } => {
+            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                *event_param.save_screenshot = true;
             }
         }
 
@@ -536,6 +551,7 @@ Function Keys:
     Ctrl-F3           Save state in YAML file
     Ctrl-F4           Load state from YAML file
     Ctrl-F5           Disassembly overlay
+    Ctrl-PrintScreen  Save screenshot as screenshot.png
     F1:               Load Disk 1 file
     F2:               Load Disk 2 file
     F3                Swap Disk 1 and Disk 2
@@ -822,6 +838,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut display_running_disassembly = false;
     let mut display_refresh = false;
     let mut reload_cpu = false;
+    let mut save_screenshot = false;
 
     cpu.reset();
     cpu.setup_emulator();
@@ -858,6 +875,13 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     }
 
                     if let Some(display) = &mut _cpu.bus.video {
+                        if save_screenshot {
+                            let output = File::create("screenshot.png").expect("Unable to create screenshot.png");
+                            let encoder = PngEncoder::new(output);
+                            encoder.write_image(&display.frame,560,384,ColorType::Rgba8).expect("Unable to create PNG file");
+                            save_screenshot=false;
+                        }
+
                         let dirty_region = display.get_dirty_region();
 
                         /*
@@ -976,6 +1000,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         display_refresh: &mut display_refresh,
                         estimated_mhz: &mut estimated_mhz,
                         reload_cpu: &mut reload_cpu,
+                        save_screenshot: &mut save_screenshot,
                     };
 
                     handle_event(_cpu, event_value, &mut event_param);
