@@ -1686,7 +1686,7 @@ impl Video {
     }
 
     fn draw_raw_dhires_a2_row_col(&mut self, row: usize, col: usize, value: u8, aux_value: u8) {
-        if !self.disable_rgb && (self.mono_mode || self.rgb_mode == 0x3) {
+        if (!self.disable_rgb && self.rgb_mode == 0x3) || self.mono_mode {
             self.draw_raw_dhires_mono_a2_row_col(row, col, value, aux_value);
             return;
         }
