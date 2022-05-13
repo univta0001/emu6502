@@ -10,9 +10,9 @@ public class test_ntsc{
     // B = Y - 1.106 * I + 1.703 * Q
     //
     // YUV to RGB
-    // R = Y + 0.000000 * U + 1.139883 * V
-    // G = Y - 0.394642 * U - 0.580622 * V
-    // B = Y + 2.032062 * U + 0.000000 * V
+    // R = Y + 0.00000 * U + 1.13983 * V
+    // G = Y - 0.39465 * U - 0.58060 * V
+    // B = Y + 2.03211 * U + 0.00000 * V
     //
     // Color Name  GR 	HGR DHGR Chroma Phase Chroma Amplitude Luma 	R 	G 	B
     // Black 	   0 	0,4 0 	 0 	          0 	           0 	    0 	0 	0
@@ -56,7 +56,11 @@ public class test_ntsc{
     }
 
     public double[] mul(double[] color, double[] w) {
-        return new double[] { color[0]*w[0], color[1]*w[1], color[2]*w[2] };
+        double[] result = new double[color.length];
+        for (int i = 0; i < color.length; i++) {
+            result[i] = color[i] * w[i];
+        }
+        return result;
     }
 
     public double[] add(double[] color, double[] w) {
@@ -93,6 +97,87 @@ public class test_ntsc{
         return c;
     }
 
+    public double acosh(double x) {
+        return Math.log(x + Math.sqrt(x*x - 1.0));
+    }
+
+    public double[] realIDFT(double[] array) {
+        int size = array.length;
+        double [] w = new double[size];
+        for (int i = 0;i<size;i++) {
+            double omega = 2*Math.PI * i / size;
+            for (int j = 0; j<size; j++) {
+                w[i] += array[j] * Math.cos(j*omega);
+            }
+            w[i] /= 1.0/size;
+        }
+        return w;
+    }
+
+    public double[] chebyshevWindow(int n, double slidelobeDb) {
+        int m = n-1;
+        double [] w = new double[m];
+        double alpha = Math.cosh(acosh(Math.pow(10, slidelobeDb / 20)) / m);
+        for (int i = 0;i<m;i++) {
+            double a = Math.abs(alpha * Math.cos(Math.PI * i / m));
+            if (a > 1) {
+                w[i] = Math.pow(-1,i)*Math.cosh(m*acosh(a));
+            } else {
+                w[i] = Math.pow(-1,i)*Math.cos(m*Math.acos(a));
+            }
+        }
+
+        w = realIDFT(w);
+        double [] t = new double[n];
+        for (int i = 0; i<Math.min(n,w.length); i++) {
+            t[i] = w[i];
+        }
+        w = t;
+        w[0] /= 2;
+        w[n-1] = w[0];
+
+        double max = 0.0;
+        for (int i = 0; i<n; i++) {
+            if (Math.abs(w[i]) > max) {
+                max = Math.abs(w[i]);
+            }
+        }
+
+        for (int i = 0; i<n; i++) {
+            w[i] /= (1.0/max);
+        }
+
+        return w;
+    }
+
+    public double[] lanczosWindow(int n, double fc) {
+        double[] v = new double[n];
+        fc = Math.min(fc,0.5);
+        double halfN = Math.floor(n/2);
+        for (int i =0;i<n;i++) {
+            double x = 2*Math.PI * fc * (i-halfN);
+            v[i] = (x == 0.0) ? 1.0 : Math.sin(x) / x;
+        }
+        return v;
+    }
+
+    public double[] normalize(double[] array) {
+        double sum = 0.0;
+        for (int i = 0;i<array.length;i++) {
+            sum += array[i];
+        }
+        for (int i = 0;i<array.length;i++) {
+            array[i] /= sum;
+        }
+        return array;
+    }
+
+    public double[] scale(double[] array, double value) {
+        for (int i = 0;i<array.length;i++) {
+            array[i] *= value;
+        }
+        return array;
+    }
 
     public void start(String args[]) throws Exception {
         System.out.println("Loading "+args[0]);
@@ -109,6 +194,32 @@ public class test_ntsc{
             dhgr = Boolean.valueOf(args[1]);
         }
 
+        double sample_rate = 14318181.818181818;
+        double subcarrier = 0.25;
+        double luma_bandwidth = 2000000;
+        double chroma_bandwidth = 600000;
+        double y_bandwidth = luma_bandwidth / sample_rate;
+        double u_bandwidth = chroma_bandwidth / sample_rate;
+        double v_bandwidth = u_bandwidth;
+
+        // Normalize chebyshevWindow
+        double temp_w[] = normalize(chebyshevWindow(17,50));
+        double temp_wy[] = normalize(mul(temp_w, lanczosWindow(17, y_bandwidth)));
+        double temp_wu[] = scale(normalize(mul(temp_w, lanczosWindow(17, u_bandwidth))),2);
+        double temp_wv[] = scale(normalize(mul(temp_w, lanczosWindow(17, v_bandwidth))),2);
+
+        cs = new double[][] {
+            new double[] { temp_wy[8], temp_wu[8], temp_wv[8] },
+            new double[] { temp_wy[7], temp_wu[7], temp_wv[7] },
+            new double[] { temp_wy[6], temp_wu[6], temp_wv[6] },
+            new double[] { temp_wy[5], temp_wu[5], temp_wv[5] },
+            new double[] { temp_wy[4], temp_wu[4], temp_wv[4] },
+            new double[] { temp_wy[3], temp_wu[3], temp_wv[3] },
+            new double[] { temp_wy[2], temp_wu[2], temp_wv[2] },
+            new double[] { temp_wy[1], temp_wu[1], temp_wv[1] },
+            new double[] { temp_wy[0], temp_wu[0], temp_wv[0] }
+        };
+
         int[] raw_image = new int[4*bi.getWidth()*bi.getHeight()];
         double[] yuv_image = new double[3*bi.getWidth()*bi.getHeight()];
 
@@ -123,14 +234,13 @@ public class test_ntsc{
                 raw_image[i+2] = rgb_value & 0xff;
 
                 double p = 0.9083333333333333;
-                double subcarrier = 0.25;
 
                 // Double hires
                 double phase = 2.0 * Math.PI * (subcarrier * (xx + 77 + 0.70) + p);
 
                 // Hires
                 if (!dhgr) {
-                    phase = 2.0 * Math.PI * (subcarrier * (xx + 84 + 0.70) + p);
+                    phase = 2.0 * Math.PI * (subcarrier * (xx + 84 + 0.65) + p);
                 }
 
                 yuv_image[j] = raw_image[i] * 1.0 / 255.0;
@@ -153,9 +263,9 @@ public class test_ntsc{
                 double u = c[1];
                 double v = c[2];
 
-                int r = (int) ((y + 0.000000 * u + 1.139883 * v) * 255);
-                int g = (int) ((y - 0.394642 * u - 0.580622 * v) * 255);
-                int b = (int) ((y + 2.032062 * u + 0.000000 * v) * 255);
+                int r = (int) ((y + 0.00000 * u + 1.13983 * v) * 255);
+                int g = (int) ((y - 0.39465 * u - 0.58060 * v) * 255);
+                int b = (int) ((y + 2.03211 * u + 0.00000 * v) * 255);
 
                 if (r < 0) r = 0;
                 if (r > 255) r = 255;
