@@ -20,7 +20,7 @@ log = "0.4.17"
 bumpalo = "3.9.1"
 proc-macro2 = "1.0.38"
 quote = "1.0.18"
-syn = "1.0.93"
+syn = "1.0.94"
 ppv-lite86 = "0.2.16"
 semver = "1.0.9"
 
