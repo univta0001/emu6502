@@ -1643,7 +1643,7 @@ impl Video {
                 if value & mask > 0 {
                     self.set_pixel_count(hbs + x + 2 * offset, 2 * row, COLOR_WHITE, 1);
                     if hbs + x + 2 * offset + 1 < 560 {
-                        self.set_pixel_count(hbs + x + 2 * offset + 1, 2 * row, COLOR_BLACK, 1);
+                        self.set_pixel_count(hbs + x + 2 * offset + 1, 2 * row, COLOR_WHITE, 1);
                     }
                 } else {
                     self.set_pixel_count(hbs + x + 2 * offset, 2 * row, COLOR_BLACK, 1);
