@@ -1516,13 +1516,55 @@ impl Video {
         };
 
         if self.vid80_mode && self.dhires_mode {
-            for xindex in 0..7 {
-                self.set_pixel(x1 * 14 + xindex + offset, y1 * 2, color);
-                self.set_pixel(x1 * 14 + xindex + offset, y1 * 2 + 1, color);
+            if !self.mono_mode {
+                for xindex in 0..7 {
+                    self.set_pixel(x1 * 14 + xindex + offset, y1 * 2, color);
+                    self.set_pixel(x1 * 14 + xindex + offset, y1 * 2 + 1, color);
+                }
+            } else {
+                let color = if yindex < 4 { ch & 0xf } else { (ch >> 4) & 0xf };
+                let mut mask = 0x1;
+                if x1 & 1 != 0 {
+                    mask <<= 2;
+                }
+                for xindex in 0..7 {
+                    if color & mask != 0 {
+                       self.set_pixel(x1 * 14 + xindex + offset, y1 * 2, COLOR_WHITE);
+                       self.set_pixel(x1 * 14 + xindex + offset, y1 * 2 + 1, COLOR_WHITE);
+                    } else {
+                       self.set_pixel(x1 * 14 + xindex + offset, y1 * 2, COLOR_BLACK);
+                       self.set_pixel(x1 * 14 + xindex + offset, y1 * 2 + 1, COLOR_BLACK);
+                    }
+                    mask <<= 1;
+                    if mask > 0xf {
+                        mask = 0x1;
+                    }
+                }
             }
         } else {
-            for xindex in 0..7 {
-                self.set_a2_pixel(x1 * 7 + xindex, y1, color);
+            if !self.mono_mode {
+                for xindex in 0..7 {
+                    self.set_a2_pixel(x1 * 7 + xindex, y1, color);
+                }
+            } else {
+                let color = if yindex < 4 { ch & 0xf } else { (ch >> 4) & 0xf };
+                let mut mask = 0x1;
+                if x1 & 1 != 0 {
+                    mask <<= 2;
+                }
+                for xindex in 0..14 {
+                    if color & mask != 0 {
+                        self.set_pixel(x1 * 14 + xindex, y1 * 2, COLOR_WHITE);
+                        self.set_pixel(x1 * 14 + xindex, y1 * 2 + 1, COLOR_WHITE);
+                    } else {
+                        self.set_pixel(x1 * 14 + xindex, y1 * 2, COLOR_BLACK);
+                        self.set_pixel(x1 * 14 + xindex, y1 * 2 + 1, COLOR_BLACK);
+                    }
+                    mask <<= 1;
+                    if mask > 0xf {
+                        mask = 0x1;
+                    }
+                }
             }
         }
     }
