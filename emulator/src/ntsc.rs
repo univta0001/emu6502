@@ -104,9 +104,9 @@ pub fn convert_chroma_to_yuv(x_pos: usize, dhgr: bool) -> Yuv {
     let p = 0.9083333;
 
     let phase = if dhgr {
-        2.0 * std::f32::consts::PI * (NTSC_SUBCARRIER * (x_pos as f32 + 77.0 + 0.70) + p)
+        2.0 * std::f32::consts::PI * (NTSC_SUBCARRIER * (x_pos as f32 + 77.0 + 0.50) + p)
     } else {
-        2.0 * std::f32::consts::PI * (NTSC_SUBCARRIER * (x_pos as f32 + 84.0 + 0.70) + p)
+        2.0 * std::f32::consts::PI * (NTSC_SUBCARRIER * (x_pos as f32 + 84.0 + 0.50) + p)
     };
 
     (1.0, f32::sin(phase), f32::cos(phase))
