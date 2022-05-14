@@ -9,9 +9,9 @@ use emu6502::mockingboard::Mockingboard;
 use emu6502::trace::adjust_disassemble_addr;
 use emu6502::trace::disassemble;
 use emu6502::trace::disassemble_addr;
+use image::codecs::png::PngEncoder;
 use image::ColorType;
 use image::ImageEncoder;
-use image::codecs::png::PngEncoder;
 use nfd2::Response;
 use sdl2::audio::AudioSpecDesired;
 use sdl2::controller::Axis;
@@ -413,7 +413,6 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 *event_param.reload_cpu = true;
                 cpu.halt_cpu();
-
             } else {
                 cpu.bus.toggle_joystick();
             }
@@ -452,7 +451,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                     disassemble(&mut output, cpu);
                     eprintln!("{}", output);
                 } else {
-                    eject_disk(cpu,1);
+                    eject_disk(cpu, 1);
                 }
             } else {
                 let result = nfd2::open_file_dialog(Some("dsk,po,woz,dsk.gz,po.gz,woz.gz"), None)
@@ -876,10 +875,13 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
                     if let Some(display) = &mut _cpu.bus.video {
                         if save_screenshot {
-                            let output = File::create("screenshot.png").expect("Unable to create screenshot.png");
+                            let output = File::create("screenshot.png")
+                                .expect("Unable to create screenshot.png");
                             let encoder = PngEncoder::new(output);
-                            encoder.write_image(&display.frame,560,384,ColorType::Rgba8).expect("Unable to create PNG file");
-                            save_screenshot=false;
+                            encoder
+                                .write_image(&display.frame, 560, 384, ColorType::Rgba8)
+                                .expect("Unable to create PNG file");
+                            save_screenshot = false;
                         }
 
                         let dirty_region = display.get_dirty_region();

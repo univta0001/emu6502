@@ -5,6 +5,7 @@ pub mod cpu_stats;
 pub mod disk;
 pub mod mmu;
 pub mod mockingboard;
+pub mod ntsc;
 pub mod opcodes;
 pub mod parallel;
 pub mod trace;

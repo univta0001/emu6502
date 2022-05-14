@@ -1,10 +1,12 @@
 use crate::bus::Mem;
 use crate::mmu::Mmu;
+use crate::ntsc::decoder_matrix;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-type Rgb = [u8; 3];
+pub type Rgb = [u8; 3];
+pub type Yuv = (f32, f32, f32);
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Video {
@@ -47,6 +49,10 @@ pub struct Video {
     #[serde(default = "default_video_dirty")]
     video_dirty: Vec<u8>,
 
+    #[serde(skip_serializing)]
+    #[serde(default = "default_ntsc_decoder")]
+    ntsc_decoder: Vec<Vec<f32>>,
+
     graphics_mode: bool,
     mixed_mode: bool,
     lores_mode: bool,
@@ -67,6 +73,9 @@ pub struct Video {
     rgb_mode: u8,
     disable_rgb: bool,
 }
+
+const NTSC_LUMA_BANDWIDTH: f32 = 2000000.0;
+const NTSC_CHROMA_BANDWIDTH: f32 = 600000.0;
 
 const TEXT_LEN: usize = 0x400;
 const HIRES_LEN: usize = 0x2000;
@@ -573,6 +582,8 @@ impl Video {
         let lut_text_2e_pal = build_lut(true, true, false);
         let lut_hires_pal = build_lut(false, true, false);
 
+        let ntsc_decoder = decoder_matrix(NTSC_LUMA_BANDWIDTH, NTSC_CHROMA_BANDWIDTH);
+
         Video {
             frame,
             mem,
@@ -604,6 +615,7 @@ impl Video {
             mono_mode: false,
             rgb_mode: 0,
             disable_rgb: true,
+            ntsc_decoder,
         }
     }
 
@@ -1137,6 +1149,10 @@ impl Video {
         self.video_50hz
     }
 
+    pub fn update_ntsc_matrix(&mut self, luma_bandwidth: f32, chroma_bandwidth: f32) {
+        self.ntsc_decoder = decoder_matrix(luma_bandwidth, chroma_bandwidth);
+    }
+
     pub fn set_pixel(&mut self, x: usize, y: usize, rgb: Rgb) {
         let base = y * 4 * Video::WIDTH + x * 4;
         let [r, g, b] = rgb;
@@ -1522,18 +1538,22 @@ impl Video {
                     self.set_pixel(x1 * 14 + xindex + offset, y1 * 2 + 1, color);
                 }
             } else {
-                let color = if yindex < 4 { ch & 0xf } else { (ch >> 4) & 0xf };
+                let color = if yindex < 4 {
+                    ch & 0xf
+                } else {
+                    (ch >> 4) & 0xf
+                };
                 let mut mask = 0x1;
                 if x1 & 1 != 0 {
                     mask <<= 2;
                 }
                 for xindex in 0..7 {
                     if color & mask != 0 {
-                       self.set_pixel(x1 * 14 + xindex + offset, y1 * 2, COLOR_WHITE);
-                       self.set_pixel(x1 * 14 + xindex + offset, y1 * 2 + 1, COLOR_WHITE);
+                        self.set_pixel(x1 * 14 + xindex + offset, y1 * 2, COLOR_WHITE);
+                        self.set_pixel(x1 * 14 + xindex + offset, y1 * 2 + 1, COLOR_WHITE);
                     } else {
-                       self.set_pixel(x1 * 14 + xindex + offset, y1 * 2, COLOR_BLACK);
-                       self.set_pixel(x1 * 14 + xindex + offset, y1 * 2 + 1, COLOR_BLACK);
+                        self.set_pixel(x1 * 14 + xindex + offset, y1 * 2, COLOR_BLACK);
+                        self.set_pixel(x1 * 14 + xindex + offset, y1 * 2 + 1, COLOR_BLACK);
                     }
                     mask <<= 1;
                     if mask > 0xf {
@@ -1541,29 +1561,31 @@ impl Video {
                     }
                 }
             }
+        } else if !self.mono_mode {
+            for xindex in 0..7 {
+                self.set_a2_pixel(x1 * 7 + xindex, y1, color);
+            }
         } else {
-            if !self.mono_mode {
-                for xindex in 0..7 {
-                    self.set_a2_pixel(x1 * 7 + xindex, y1, color);
-                }
+            let color = if yindex < 4 {
+                ch & 0xf
             } else {
-                let color = if yindex < 4 { ch & 0xf } else { (ch >> 4) & 0xf };
-                let mut mask = 0x1;
-                if x1 & 1 != 0 {
-                    mask <<= 2;
+                (ch >> 4) & 0xf
+            };
+            let mut mask = 0x1;
+            if x1 & 1 != 0 {
+                mask <<= 2;
+            }
+            for xindex in 0..14 {
+                if color & mask != 0 {
+                    self.set_pixel(x1 * 14 + xindex, y1 * 2, COLOR_WHITE);
+                    self.set_pixel(x1 * 14 + xindex, y1 * 2 + 1, COLOR_WHITE);
+                } else {
+                    self.set_pixel(x1 * 14 + xindex, y1 * 2, COLOR_BLACK);
+                    self.set_pixel(x1 * 14 + xindex, y1 * 2 + 1, COLOR_BLACK);
                 }
-                for xindex in 0..14 {
-                    if color & mask != 0 {
-                        self.set_pixel(x1 * 14 + xindex, y1 * 2, COLOR_WHITE);
-                        self.set_pixel(x1 * 14 + xindex, y1 * 2 + 1, COLOR_WHITE);
-                    } else {
-                        self.set_pixel(x1 * 14 + xindex, y1 * 2, COLOR_BLACK);
-                        self.set_pixel(x1 * 14 + xindex, y1 * 2 + 1, COLOR_BLACK);
-                    }
-                    mask <<= 1;
-                    if mask > 0xf {
-                        mask = 0x1;
-                    }
+                mask <<= 1;
+                if mask > 0xf {
+                    mask = 0x1;
                 }
             }
         }
@@ -2091,4 +2113,8 @@ fn default_video_dirty() -> Vec<u8> {
 
 fn default_frame() -> Vec<u8> {
     vec![0xff; Video::WIDTH * Video::HEIGHT * 4]
+}
+
+fn default_ntsc_decoder() -> Vec<Vec<f32>> {
+    decoder_matrix(NTSC_LUMA_BANDWIDTH, NTSC_CHROMA_BANDWIDTH)
 }
