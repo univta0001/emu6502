@@ -97,9 +97,6 @@ pub fn decoder_matrix(luma_bandwidth: f32, chroma_bandwidth: f32) -> Vec<Vec<f32
         vec![wy[1], wu[1], wv[1]],
         vec![wy[0], wu[0], wv[0]],
     ];
-
-    eprintln!("cs={:?}", decoder_matrix);
-
     decoder_matrix
 }
 
