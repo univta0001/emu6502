@@ -1114,7 +1114,6 @@ impl DiskDrive {
             if self.pending_ticks > 0 {
                 self.pending_ticks = 0;
             }
-
         } else if self.pending_ticks == 0 {
             self.pending_ticks = PENDING_WAIT;
         }
@@ -1243,7 +1242,7 @@ impl DiskDrive {
         self.io_step = false;
         self.tick();
         self.io_step = true;
-       
+
         let mut return_value = 0;
         if read_mode {
             if map_addr & 0x1 == 0 {

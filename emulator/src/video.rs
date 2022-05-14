@@ -95,12 +95,12 @@ const COLOR_WHITE:  Rgb = [0xff, 0xff, 0xff];
 const COLOR_BLACK:  Rgb = [0x00, 0x00, 0x00];
 */
 
-const COLOR_ORANGE: Rgb = [0xf9, 0x56, 0x1d];
-const COLOR_GREEN: Rgb = [0x43, 0xc8, 0x00];
-const COLOR_BLUE: Rgb = [0x07, 0xa8, 0xe0];
-const COLOR_VIOLET: Rgb = [0xbb, 0x36, 0xff];
-const COLOR_WHITE: Rgb = [0xff, 0xff, 0xff];
-const COLOR_BLACK: Rgb = [0x00, 0x00, 0x00];
+pub const COLOR_ORANGE: Rgb = [0xf9, 0x56, 0x1d];
+pub const COLOR_GREEN: Rgb = [0x43, 0xc8, 0x00];
+pub const COLOR_BLUE: Rgb = [0x07, 0xa8, 0xe0];
+pub const COLOR_VIOLET: Rgb = [0xbb, 0x36, 0xff];
+pub const COLOR_WHITE: Rgb = [0xff, 0xff, 0xff];
+pub const COLOR_BLACK: Rgb = [0x00, 0x00, 0x00];
 
 // lores colors
 // Based on GS Colors
@@ -117,17 +117,17 @@ const COLOR_PINK:  Rgb = [0xff, 0x99, 0x88];
 const COLOR_YELLOW:  Rgb = [0xff, 0xff, 0x00];
 const COLOR_AQUAMARINE:  Rgb = [0x44, 0xff, 0x99];
 */
-const COLOR_MAGENTA: Rgb = [0x93, 0x0b, 0x7c];
-const COLOR_DARK_BLUE: Rgb = [0x1f, 0x35, 0xd3];
-const COLOR_DARK_GREEN: Rgb = [0x00, 0x76, 0x0b];
-const COLOR_DARK_GRAY: Rgb = [0x55, 0x55, 0x55];
-const COLOR_MEDIUM_BLUE: Rgb = [0x07, 0xa8, 0xe0];
-const COLOR_LIGHT_BLUE: Rgb = [0x9d, 0xac, 0xff];
-const COLOR_BROWN: Rgb = [0x62, 0x4c, 0x00];
-const COLOR_LIGHT_GRAY: Rgb = [0xaa, 0xaa, 0xaa];
-const COLOR_PINK: Rgb = [0xff, 0x81, 0xec];
-const COLOR_YELLOW: Rgb = [0xdc, 0xcd, 0x16];
-const COLOR_AQUAMARINE: Rgb = [0x5d, 0xf7, 0x84];
+pub const COLOR_MAGENTA: Rgb = [0x93, 0x0b, 0x7c];
+pub const COLOR_DARK_BLUE: Rgb = [0x1f, 0x35, 0xd3];
+pub const COLOR_DARK_GREEN: Rgb = [0x00, 0x76, 0x0b];
+pub const COLOR_DARK_GRAY: Rgb = [0x55, 0x55, 0x55];
+pub const COLOR_MEDIUM_BLUE: Rgb = [0x07, 0xa8, 0xe0];
+pub const COLOR_LIGHT_BLUE: Rgb = [0x9d, 0xac, 0xff];
+pub const COLOR_BROWN: Rgb = [0x62, 0x4c, 0x00];
+pub const COLOR_LIGHT_GRAY: Rgb = [0xaa, 0xaa, 0xaa];
+pub const COLOR_PINK: Rgb = [0xff, 0x81, 0xec];
+pub const COLOR_YELLOW: Rgb = [0xdc, 0xcd, 0x16];
+pub const COLOR_AQUAMARINE: Rgb = [0x5d, 0xf7, 0x84];
 
 const LORES_COLORS: [Rgb; 16] = [
     COLOR_BLACK,
@@ -1262,6 +1262,7 @@ impl Video {
         scale: bool,
         alpha: u8,
         altflag: bool,
+        color: Rgb,
     ) {
         debug_assert!(x1 < 80);
         if !scale {
@@ -1284,11 +1285,11 @@ impl Video {
         let fore_color;
 
         if altflag {
-            back_color = COLOR_WHITE;
+            back_color = color;
             fore_color = COLOR_BLACK;
         } else {
             back_color = COLOR_BLACK;
-            fore_color = COLOR_WHITE;
+            fore_color = color;
         }
 
         let x1offset = x1 * 7;
@@ -1325,25 +1326,25 @@ impl Video {
     ) {
         // Draw top edge
         for i in 0..w - 1 {
-            self.draw_char_raw_a2(x + i, y, b'_', scale, alpha, false);
+            self.draw_char_raw_a2(x + i, y, b'_', scale, alpha, false, COLOR_WHITE);
         }
 
         // Draw left edge
         for i in 1..h - 1 {
-            self.draw_char_raw_a2(x, y + i, b'_', scale, alpha, true);
+            self.draw_char_raw_a2(x, y + i, b'_', scale, alpha, true, COLOR_WHITE);
         }
 
         // Draw right edge
         for i in 1..h {
-            self.draw_char_raw_a2(x + w - 1, y + i, b'_', scale, alpha, true);
+            self.draw_char_raw_a2(x + w - 1, y + i, b'_', scale, alpha, true, COLOR_WHITE);
         }
 
         // Draw left corner
-        self.draw_char_raw_a2(x, y + h - 1, b'T', scale, alpha, true);
+        self.draw_char_raw_a2(x, y + h - 1, b'T', scale, alpha, true, COLOR_WHITE);
 
         // Draw bottom edge
         for i in 1..w - 1 {
-            self.draw_char_raw_a2(x + i, y + h - 1, b'_', scale, alpha, false);
+            self.draw_char_raw_a2(x + i, y + h - 1, b'_', scale, alpha, false, COLOR_WHITE);
         }
     }
 
@@ -1354,8 +1355,9 @@ impl Video {
         str: &str,
         scale: bool,
         altflag: bool,
+        color: Rgb,
     ) {
-        self.draw_string_raw_a2_alpha(x1, y1, str, scale, 255, altflag);
+        self.draw_string_raw_a2_alpha(x1, y1, str, scale, 255, altflag, color);
     }
 
     pub fn draw_string_raw_a2_alpha(
@@ -1366,11 +1368,12 @@ impl Video {
         scale: bool,
         alpha: u8,
         altflag: bool,
+        color: Rgb,
     ) {
         let mut x = x1;
         for ch in str.chars() {
             if x < 80 {
-                self.draw_char_raw_a2(x, y1, ch as u8, scale, alpha, altflag);
+                self.draw_char_raw_a2(x, y1, ch as u8, scale, alpha, altflag, color);
             }
             x += 1;
         }

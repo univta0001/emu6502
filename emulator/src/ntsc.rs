@@ -12,7 +12,7 @@ fn real_idft(array: &[f32]) -> Vec<f32> {
 
     for (i, v) in w.iter_mut().enumerate() {
         let omega = 2.0 * std::f32::consts::PI * (i as f32) / (size as f32);
-        let sum = array.iter().enumerate().fold(0.0, |acc,(i,&value)| {
+        let sum = array.iter().enumerate().fold(0.0, |acc, (i, &value)| {
             acc + value * f32::cos(i as f32 * omega)
         });
         *v += sum;
@@ -25,7 +25,7 @@ fn chebyshev_window(n: usize, sidelobe: f32) -> Vec<f32> {
     let m = n - 1;
     let mut w = vec![0.0; m];
     let alpha = f32::cosh(f32::acosh(f32::powf(10.0, sidelobe / 20.0)) / m as f32);
-    for (i,v) in w.iter_mut().enumerate() {
+    for (i, v) in w.iter_mut().enumerate() {
         let a = f32::abs(alpha * f32::cos(std::f32::consts::PI * i as f32 / m as f32));
         if a > 1.0 {
             *v = f32::powi(-1.0, i as i32) * f32::cosh(m as f32 * f32::acosh(a));
@@ -53,10 +53,17 @@ fn lanczos_window(n: usize, fc: f32) -> Vec<f32> {
     let mut v = vec![0.0; n];
     let fc = f32::min(fc, 0.5);
     let half_n = f32::floor(n as f32 / 2.0);
-    v.iter_mut().enumerate().map(|(i,_)| {
-        let x = 2.0 * std::f32::consts::PI * fc * (i as f32 - half_n);
-        if x == 0.0 { 1.0 } else { f32::sin(x) / x }
-    }).collect()
+    v.iter_mut()
+        .enumerate()
+        .map(|(i, _)| {
+            let x = 2.0 * std::f32::consts::PI * fc * (i as f32 - half_n);
+            if x == 0.0 {
+                1.0
+            } else {
+                f32::sin(x) / x
+            }
+        })
+        .collect()
 }
 
 fn normalize(array: &[f32]) -> Vec<f32> {

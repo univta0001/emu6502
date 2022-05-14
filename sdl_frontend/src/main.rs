@@ -9,6 +9,7 @@ use emu6502::mockingboard::Mockingboard;
 use emu6502::trace::adjust_disassemble_addr;
 use emu6502::trace::disassemble;
 use emu6502::trace::disassemble_addr;
+use emu6502::video::{ COLOR_WHITE , COLOR_YELLOW };
 use image::codecs::png::PngEncoder;
 use image::ColorType;
 use image::ImageEncoder;
@@ -44,6 +45,7 @@ const CPU_CYCLES_PER_FRAME_60HZ: usize = 17030;
 const CPU_CYCLES_PER_FRAME_50HZ: usize = 20280;
 const AUDIO_SAMPLE_SIZE: u32 = 48000 / 60;
 const CPU_6502_MHZ: usize = 157500 / 11 * 65 / 912;
+const STATUS_MSG_WAIT: usize = 30;
 
 const VERSION: &str = "0.1.0";
 
@@ -56,6 +58,8 @@ struct EventParam<'a> {
     estimated_mhz: &'a mut f32,
     reload_cpu: &'a mut bool,
     save_screenshot: &'a mut bool,
+    status_timer: &'a mut usize,
+    status_msg: &'a mut String,
 }
 
 fn translate_key_to_apple_key(
@@ -278,6 +282,8 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 *event_param.save_screenshot = true;
+                *event_param.status_msg = "SAVING SCREENSHOT...".to_owned();
+                *event_param.status_timer = STATUS_MSG_WAIT;
             }
         }
 
@@ -838,6 +844,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut display_refresh = false;
     let mut reload_cpu = false;
     let mut save_screenshot = false;
+    let mut status_timer: usize = 0;
+    let mut status_msg: String = String::new();
 
     cpu.reset();
     cpu.setup_emulator();
@@ -946,7 +954,15 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         if let Some(display) = &mut _cpu.bus.video {
                             let mut row = 2;
                             for str in output.lines() {
-                                display.draw_string_raw_a2_alpha(1, row, str, false, 128, false);
+                                display.draw_string_raw_a2_alpha(
+                                    1,
+                                    row,
+                                    str,
+                                    false,
+                                    128,
+                                    false,
+                                    COLOR_WHITE,
+                                );
                                 row += 1;
                             }
 
@@ -971,6 +987,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                                 false,
                                 128,
                                 false,
+                                COLOR_WHITE,
                             );
                             display.draw_string_raw_a2_alpha(
                                 51,
@@ -979,6 +996,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                                 false,
                                 128,
                                 false,
+                                COLOR_WHITE,
                             );
 
                             let rect = Rect::new(0, 0, 560, 384);
@@ -992,6 +1010,27 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     video_refresh = Instant::now();
                 }
 
+                if status_timer > 0 {
+                    status_timer = status_timer.wrapping_sub(1);
+                    if let Some(display) = &mut _cpu.bus.video {
+                        if status_timer != 0 {
+                            display.draw_string_raw_a2_alpha(
+                                        1,
+                                        0,
+                                        &status_msg,
+                                        false,
+                                        128,
+                                        false,
+                                        COLOR_YELLOW,
+                                    );
+                        }
+                        let rect = Rect::new(0, 0, 560, 16);
+                        texture.update(rect, &display.frame[0..], 560 * 4).unwrap();
+                        canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
+                        canvas.present();
+                    }
+                }
+
                 let mut event = _event_pump.poll_event();
                 while let Some(event_value) = event {
                     let mut event_param = EventParam {
@@ -1003,6 +1042,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         estimated_mhz: &mut estimated_mhz,
                         reload_cpu: &mut reload_cpu,
                         save_screenshot: &mut save_screenshot,
+                        status_timer: &mut status_timer,
+                        status_msg: &mut status_msg,
                     };
 
                     handle_event(_cpu, event_value, &mut event_param);
