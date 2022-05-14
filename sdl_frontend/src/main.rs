@@ -282,7 +282,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 *event_param.save_screenshot = true;
-                *event_param.status_msg = "SAVING SCREENSHOT...".to_owned();
+                *event_param.status_msg = "Saving screenshot...".to_owned();
                 *event_param.status_timer = STATUS_MSG_WAIT;
             }
         }
@@ -436,6 +436,8 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                     .expect("Unable to open save file dialog");
 
                 if let Response::Okay(file_path) = result {
+                    *event_param.status_msg = "Saving emulator state...".to_owned();
+                    *event_param.status_timer = STATUS_MSG_WAIT;
                     let write_result = fs::write(&file_path, yaml_output);
                     if let Err(e) = write_result {
                         eprintln!("Unable to write to file {} : {}", file_path.display(), e);
@@ -958,7 +960,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                                     1,
                                     row,
                                     str,
-                                    false,
                                     128,
                                     false,
                                     COLOR_WHITE,
@@ -967,8 +968,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                             }
 
                             // Draw box
-                            display.draw_box_raw_a2(0, 0, 51, 43, false, 128);
-                            display.draw_box_raw_a2(50, 0, 22, 5, false, 128);
+                            display.draw_box_raw_a2(0, 0, 51, 43, 128);
+                            display.draw_box_raw_a2(50, 0, 22, 5, 128);
                             // Display Status
                             let status_label = "A  X  Y  P  S  PC";
                             let status_value = format!(
@@ -984,7 +985,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                                 51,
                                 2,
                                 status_label,
-                                false,
                                 128,
                                 false,
                                 COLOR_WHITE,
@@ -993,7 +993,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                                 51,
                                 3,
                                 &status_value,
-                                false,
                                 128,
                                 false,
                                 COLOR_WHITE,
@@ -1018,7 +1017,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                                         1,
                                         0,
                                         &status_msg,
-                                        false,
                                         128,
                                         false,
                                         COLOR_YELLOW,
@@ -1115,6 +1113,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     // Replace the old cpu with the new cpu
                     cpu = new_cpu;
                 }
+
+                status_msg = "Loaded emulator state".to_owned();
+                status_timer = STATUS_MSG_WAIT;
             }
         }
     }

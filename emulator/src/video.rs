@@ -1259,21 +1259,16 @@ impl Video {
         x1: usize,
         y1: usize,
         ch: u8,
-        scale: bool,
         alpha: u8,
         altflag: bool,
         color: Rgb,
     ) {
         debug_assert!(x1 < 80);
-        if !scale {
-            debug_assert!(y1 < 48);
-        } else {
-            debug_assert!(y1 < 24);
-        }
+        debug_assert!(y1 < 48);
 
         let val = if !altflag {
-            if (0x40..0x80).contains(&ch) {
-                ch - 0x40
+            if (0x20..0x80).contains(&ch) {
+                ch + 0x80
             } else {
                 ch
             }
@@ -1293,23 +1288,24 @@ impl Video {
         }
 
         let x1offset = x1 * 7;
-        let y1offset = if scale { y1 * 16 } else { y1 * 8 };
+        let y1offset = y1 * 8;
         for yindex in 0..8 {
             let mut shift = 0x80;
             let bitmap = CHAR_APPLE2E_ROM[val as usize * 8 + yindex];
 
             for xindex in x1offset..x1offset + 7 {
                 let color = if bitmap & shift == 0 {
-                    fore_color
-                } else {
+                    if altflag {
+                        fore_color
+                    } else {
+                        back_color
+                    }
+                } else if altflag {
                     back_color
-                };
-                if scale {
-                    self.set_pixel_blend_alpha(xindex, y1offset + 2 * yindex, color, alpha);
-                    self.set_pixel_blend_alpha(xindex, y1offset + 2 * yindex + 1, color, alpha);
                 } else {
-                    self.set_pixel_blend_alpha(xindex, y1offset + yindex, color, alpha);
-                }
+                    fore_color
+                };
+                self.set_pixel_blend_alpha(xindex, y1offset + yindex, color, alpha);
                 shift >>= 1;
             }
         }
@@ -1321,30 +1317,29 @@ impl Video {
         y: usize,
         w: usize,
         h: usize,
-        scale: bool,
         alpha: u8,
     ) {
         // Draw top edge
         for i in 0..w - 1 {
-            self.draw_char_raw_a2(x + i, y, b'_', scale, alpha, false, COLOR_WHITE);
+            self.draw_char_raw_a2(x + i, y, b'_', alpha, false, COLOR_WHITE);
         }
 
         // Draw left edge
         for i in 1..h - 1 {
-            self.draw_char_raw_a2(x, y + i, b'_', scale, alpha, true, COLOR_WHITE);
+            self.draw_char_raw_a2(x, y + i, b'_', alpha, true, COLOR_WHITE);
         }
 
         // Draw right edge
         for i in 1..h {
-            self.draw_char_raw_a2(x + w - 1, y + i, b'_', scale, alpha, true, COLOR_WHITE);
+            self.draw_char_raw_a2(x + w - 1, y + i, b'_', alpha, true, COLOR_WHITE);
         }
 
         // Draw left corner
-        self.draw_char_raw_a2(x, y + h - 1, b'T', scale, alpha, true, COLOR_WHITE);
+        self.draw_char_raw_a2(x, y + h - 1, b'T', alpha, true, COLOR_WHITE);
 
         // Draw bottom edge
         for i in 1..w - 1 {
-            self.draw_char_raw_a2(x + i, y + h - 1, b'_', scale, alpha, false, COLOR_WHITE);
+            self.draw_char_raw_a2(x + i, y + h - 1, b'_', alpha, false, COLOR_WHITE);
         }
     }
 
@@ -1353,11 +1348,10 @@ impl Video {
         x1: usize,
         y1: usize,
         str: &str,
-        scale: bool,
         altflag: bool,
         color: Rgb,
     ) {
-        self.draw_string_raw_a2_alpha(x1, y1, str, scale, 255, altflag, color);
+        self.draw_string_raw_a2_alpha(x1, y1, str, 255, altflag, color);
     }
 
     pub fn draw_string_raw_a2_alpha(
@@ -1365,7 +1359,6 @@ impl Video {
         x1: usize,
         y1: usize,
         str: &str,
-        scale: bool,
         alpha: u8,
         altflag: bool,
         color: Rgb,
@@ -1373,7 +1366,7 @@ impl Video {
         let mut x = x1;
         for ch in str.chars() {
             if x < 80 {
-                self.draw_char_raw_a2(x, y1, ch as u8, scale, alpha, altflag, color);
+                self.draw_char_raw_a2(x, y1, ch as u8, alpha, altflag, color);
             }
             x += 1;
         }
