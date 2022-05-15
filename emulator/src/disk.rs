@@ -550,14 +550,13 @@ fn save_woz_file(disk: &mut Disk) -> io::Result<()> {
         .unwrap()
         .eq_ignore_ascii_case(OsStr::new("gz"))
     {
-        let data = std::fs::read(&path).expect("Unable to read woz file");
+        let data = std::fs::read(&path)?;
         let mut buffer: Vec<u8> = Vec::new();
         let mut gz = GzDecoder::new(&data[..]);
-        gz.read_to_end(&mut buffer)
-            .expect("Unable to read woz file");
+        gz.read_to_end(&mut buffer)?;
         buffer
     } else {
-        std::fs::read(&path).expect("Unable to read woz file")
+        std::fs::read(&path)?
     };
 
     if dsk.len() <= 12 {
@@ -1089,7 +1088,10 @@ impl DiskDrive {
                 // Check for modified flag, if it is modified needs to save back the file
                 if disk.modified {
                     if self.enable_save {
-                        save_dsk_woz_to_disk(disk).expect("Unable to save file");
+                        let save_status = save_dsk_woz_to_disk(disk);
+                        if save_status.is_err() {
+                            eprintln!("Unable to save disk = {:?}",save_status);
+                        }
                     }
                     disk.modified = false;
                 }
@@ -1266,14 +1268,13 @@ impl DiskDrive {
             .unwrap()
             .eq_ignore_ascii_case(OsStr::new("gz"))
         {
-            let data = std::fs::read(&filename).expect("Unable to read dsk / po file");
+            let data = std::fs::read(&filename)?;
             let mut buffer: Vec<u8> = Vec::new();
             let mut gz = GzDecoder::new(&data[..]);
-            gz.read_to_end(&mut buffer)
-                .expect("Unable to read dsk / po file");
+            gz.read_to_end(&mut buffer)?;
             buffer
         } else {
-            std::fs::read(&filename).expect("Unable to read dsk / po file")
+            std::fs::read(&filename)?
         };
 
         if dsk.len() != DSK_IMAGE_SIZE {
@@ -1353,14 +1354,13 @@ impl DiskDrive {
             .unwrap()
             .eq_ignore_ascii_case(OsStr::new("gz"))
         {
-            let data = std::fs::read(&filename).expect("Unable to read woz file");
+            let data = std::fs::read(&filename)?;
             let mut buffer: Vec<u8> = Vec::new();
             let mut gz = GzDecoder::new(&data[..]);
-            gz.read_to_end(&mut buffer)
-                .expect("Unable to read woz file");
+            gz.read_to_end(&mut buffer)?;
             buffer
         } else {
-            std::fs::read(&filename).expect("Unable to read woz file")
+            std::fs::read(&filename)?
         };
 
         self.load_woz_array(&dsk)
