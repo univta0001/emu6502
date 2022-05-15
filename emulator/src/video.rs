@@ -1801,8 +1801,6 @@ impl Video {
                     }
                     let color = DHIRES_COLORS[(value_7_pixels & 0xf) as usize];
                     self.set_pixel_count(x + offset, row * 2, color, 2);
-                    self.fix_dhires_a2_row_col(row * 2, x + offset, prev_color, 
-                        (value_7_pixels & 0xf) as usize);
                 } else {
                     value_7_pixels >>= 8;
                     let mut prev_color = (value_7_pixels & 0xf) as usize;
@@ -1812,7 +1810,7 @@ impl Video {
                     self.set_pixel_count(x + offset, row * 2, color, 2);
                     self.fix_dhires_a2_row_col(
                         row * 2,
-                        x + offset,
+                        x + offset - 2,
                         prev_color,
                         (value_7_pixels & 0xf) as usize,
                     );
