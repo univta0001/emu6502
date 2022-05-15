@@ -45,7 +45,7 @@ const CPU_CYCLES_PER_FRAME_60HZ: usize = 17030;
 const CPU_CYCLES_PER_FRAME_50HZ: usize = 20280;
 const AUDIO_SAMPLE_SIZE: u32 = 48000 / 60;
 const CPU_6502_MHZ: usize = 157500 / 11 * 65 / 912;
-const STATUS_MSG_WAIT: usize = 30;
+const STATUS_MSG_WAIT: usize = 60;
 
 const VERSION: &str = "0.1.0";
 
