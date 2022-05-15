@@ -583,7 +583,7 @@ where
         let drive_selected = disk_drive.drive_selected();
         disk_drive.drive_select(drive);
         disk_drive.load_disk_image(path_ref)?;
-        disk_drive.set_disk_filename(&path_ref.display().to_string());
+        disk_drive.set_disk_filename(path_ref);
         disk_drive.set_loaded(true);
         disk_drive.drive_select(drive_selected);
     }

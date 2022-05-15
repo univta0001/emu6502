@@ -1552,13 +1552,30 @@ impl DiskDrive {
         }
     }
 
+    fn absolute_path(&self, path: impl AsRef<Path>) -> io::Result<PathBuf> {
+        let path = path.as_ref();
+
+        let absolute_path = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            std::env::current_dir()?.join(path)
+        };
+
+        Ok(absolute_path)
+    }
+
     pub fn set_disk_filename<P>(&mut self, filename_path: P)
     where
         P: AsRef<Path>,
     {
         let filename = filename_path.as_ref();
-        let disk = &mut self.drive[self.drive_select];
-        disk.filename = filename.display().to_string();
+        if let Ok(real_path) = self.absolute_path(filename) {
+            let disk = &mut self.drive[self.drive_select];
+            disk.filename = real_path.display().to_string().replace("\\\\","\\");
+        } else {
+            let disk = &mut self.drive[self.drive_select];
+            disk.filename = filename.display().to_string().replace("\\\\","");
+        }
     }
 
     pub fn get_disk_filename(&self, drive: usize) -> String {
