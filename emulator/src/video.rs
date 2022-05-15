@@ -95,13 +95,6 @@ const COLOR_WHITE:  Rgb = [0xff, 0xff, 0xff];
 const COLOR_BLACK:  Rgb = [0x00, 0x00, 0x00];
 */
 
-pub const COLOR_ORANGE: Rgb = [0xf9, 0x56, 0x1d];
-pub const COLOR_GREEN: Rgb = [0x43, 0xc8, 0x00];
-pub const COLOR_BLUE: Rgb = [0x07, 0xa8, 0xe0];
-pub const COLOR_VIOLET: Rgb = [0xbb, 0x36, 0xff];
-pub const COLOR_WHITE: Rgb = [0xff, 0xff, 0xff];
-pub const COLOR_BLACK: Rgb = [0x00, 0x00, 0x00];
-
 // lores colors
 // Based on GS Colors
 /*
@@ -117,17 +110,24 @@ const COLOR_PINK:  Rgb = [0xff, 0x99, 0x88];
 const COLOR_YELLOW:  Rgb = [0xff, 0xff, 0x00];
 const COLOR_AQUAMARINE:  Rgb = [0x44, 0xff, 0x99];
 */
-pub const COLOR_MAGENTA: Rgb = [0x93, 0x0b, 0x7c];
-pub const COLOR_DARK_BLUE: Rgb = [0x1f, 0x35, 0xd3];
-pub const COLOR_DARK_GREEN: Rgb = [0x00, 0x76, 0x0b];
-pub const COLOR_DARK_GRAY: Rgb = [0x55, 0x55, 0x55];
-pub const COLOR_MEDIUM_BLUE: Rgb = [0x07, 0xa8, 0xe0];
-pub const COLOR_LIGHT_BLUE: Rgb = [0x9d, 0xac, 0xff];
-pub const COLOR_BROWN: Rgb = [0x62, 0x4c, 0x00];
-pub const COLOR_LIGHT_GRAY: Rgb = [0xaa, 0xaa, 0xaa];
-pub const COLOR_PINK: Rgb = [0xff, 0x81, 0xec];
-pub const COLOR_YELLOW: Rgb = [0xdc, 0xcd, 0x16];
-pub const COLOR_AQUAMARINE: Rgb = [0x5d, 0xf7, 0x84];
+
+// Color is derived from NTSC simulation
+pub const COLOR_BLACK: Rgb = [0x00, 0x00, 0x00];
+pub const COLOR_MAGENTA: Rgb = [0xcd, 0x00, 0x75];
+pub const COLOR_DARK_BLUE: Rgb = [0x21, 0x1d, 0xff];
+pub const COLOR_VIOLET: Rgb = [0xef, 0x0a, 0xff];
+pub const COLOR_DARK_GREEN: Rgb = [0x00, 0x92, 0x09];
+pub const COLOR_DARK_GRAY: Rgb = [0x7f, 0x7f, 0x7f];
+pub const COLOR_MEDIUM_BLUE: Rgb = [0x00, 0xb0, 0xff];
+pub const COLOR_LIGHT_BLUE: Rgb = [0xa0, 0x9d, 0xff];
+pub const COLOR_BROWN: Rgb = [0x5d, 0x61, 0x00];
+pub const COLOR_ORANGE: Rgb = [0xff, 0x4e, 0x00];
+pub const COLOR_LIGHT_GRAY: Rgb = [0x7f, 0x7f, 0x7f];
+pub const COLOR_PINK: Rgb = [0xff, 0x6c, 0xf5];
+pub const COLOR_GREEN: Rgb = [0x0f, 0xf4, 0x00];
+pub const COLOR_YELLOW: Rgb = [0xdd, 0xe1, 0x00];
+pub const COLOR_AQUAMARINE: Rgb = [0x31, 0xff, 0x89];
+pub const COLOR_WHITE: Rgb = [0xff, 0xff, 0xff];
 
 const LORES_COLORS: [Rgb; 16] = [
     COLOR_BLACK,
@@ -1629,7 +1629,7 @@ impl Video {
             let mut current = val & 0x01 > 0;
             let mut next = val & 0x02 > 0;
             let mut odd_color = if hbs { COLOR_ORANGE } else { COLOR_GREEN };
-            let mut even_color = if hbs { COLOR_BLUE } else { COLOR_VIOLET };
+            let mut even_color = if hbs { COLOR_DARK_BLUE } else { COLOR_VIOLET };
 
             // Only works in NTSC / PAL mode
             if self.disable_rgb && self.dhires_mode && !self.vid80_mode {
@@ -1679,7 +1679,7 @@ impl Video {
                     color = if col & 0x1 > 0 {
                         if hbs_next { COLOR_ORANGE } else { COLOR_GREEN }
                     } else {
-                        if hbs_next { COLOR_BLUE } else { COLOR_VIOLET }
+                        if hbs_next { COLOR_DARK_BLUE } else { COLOR_VIOLET }
                     };
 
                     self.set_a2_pixel(x + 7, row, color);
