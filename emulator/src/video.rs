@@ -1838,12 +1838,12 @@ impl Video {
         color_index: usize,
     ) {
         // Handling White (Case 0111 1000)
-        if (color_index & 7) == 1 && ((prev_index & 0xf) == 14) && col >= 3 {
+        if color_index == 1 && ((prev_index & 0xf) == 14) && col >= 3 {
             self.set_pixel_count(col - 3, row, COLOR_WHITE, 4);
         }
 
         // Handling White (Case 0011 1100)
-        if (color_index & 3) == 3 && (prev_index & 3 == 0) && col >= 2 {
+        if (color_index & 3) == 3 && prev_index & 3 == 14 && col >= 2 {
             self.set_pixel_count(col - 2, row, COLOR_WHITE, 4);
         }
 
