@@ -9,7 +9,7 @@ use emu6502::mockingboard::Mockingboard;
 use emu6502::trace::adjust_disassemble_addr;
 use emu6502::trace::disassemble;
 use emu6502::trace::disassemble_addr;
-use emu6502::video::{ COLOR_WHITE , COLOR_YELLOW };
+use emu6502::video::{COLOR_WHITE, COLOR_YELLOW};
 use image::codecs::png::PngEncoder;
 use image::ColorType;
 use image::ImageEncoder;
@@ -1014,13 +1014,13 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     if let Some(display) = &mut _cpu.bus.video {
                         if status_timer != 0 {
                             display.draw_string_raw_a2_alpha(
-                                        1,
-                                        0,
-                                        &status_msg,
-                                        128,
-                                        false,
-                                        COLOR_YELLOW,
-                                    );
+                                1,
+                                0,
+                                &status_msg,
+                                128,
+                                false,
+                                COLOR_YELLOW,
+                            );
                         }
                         let rect = Rect::new(0, 0, 560, 16);
                         texture.update(rect, &display.frame[0..], 560 * 4).unwrap();

@@ -1311,14 +1311,7 @@ impl Video {
         }
     }
 
-    pub fn draw_box_raw_a2(
-        &mut self,
-        x: usize,
-        y: usize,
-        w: usize,
-        h: usize,
-        alpha: u8,
-    ) {
+    pub fn draw_box_raw_a2(&mut self, x: usize, y: usize, w: usize, h: usize, alpha: u8) {
         // Draw top edge
         for i in 0..w - 1 {
             self.draw_char_raw_a2(x + i, y, b'_', alpha, false, COLOR_WHITE);
@@ -1791,9 +1784,18 @@ impl Video {
                 // 140 x 192 graphics mode
                 if odd == 0 {
                     let mut offset = 0;
+                    let mut prev_color = 0;
+
+                    if x > 0 {
+                        prev_color = (self.read_hires_memory(ptr-1, row) >> 3) as usize;
+                    }
+
                     for _ in 0..3 {
-                        let color = DHIRES_COLORS[(value_7_pixels & 0xf) as usize];
+                        let color_index: usize = (value_7_pixels & 0xf) as usize;
+                        let color = DHIRES_COLORS[color_index];
                         self.set_pixel_count(x + offset, row * 2, color, 4);
+                        self.fix_dhires_a2_row_col(row * 2, x + offset, prev_color, color_index);
+                        prev_color = color_index;
                         offset += 4;
                         value_7_pixels >>= 4;
                     }
@@ -1804,16 +1806,58 @@ impl Video {
                     let mut offset = 0;
                     let color = DHIRES_COLORS[(value_7_pixels & 0xf) as usize];
                     self.set_pixel_count(x + offset, row * 2, color, 2);
+                    let mut prev_color = (value_7_pixels & 0xf) as usize;
                     value_7_pixels >>= 4;
                     offset += 2;
                     for _ in 0..3 {
-                        let color = DHIRES_COLORS[(value_7_pixels & 0xf) as usize];
+                        let color_index: usize = (value_7_pixels & 0xf) as usize;
+                        let color = DHIRES_COLORS[color_index];
                         self.set_pixel_count(x + offset, row * 2, color, 4);
+                        self.fix_dhires_a2_row_col(row * 2, x + offset, prev_color, color_index);
+                        prev_color = color_index;
                         offset += 4;
                         value_7_pixels >>= 4;
                     }
                 }
             }
+        }
+    }
+
+    fn fix_dhires_a2_row_col(
+        &mut self,
+        row: usize,
+        col: usize,
+        prev_index: usize,
+        color_index: usize,
+    ) {
+        // Handling White (Case 0111 1000)
+        if (color_index & 7) == 1 &&  ((prev_index & 0xf) == 14) && col >=3 {  
+            self.set_pixel_count(col-3, row, COLOR_WHITE, 4);
+        }
+        
+        // Handling White (Case 0011 1100)
+        if (color_index & 3) == 3 &&  (prev_index >> 2 == (color_index & 3)) && col >=2 {
+            self.set_pixel_count(col-2, row, COLOR_WHITE, 4);
+        }
+
+        // Handling White (Case 0001 1110)
+        if (color_index & 7) == 7 &&  ((prev_index & 0x8) != 0) && col >= 1 {
+            self.set_pixel_count(col-1, row, COLOR_WHITE, 4);
+        } 
+
+        // Handling Black (Case x000 01yy)
+        if (color_index & 3) == 2 &&  (prev_index & 0xe) == 0 && col >= 3 {
+            self.set_pixel_count(col-3, row, COLOR_BLACK, 4);
+        }
+
+        // Handling Black (Case x100 00yy)
+        if (color_index & 3) == 0 && ((prev_index & 0xe) == 2) && col >= 2 {
+            self.set_pixel_count(col-2, row, COLOR_BLACK, 4);
+        }
+
+        // Handling Black (Case xxx0 000y)
+        if (color_index & 7) == 0 &&  ((prev_index & 0x8) == 0) && col >= 1 {
+            self.set_pixel_count(col-1, row, COLOR_BLACK, 4);
         }
     }
 
