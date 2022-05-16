@@ -1175,19 +1175,8 @@ impl Video {
 
     pub fn set_pixel_count(&mut self, x: usize, y: usize, rgb: Rgb, count: usize) {
         for i in 0..count {
-            if x+i < 560 {
-                self.set_pixel(x + i, y, rgb);
-                self.set_pixel(x + i, y + 1, rgb);
-            }
-        }
-    }
-
-    pub fn set_pixel_icount(&mut self, x: isize, y: usize, rgb: Rgb, count: usize) {
-        for i in 0..count {
-            if x+(i as isize) >=0 && x+(i as isize) < 560 {
-                self.set_pixel(x as usize + i, y, rgb);
-                self.set_pixel(x as usize + i, y + 1, rgb);
-            }
+            self.set_pixel(x + i, y, rgb);
+            self.set_pixel(x + i, y + 1, rgb);
         }
     }
 
@@ -1849,34 +1838,38 @@ impl Video {
         prev_index: usize,
         color_index: usize,
     ) {
+        if col == 0 {
+            return;
+        }
+
         // Handling White (Case 0111 1000)
-        if color_index == 1 && ((prev_index & 0xf) == 14) {
-            self.set_pixel_icount(col as isize - 3, row, COLOR_WHITE, 4);
+        if color_index == 1 && prev_index == 14 {
+            self.set_pixel_count(col - 3, row, COLOR_WHITE, 4);
         }
 
         // Handling White (Case 0011 1100)
-        if (color_index & 3) == 3 && prev_index & 3 == 14 {
-            self.set_pixel_icount(col as isize - 2, row, COLOR_WHITE, 4);
+        if (color_index & 3) == 3 && prev_index == 12 {
+            self.set_pixel_count(col - 2, row, COLOR_WHITE, 4);
         }
 
         // Handling White (Case 0001 1110)
         if (color_index & 7) == 7 && ((prev_index & 0x8) != 0) {
-            self.set_pixel_icount(col as isize - 1, row, COLOR_WHITE, 4);
+            self.set_pixel_count(col - 1, row, COLOR_WHITE, 4);
         }
 
         // Handling Black (Case x000 0yyy)
         if (color_index & 1) == 0 && (prev_index & 0xe) == 0 {
-            self.set_pixel_icount(col as isize - 3, row, COLOR_BLACK, 4);
+            self.set_pixel_count(col - 3, row, COLOR_BLACK, 4);
         }
 
         // Handling Black (Case xx00 00yy)
         if (color_index & 3) == 0 && ((prev_index & 0xc) == 0) {
-            self.set_pixel_icount(col as isize - 2, row, COLOR_BLACK, 4);
+            self.set_pixel_count(col - 2, row, COLOR_BLACK, 4);
         }
 
         // Handling Black (Case xxx0 000y)
         if (color_index & 7) == 0 && ((prev_index & 0x8) == 0) {
-            self.set_pixel_icount(col as isize - 1, row, COLOR_BLACK, 4);
+            self.set_pixel_count(col - 1, row, COLOR_BLACK, 4);
         }
     }
 
