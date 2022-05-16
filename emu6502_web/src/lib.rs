@@ -1,6 +1,7 @@
 use emu6502::bus::Bus;
 use emu6502::cpu::CPU;
 use wasm_bindgen::prelude::*;
+use emu6502::mockingboard::Mockingboard;
 
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
@@ -163,7 +164,16 @@ pub async fn init_emul() -> Emulator {
 
     let apple2ee_rom: Vec<u8> = include_bytes!("../../Apple2e_enhanced.rom").to_vec();
     let mut cpu = CPU::new(Bus::default());
+
     cpu.load(&apple2ee_rom, 0xc000);
+
+    if let Some(sound) = &mut cpu.bus.audio {
+        sound.mboard.clear();
+        for _ in 0..2 {
+            sound.mboard.push(Mockingboard::new());
+        }
+    }
+
     cpu.reset();
     cpu.setup_emulator();
 
