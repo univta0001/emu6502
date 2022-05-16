@@ -236,11 +236,11 @@ public class test_ntsc{
                 double p = 0.9083333333333333;
 
                 // Double hires
-                double phase = 2.0 * Math.PI * (subcarrier * (xx + 77 + 0.70) + p);
+                double phase = 2.0 * Math.PI * (subcarrier * (xx + 77 + 0.5) + p);
 
                 // Hires
                 if (!dhgr) {
-                    phase = 2.0 * Math.PI * (subcarrier * (xx + 84 + 0.65) + p);
+                    phase = 2.0 * Math.PI * (subcarrier * (xx + 84 + 0.5) + p);
                 }
 
                 yuv_image[j] = raw_image[i] * 1.0 / 255.0;

@@ -6,20 +6,20 @@ public class test_dhr{
 
     int[] colors = new int[] {
         0,
-        0x99,
-        0x77*256+0x22,
-        0x22*65536+0x22*256+0xff,
-        0x88*65536+0x55*256+0x00,
-        0xaa*65536+0xaa*256+0xaa,
-        0x11*65536+0xdd*256+0x00,
-        0x44*65536+0xff*256+0x99,
-        0xdd*65536+0x33,
-        0xdd*65536+0x22*256+0xdd,
-        0x55*65536+0x55*256+0x55,
-        0x66*65536+0xaa*256+0xff,
-        0xff*65536+0x66*256+0x00,
-        0xff*65536+0x99*256+0x88,
-        0xff*65536+0xff*256+0x00,
+        0x21*65536+0x1d*256+0xff,
+        0x00*65536+0x92*256+0x09,
+        0x00*65536+0xb0*256+0xff,
+        0x5d*65536+0x61*256+0x00,
+        0x7f*65536+0x7f*256+0x7f,
+        0x0f*65536+0xf4*256+0x00,
+        0x31*65536+0xff*256+0x89,
+        0xcd*65536+0x00*256+0x75,
+        0xef*65536+0x0a*256+0xff,
+        0x7f*65536+0x7f*256+0x7f,
+        0x0a*65536+0x9d*256+0xff,
+        0xff*65536+0x4e*256+0x00,
+        0xff*65536+0x6c*256+0xf5,
+        0xdd*65536+0xe1*256+0x00,
         0xff*65536+0xff*256+0xff
     };
 
@@ -124,62 +124,7 @@ public class test_dhr{
                         value_7_pixels >>= 4;
                     }
                 }
-
-                /*
-
-                int mask = 0x1;
-                for (int k = 0 ; k < 7; k++) {
-                    if ((data[8192+base+i] & mask) > 0) {
-                        bi.setRGB(x+k,j*2, colors[15]);
-                        bi.setRGB(x+k,j*2+1, colors[15]);
-                    } else {
-                        bi.setRGB(x+k,j*2, colors[0]);
-                        bi.setRGB(x+k,j*2+1, colors[0]);
-                    }                    
-
-                    if ((data[base+i] & mask) > 0) {
-                        bi.setRGB(x+k+7,j*2, colors[15]);
-                        bi.setRGB(x+k+7,j*2+1, colors[15]);
-                    } else {
-                        bi.setRGB(x+k+7,j*2, colors[0]);
-                        bi.setRGB(x+k+7,j*2+1, colors[0]);
-                    }
-                    mask <<= 1;
-                } 
-                */       
             }
-
-            /*
-            for (int i=0; i<560; i+=4) {
-                int value = 0;
-                if (bi.getRGB(i,j*2) == -1) {
-                    value |= 1;
-                } 
-                
-                if (bi.getRGB(i+1,j*2) == -1) {
-                    value |= 2;
-                }
-
-                if (bi.getRGB(i+2,j*2) == -1) {
-                    value |= 4;
-                }
-
-                if (bi.getRGB(i+3,j*2) == -1) {
-                    value |= 8;
-                }
-
-                int color = colors[value];
-
-                bi.setRGB(i, j*2, color);
-                bi.setRGB(i, j*2+1, color);
-                bi.setRGB(i+1, j*2, color);
-                bi.setRGB(i+1, j*2+1, color);
-                bi.setRGB(i+2, j*2, color);
-                bi.setRGB(i+2, j*2+1, color);
-                bi.setRGB(i+3, j*2, color);
-                bi.setRGB(i+3, j*2+1, color);
-            }
-            */
         }
         ImageIO.write(bi, "PNG", new File("test.png"));
     }
