@@ -1046,8 +1046,7 @@ impl Video {
         */
 
         // From applewin : https://github.com/AppleWin/AppleWin/wiki
-        let addr = (row&7)*0x400 +((row/8)&7)*0x80+(row/64)*0x28;
-        addr
+        (row&7)*0x400 +((row/8)&7)*0x80+(row/64)*0x28
     }
 
     fn read_hires_memory(&mut self, col: usize, row: usize) -> u8 {
