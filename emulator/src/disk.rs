@@ -542,7 +542,7 @@ fn _decode_chunk_id(chunk_id: u32) -> String {
     s
 }
 
-pub fn decompress_array_gz(data: &[u8]) -> io::Result<Vec<u8>> {
+fn decompress_array_gz(data: &[u8]) -> io::Result<Vec<u8>> {
     let mut buffer: Vec<u8> = Vec::new();
     let mut gz = GzDecoder::new(&data[..]);
     gz.read_to_end(&mut buffer)?;
@@ -1288,6 +1288,11 @@ impl DiskDrive {
         self.load_dsk_po_array_to_woz(&dsk, po_mode)
     }
 
+    pub fn load_dsk_po_gz_array_to_woz(&mut self, dsk: &[u8], po_mode: bool) -> io::Result<()> {
+        let data = decompress_array_gz(&dsk)?;
+        self.load_dsk_po_array_to_woz(&data, po_mode)
+    }
+
     pub fn load_dsk_po_array_to_woz(&mut self, dsk: &[u8], po_mode: bool) -> io::Result<()> {
         let disk = &mut self.drive[self.drive_select];
 
@@ -1362,6 +1367,11 @@ impl DiskDrive {
         };
 
         self.load_woz_array(&dsk)
+    }
+
+    pub fn load_woz_gz_array(&mut self, dsk: &[u8]) -> io::Result<()> {
+        let data = decompress_array_gz(&dsk)?;
+        self.load_woz_array(&data)
     }
 
     pub fn load_woz_array(&mut self, dsk: &[u8]) -> io::Result<()> {

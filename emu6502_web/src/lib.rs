@@ -1,6 +1,5 @@
 use emu6502::bus::Bus;
 use emu6502::cpu::CPU;
-use emu6502::disk::decompress_array_gz;
 use wasm_bindgen::prelude::*;
 
 #[global_allocator]
@@ -24,19 +23,13 @@ impl Emulator {
                 || name.ends_with("po.gz")
             {
                 if name.ends_with(".gz") {
-                    if let Ok(decompress_data) = &decompress_array_gz(&dsk) {
-                        disk_drive
-                            .load_dsk_po_array_to_woz(&decompress_data, false)
-                            .unwrap();
-                    }
+                    disk_drive.load_dsk_po_gz_array_to_woz(&dsk, false).unwrap();
                 } else {
                     disk_drive.load_dsk_po_array_to_woz(&dsk, false).unwrap();
                 }
             } else {
                 if name.ends_with(".gz") {
-                    if let Ok(decompress_data) = &decompress_array_gz(&dsk) {
-                        disk_drive.load_woz_array(&decompress_data).unwrap();
-                    }
+                    disk_drive.load_woz_gz_array(&dsk).unwrap();
                 } else {
                     disk_drive.load_woz_array(&dsk).unwrap();
                 }
