@@ -542,6 +542,13 @@ fn _decode_chunk_id(chunk_id: u32) -> String {
     s
 }
 
+pub fn decompress_array_gz(data: &[u8]) -> io::Result<Vec<u8>> {
+    let mut buffer: Vec<u8> = Vec::new();
+    let mut gz = GzDecoder::new(&data[..]);
+    gz.read_to_end(&mut buffer)?;
+    Ok(buffer)
+}
+
 // It is assumed that the woz structure is the same when saving back
 fn save_woz_file(disk: &mut Disk) -> io::Result<()> {
     let path = Path::new(&disk.filename);
@@ -551,10 +558,7 @@ fn save_woz_file(disk: &mut Disk) -> io::Result<()> {
         .eq_ignore_ascii_case(OsStr::new("gz"))
     {
         let data = std::fs::read(&path)?;
-        let mut buffer: Vec<u8> = Vec::new();
-        let mut gz = GzDecoder::new(&data[..]);
-        gz.read_to_end(&mut buffer)?;
-        buffer
+        decompress_array_gz(&data)?
     } else {
         std::fs::read(&path)?
     };
@@ -1269,10 +1273,7 @@ impl DiskDrive {
             .eq_ignore_ascii_case(OsStr::new("gz"))
         {
             let data = std::fs::read(&filename)?;
-            let mut buffer: Vec<u8> = Vec::new();
-            let mut gz = GzDecoder::new(&data[..]);
-            gz.read_to_end(&mut buffer)?;
-            buffer
+            decompress_array_gz(&data)?
         } else {
             std::fs::read(&filename)?
         };
@@ -1355,10 +1356,7 @@ impl DiskDrive {
             .eq_ignore_ascii_case(OsStr::new("gz"))
         {
             let data = std::fs::read(&filename)?;
-            let mut buffer: Vec<u8> = Vec::new();
-            let mut gz = GzDecoder::new(&data[..]);
-            gz.read_to_end(&mut buffer)?;
-            buffer
+            decompress_array_gz(&data)?
         } else {
             std::fs::read(&filename)?
         };
