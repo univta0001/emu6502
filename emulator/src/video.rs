@@ -683,7 +683,7 @@ impl Video {
         }
 
         let visible_col = col - CYCLES_PER_HBL;
-        let video_mode = self._get_video_mode();
+        let video_mode = self.get_video_mode();
         let video_data = video_value as u32 | (video_aux_latch as u32) << 8 | video_mode;
 
         if row < 192 && col >= CYCLES_PER_HBL
@@ -872,7 +872,7 @@ impl Video {
         vec
     }
 
-    fn _get_video_mode(&self) -> u32 {
+    fn get_video_mode(&self) -> u32 {
         let mut mode: u32 = 0;
         if self.graphics_mode {
             mode |= 0x1;
@@ -992,9 +992,8 @@ impl Video {
 
         // 000000cd eabab000 -> 000abcde
         let ab = line & 0x18;
-        let e = (line & 0x1) << 7;
-        let cd = (line & 6) << 7;
-        let addr = cd | e | ab | ab << 2;
+        let cde = (line & 0x7) << 7;
+        let addr = cde | ab | ab << 2;
 
         self.read_raw_text_memory(addr + col)
     }
@@ -1004,9 +1003,8 @@ impl Video {
 
         // 000000cd eabab000 -> 000abcde
         let ab = line & 0x18;
-        let e = (line & 0x1) << 7;
-        let cd = (line & 6) << 7;
-        let addr = cd | e | ab | ab << 2;
+        let cde = (line & 0x7) << 7;
+        let addr = cde | ab | ab << 2;
 
         self.read_raw_aux_text_memory(addr + col)
     }
@@ -1037,29 +1035,28 @@ impl Video {
         }
     }
 
-    fn read_hires_memory(&mut self, col: usize, row: usize) -> u8 {
+    fn hires_address(&mut self, row: usize) -> usize {
+        /*
         // 000fghcd eabab000 -> abcdefgh
         let ab = row & 0xc0;
-        let e = (row & 0x8) << 4;
-        let cd = (row & 0x30) << 4;
+        let cde = (row & 0x38) << 4;
         let fgh = (row & 0x7) << 10;
 
-        let addr = fgh | cd | e | ab >> 1 | ab >> 3;
+        let addr = fgh | cde | ab >> 1 | ab >> 3;
+        */
 
         // From applewin : https://github.com/AppleWin/AppleWin/wiki
-        // let addr = (row&7)*0x400 +((row/8)&7)*0x80+(row/64)*0x28;
+        let addr = (row&7)*0x400 +((row/8)&7)*0x80+(row/64)*0x28;
+        addr
+    }
 
+    fn read_hires_memory(&mut self, col: usize, row: usize) -> u8 {
+        let addr = self.hires_address(row);
         self.read_raw_hires_memory(addr + col)
     }
 
     fn read_aux_hires_memory(&mut self, col: usize, row: usize) -> u8 {
-        // 000fghcd eabab000 -> abcdefgh
-        let ab = row & 0xc0;
-        let e = (row & 0x8) << 4;
-        let cd = (row & 0x30) << 4;
-        let fgh = (row & 0x7) << 10;
-
-        let addr = fgh | cd | e | ab >> 1 | ab >> 3;
+        let addr = self.hires_address(row);
         self.read_raw_aux_hires_memory(addr + col)
     }
 
