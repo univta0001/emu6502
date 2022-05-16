@@ -13,7 +13,7 @@ pub struct Emulator {
 
 #[wasm_bindgen]
 impl Emulator {
-    pub fn load_disk(&mut self, name: &str, array: &[u8], drive: usize) {
+    pub fn load_disk(&mut self, name: &str, array: &[u8], drive: usize) -> bool {
         if let Some(disk_drive) = &mut self.cpu.bus.disk {
             disk_drive.drive_select(drive);
             let dsk: Vec<u8> = array.to_vec();
@@ -24,19 +24,34 @@ impl Emulator {
                 || name.ends_with("po.gz")
             {
                 if name.ends_with(".gz") {
-                    disk_drive.load_dsk_po_gz_array_to_woz(&dsk, false).unwrap();
+                    let result = disk_drive.load_dsk_po_gz_array_to_woz(&dsk, false);
+                    if result.is_err() {
+                        return false;
+                    }
                 } else {
-                    disk_drive.load_dsk_po_array_to_woz(&dsk, false).unwrap();
+                    let result = disk_drive.load_dsk_po_array_to_woz(&dsk, false);
+                    if result.is_err() {
+                        return false;
+                    }
                 }
             } else {
                 if name.ends_with(".gz") {
-                    disk_drive.load_woz_gz_array(&dsk).unwrap();
+                    let result = disk_drive.load_woz_gz_array(&dsk);
+                    if result.is_err() {
+                        return false;
+                    }
                 } else {
-                    disk_drive.load_woz_array(&dsk).unwrap();
+                    let result = disk_drive.load_woz_array(&dsk);
+                    if result.is_err() {
+                        return false;
+                    }
                 }
             }
             disk_drive.set_disk_filename(name);
             disk_drive.set_loaded(true);
+            true
+        } else {
+            false
         }
     }
 
