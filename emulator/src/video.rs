@@ -1941,7 +1941,7 @@ impl Video {
         }
 
         // Handling White (Case 0011 1100)
-        if (color_index & 3) == 3 && prev_index == 12 {
+        if (color_index & 3) == 3 && (prev_index & 12) == 12 {
             self.set_pixel_count(col - 2, row, COLOR_WHITE, 4);
         }
 
