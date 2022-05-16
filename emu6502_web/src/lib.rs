@@ -1,5 +1,6 @@
 use emu6502::bus::Bus;
 use emu6502::cpu::CPU;
+use emu6502::disk::decompress_array_gz;
 use wasm_bindgen::prelude::*;
 
 #[global_allocator]
@@ -12,16 +13,33 @@ pub struct Emulator {
 
 #[wasm_bindgen]
 impl Emulator {
-
     pub fn load_disk(&mut self, name: &str, array: &[u8], drive: usize) {
         if let Some(disk_drive) = &mut self.cpu.bus.disk {
             disk_drive.drive_select(drive);
-            let dsk:Vec<u8> = array.to_vec();
+            let dsk: Vec<u8> = array.to_vec();
 
-            if name.ends_with(".dsk") || name.ends_with(".po") {
-                disk_drive.load_dsk_po_array_to_woz(&dsk, false).unwrap();
+            if name.ends_with(".dsk.gz")
+                || name.ends_with(".dsk")
+                || name.ends_with(".po")
+                || name.ends_with("po.gz")
+            {
+                if name.ends_with(".gz") {
+                    if let Ok(decompress_data) = &decompress_array_gz(&dsk) {
+                        disk_drive
+                            .load_dsk_po_array_to_woz(&decompress_data, false)
+                            .unwrap();
+                    }
+                } else {
+                    disk_drive.load_dsk_po_array_to_woz(&dsk, false).unwrap();
+                }
             } else {
-                disk_drive.load_woz_array(&dsk).unwrap();
+                if name.ends_with(".gz") {
+                    if let Ok(decompress_data) = &decompress_array_gz(&dsk) {
+                        disk_drive.load_woz_array(&decompress_data).unwrap();
+                    }
+                } else {
+                    disk_drive.load_woz_array(&dsk).unwrap();
+                }
             }
             disk_drive.set_disk_filename(name);
             disk_drive.set_loaded(true);
@@ -33,12 +51,12 @@ impl Emulator {
             let array = &display.frame[..];
             js_sys::Uint8ClampedArray::from(array)
         } else {
-            let array = [0u8; 560*384*4];
+            let array = [0u8; 560 * 384 * 4];
             js_sys::Uint8ClampedArray::from(&array[..])
         }
     }
 
-    pub fn video_50hz(&mut self,state: bool) {
+    pub fn video_50hz(&mut self, state: bool) {
         if let Some(display) = &mut self.cpu.bus.video {
             display.set_video_50hz(state);
         }
@@ -62,7 +80,7 @@ impl Emulator {
             lower_array.extend(upper_array.iter());
             js_sys::Uint8ClampedArray::from(&lower_array[..])
         } else {
-            let array:Vec<u8> = Vec::new();
+            let array: Vec<u8> = Vec::new();
             js_sys::Uint8ClampedArray::from(&array[..])
         }
     }
@@ -71,7 +89,7 @@ impl Emulator {
         if let Some(sound) = &mut self.cpu.bus.audio {
             js_sys::Int16Array::from(&sound.data.sample[..])
         } else {
-            let array = [0i16; 4096*2];
+            let array = [0i16; 4096 * 2];
             js_sys::Int16Array::from(&array[..])
         }
     }
@@ -93,7 +111,7 @@ impl Emulator {
     pub fn is_video_50hz(&self) -> bool {
         if let Some(display) = &self.cpu.bus.video {
             if display.is_video_50hz() {
-                return true
+                return true;
             }
         }
         false
@@ -103,33 +121,33 @@ impl Emulator {
         self.cpu.interrupt_reset();
     }
 
-    pub fn set_paddle(&mut self,index: u8, value: u8) {
+    pub fn set_paddle(&mut self, index: u8, value: u8) {
         if index < self.cpu.bus.paddle_latch.len() as u8 {
             self.cpu.bus.paddle_latch[index as usize] = value;
         }
     }
 
-    pub fn reset_paddle(&mut self,index: u8) {
+    pub fn reset_paddle(&mut self, index: u8) {
         if index < self.cpu.bus.paddle_latch.len() as u8 {
             self.cpu.bus.reset_paddle_latch(index as usize);
         }
     }
 
-    pub fn pushbutton_latch(&mut self,index: u8, value:u8) {
+    pub fn pushbutton_latch(&mut self, index: u8, value: u8) {
         if index < self.cpu.bus.pushbutton_latch.len() as u8 {
-            self.cpu.bus.pushbutton_latch[index as usize]=value;
+            self.cpu.bus.pushbutton_latch[index as usize] = value;
         }
     }
 
-    pub fn keyboard_latch(&mut self,value:u8) {
+    pub fn keyboard_latch(&mut self, value: u8) {
         self.cpu.bus.keyboard_latch = (value + 128) as u8;
     }
 
-    pub fn is_apple2e(&self,) -> bool {
+    pub fn is_apple2e(&self) -> bool {
         self.cpu.is_apple2e()
     }
 
-    pub fn full_speed(&mut self,state:bool) {
+    pub fn full_speed(&mut self, state: bool) {
         self.cpu.full_speed = state;
     }
 
@@ -138,15 +156,13 @@ impl Emulator {
     }
 
     pub fn is_disk_motor_on(&self) -> bool {
-        if let Some(drive) = &self.cpu.bus.disk {    
+        if let Some(drive) = &self.cpu.bus.disk {
             return drive.is_motor_on();
         } else {
             return false;
         }
     }
-
 }
-
 
 #[wasm_bindgen]
 pub async fn init_emul() -> Emulator {
@@ -157,9 +173,6 @@ pub async fn init_emul() -> Emulator {
     cpu.load(&apple2ee_rom, 0xc000);
     cpu.reset();
     cpu.setup_emulator();
-    
-    Emulator {
-        cpu
-    }
-}
 
+    Emulator { cpu }
+}
