@@ -1622,7 +1622,7 @@ impl Video {
             let mut current = val & 0x01 > 0;
             let mut next = val & 0x02 > 0;
             let mut odd_color = if hbs { COLOR_ORANGE } else { COLOR_GREEN };
-            let mut even_color = if hbs { COLOR_DARK_BLUE } else { COLOR_VIOLET };
+            let mut even_color = if hbs { COLOR_MEDIUM_BLUE } else { COLOR_VIOLET };
 
             // Only works in NTSC / PAL mode
             if self.disable_rgb && self.dhires_mode && !self.vid80_mode {
@@ -1689,9 +1689,10 @@ impl Video {
             let hbs = (value & 0x80 > 0) as usize;
             let mut offset = 0;
             let mut mask = 0x1;
-            if hbs > 0 && x == 0 {
-                self.set_pixel_count(0, 2 * row, COLOR_BLACK, 1);
-            }
+
+            if hbs > 0 {
+                self.set_pixel_count(x + 2 * offset, 2 * row, COLOR_BLACK, 1);
+            }            
             while mask != 0x80 {
                 if value & mask > 0 {
                     self.set_pixel_count(hbs + x + 2 * offset, 2 * row, COLOR_WHITE, 1);
