@@ -1691,8 +1691,20 @@ impl Video {
             let mut mask = 0x1;
 
             if hbs > 0 {
-                self.set_pixel_count(x + 2 * offset, 2 * row, COLOR_BLACK, 1);
+                let bit = if col > 0 {
+                    let prev_value = self.read_hires_memory(col-1, row);
+                    (prev_value & 0x40 != 0) as usize
+                } else {
+                    0
+                };
+
+                if bit != 0 {
+                    self.set_pixel_count(x + 2 * offset, 2 * row, COLOR_WHITE, 1);
+                } else {
+                    self.set_pixel_count(x + 2 * offset, 2 * row, COLOR_BLACK, 1);
+                }
             }            
+            
             while mask != 0x80 {
                 if value & mask > 0 {
                     self.set_pixel_count(hbs + x + 2 * offset, 2 * row, COLOR_WHITE, 1);
