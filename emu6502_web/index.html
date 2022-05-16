@@ -376,6 +376,12 @@
             var cpu_delta = 0;
             var key_caps = true;
 
+            if (document.getElementById("video50hz").checked) {
+                 emu6502.video_50hz(true);
+            } else {
+                 emu6502.video_50hz(true);
+            }
+
             const runloop = async (now) => {
                 if (!then) { then = now; }
 
