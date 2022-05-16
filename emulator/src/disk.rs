@@ -1090,7 +1090,7 @@ impl DiskDrive {
                     if self.enable_save {
                         let save_status = save_dsk_woz_to_disk(disk);
                         if save_status.is_err() {
-                            eprintln!("Unable to save disk = {:?}",save_status);
+                            eprintln!("Unable to save disk = {:?}", save_status);
                         }
                     }
                     disk.modified = false;
@@ -1571,10 +1571,10 @@ impl DiskDrive {
         let filename = filename_path.as_ref();
         if let Ok(real_path) = self.absolute_path(filename) {
             let disk = &mut self.drive[self.drive_select];
-            disk.filename = real_path.display().to_string().replace("\\\\","\\");
+            disk.filename = real_path.display().to_string().replace("\\\\", "\\");
         } else {
             let disk = &mut self.drive[self.drive_select];
-            disk.filename = filename.display().to_string().replace("\\\\","");
+            disk.filename = filename.display().to_string().replace("\\\\", "");
         }
     }
 
