@@ -687,7 +687,7 @@ impl Video {
         let video_data = video_value as u32 | (video_aux_latch as u32) << 8 | video_mode;
 
         if row < 192 && col >= CYCLES_PER_HBL
-        //&& (self.video_cache[visible_col + row * 40] != video_data)
+        //&& (self.video_cache[visible_col + row * 40] != video_data) 
         {
             // If data does not match video_cache, invalidate cache
             if self.video_cache[visible_col + row * 40] != video_data {
@@ -886,6 +886,10 @@ impl Video {
         if self.video_page2 {
             mode |= 0x8;
         }
+
+        // Flash mode is set dynamically
+        // with mode 0x10
+
         if self.vid80_mode {
             mode |= 0x20;
         }
@@ -1417,14 +1421,14 @@ impl Video {
 
         if flash {
             // Get the previous blink status
-            let prev_blink = self.video_cache[y1 * 8 * 40 + x1 as usize] & 0x1000 > 0;
+            let prev_blink = self.video_cache[y1 * 8 * 40 + x1 as usize] & 0x100000 > 0;
             if prev_blink != self.blink {
                 self.video_dirty[y1] = 1;
             }
 
             if self.blink {
                 for i in 0..7 {
-                    self.video_cache[(y1 * 8 + i) * 40 + x1 as usize] |= 0x1000;
+                    self.video_cache[(y1 * 8 + i) * 40 + x1 as usize] |= 0x100000;
                 }
             }
         }
