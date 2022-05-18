@@ -687,7 +687,6 @@ impl Video {
         let flash_status = self.get_flash_mode(video_data, video_mode);
 
         if self.video_cache[video_index] != video_data || flash_status {
-            // If video_cache contains flash character, set video row to dirty
             self.video_dirty[row / 8] = 1;
 
             // If data does not match video_cache, invalidate cache
@@ -701,7 +700,10 @@ impl Video {
                     self.video_cache[video_index + 1] = 0xffffffff;
                 }
             }
-            self.video_cache[video_index] = video_data;
+
+            if self.video_cache[video_index] != video_data {
+                self.video_cache[video_index] = video_data;
+            }
 
             if !self.graphics_mode {
                 if self.vid80_mode {
