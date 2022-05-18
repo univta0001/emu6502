@@ -699,9 +699,6 @@ impl Video {
                 if visible_col < 39 {
                     self.video_cache[video_index + 1] = 0xffffffff;
                 }
-            }
-
-            if self.video_cache[video_index] != video_data {
                 self.video_cache[video_index] = video_data;
             }
 
