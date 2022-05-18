@@ -685,17 +685,13 @@ impl Video {
         let video_data = video_value as u32 | (video_aux_latch as u32) << 8 | video_mode;
         let flash_status = self.video_cache[visible_col + row * 40] & 0x0010_0000;
 
-        if row < 192
-            && col >= CYCLES_PER_HBL
-            && ((self.video_cache[visible_col + row * 40] != video_data)
-                || flash_status == 0x0010_0000)
+        if (self.video_cache[visible_col + row * 40] != video_data) || flash_status == 0x0010_0000
         {
             // If video_cache contains flash character, set video row to dirty
             self.video_dirty[row / 8] = 1;
 
             // If data does not match video_cache, invalidate cache
             if self.video_cache[visible_col + row * 40] != video_data {
-
                 // Invalidate also the neighboring cols (col-1 and col+1) if possible
                 if self.video_cache[visible_col + row * 40] != 0xffffffff {
                     if visible_col > 0 {
