@@ -683,27 +683,25 @@ impl Video {
         let visible_col = col - CYCLES_PER_HBL;
         let video_mode = self.get_video_mode();
         let video_data = video_value as u32 | (video_aux_latch as u32) << 8 | video_mode;
-        let flash_status = self.video_cache[visible_col + row * 40] & 0x0010_0000;
+        let video_index = visible_col + row * 40;
+        let flash_status = self.video_cache[video_index] & 0x0010_0000;
 
-        if (self.video_cache[visible_col + row * 40] != video_data) || flash_status == 0x0010_0000
-        {
+        if self.video_cache[video_index] != video_data {
             // If video_cache contains flash character, set video row to dirty
             self.video_dirty[row / 8] = 1;
 
             // If data does not match video_cache, invalidate cache
-            if self.video_cache[visible_col + row * 40] != video_data {
-                // Invalidate also the neighboring cols (col-1 and col+1) if possible
-                if self.video_cache[visible_col + row * 40] != 0xffffffff {
-                    if visible_col > 0 {
-                        self.video_cache[visible_col - 1 + row * 40] = 0xffffffff;
-                    }
-
-                    if visible_col < 39 {
-                        self.video_cache[visible_col + 1 + row * 40] = 0xffffffff;
-                    }
+            // Invalidate also the neighboring cols (col-1 and col+1) if possible
+            if self.video_cache[video_index] != 0xffffffff {
+                if visible_col > 0 {
+                    self.video_cache[video_index - 1] = 0xffffffff;
                 }
-                self.video_cache[visible_col + row * 40] = video_data | flash_status;
+
+                if visible_col < 39 {
+                    self.video_cache[video_index + 1] = 0xffffffff;
+                }
             }
+            self.video_cache[video_index] = video_data | flash_status;
 
             if !self.graphics_mode {
                 if self.vid80_mode {
