@@ -684,9 +684,9 @@ impl Video {
         let video_mode = self.get_video_mode();
         let video_data = video_value as u32 | (video_aux_latch as u32) << 8 | video_mode;
         let video_index = visible_col + row * 40;
-        let flash_status = self.video_cache[video_index] & 0x0010_0000;
+        let flash_status = self.get_flash_mode(video_data, video_mode);
 
-        if self.video_cache[video_index] != video_data {
+        if self.video_cache[video_index] != video_data || flash_status {
             // If video_cache contains flash character, set video row to dirty
             self.video_dirty[row / 8] = 1;
 
@@ -701,7 +701,7 @@ impl Video {
                     self.video_cache[video_index + 1] = 0xffffffff;
                 }
             }
-            self.video_cache[video_index] = video_data | flash_status;
+            self.video_cache[video_index] = video_data;
 
             if !self.graphics_mode {
                 if self.vid80_mode {
@@ -865,7 +865,8 @@ impl Video {
 
     fn get_video_mode(&self) -> u32 {
         let mut mode: u32 = 0;
-        if self.graphics_mode {
+
+        if !self.graphics_mode {
             mode |= 0x1;
         }
         if self.mixed_mode {
@@ -877,21 +878,29 @@ impl Video {
         if self.video_page2 {
             mode |= 0x8;
         }
-
-        // Flash mode is set dynamically
-        // with mode 0x10
-
         if self.vid80_mode {
-            mode |= 0x20;
+            mode |= 0x10;
         }
         if self.dhires_mode {
-            mode |= 0x40;
+            mode |= 0x20;
         }
         if self.mono_mode || self.rgb_mode == 0x3 {
-            mode |= 0x80;
+            mode |= 0x40;
         }
 
         mode << 16
+    }
+
+    fn get_flash_mode(&self, video_data: u32, video_mode: u32) -> bool {
+        let mode = video_mode >> 16;
+
+        // Flash mode is not available in 80 col
+        if mode & 0x10 != 0 {
+            return false
+        }
+
+        // Flash only on text or mixed mode
+        (video_data & 0xff) & 0xc0 == 0x40 && mode & 3 != 0
     }
 
     fn read_video_data(&mut self, cycle: usize, _c: usize, r: usize) -> u8 {
@@ -1419,19 +1428,6 @@ impl Video {
 
         let flash = ch & 0xc0 == 0x40 && self.blink && !self.vid80_mode && !self.altchar;
         let normal = ch & 0x80 > 0;
-
-        if flash {
-            if y1 & 8 == 0 {
-                for i in 0..8 {
-                    self.video_cache[(y1 * 8 + i) * 40 + x1 as usize] |= 0x0010_0000;
-                }
-            }
-        } else if y1 & 8 == 0 {
-            for i in 0..8 {
-                self.video_cache[(y1 * 8 + i) * 40 + x1 as usize] |= 0xff0f_ffff;
-            }
-        }
-
         let mut back_color;
         let mut fore_color;
         if normal {
