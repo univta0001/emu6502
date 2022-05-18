@@ -53,6 +53,9 @@ pub struct Video {
     #[serde(default = "default_ntsc_decoder")]
     ntsc_decoder: Vec<Vec<f32>>,
 
+    #[serde(default = "default_cycle_field")]
+    cycle_field: usize,
+
     graphics_mode: bool,
     mixed_mode: bool,
     lores_mode: bool,
@@ -62,9 +65,7 @@ pub struct Video {
     altchar: bool,
     cycles: usize,
     blink: bool,
-
     blink_time: u128,
-
     video_latch: u8,
     prev_video_data: u8,
     apple2e: bool,
@@ -602,6 +603,7 @@ impl Video {
         let lut_hires_pal = build_lut(false, true, false);
 
         let ntsc_decoder = decoder_matrix(NTSC_LUMA_BANDWIDTH, NTSC_CHROMA_BANDWIDTH);
+        let cycle_field = CYCLES_PER_FIELD_60HZ;
 
         Video {
             frame,
@@ -615,6 +617,7 @@ impl Video {
             lut_text_2e_pal,
             lut_hires_pal,
             cycles: 0,
+            cycle_field,
             blink: false,
             blink_time: instant::SystemTime::now()
                 .duration_since(instant::SystemTime::UNIX_EPOCH)
@@ -644,12 +647,7 @@ impl Video {
     }
 
     pub fn update_video(&mut self) {
-        let val = if !self.video_50hz {
-            self.cycles % CYCLES_PER_FIELD_60HZ
-        } else {
-            self.cycles % CYCLES_PER_FIELD_50HZ
-        };
-
+        let val = self.cycles % self.cycle_field;
         let row = val / CYCLES_PER_ROW;
         let col = val % CYCLES_PER_ROW;
 
@@ -776,12 +774,7 @@ impl Video {
             }
 
             0xc019 => {
-                let val = if !self.video_50hz {
-                    self.cycles % CYCLES_PER_FIELD_60HZ
-                } else {
-                    self.cycles % CYCLES_PER_FIELD_50HZ
-                };
-
+                let val = self.cycles % self.cycle_field;
                 let row = val / CYCLES_PER_ROW;
                 if row < 192 {
                     return 0x80;
@@ -1146,6 +1139,11 @@ impl Video {
 
     pub fn toggle_video_freq(&mut self) {
         self.video_50hz = !self.video_50hz;
+        if self.video_50hz {
+            self.cycle_field = CYCLES_PER_FIELD_50HZ
+        } else {
+            self.cycle_field = CYCLES_PER_FIELD_60HZ
+        }
     }
 
     pub fn get_mono_mode(&self) -> bool {
@@ -1166,6 +1164,11 @@ impl Video {
 
     pub fn set_video_50hz(&mut self, flag: bool) {
         self.video_50hz = flag;
+        if self.video_50hz {
+            self.cycle_field = CYCLES_PER_FIELD_50HZ
+        } else {
+            self.cycle_field = CYCLES_PER_FIELD_60HZ
+        }
     }
 
     pub fn is_video_50hz(&self) -> bool {
@@ -2268,4 +2271,8 @@ fn default_frame() -> Vec<u8> {
 
 fn default_ntsc_decoder() -> Vec<Vec<f32>> {
     decoder_matrix(NTSC_LUMA_BANDWIDTH, NTSC_CHROMA_BANDWIDTH)
+}
+
+fn default_cycle_field() -> usize {
+    CYCLES_PER_FIELD_60HZ
 }
