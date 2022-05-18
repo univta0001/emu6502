@@ -686,26 +686,32 @@ impl Video {
         let video_mode = self.get_video_mode();
         let video_data = video_value as u32 | (video_aux_latch as u32) << 8 | video_mode;
 
-        if row < 192 && col >= CYCLES_PER_HBL
-        //&& (self.video_cache[visible_col + row * 40] != video_data) 
+        if row < 192
+            && col >= CYCLES_PER_HBL
+            && ((self.video_cache[visible_col + row * 40] != video_data)
+                || self.video_cache[visible_col + row * 40] & 0x0010_0000 == 0x0010_0000)
         {
+            // If video_cache contains flash character, set video row to dirty
+            if self.video_cache[visible_col + row * 40] & 0x0010_0000 == 0x0010_0000 {
+                self.video_dirty[row / 8] = 1;
+            }
+
             // If data does not match video_cache, invalidate cache
             if self.video_cache[visible_col + row * 40] != video_data {
                 self.video_dirty[row / 8] = 1;
 
                 // Invalidate also the neighboring cols (col-1 and col+1) if possible
                 if self.video_cache[visible_col + row * 40] != 0xffffffff {
-                    if visible_col >= 1 {
+                    if visible_col > 0 {
                         self.video_cache[visible_col - 1 + row * 40] = 0xffffffff;
                     }
 
-                    if visible_col <= 38 {
+                    if visible_col < 39 {
                         self.video_cache[visible_col + 1 + row * 40] = 0xffffffff;
                     }
                 }
+                self.video_cache[visible_col + row * 40] = video_data;
             }
-
-            self.video_cache[visible_col + row * 40] = video_data;
 
             if !self.graphics_mode {
                 if self.vid80_mode {
@@ -1050,7 +1056,7 @@ impl Video {
         */
 
         // From applewin : https://github.com/AppleWin/AppleWin/wiki
-        (row&7)*0x400 +((row/8)&7)*0x80+(row/64)*0x28
+        (row & 7) * 0x400 + ((row / 8) & 7) * 0x80 + (row / 64) * 0x28
     }
 
     fn read_hires_memory(&mut self, col: usize, row: usize) -> u8 {
@@ -1420,16 +1426,14 @@ impl Video {
         let normal = ch & 0x80 > 0;
 
         if flash {
-            // Get the previous blink status
-            let prev_blink = self.video_cache[y1 * 8 * 40 + x1 as usize] & 0x100000 > 0;
-            if prev_blink != self.blink {
-                self.video_dirty[y1] = 1;
-            }
-
-            if self.blink {
-                for i in 0..7 {
-                    self.video_cache[(y1 * 8 + i) * 40 + x1 as usize] |= 0x100000;
+            if y1 & 8 == 0 {
+                for i in 0..8 {
+                    self.video_cache[(y1 * 8 + i) * 40 + x1 as usize] |= 0x0010_0000;
                 }
+            }
+        } else if y1 & 8 == 0 {
+            for i in 0..8 {
+                self.video_cache[(y1 * 8 + i) * 40 + x1 as usize] |= 0xff0f_ffff;
             }
         }
 
