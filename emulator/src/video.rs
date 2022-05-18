@@ -684,9 +684,10 @@ impl Video {
         let video_mode = self.get_video_mode();
         let video_data = video_value as u32 | (video_aux_latch as u32) << 8 | video_mode;
         let video_index = visible_col + row * 40;
-        let flash_status = self.get_flash_mode(video_data, video_mode);
+        //let flash_status = self._get_flash_mode(video_data, video_mode);
 
-        if self.video_cache[video_index] != video_data || flash_status {
+        //if self.video_cache[video_index] != video_data || flash_status
+        {
             self.video_dirty[row / 8] = 1;
 
             // If data does not match video_cache, invalidate cache
@@ -886,11 +887,10 @@ impl Video {
         if self.mono_mode || self.rgb_mode == 0x3 {
             mode |= 0x40;
         }
-
         mode << 16
     }
 
-    fn get_flash_mode(&self, video_data: u32, video_mode: u32) -> bool {
+    fn _get_flash_mode(&self, video_data: u32, video_mode: u32) -> bool {
         let mode = video_mode >> 16;
 
         // Flash mode is not available in 80 col
