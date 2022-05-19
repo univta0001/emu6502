@@ -46,6 +46,10 @@ pub struct Video {
     video_cache: Vec<u32>,
 
     #[serde(skip_serializing)]
+    #[serde(default = "default_video_reparse")]
+    video_reparse: Vec<usize>,
+
+    #[serde(skip_serializing)]
     #[serde(default = "default_video_dirty")]
     video_dirty: Vec<u8>,
 
@@ -609,6 +613,7 @@ impl Video {
             frame,
             mem,
             video_cache: vec![0x00; 40 * 192],
+            video_reparse: vec![0x00; 40 * 192],
             video_dirty: vec![0x00; 24],
             lut_text,
             lut_text_2e,
@@ -684,24 +689,30 @@ impl Video {
         let video_mode = self.get_video_mode();
         let video_data = video_value as u32 | (video_aux_latch as u32) << 8 | video_mode;
         let video_index = visible_col + row * 40;
-        //let flash_status = self._get_flash_mode(video_data, video_mode);
+        let flash_status = self.get_flash_mode(video_data, video_mode);
 
-        //if self.video_cache[video_index] != video_data || flash_status
+        if self.video_cache[video_index] != video_data
+            || self.video_reparse[video_index] != 0
+            || flash_status
         {
-            self.video_dirty[row / 8] = 1;
-
-            // If data does not match video_cache, invalidate cache
-            // Invalidate also the neighboring cols (col-1 and col+1) if possible
-            if self.video_cache[video_index] != 0xffffffff {
-                if visible_col > 0 {
-                    self.video_cache[video_index - 1] = 0xffffffff;
-                }
-
-                if visible_col < 39 {
-                    self.video_cache[video_index + 1] = 0xffffffff;
-                }
-                self.video_cache[video_index] = video_data;
+            if self.video_cache[video_index] != video_data {
+                self.video_dirty[row / 8] = 1;
             }
+
+            // Redraw the whole row in the next cycle
+            if self.video_reparse[video_index] != 0 {
+                if visible_col == 39 {
+                    if self.video_reparse[video_index] == 2 {
+                        self.video_reparse[video_index] = 0;
+                    } else {
+                        self.video_reparse[video_index] += 1;
+                    } 
+                }
+            } else {
+                self.video_reparse[video_index] = 1;
+            }
+
+            self.video_cache[video_index] = video_data;
 
             if !self.graphics_mode {
                 if self.vid80_mode {
@@ -890,12 +901,12 @@ impl Video {
         mode << 16
     }
 
-    fn _get_flash_mode(&self, video_data: u32, video_mode: u32) -> bool {
+    fn get_flash_mode(&self, video_data: u32, video_mode: u32) -> bool {
         let mode = video_mode >> 16;
 
         // Flash mode is not available in 80 col
         if mode & 0x10 != 0 {
-            return false
+            return false;
         }
 
         // Flash only on text or mixed mode
@@ -1657,6 +1668,7 @@ impl Video {
                 color_index = ((value & 0x1) + ((next_value & 0x1) << 1)) as usize + hbs + an3_mode;
                 color = HIRES_COLORS[color_index];
                 self.set_pixel_count(x + offset, row * 2, color, 2);
+                self.fix_hires_a2_row_col(row * 2, x + offset, prev_index, color_index);
             } else {
                 let prev_value = self.read_hires_memory(col - 1, row);
                 color_index =
@@ -1887,8 +1899,10 @@ impl Video {
                         offset += 4;
                         value_7_pixels >>= 4;
                     }
-                    let color = DHIRES_COLORS[(value_7_pixels & 0xf) as usize];
+                    let color_index = (value_7_pixels & 0xf) as usize;
+                    let color = DHIRES_COLORS[color_index];
                     self.set_pixel_count(x + offset, row * 2, color, 2);
+                    self.fix_dhires_a2_row_col(row * 2, x + offset, prev_color, color_index);
                 } else {
                     value_7_pixels >>= 8;
                     let mut prev_color = (value_7_pixels & 0xf) as usize;
@@ -2247,6 +2261,10 @@ fn default_lut_hires_pal() -> Vec<usize> {
 }
 
 fn default_video_cache() -> Vec<u32> {
+    vec![0x00; 40 * 192]
+}
+
+fn default_video_reparse() -> Vec<usize> {
     vec![0x00; 40 * 192]
 }
 
