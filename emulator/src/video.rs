@@ -709,7 +709,9 @@ impl Video {
                     } 
                 }
             } else {
-                self.video_reparse[video_index] = 1;
+                if self.video_cache[video_index] != video_data {
+                    self.video_reparse[video_index] = 1;
+                }
             }
 
             self.video_cache[video_index] = video_data;
