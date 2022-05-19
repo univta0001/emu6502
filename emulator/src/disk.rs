@@ -1749,6 +1749,10 @@ impl DiskDrive {
         self.disable_fast_disk
     }
 
+    pub fn is_normal_disk(&self) -> bool {
+        self.disable_fast_disk || (!self.is_motor_on() || self.is_motor_off_pending())
+    }
+
     pub fn get_enable_save(&self) -> bool {
         self.enable_save
     }

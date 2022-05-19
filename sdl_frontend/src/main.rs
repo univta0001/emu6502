@@ -1052,14 +1052,13 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     ((cpu_period * dcyc) / cpu_cycles).saturating_sub(1000000 / CPU_6502_MHZ);
                 let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
 
-                let disk_is_off = if let Some(drive) = &_cpu.bus.disk {
-                    drive.get_disable_fast_disk()
-                        || (!drive.is_motor_on() || drive.is_motor_off_pending())
+                let disk_normal_speed = if let Some(drive) = &_cpu.bus.disk {
+                    drive.is_normal_disk()
                 } else {
                     true
                 };
 
-                if disk_is_off && adj_time > 0 && !_cpu.full_speed {
+                if adj_time > 0 && disk_normal_speed && !_cpu.full_speed {
                     std::thread::sleep(std::time::Duration::from_micros(adj_time as u64));
                 }
 
