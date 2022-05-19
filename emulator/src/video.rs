@@ -613,7 +613,7 @@ impl Video {
             frame,
             mem,
             video_cache: vec![0x00; 40 * 192],
-            video_reparse: vec![0x00; 40 * 192],
+            video_reparse: vec![0x00; 192],
             video_dirty: vec![0x00; 24],
             lut_text,
             lut_text_2e,
@@ -692,7 +692,7 @@ impl Video {
         let flash_status = self.get_flash_mode(video_data, video_mode);
 
         if self.video_cache[video_index] != video_data
-            || self.video_reparse[video_index] != 0
+            || self.video_reparse[row] != 0
             || flash_status
         {
             if self.video_cache[video_index] != video_data || flash_status {
@@ -700,17 +700,17 @@ impl Video {
             }
 
             // Redraw the whole row in the next cycle
-            if self.video_reparse[video_index] != 0 {
+            if self.video_reparse[row] != 0 {
                 if visible_col == 39 {
-                    if self.video_reparse[video_index] == 2 {
-                        self.video_reparse[video_index] = 0;
+                    if self.video_reparse[row] >= 2 {
+                        self.video_reparse[row] = 0;
                     } else {
-                        self.video_reparse[video_index] += 1;
+                        self.video_reparse[row] += 1;
                     } 
                 }
             } else {
                 if self.video_cache[video_index] != video_data {
-                    self.video_reparse[video_index] = 1;
+                    self.video_reparse[row] = 1;
                 }
             }
 
@@ -2267,7 +2267,7 @@ fn default_video_cache() -> Vec<u32> {
 }
 
 fn default_video_reparse() -> Vec<usize> {
-    vec![0x00; 40 * 192]
+    vec![0x00; 192]
 }
 
 fn default_video_dirty() -> Vec<u8> {
