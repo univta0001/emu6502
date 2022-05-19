@@ -695,7 +695,7 @@ impl Video {
             || self.video_reparse[video_index] != 0
             || flash_status
         {
-            if self.video_cache[video_index] != video_data {
+            if self.video_cache[video_index] != video_data || flash_status {
                 self.video_dirty[row / 8] = 1;
             }
 
