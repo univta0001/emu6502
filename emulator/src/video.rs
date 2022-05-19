@@ -699,10 +699,10 @@ impl Video {
                 self.video_dirty[row / 8] = 1;
             }
 
-            // Redraw the whole row in the next cycle
+            // Redraw the whole row in the next 2 cycle
             if self.video_reparse[row] != 0 {
                 if visible_col == 39 {
-                    if self.video_reparse[row] >= 2 {
+                    if self.video_reparse[row] >= 3 {
                         self.video_reparse[row] = 0;
                     } else {
                         self.video_reparse[row] += 1;
@@ -710,7 +710,9 @@ impl Video {
                 }
             } else {
                 if self.video_cache[video_index] != video_data {
-                    self.video_reparse[row] = 1;
+                    if self.video_reparse[row] == 0 {
+                        self.video_reparse[row] = 1;
+                    }
                 }
             }
 
