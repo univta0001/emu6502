@@ -1682,7 +1682,7 @@ impl DiskDrive {
         let mut rng = rand::thread_rng();
 
         // Only add disk jitter for read operations
-        let disk_jitter = if rng.gen::<f32>() > 0.5 && !self.q7 {
+        let disk_jitter = if rng.gen::<f32>() < self.random_one_rate && !self.q7 {
             0.0125
         } else {
             0.0
