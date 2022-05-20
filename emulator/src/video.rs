@@ -676,8 +676,8 @@ impl Video {
         // Video line takes 65 clock cycles
         // 25 clock cycle of horizontal blank
         // followed by 40 clock cycles displayed line
-        let video_value = self.read_video_data(val, col, row);
-        let video_aux_latch = self.read_aux_video_data(val, col, row);
+        let video_value = self.read_video_data(val, row);
+        let video_aux_latch = self.read_aux_video_data(val, row);
         self.video_latch = self.prev_video_data;
         self.prev_video_data = video_value;
 
@@ -706,7 +706,7 @@ impl Video {
                         self.video_reparse[row] = 0;
                     } else {
                         self.video_reparse[row] += 1;
-                    } 
+                    }
                 }
             } else {
                 if self.video_cache[video_index] != video_data {
@@ -917,38 +917,8 @@ impl Video {
         (video_data & 0xff) & 0xc0 == 0x40 && mode & 3 != 0
     }
 
-    fn read_video_data(&mut self, cycle: usize, _c: usize, r: usize) -> u8 {
-        if !self.graphics_mode {
-            if self.apple2e {
-                if !self.video_50hz {
-                    self.read_raw_text_memory(self.lut_text_2e[cycle])
-                } else {
-                    self.read_raw_text_memory(self.lut_text_2e_pal[cycle])
-                }
-            } else if !self.video_50hz {
-                self.read_raw_text_memory(self.lut_text[cycle])
-            } else {
-                self.read_raw_text_memory(self.lut_text_pal[cycle])
-            }
-        } else if !self.mixed_mode || r < 160 {
-            if !self.lores_mode {
-                if !self.video_50hz {
-                    self.read_raw_hires_memory(self.lut_hires[cycle])
-                } else {
-                    self.read_raw_hires_memory(self.lut_hires_pal[cycle])
-                }
-            } else if self.apple2e {
-                if !self.video_50hz {
-                    self.read_raw_text_memory(self.lut_text_2e[cycle])
-                } else {
-                    self.read_raw_text_memory(self.lut_text_2e_pal[cycle])
-                }
-            } else if !self.video_50hz {
-                self.read_raw_text_memory(self.lut_text[cycle])
-            } else {
-                self.read_raw_text_memory(self.lut_text_pal[cycle])
-            }
-        } else if self.apple2e {
+    fn read_video_text_data(&self, cycle: usize) -> u8 {
+        if self.apple2e {
             if !self.video_50hz {
                 self.read_raw_text_memory(self.lut_text_2e[cycle])
             } else {
@@ -961,38 +931,26 @@ impl Video {
         }
     }
 
-    fn read_aux_video_data(&mut self, cycle: usize, _c: usize, r: usize) -> u8 {
+    fn read_video_data(&mut self, cycle: usize, r: usize) -> u8 {
         if !self.graphics_mode {
-            if self.apple2e {
-                if !self.video_50hz {
-                    self.read_raw_aux_text_memory(self.lut_text_2e[cycle])
-                } else {
-                    self.read_raw_aux_text_memory(self.lut_text_2e_pal[cycle])
-                }
-            } else if !self.video_50hz {
-                self.read_raw_aux_text_memory(self.lut_text[cycle])
-            } else {
-                self.read_raw_aux_text_memory(self.lut_text_pal[cycle])
-            }
+            self.read_video_text_data(cycle)
         } else if !self.mixed_mode || r < 160 {
             if !self.lores_mode {
                 if !self.video_50hz {
-                    self.read_raw_aux_hires_memory(self.lut_hires[cycle])
+                    self.read_raw_hires_memory(self.lut_hires[cycle])
                 } else {
-                    self.read_raw_aux_hires_memory(self.lut_hires_pal[cycle])
+                    self.read_raw_hires_memory(self.lut_hires_pal[cycle])
                 }
-            } else if self.apple2e {
-                if !self.video_50hz {
-                    self.read_raw_aux_text_memory(self.lut_text_2e[cycle])
-                } else {
-                    self.read_raw_aux_text_memory(self.lut_text_2e_pal[cycle])
-                }
-            } else if !self.video_50hz {
-                self.read_raw_aux_text_memory(self.lut_text[cycle])
             } else {
-                self.read_raw_aux_text_memory(self.lut_text_pal[cycle])
+                self.read_video_text_data(cycle)
             }
-        } else if self.apple2e {
+        } else {
+            self.read_video_text_data(cycle)
+        }
+    }
+
+    fn read_video_aux_text_data(&self, cycle: usize) -> u8 {
+        if self.apple2e {
             if !self.video_50hz {
                 self.read_raw_aux_text_memory(self.lut_text_2e[cycle])
             } else {
@@ -1002,6 +960,24 @@ impl Video {
             self.read_raw_aux_text_memory(self.lut_text[cycle])
         } else {
             self.read_raw_aux_text_memory(self.lut_text_pal[cycle])
+        }
+    }
+
+    fn read_aux_video_data(&mut self, cycle: usize, r: usize) -> u8 {
+        if !self.graphics_mode {
+            self.read_video_aux_text_data(cycle)
+        } else if !self.mixed_mode || r < 160 {
+            if !self.lores_mode {
+                if !self.video_50hz {
+                    self.read_raw_aux_hires_memory(self.lut_hires[cycle])
+                } else {
+                    self.read_raw_aux_hires_memory(self.lut_hires_pal[cycle])
+                }
+            } else {
+                self.read_video_aux_text_data(cycle)
+            }
+        } else {
+            self.read_video_aux_text_data(cycle)
         }
     }
 
@@ -1204,6 +1180,18 @@ impl Video {
         self.frame[base + 2] = b;
     }
 
+    pub fn set_pixel_2(&mut self, x: usize, y: usize, rgb: Rgb) {
+        let base = y * 4 * Video::WIDTH + x * 4;
+        let offset = 4 * Video::WIDTH;
+        let [r, g, b] = rgb;
+        self.frame[base] = r;
+        self.frame[base + 1] = g;
+        self.frame[base + 2] = b;
+        self.frame[base + offset] = r;
+        self.frame[base + offset + 1] = g;
+        self.frame[base + offset + 2] = b;
+    }
+
     pub fn set_pixel_blend_alpha(&mut self, x: usize, y: usize, rgb: Rgb, alpha: u8) {
         let base = y * 4 * Video::WIDTH + x * 4;
         let [r, g, b] = rgb;
@@ -1219,13 +1207,13 @@ impl Video {
     pub fn set_pixel_count(&mut self, x: usize, y: usize, rgb: Rgb, count: usize) {
         for i in 0..count {
             if x + i < 560 {
-                self.set_pixel(x + i, y, rgb);
-                self.set_pixel(x + i, y + 1, rgb);
+                self.set_pixel_2(x + i, y, rgb);
+            } else {
+                break;
             }
         }
     }
 
-    #[inline(always)]
     pub fn set_a2_pixel(&mut self, x: usize, y: usize, rgb: Rgb) {
         let base = 8 * (y * Video::WIDTH + x);
         let offset = 4 * Video::WIDTH;

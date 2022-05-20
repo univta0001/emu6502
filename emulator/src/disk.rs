@@ -1771,7 +1771,7 @@ impl DiskDrive {
             true
         } else {
             let disk = &self.drive[self.drive_select];
-            !disk.loaded || self.fast_disk_timer == 0 
+            !disk.loaded || self.fast_disk_timer == 0
         }
     }
 
