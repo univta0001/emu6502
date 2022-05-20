@@ -88,7 +88,6 @@ pub struct DiskDrive {
     prev_lss_state: u8,
     cycles: usize,
     pending_ticks: usize,
-    io_step: bool,
     random_one_rate: f32,
     override_optimal_timing: u8,
     disable_fast_disk: bool,
@@ -1069,7 +1068,6 @@ impl DiskDrive {
             prev_lss_state: 0,
             cycles: 0,
             pending_ticks: 0,
-            io_step: false,
             random_one_rate: 0.3,
             override_optimal_timing: 0,
             disable_fast_disk: false,
@@ -1082,12 +1080,6 @@ impl DiskDrive {
         self.cycles += 1;
 
         if !self.is_motor_on() {
-            self.io_step = false;
-            return;
-        }
-
-        if self.io_step {
-            self.io_step = false;
             return;
         }
 
@@ -1256,10 +1248,6 @@ impl DiskDrive {
             }
             _ => todo!(),
         }
-
-        self.io_step = false;
-        self.tick();
-        self.io_step = true;
 
         self.request_fast_disk();
 
