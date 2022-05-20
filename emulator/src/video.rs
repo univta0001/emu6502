@@ -1748,12 +1748,13 @@ impl Video {
             if (current_index & 1) == 0 {
                 self.set_pixel_count(col, row, COLOR_BLACK, 2);
             }
-            return;
+            return
         }
 
         // Handling White
         if current_index & 1 == 1 && prev_index & 2 == 2 {
             self.set_pixel_count(col - 2, row, COLOR_WHITE, 4);
+            return
         }
 
         // Handling Black

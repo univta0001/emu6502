@@ -368,11 +368,9 @@ struct W65C22 {
     ddra: u8,
     t1c: u32,
     t1l: u16,
-    t1_loading: bool,
     t1_loaded: bool,
     t2c: u16,
     t2ll: u8,
-    t2_loading: bool,
     t2_loaded: bool,
     sr: u8,
     acr: u8,
@@ -395,11 +393,9 @@ impl W65C22 {
             ddra: 0,
             t1c: 0,
             t1l: 0xffff,
-            t1_loading: false,
             t1_loaded: false,
             t2c: 0xffff,
             t2ll: 0xff,
-            t2_loading: false,
             t2_loaded: false,
             sr: 0,
             acr: 0,
@@ -416,42 +412,34 @@ impl W65C22 {
     fn tick(&mut self) {
         self.cycles += 1;
 
-        if !self.t1_loading {
-            self.t1c = self.t1c.wrapping_sub(1);
+        self.t1c = self.t1c.wrapping_sub(1);
 
-            if self.t1c == 0xffffffff {
-                if self.t1_loaded {
-                    self.ifr |= 0x40;
-                    self.irq_happen = self.cycles;
-                }
-
-                if self.acr & 0x40 == 0 {
-                    self.t1_loaded = false;
-                }
+        if self.t1c == 0xffffffff {
+            if self.t1_loaded {
+                self.ifr |= 0x40;
+                self.irq_happen = self.cycles;
             }
 
-            if self.t1c == 0xfffffffe {
-                self.t1c = self.t1l as u32;
+            if self.acr & 0x40 == 0 {
+                self.t1_loaded = false;
             }
-        } else {
-            self.t1_loading = false;
         }
 
-        if !self.t2_loading {
-            self.t2c = self.t2c.wrapping_sub(1);
+        if self.t1c == 0xfffffffe {
+            self.t1c = self.t1l as u32;
+        }
 
-            if self.t2c == 0xffff {
-                if self.t2_loaded {
-                    self.ifr |= 0x20;
-                    self.irq_happen = self.cycles;
-                }
+        self.t2c = self.t2c.wrapping_sub(1);
 
-                if self.acr & 0x20 == 0 {
-                    self.t2_loaded = false;
-                }
+        if self.t2c == 0xffff {
+            if self.t2_loaded {
+                self.ifr |= 0x20;
+                self.irq_happen = self.cycles;
             }
-        } else {
-            self.t2_loading = false;
+
+            if self.acr & 0x20 == 0 {
+                self.t2_loaded = false;
+            }
         }
 
         if self.cycles % 8 == 0 {
@@ -580,7 +568,7 @@ impl W65C22 {
                     self.ifr &= !0x40;
                     self.t1l = ((value as u16) << 8) | self.t1l & 0x00ff;
                     self.t1c = ((self.t1l & 0xff00) | (self.t1l & 0xff)) as u32;
-                    self.t1_loading = true;
+                    self.t1c = self.t1c.wrapping_add(1);
                     self.t1_loaded = true;
                 } else {
                     return_addr = (self.t1c >> 8) as u8;
@@ -621,7 +609,7 @@ impl W65C22 {
             0x19 | 0x09 => {
                 if write_flag {
                     self.t2c = (value as u16) << 8 | self.t2ll as u16;
-                    self.t2_loading = true;
+                    self.t2c = self.t2c.wrapping_add(1);
                     self.t2_loaded = true;
                     self.ifr &= !0x20;
                 } else {
@@ -810,13 +798,6 @@ mod test {
     }
 
     #[test]
-    fn test_w65c22_t1_loading() {
-        let mut w65c22 = W65C22::new("#1");
-        setup(&mut w65c22);
-        assert_eq!(w65c22.t1_loading, true, "T1C T1 loading should be true");
-    }
-
-    #[test]
     fn test_w65c22_t1_loaded() {
         let mut w65c22 = W65C22::new("#1");
         setup(&mut w65c22);
@@ -835,6 +816,7 @@ mod test {
         let mut w65c22 = W65C22::new("#1");
         setup(&mut w65c22);
         assert_eq!(w65c22.ifr & 0x40 == 0, true, "T1 IFR should be cleared");
+        w65c22.tick();
         assert_eq!(w65c22.t1c, 0x05, "T1 counter should be 5");
     }
 
@@ -842,8 +824,7 @@ mod test {
     fn test_w65c22_t1_initial_load() {
         let mut w65c22 = W65C22::new("#1");
         setup(&mut w65c22);
-        w65c22.tick();
-        assert_eq!(w65c22.t1c, 0x05, "T1 counter initial load should be 5");
+        assert_eq!(w65c22.t1c, 0x06, "T1 counter initial load should be 6");
     }
 
     #[test]
