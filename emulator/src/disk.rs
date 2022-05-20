@@ -93,6 +93,9 @@ pub struct DiskDrive {
     override_optimal_timing: u8,
     disable_fast_disk: bool,
     enable_save: bool,
+
+    #[serde(default)]
+    fast_disk_timer: usize,
 }
 
 // Q0L: Phase 0 OFF
@@ -159,6 +162,9 @@ const _DSK_DO: [u8; 16] = [
 const _DSK_PO: [u8; 16] = [
     0x0, 0x2, 0x4, 0x6, 0x8, 0xa, 0xc, 0xe, 0x1, 0x3, 0x5, 0x7, 0x9, 0xb, 0xd, 0xf,
 ];
+
+// Fast disk for 16667 cycles (~ 16ms) between io access
+const FAST_DISK_INTERVAL: usize = 16_667;
 
 // Wait for motor to stop after 1 sec * 1.2
 const PENDING_WAIT: usize = 1_227_600;
@@ -1068,6 +1074,7 @@ impl DiskDrive {
             override_optimal_timing: 0,
             disable_fast_disk: false,
             enable_save: false,
+            fast_disk_timer: 0,
         }
     }
 
@@ -1081,6 +1088,10 @@ impl DiskDrive {
         if self.io_step {
             self.io_step = false;
             return;
+        }
+
+        if self.fast_disk_timer > 0 {
+            self.fast_disk_timer -= 1;
         }
 
         if self.pending_ticks > 0 {
@@ -1249,6 +1260,8 @@ impl DiskDrive {
         self.tick();
         self.io_step = true;
 
+        self.request_fast_disk();
+
         let mut return_value = 0;
         if read_mode {
             if map_addr & 0x1 == 0 {
@@ -1260,6 +1273,10 @@ impl DiskDrive {
             self.bus = value;
         }
         return_value
+    }
+
+    fn request_fast_disk(&mut self) {
+        self.fast_disk_timer = FAST_DISK_INTERVAL;
     }
 
     fn convert_dsk_po_to_woz<P>(&mut self, filename_path: P, po_mode: bool) -> io::Result<()>
@@ -1750,7 +1767,12 @@ impl DiskDrive {
     }
 
     pub fn is_normal_disk(&self) -> bool {
-        self.disable_fast_disk || (!self.is_motor_on() || self.is_motor_off_pending())
+        if self.disable_fast_disk || (!self.is_motor_on() || self.is_motor_off_pending()) {
+            true
+        } else {
+            let disk = &self.drive[self.drive_select];
+            !disk.loaded || self.fast_disk_timer == 0 
+        }
     }
 
     pub fn get_enable_save(&self) -> bool {
