@@ -1082,6 +1082,7 @@ impl DiskDrive {
         self.cycles += 1;
 
         if !self.is_motor_on() {
+            self.io_step = false;
             return;
         }
 
