@@ -12,6 +12,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 const DSK_IMAGE_SIZE: usize = 143360;
+const DSK40_IMAGE_SIZE: usize = 163840;
 const DSK_TRACK_SIZE: usize = 160;
 
 const ROM: [u8; 256] = [
@@ -154,11 +155,11 @@ const TRANSLATE_VALUE_6X2: [u8; 64] = [
     0xed, 0xee, 0xef, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf9, 0xfa, 0xfb, 0xfc, 0xfd, 0xfe, 0xff,
 ];
 
-const _DSK_DO: [u8; 16] = [
+const DSK_DO: [u8; 16] = [
     0x0, 0xD, 0xB, 0x9, 0x7, 0x5, 0x3, 0x1, 0xE, 0xC, 0xA, 0x8, 0x6, 0x4, 0x2, 0xF,
 ];
 
-const _DSK_PO: [u8; 16] = [
+const DSK_PO: [u8; 16] = [
     0x0, 0x2, 0x4, 0x6, 0x8, 0xa, 0xc, 0xe, 0x1, 0x3, 0x5, 0x7, 0x9, 0xb, 0xd, 0xf,
 ];
 
@@ -172,7 +173,6 @@ const BITS_BLOCK_SIZE: usize = 512;
 const BITS_TRACK_SIZE: usize = BITS_BLOCKS_PER_TRACK * BITS_BLOCK_SIZE;
 const MAX_USABLE_BITS_TRACK_SIZE: usize = BITS_TRACK_SIZE - 10;
 const TRACK_LEADER_SYNC_COUNT: usize = 64;
-const TRACKS_PER_DISK: usize = 35;
 const SECTORS_PER_TRACK: usize = 16;
 const BYTES_PER_SECTOR: usize = 256;
 const DOS_VOLUME_NUMBER: u8 = 254;
@@ -815,11 +815,12 @@ fn create_woz2_trk(dsk: &[u8], woz_offset: usize, disk: &Disk, newdsk: &mut Vec<
     }
 }
 
-// This functions assumes that the woz data comes from originally from dsk / po
+// This functions assumes that the woz data comes originally from dsk / po
 fn convert_woz_to_dsk(disk: &mut Disk) -> io::Result<()> {
-    let mut data = [0u8; 256 * 16 * 35];
+    let no_of_tracks: usize = if disk.raw_track_bits[39] > 0 { 40 } else { 35 };
+    let mut data = vec![0u8; 16 * 256 * no_of_tracks];
 
-    for t in 0..35 {
+    for t in 0..no_of_tracks {
         let track = &disk.raw_track_data[t];
         let track_bits = disk.raw_track_bits[t];
 
@@ -827,7 +828,7 @@ fn convert_woz_to_dsk(disk: &mut Disk) -> io::Result<()> {
         let mut bit: u8 = 0;
         let mut mask: u8 = 0x80;
 
-        let ordering = if disk.po_mode { _DSK_PO } else { _DSK_DO };
+        let ordering = if disk.po_mode { DSK_PO } else { DSK_DO };
 
         for (s, dos_sector) in ordering.iter().enumerate() {
             let sector = read_woz_sector(
@@ -1284,7 +1285,7 @@ impl DiskDrive {
             std::fs::read(&filename)?
         };
 
-        if dsk.len() != DSK_IMAGE_SIZE {
+        if dsk.len() != DSK_IMAGE_SIZE && dsk.len() != DSK40_IMAGE_SIZE {
             return Err(std::io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Invalid dsk file",
@@ -1301,11 +1302,12 @@ impl DiskDrive {
 
     pub fn load_dsk_po_array_to_woz(&mut self, dsk: &[u8], po_mode: bool) -> io::Result<()> {
         let disk = &mut self.drive[self.drive_select];
+        let no_of_tracks = dsk.len() / (16 * 256);
 
         // Create TMAP
         let mut byte_index = 0;
         for i in 0..WOZ_TMAP_SIZE {
-            if i < (TRACKS_PER_DISK * 4) - 1 {
+            if i < (no_of_tracks * 4) - 1 {
                 let nominal_track: u8 = (i / 4) as u8;
                 match i % 4 {
                     0 | 1 => {
@@ -1328,7 +1330,12 @@ impl DiskDrive {
             }
         }
 
-        for track in 0..35 {
+        for track in 0..DSK_TRACK_SIZE {
+            disk.raw_track_data[track].clear();
+            disk.raw_track_bits[track] = 0;
+        }
+
+        for track in 0..no_of_tracks {
             // Convert DSK/PO to WOZ
             let track_offset = track * (16 * 256);
             let mut data = [0u8; 16 * 256];
