@@ -312,9 +312,15 @@ pub struct CPU {
     pub m65c02: bool,
     pub callback: bool,
     pub halt_cpu: bool,
-    pub self_test: bool,
-    pub bench_test: bool,
     pub full_speed: bool,
+
+    #[serde(skip_serializing)]
+    #[serde(default)]
+    pub self_test: bool,
+
+    #[serde(skip_serializing)]
+    #[serde(default)]
+    pub bench_test: bool,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
