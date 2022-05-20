@@ -983,7 +983,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         if new_cpu.bus.disk.is_some() {
                             for drive in 0..2 {
                                 if is_disk_loaded(&new_cpu, drive) {
-                                    if let Some(disk_filename) = get_disk_filename(&new_cpu, drive) {
+                                    if let Some(disk_filename) = get_disk_filename(&new_cpu, drive)
+                                    {
                                         let result = load_disk(&mut new_cpu, &disk_filename, drive);
                                         if let Err(e) = result {
                                             eprintln!(

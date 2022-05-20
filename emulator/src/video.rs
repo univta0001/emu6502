@@ -708,12 +708,8 @@ impl Video {
                         self.video_reparse[row] += 1;
                     }
                 }
-            } else {
-                if self.video_cache[video_index] != video_data {
-                    if self.video_reparse[row] == 0 {
-                        self.video_reparse[row] = 1;
-                    }
-                }
+            } else if self.video_cache[video_index] != video_data && self.video_reparse[row] == 0 {
+                self.video_reparse[row] = 1;
             }
 
             self.video_cache[video_index] = video_data;
@@ -1748,13 +1744,13 @@ impl Video {
             if (current_index & 1) == 0 {
                 self.set_pixel_count(col, row, COLOR_BLACK, 2);
             }
-            return
+            return;
         }
 
         // Handling White
         if current_index & 1 == 1 && prev_index & 2 == 2 {
             self.set_pixel_count(col - 2, row, COLOR_WHITE, 4);
-            return
+            return;
         }
 
         // Handling Black
