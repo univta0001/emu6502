@@ -967,38 +967,40 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             if let Response::Okay(file_path) = result {
                 let result = fs::read_to_string(&file_path);
                 if let Ok(input) = result {
-                    let mut new_cpu: CPU = serde_yaml::from_str(&input)?;
+                    let deserialized_result = serde_yaml::from_str::<CPU>(&input);
+                    if let Ok(mut new_cpu) = deserialized_result {
+                        // Initialize the previous cycles
+                        previous_cycles = new_cpu.bus.get_cycles();
 
-                    // Initialize the previous cycles
-                    previous_cycles = new_cpu.bus.get_cycles();
-
-                    // Initialize new cpu video memory
-                    if let Some(video) = &mut new_cpu.bus.video {
-                        if let Some(memory) = &new_cpu.bus.mem {
-                            video.mem = memory.clone();
+                        // Initialize new cpu video memory
+                        if let Some(video) = &mut new_cpu.bus.video {
+                            if let Some(memory) = &new_cpu.bus.mem {
+                                video.mem = memory.clone();
+                            }
                         }
-                    }
 
-                    // Load the loaded disk into the new cpu
-                    if new_cpu.bus.disk.is_some() {
-                        for drive in 0..2 {
-                            if is_disk_loaded(&new_cpu, drive) {
-                                if let Some(disk_filename) = get_disk_filename(&new_cpu, drive) {
-                                    let result = load_disk(&mut new_cpu, &disk_filename, drive);
-                                    if let Err(e) = result {
-                                        eprintln!(
-                                            "Unable to load disk {} : {}",
-                                            file_path.display(),
-                                            e
-                                        );
+                        // Load the loaded disk into the new cpu
+                        if new_cpu.bus.disk.is_some() {
+                            for drive in 0..2 {
+                                if is_disk_loaded(&new_cpu, drive) {
+                                    if let Some(disk_filename) = get_disk_filename(&new_cpu, drive) {
+                                        let result = load_disk(&mut new_cpu, &disk_filename, drive);
+                                        if let Err(e) = result {
+                                            eprintln!(
+                                                "Unable to load disk {} : {}",
+                                                file_path.display(),
+                                                e
+                                            );
+                                        }
                                     }
                                 }
                             }
                         }
+                        // Replace the old cpu with the new cpu
+                        cpu = new_cpu;
+                    } else {
+                        eprintln!("Unable to restore the image : {:?}", deserialized_result);
                     }
-
-                    // Replace the old cpu with the new cpu
-                    cpu = new_cpu;
                 }
             }
         }
