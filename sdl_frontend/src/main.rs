@@ -6,10 +6,7 @@ use emu6502::bus::Bus;
 use emu6502::cpu::CPU;
 use emu6502::cpu_stats::CpuStats;
 use emu6502::mockingboard::Mockingboard;
-use emu6502::trace::adjust_disassemble_addr;
 use emu6502::trace::disassemble;
-use emu6502::trace::disassemble_addr;
-use emu6502::video::{COLOR_WHITE, COLOR_YELLOW};
 use image::codecs::png::PngEncoder;
 use image::ColorType;
 use image::ImageEncoder;
@@ -39,13 +36,11 @@ use std::time::Instant;
 
 //use sdl2::surface::Surface;
 //use sdl2::image::LoadSurface;
-//
 
 const CPU_CYCLES_PER_FRAME_60HZ: usize = 17030;
 const CPU_CYCLES_PER_FRAME_50HZ: usize = 20280;
 const AUDIO_SAMPLE_SIZE: u32 = 48000 / 60;
 const CPU_6502_MHZ: usize = 157500 / 11 * 65 / 912;
-const STATUS_MSG_WAIT: usize = 60;
 
 const VERSION: &str = "0.1.0";
 
@@ -53,13 +48,9 @@ struct EventParam<'a> {
     game_controller: &'a GameControllerSubsystem,
     gamepads: &'a mut HashMap<u32, (u32, GameController)>,
     key_caps: &'a mut bool,
-    display_running_disassembly: &'a mut bool,
-    display_refresh: &'a mut bool,
     estimated_mhz: &'a mut f32,
     reload_cpu: &'a mut bool,
     save_screenshot: &'a mut bool,
-    status_timer: &'a mut usize,
-    status_msg: &'a mut String,
 }
 
 fn translate_key_to_apple_key(
@@ -282,8 +273,6 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 *event_param.save_screenshot = true;
-                *event_param.status_msg = "Saving screenshot...".to_owned();
-                *event_param.status_timer = STATUS_MSG_WAIT;
             }
         }
 
@@ -400,14 +389,9 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         }
         Event::KeyDown {
             keycode: Some(Keycode::F5),
-            keymod,
             ..
         } => {
-            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                *event_param.display_running_disassembly =
-                    !*event_param.display_running_disassembly;
-                *event_param.display_refresh = true;
-            } else if let Some(drive) = &mut cpu.bus.disk {
+            if let Some(drive) = &mut cpu.bus.disk {
                 drive.set_disable_fast_disk(!drive.get_disable_fast_disk());
             }
         }
@@ -436,8 +420,6 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                     .expect("Unable to open save file dialog");
 
                 if let Response::Okay(file_path) = result {
-                    *event_param.status_msg = "Saving emulator state...".to_owned();
-                    *event_param.status_timer = STATUS_MSG_WAIT;
                     let write_result = fs::write(&file_path, yaml_output);
                     if let Err(e) = write_result {
                         eprintln!("Unable to write to file {} : {}", file_path.display(), e);
@@ -557,7 +539,6 @@ Function Keys:
     Ctrl-F2           Eject Disk 2
     Ctrl-F3           Save state in YAML file
     Ctrl-F4           Load state from YAML file
-    Ctrl-F5           Disassembly overlay
     Ctrl-PrintScreen  Save screenshot as screenshot.png
     F1:               Load Disk 1 file
     F2:               Load Disk 2 file
@@ -842,12 +823,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut video_offset = 0;
 
     let mut key_caps = true;
-    let mut display_running_disassembly = false;
-    let mut display_refresh = false;
     let mut reload_cpu = false;
     let mut save_screenshot = false;
-    let mut status_timer: usize = 0;
-    let mut status_msg: String = String::new();
 
     cpu.reset();
     cpu.setup_emulator();
@@ -905,24 +882,15 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         */
 
                         canvas.set_blend_mode(BlendMode::Blend);
-                        if !display_refresh {
-                            for region in dirty_region {
-                                let start = region.0 * 16;
-                                let end = 16 * ((region.1 - region.0) + 1);
-                                let rect = Rect::new(0, start as i32, 560, end as u32);
-                                texture
-                                    .update(rect, &display.frame[start * 4 * 560..], 560 * 4)
-                                    .unwrap();
-                                canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
-                            }
-                        } else {
-                            display_refresh = false;
-                            let rect = Rect::new(0, 0, 560, 384);
-                            texture.update(rect, &display.frame[0..], 560 * 4).unwrap();
+                        for region in dirty_region {
+                            let start = region.0 * 16;
+                            let end = 16 * ((region.1 - region.0) + 1);
+                            let rect = Rect::new(0, start as i32, 560, end as u32);
+                            texture
+                                .update(rect, &display.frame[start * 4 * 560..], 560 * 4)
+                                .unwrap();
                             canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
-                            canvas.present();
                         }
-
                         display.clear_video_dirty();
 
                         let disk_is_on = if let Some(drive) = &_cpu.bus.disk {
@@ -949,84 +917,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         canvas.present();
                     }
 
-                    if display_running_disassembly {
-                        let pc = adjust_disassemble_addr(_cpu, _cpu.program_counter, -20);
-                        let mut output = String::new();
-                        disassemble_addr(&mut output, _cpu, pc, 40);
-                        if let Some(display) = &mut _cpu.bus.video {
-                            let mut row = 2;
-                            for str in output.lines() {
-                                display.draw_string_raw_a2_alpha(
-                                    1,
-                                    row,
-                                    str,
-                                    128,
-                                    false,
-                                    COLOR_WHITE,
-                                );
-                                row += 1;
-                            }
-
-                            // Draw box
-                            display.draw_box_raw_a2(0, 0, 51, 43, 128);
-                            display.draw_box_raw_a2(50, 0, 22, 5, 128);
-                            // Display Status
-                            let status_label = "A  X  Y  P  S  PC";
-                            let status_value = format!(
-                                "{:02X} {:02X} {:02X} {:02X} {:02X} {:04X}",
-                                _cpu.register_a,
-                                _cpu.register_x,
-                                _cpu.register_y,
-                                _cpu.status.bits(),
-                                _cpu.stack_pointer,
-                                _cpu.program_counter
-                            );
-                            display.draw_string_raw_a2_alpha(
-                                51,
-                                2,
-                                status_label,
-                                128,
-                                false,
-                                COLOR_WHITE,
-                            );
-                            display.draw_string_raw_a2_alpha(
-                                51,
-                                3,
-                                &status_value,
-                                128,
-                                false,
-                                COLOR_WHITE,
-                            );
-
-                            let rect = Rect::new(0, 0, 560, 384);
-                            texture.update(rect, &display.frame[0..], 560 * 4).unwrap();
-                            canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
-                            canvas.present();
-                        }
-                    }
-
                     video_offset = video_elapsed % 16_667;
                     video_refresh = Instant::now();
-                }
-
-                if status_timer > 0 {
-                    status_timer = status_timer.wrapping_sub(1);
-                    if let Some(display) = &mut _cpu.bus.video {
-                        if status_timer != 0 {
-                            display.draw_string_raw_a2_alpha(
-                                1,
-                                0,
-                                &status_msg,
-                                128,
-                                false,
-                                COLOR_YELLOW,
-                            );
-                        }
-                        let rect = Rect::new(0, 0, 560, 16);
-                        texture.update(rect, &display.frame[0..], 560 * 4).unwrap();
-                        canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
-                        canvas.present();
-                    }
                 }
 
                 let mut event = _event_pump.poll_event();
@@ -1035,13 +927,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         game_controller: &game_controller,
                         gamepads: &mut gamepads,
                         key_caps: &mut key_caps,
-                        display_running_disassembly: &mut display_running_disassembly,
-                        display_refresh: &mut display_refresh,
                         estimated_mhz: &mut estimated_mhz,
                         reload_cpu: &mut reload_cpu,
                         save_screenshot: &mut save_screenshot,
-                        status_timer: &mut status_timer,
-                        status_msg: &mut status_msg,
                     };
 
                     handle_event(_cpu, event_value, &mut event_param);
@@ -1112,9 +1000,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     // Replace the old cpu with the new cpu
                     cpu = new_cpu;
                 }
-
-                status_msg = "Loaded emulator state".to_owned();
-                status_timer = STATUS_MSG_WAIT;
             }
         }
     }
