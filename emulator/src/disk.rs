@@ -1707,14 +1707,11 @@ impl DiskDrive {
             if tmap_track != 255 && disk.last_track != track_to_read {
                 // Adjust the disk head as each track size is different
                 let last_track = disk.tmap_data[disk.last_track as usize] as usize;
-                let old_track_bits = if last_track != 255 {
-                    disk.raw_track_bits[last_track]
-                } else {
-                    random_bits
-                };
+                let old_track_bits = disk.raw_track_bits[last_track];
                 let new_bit = (disk.head * 8 + disk.head_bit) * track_bits / old_track_bits;
                 disk.head = new_bit / 8;
-                disk.head_bit = 1 << (7 - new_bit % 8);
+                disk.head_mask = 1 << (7 - new_bit % 8);
+                disk.head_bit = new_bit % 8;
                 disk.last_track = track_to_read;
             }
 
@@ -1902,8 +1899,8 @@ impl Disk {
             raw_track_bits: vec![0; DSK_TRACK_SIZE],
             tmap_data: vec![0xffu8; WOZ_TMAP_SIZE],
             optimal_timing: 32,
-            track: 159,
-            last_track: 159,
+            track: 0,
+            last_track: 0,
             phase: 0,
             head: 0,
             head_mask: 0x80,
