@@ -1,7 +1,7 @@
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
-use rand::Rng;
+use rand::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
 use std::fs::File;
@@ -96,6 +96,10 @@ pub struct DiskDrive {
 
     #[serde(default)]
     fast_disk_timer: usize,
+
+    #[serde(skip)]
+    #[serde(default = "default_rng")]
+    rng: ThreadRng,
 }
 
 // Q0L: Phase 0 OFF
@@ -1074,6 +1078,7 @@ impl DiskDrive {
             disable_fast_disk: false,
             enable_save: false,
             fast_disk_timer: 0,
+            rng: rand::thread_rng(),
         }
     }
 
@@ -1675,10 +1680,8 @@ impl DiskDrive {
             disk.raw_track_bits[tmap_track as usize]
         };
 
-        let mut rng = rand::thread_rng();
-
         // Only add disk jitter for read operations
-        let disk_jitter = if rng.gen::<f32>() < self.random_one_rate && !self.q7 {
+        let disk_jitter = if self.rng.gen::<f32>() < self.random_one_rate && !self.q7 {
             0.0125
         } else {
             0.0
@@ -1729,7 +1732,7 @@ impl DiskDrive {
             } else {
                 // Based on WOZ2 (https://applesaucefdc.com/woz/reference2/)
                 // The random bit 1 is generated with probability 0.3 or 30%
-                let random_value: f32 = rng.gen();
+                let random_value: f32 = self.rng.gen();
                 if random_value < self.random_one_rate {
                     self.pulse = 1
                 } else {
@@ -1927,4 +1930,8 @@ fn default_raw_track_bits() -> Vec<usize> {
 
 fn default_tmap_data() -> Vec<u8> {
     vec![0xffu8; WOZ_TMAP_SIZE]
+}
+
+fn default_rng() -> ThreadRng {
+    rand::thread_rng()
 }
