@@ -2,6 +2,7 @@
  *  https://observablehq.com/@zellyn/apple-ii-ntsc-emulation-openemulator-explainer
  */
 use crate::video::{Rgb, Yuv};
+use std::iter::zip;
 
 const NTSC_SAMPLE_RATE: f32 = 14318181.818181818;
 const NTSC_SUBCARRIER: f32 = 0.25;
@@ -76,11 +77,7 @@ fn scale(array: &[f32], scale: f32) -> Vec<f32> {
 }
 
 fn mul(array1: &[f32], array2: &[f32]) -> Vec<f32> {
-    array1
-        .iter()
-        .enumerate()
-        .map(|(i, value)| value * array2[i])
-        .collect()
+    zip(array1, array2).map(|(i, j)| i * j).collect()
 }
 
 pub fn decoder_matrix(luma_bandwidth: f32, chroma_bandwidth: f32) -> Vec<Vec<f32>> {
