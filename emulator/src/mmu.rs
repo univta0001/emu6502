@@ -51,6 +51,31 @@ impl Mmu {
             video_graphics: false,
         }
     }
+
+    pub fn is_aux_memory(&self, addr: u16) -> bool {
+        let mut aux_flag = false;
+        if self.wrcardram {
+            aux_flag = true
+        }
+        if self._80storeon {
+            if (0x400..0x800).contains(&addr) {
+                if self.video_page2 {
+                    aux_flag = true
+                } else {
+                    aux_flag = false
+                }
+            }
+
+            if (self.video_graphics || self.video_hires) && (0x2000..0x4000).contains(&addr) {
+                if self.video_page2 {
+                    aux_flag = true
+                } else {
+                    aux_flag = false;
+                }
+            }
+        }
+        aux_flag
+    }
 }
 
 impl Mem for Mmu {
@@ -136,30 +161,7 @@ impl Mem for Mmu {
             }
 
             0x200..=0xbfff => {
-                let mut aux_flag = false;
-                if self.wrcardram {
-                    aux_flag = true
-                }
-                if self._80storeon {
-                    if (0x400..0x800).contains(&addr) {
-                        if self.video_page2 {
-                            aux_flag = true
-                        } else {
-                            aux_flag = false
-                        }
-                    }
-
-                    if (self.video_graphics || self.video_hires) && (0x2000..0x4000).contains(&addr)
-                    {
-                        if self.video_page2 {
-                            aux_flag = true
-                        } else {
-                            aux_flag = false;
-                        }
-                    }
-                }
-
-                if aux_flag {
+                if self.is_aux_memory(addr) {
                     self.aux_memory[addr as usize] = data;
                 } else {
                     self.cpu_memory[addr as usize] = data;
