@@ -6,10 +6,10 @@ use std::collections::BTreeMap;
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Mmu {
     #[serde(serialize_with = "as_hex", deserialize_with = "from_hex_64k")]
-    pub cpu_memory: Vec<u8>,
+    cpu_memory: Vec<u8>,
 
     #[serde(serialize_with = "as_hex", deserialize_with = "from_hex_64k")]
-    pub aux_memory: Vec<u8>,
+    aux_memory: Vec<u8>,
 
     #[serde(serialize_with = "as_hex", deserialize_with = "from_hex_12k")]
     pub bank1_memory: Vec<u8>,

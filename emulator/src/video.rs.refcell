@@ -1,5 +1,9 @@
+use crate::bus::Mem;
+use crate::mmu::Mmu;
 use crate::ntsc::decoder_matrix;
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 pub type Rgb = [u8; 3];
 pub type Yuv = (f32, f32, f32);
@@ -10,16 +14,8 @@ pub struct Video {
     #[serde(default = "default_frame")]
     pub frame: Vec<u8>,
 
-    #[serde(skip_serializing)]
-    #[serde(default = "default_video_main")]
-    pub video_main: Vec<u8>,
-
-    #[serde(skip_serializing)]
-    #[serde(default = "default_video_aux")]
-    pub video_aux: Vec<u8>,
-
-    #[serde(default)]
-    pub _80storeon: bool,
+    #[serde(skip)]
+    pub mem: Rc<RefCell<Mmu>>,
 
     #[serde(skip_serializing)]
     #[serde(default = "default_lut_text")]
@@ -589,7 +585,7 @@ impl Video {
     const WIDTH: usize = 560;
     const HEIGHT: usize = 384;
 
-    pub fn new() -> Self {
+    pub fn new(mem: Rc<RefCell<Mmu>>) -> Self {
         let mut frame = vec![0xff; Video::WIDTH * Video::HEIGHT * 4];
 
         for y in 0..384 {
@@ -615,8 +611,7 @@ impl Video {
 
         Video {
             frame,
-            video_main: vec![0u8; 0x10000],
-            video_aux: vec![0u8; 0x10000],
+            mem,
             video_cache: vec![0x00; 40 * 192],
             video_reparse: vec![0x00; 192],
             video_dirty: vec![0x00; 24],
@@ -637,7 +632,6 @@ impl Video {
             mixed_mode: false,
             lores_mode: false,
             dhires_mode: false,
-            _80storeon: false,
             vid80_mode: false,
             video_page2: false,
             altchar: false,
@@ -1006,26 +1000,28 @@ impl Video {
     }
 
     fn read_raw_text_memory(&self, addr: usize) -> u8 {
+        let mmu = self.mem.borrow();
         if self.video_page2 {
-            if !self._80storeon {
-                self.video_main[(addr as u16 + 0x800) as usize]
+            if !mmu._80storeon {
+                mmu.mem_read(addr as u16 + 0x800)
             } else {
-                self.video_main[(addr as u16 + 0x400) as usize]
+                mmu.mem_read(addr as u16 + 0x400)
             }
         } else {
-            self.video_main[(addr as u16 + 0x400) as usize]
+            mmu.mem_read(addr as u16 + 0x400)
         }
     }
 
     fn read_raw_aux_text_memory(&self, addr: usize) -> u8 {
+        let mmu = self.mem.borrow();
         if self.video_page2 {
-            if !self._80storeon {
-                self.video_aux[(addr as u16 + 0x800) as usize]
+            if !mmu._80storeon {
+                mmu.mem_aux_read(addr as u16 + 0x800)
             } else {
-                self.video_aux[(addr as u16 + 0x400) as usize]
+                mmu.mem_aux_read(addr as u16 + 0x400)
             }
         } else {
-            self.video_aux[(addr as u16 + 0x400) as usize]
+            mmu.mem_aux_read(addr as u16 + 0x400)
         }
     }
 
@@ -1054,26 +1050,28 @@ impl Video {
     }
 
     fn read_raw_hires_memory(&self, addr: usize) -> u8 {
+        let mmu = self.mem.borrow();
         if self.video_page2 {
-            if !self._80storeon {
-                self.video_main[(addr as u16 + 0x4000) as usize]
+            if !mmu._80storeon {
+                mmu.mem_read(addr as u16 + 0x4000)
             } else {
-                self.video_main[(addr as u16 + 0x2000) as usize]
+                mmu.mem_read(addr as u16 + 0x2000)
             }
         } else {
-            self.video_main[(addr as u16 + 0x2000) as usize]
+            mmu.mem_read(addr as u16 + 0x2000)
         }
     }
 
     fn read_raw_aux_hires_memory(&self, addr: usize) -> u8 {
+        let mmu = self.mem.borrow();
         if self.video_page2 {
-            if !self._80storeon {
-                self.video_aux[(addr as u16 + 0x4000) as usize]
+            if !mmu._80storeon {
+                mmu.mem_aux_read(addr as u16 + 0x4000)
             } else {
-                self.video_aux[(addr as u16 + 0x2000) as usize]
+                mmu.mem_aux_read(addr as u16 + 0x2000)
             }
         } else {
-            self.video_aux[(addr as u16 + 0x2000) as usize]
+            mmu.mem_aux_read(addr as u16 + 0x2000)
         }
     }
 
@@ -2160,12 +2158,6 @@ impl Video {
     }
 }
 
-impl Default for Video {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 fn calc_lut(cycle: usize, ntsc: bool) -> usize {
     let mut visible_cycle = cycle % (CYCLES_PER_ROW * 192);
     if cycle >= CYCLES_PER_ROW * 256 {
@@ -2279,12 +2271,4 @@ fn default_ntsc_decoder() -> Vec<Vec<f32>> {
 
 fn default_cycle_field() -> usize {
     CYCLES_PER_FIELD_60HZ
-}
-
-fn default_video_main() -> Vec<u8> {
-    vec![0u8; 0x10000]
-}
-
-fn default_video_aux() -> Vec<u8> {
-    vec![0u8; 0x10000]
 }

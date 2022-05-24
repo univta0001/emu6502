@@ -6,6 +6,8 @@ use crate::video::Video;
 use rand::Rng;
 //use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 const ROM_START: u16 = 0xd000;
 const ROM_END: u16 = 0xffff;
@@ -28,7 +30,7 @@ pub struct Bus {
     pub joystick_jitter: bool,
     pub paddle_trigger: usize,
 
-    pub mem: Option<Mmu>,
+    pub mem: Option<Rc<RefCell<Mmu>>>,
     pub bank1: bool,
     pub readbsr: bool,
     pub writebsr: bool,
@@ -100,7 +102,7 @@ pub trait Mem {
 
 impl Bus {
     pub fn new() -> Self {
-        let mem = Mmu::default();
+        let mem = Rc::new(RefCell::new(Mmu::default()));
         let mut bus = Bus {
             keyboard_latch: 0,
             pushbutton_latch: [0x0, 0x0, 0x0, 0x0],
@@ -112,7 +114,7 @@ impl Bus {
             joystick_jitter: false,
             cycles: 0,
             disk: Some(DiskDrive::default()),
-            video: Some(Video::new()),
+            video: Some(Video::new(mem.clone())),
             audio: Some(Audio::new()),
             parallel: Some(ParallelCard::new()),
             bank1: false,
@@ -166,15 +168,12 @@ impl Bus {
         self.slotc3rom = false;
         self.intc8rom = false;
 
-        if let Some(mmu) = &mut self.mem {
+        if let Some(memory) = &self.mem {
+            let mut mmu = memory.borrow_mut();
             mmu._80storeon = false;
             mmu.altzp = false;
             mmu.rdcardram = false;
             mmu.wrcardram = false;
-        }
-
-        if let Some(display) = &mut self.video {
-            display._80storeon = false;
         }
 
         if !self.disable_audio {
@@ -309,11 +308,9 @@ impl Bus {
         match io_addr {
             0x00 => {
                 if write_flag {
-                    if let Some(mmu) = &mut self.mem {
+                    if let Some(memory) = &self.mem {
+                        let mut mmu = memory.borrow_mut();
                         mmu._80storeon = false;
-                    }
-                    if let Some(display) = &mut self.video {
-                        display._80storeon = false;
                     }
                 }
                 self.keyboard_latch
@@ -321,11 +318,9 @@ impl Bus {
 
             0x01 => {
                 if write_flag {
-                    if let Some(mmu) = &mut self.mem {
+                    if let Some(memory) = &self.mem {
+                        let mut mmu = memory.borrow_mut();
                         mmu._80storeon = true;
-                    }
-                    if let Some(display) = &mut self.video {
-                        display._80storeon = true;
                     }
                 }
                 self.keyboard_latch
@@ -333,7 +328,8 @@ impl Bus {
 
             0x02 => {
                 if write_flag {
-                    if let Some(mmu) = &mut self.mem {
+                    if let Some(memory) = &self.mem {
+                        let mut mmu = memory.borrow_mut();
                         mmu.rdcardram = false;
                     }
                 }
@@ -342,7 +338,8 @@ impl Bus {
 
             0x03 => {
                 if write_flag {
-                    if let Some(mmu) = &mut self.mem {
+                    if let Some(memory) = &self.mem {
+                        let mut mmu = memory.borrow_mut();
                         mmu.rdcardram = true;
                     }
                 }
@@ -351,7 +348,8 @@ impl Bus {
 
             0x04 => {
                 if write_flag {
-                    if let Some(mmu) = &mut self.mem {
+                    if let Some(memory) = &self.mem {
+                        let mut mmu = memory.borrow_mut();
                         mmu.wrcardram = false;
                     }
                 }
@@ -360,7 +358,8 @@ impl Bus {
 
             0x05 => {
                 if write_flag {
-                    if let Some(mmu) = &mut self.mem {
+                    if let Some(memory) = &self.mem {
+                        let mut mmu = memory.borrow_mut();
                         mmu.wrcardram = true;
                     }
                 }
@@ -383,7 +382,8 @@ impl Bus {
 
             0x08 => {
                 if write_flag {
-                    if let Some(mmu) = &mut self.mem {
+                    if let Some(memory) = &self.mem {
+                        let mut mmu = memory.borrow_mut();
                         mmu.altzp = false;
                     }
                 }
@@ -392,7 +392,8 @@ impl Bus {
 
             0x09 => {
                 if write_flag {
-                    if let Some(mmu) = &mut self.mem {
+                    if let Some(memory) = &self.mem {
+                        let mut mmu = memory.borrow_mut();
                         mmu.altzp = true;
                     }
                 }
@@ -443,7 +444,8 @@ impl Bus {
             }
 
             0x13 => {
-                if let Some(mmu) = &self.mem {
+                if let Some(memory) = &self.mem {
+                    let mmu = memory.borrow();
                     if mmu.rdcardram {
                         0x80 | (self.keyboard_latch & 0x7f)
                     } else {
@@ -455,7 +457,8 @@ impl Bus {
             }
 
             0x14 => {
-                if let Some(mmu) = &self.mem {
+                if let Some(memory) = &self.mem {
+                    let mmu = memory.borrow();
                     if mmu.wrcardram {
                         0x80 | (self.keyboard_latch & 0x7f)
                     } else {
@@ -475,7 +478,8 @@ impl Bus {
             }
 
             0x16 => {
-                if let Some(mmu) = &self.mem {
+                if let Some(memory) = &self.mem {
+                    let mmu = memory.borrow();
                     if mmu.altzp {
                         0x80 | (self.keyboard_latch & 0x7f)
                     } else {
@@ -495,7 +499,8 @@ impl Bus {
             }
 
             0x18 => {
-                if let Some(mmu) = &self.mem {
+                if let Some(memory) = &self.mem {
+                    let mmu = memory.borrow();
                     if mmu._80storeon {
                         0x80 | (self.keyboard_latch & 0x7f)
                     } else {
@@ -528,7 +533,8 @@ impl Bus {
 
             0x50 => {
                 {
-                    if let Some(mmu) = &mut self.mem {
+                    if let Some(memory) = &self.mem {
+                        let mut mmu = memory.borrow_mut();
                         mmu.video_graphics = true;
                     }
                 }
@@ -542,7 +548,8 @@ impl Bus {
 
             0x51 => {
                 {
-                    if let Some(mmu) = &mut self.mem {
+                    if let Some(memory) = &self.mem {
+                        let mut mmu = memory.borrow_mut();
                         mmu.video_graphics = false;
                     }
                 }
@@ -573,7 +580,8 @@ impl Bus {
 
             0x54 => {
                 {
-                    if let Some(mmu) = &mut self.mem {
+                    if let Some(memory) = &self.mem {
+                        let mut mmu = memory.borrow_mut();
                         mmu.video_page2 = false;
                     }
                 }
@@ -588,7 +596,8 @@ impl Bus {
 
             0x55 => {
                 {
-                    if let Some(mmu) = &mut self.mem {
+                    if let Some(memory) = &self.mem {
+                        let mut mmu = memory.borrow_mut();
                         mmu.video_page2 = true;
                     }
                 }
@@ -603,7 +612,8 @@ impl Bus {
 
             0x56 => {
                 {
-                    if let Some(mmu) = &mut self.mem {
+                    if let Some(memory) = &self.mem {
+                        let mut mmu = memory.borrow_mut();
                         mmu.video_hires = false;
                     }
                 }
@@ -618,7 +628,8 @@ impl Bus {
 
             0x57 => {
                 {
-                    if let Some(mmu) = &mut self.mem {
+                    if let Some(memory) = &self.mem {
+                        let mut mmu = memory.borrow_mut();
                         mmu.video_hires = true;
                     }
                 }
@@ -848,8 +859,8 @@ impl Mem for Bus {
     fn unclocked_addr_read(&mut self, addr: u16) -> u8 {
         match addr {
             0x0..=0xbfff => {
-                if let Some(mmu) = &mut self.mem {
-                    mmu.unclocked_addr_read(addr)
+                if let Some(memory) = &self.mem {
+                    memory.borrow_mut().unclocked_addr_read(addr)
                 } else {
                     0
                 }
@@ -857,7 +868,8 @@ impl Mem for Bus {
 
             ROM_START..=ROM_END => {
                 let bank_addr = addr - 0xd000;
-                if let Some(mmu) = &self.mem {
+                if let Some(memory) = &self.mem {
+                    let mmu = memory.borrow();
                     if !self.readbsr {
                         mmu.mem_read(addr)
                     } else if self.bank1 || (0xe000..=0xffff).contains(&addr) {
@@ -976,25 +988,15 @@ impl Mem for Bus {
     fn unclocked_addr_write(&mut self, addr: u16, data: u8) {
         match addr {
             0x0..=0xbfff => {
-                if let Some(mmu) = &mut self.mem {
-                    mmu.unclocked_addr_write(addr, data);
-
-                    // Shadow it to the video ram
-                    if (0x400..=0xbff).contains(&addr) || (0x2000..=0x5fff).contains(&addr) {
-                        if let Some(display) = &mut self.video {
-                            if mmu.is_aux_memory(addr) {
-                                display.video_aux[addr as usize] = data;
-                            } else {
-                                display.video_main[addr as usize] = data;
-                            }
-                        }
-                    }
+                if let Some(memory) = &self.mem {
+                    memory.borrow_mut().unclocked_addr_write(addr, data)
                 }
             }
 
             ROM_START..=ROM_END => {
                 let bank_addr = addr - 0xd000;
-                if let Some(mmu) = &mut self.mem {
+                if let Some(memory) = &self.mem {
+                    let mut mmu = memory.borrow_mut();
                     if self.writebsr {
                         if self.bank1 || (0xe000..=0xffff).contains(&addr) {
                             if !mmu.altzp {
@@ -1058,30 +1060,34 @@ impl Mem for Bus {
     }
 
     fn mem_read(&self, addr: u16) -> u8 {
-        if let Some(mmu) = &self.mem {
-            mmu.mem_read(addr)
+        if let Some(memory) = &self.mem {
+            let cpu_memory = memory.borrow();
+            cpu_memory.mem_read(addr)
         } else {
             0
         }
     }
 
     fn mem_write(&mut self, addr: u16, data: u8) {
-        if let Some(mmu) = &mut self.mem {
-            mmu.mem_write(addr, data);
+        if let Some(memory) = &self.mem {
+            let mut cpu_memory = memory.borrow_mut();
+            cpu_memory.mem_write(addr, data);
         }
     }
 
     fn mem_aux_read(&self, addr: u16) -> u8 {
-        if let Some(mmu) = &self.mem {
-            mmu.mem_aux_read(addr)
+        if let Some(memory) = &self.mem {
+            let aux_memory = memory.borrow();
+            aux_memory.mem_aux_read(addr)
         } else {
             0
         }
     }
 
     fn mem_aux_write(&mut self, addr: u16, data: u8) {
-        if let Some(mmu) = &mut self.mem {
-            mmu.mem_aux_write(addr, data);
+        if let Some(memory) = &self.mem {
+            let mut aux_memory = memory.borrow_mut();
+            aux_memory.mem_aux_write(addr, data);
         }
     }
 }
