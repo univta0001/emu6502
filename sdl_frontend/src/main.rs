@@ -416,14 +416,16 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 let output = serde_yaml::to_string(&cpu).unwrap();
                 let yaml_output = output.replace("\"\"", "''").replace('"', "");
-                let result = nfd2::open_save_dialog(Some("yaml"), None)
-                    .expect("Unable to open save file dialog");
-
-                if let Response::Okay(file_path) = result {
-                    let write_result = fs::write(&file_path, yaml_output);
-                    if let Err(e) = write_result {
-                        eprintln!("Unable to write to file {} : {}", file_path.display(), e);
+                let result = nfd2::open_save_dialog(Some("yaml"), None);
+                if result.is_ok() {
+                    if let Ok(Response::Okay(file_path)) = result {
+                        let write_result = fs::write(&file_path, yaml_output);
+                        if let Err(e) = write_result {
+                            eprintln!("Unable to write to file {} : {}", file_path.display(), e);
+                        }
                     }
+                } else {
+                    eprintln!("Unable to open save file dialog");
                 }
             } else if let Some(drive) = &mut cpu.bus.disk {
                 drive.swap_drive();
@@ -444,14 +446,16 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                     eject_disk(cpu, 1);
                 }
             } else {
-                let result = nfd2::open_file_dialog(Some("dsk,po,woz,dsk.gz,po.gz,woz.gz"), None)
-                    .expect("Unable to open file dialog");
-
-                if let Response::Okay(file_path) = result {
-                    let result = load_disk(cpu, &file_path, 1);
-                    if let Err(e) = result {
-                        eprintln!("Unable to load disk {} : {}", file_path.display(), e);
+                let result = nfd2::open_file_dialog(Some("dsk,po,woz,dsk.gz,po.gz,woz.gz"), None);
+                if result.is_ok() {
+                    if let Ok(Response::Okay(file_path)) = result {
+                        let result = load_disk(cpu, &file_path, 1);
+                        if let Err(e) = result {
+                            eprintln!("Unable to load disk {} : {}", file_path.display(), e);
+                        }
                     }
+                } else {
+                    eprintln!("Unable to open file dialog");
                 }
             }
         }
@@ -472,14 +476,16 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                     eject_disk(cpu, 0);
                 }
             } else {
-                let result = nfd2::open_file_dialog(Some("dsk,po,woz,dsk.gz,po.gz,woz.gz"), None)
-                    .expect("Unable to open file dialog");
-
-                if let Response::Okay(file_path) = result {
-                    let result = load_disk(cpu, &file_path, 0);
-                    if let Err(e) = result {
-                        eprintln!("Unable to load disk {} : {}", file_path.display(), e);
+                let result = nfd2::open_file_dialog(Some("dsk,po,woz,dsk.gz,po.gz,woz.gz"), None);
+                if result.is_ok() {
+                    if let Ok(Response::Okay(file_path)) = result {
+                        let result = load_disk(cpu, &file_path, 0);
+                        if let Err(e) = result {
+                            eprintln!("Unable to load disk {} : {}", file_path.display(), e);
+                        }
                     }
+                } else {
+                    eprintln!("Unable to open file dialog");
                 }
             }
         }
@@ -862,12 +868,17 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
                     if let Some(display) = &mut _cpu.bus.video {
                         if save_screenshot {
-                            let output = File::create("screenshot.png")
-                                .expect("Unable to create screenshot.png");
-                            let encoder = PngEncoder::new(output);
-                            encoder
-                                .write_image(&display.frame, 560, 384, ColorType::Rgba8)
-                                .expect("Unable to create PNG file");
+                            if let Ok(output) = File::create("screenshot.png") {
+                                let encoder = PngEncoder::new(output);
+                                let result =
+                                    encoder.write_image(&display.frame, 560, 384, ColorType::Rgba8);
+                                if result.is_err() {
+                                    eprintln!("Unable to create PNG file");
+                                }
+                            } else {
+                                eprintln!("Unable to create screenshot.png");
+                            }
+
                             save_screenshot = false;
                         }
 
@@ -961,57 +972,59 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         if !reload_cpu {
             break;
         } else {
-            let result =
-                nfd2::open_file_dialog(Some("yaml"), None).expect("Unable to open file dialog");
+            let result = nfd2::open_file_dialog(Some("yaml"), None);
+            if result.is_ok() {
+                if let Ok(Response::Okay(file_path)) = result {
+                    let result = fs::read_to_string(&file_path);
+                    if let Ok(input) = result {
+                        let deserialized_result = serde_yaml::from_str::<CPU>(&input);
+                        if let Ok(mut new_cpu) = deserialized_result {
+                            // Initialize the previous cycles
+                            previous_cycles = new_cpu.bus.get_cycles();
 
-            if let Response::Okay(file_path) = result {
-                let result = fs::read_to_string(&file_path);
-                if let Ok(input) = result {
-                    let deserialized_result = serde_yaml::from_str::<CPU>(&input);
-                    if let Ok(mut new_cpu) = deserialized_result {
-                        // Initialize the previous cycles
-                        previous_cycles = new_cpu.bus.get_cycles();
-
-                        // Initialize new cpu video memory
-                        if let Some(video) = &mut new_cpu.bus.video {
-                            if let Some(memory) = &new_cpu.bus.mem {
-                                video.video_main[0x400..0xc00]
-                                    .clone_from_slice(&memory.cpu_memory[0x400..0xc00]);
-                                video.video_aux[0x400..0xc00]
-                                    .clone_from_slice(&memory.aux_memory[0x400..0xc00]);
-                                video.video_main[0x2000..0x6000]
-                                    .clone_from_slice(&memory.cpu_memory[0x2000..0x6000]);
-                                video.video_aux[0x2000..0x6000]
-                                    .clone_from_slice(&memory.aux_memory[0x2000..0x6000]);
+                            // Initialize new cpu video memory
+                            if let Some(video) = &mut new_cpu.bus.video {
+                                if let Some(memory) = &new_cpu.bus.mem {
+                                    video.video_main[0x400..0xc00]
+                                        .clone_from_slice(&memory.cpu_memory[0x400..0xc00]);
+                                    video.video_aux[0x400..0xc00]
+                                        .clone_from_slice(&memory.aux_memory[0x400..0xc00]);
+                                    video.video_main[0x2000..0x6000]
+                                        .clone_from_slice(&memory.cpu_memory[0x2000..0x6000]);
+                                    video.video_aux[0x2000..0x6000]
+                                        .clone_from_slice(&memory.aux_memory[0x2000..0x6000]);
+                                }
                             }
-                        }
 
-                        // Load the loaded disk into the new cpu
-                        if new_cpu.bus.disk.is_some() {
-                            for drive in 0..2 {
-                                if is_disk_loaded(&new_cpu, drive) {
-                                    if let Some(disk_filename) = get_disk_filename(&new_cpu, drive)
-                                    {
-                                        let result = load_disk(&mut new_cpu, &disk_filename, drive);
-                                        if let Err(e) = result {
-                                            eprintln!(
-                                                "Unable to load disk {} : {}",
-                                                file_path.display(),
-                                                e
-                                            );
+                            // Load the loaded disk into the new cpu
+                            if new_cpu.bus.disk.is_some() {
+                                for drive in 0..2 {
+                                    if is_disk_loaded(&new_cpu, drive) {
+                                        if let Some(disk_filename) = get_disk_filename(&new_cpu, drive)
+                                        {
+                                            let result = load_disk(&mut new_cpu, &disk_filename, drive);
+                                            if let Err(e) = result {
+                                                eprintln!(
+                                                    "Unable to load disk {} : {}",
+                                                    file_path.display(),
+                                                    e
+                                                );
+                                            }
                                         }
                                     }
                                 }
                             }
+                            // Replace the old cpu with the new cpu
+                            cpu = new_cpu;
+                        } else {
+                            eprintln!("Unable to restore the image : {:?}", deserialized_result);
                         }
-                        // Replace the old cpu with the new cpu
-                        cpu = new_cpu;
                     } else {
-                        eprintln!("Unable to restore the image : {:?}", deserialized_result);
+                        eprintln!("Unable to restore the image : {:?}", result);
                     }
-                } else {
-                    eprintln!("Unable to restore the image : {:?}", result);
                 }
+            } else {
+                eprintln!("Unable to open file dialog");
             }
         }
     }
