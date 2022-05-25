@@ -975,8 +975,14 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         // Initialize new cpu video memory
                         if let Some(video) = &mut new_cpu.bus.video {
                             if let Some(memory) = &new_cpu.bus.mem {
-                                video.video_main[..].clone_from_slice(&memory.cpu_memory);
-                                video.video_aux[..].clone_from_slice(&memory.aux_memory);
+                                video.video_main[0x400..0xc00]
+                                    .clone_from_slice(&memory.cpu_memory[0x400..0xc00]);
+                                video.video_aux[0x400..0xc00]
+                                    .clone_from_slice(&memory.aux_memory[0x400..0xc00]);
+                                video.video_main[0x2000..0x6000]
+                                    .clone_from_slice(&memory.cpu_memory[0x2000..0x6000]);
+                                video.video_aux[0x2000..0x6000]
+                                    .clone_from_slice(&memory.aux_memory[0x2000..0x6000]);
                             }
                         }
 
