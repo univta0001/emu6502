@@ -1009,6 +1009,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     } else {
                         eprintln!("Unable to restore the image : {:?}", deserialized_result);
                     }
+                } else {
+                    eprintln!("Unable to restore the image : {:?}", result);
                 }
             }
         }
