@@ -1785,15 +1785,9 @@ impl Video {
 
             while mask != 0x80 {
                 if value & mask > 0 {
-                    self.set_pixel_count(hbs + x + 2 * offset, 2 * row, COLOR_WHITE, 1);
-                    if hbs + x + 2 * offset + 1 < 560 {
-                        self.set_pixel_count(hbs + x + 2 * offset + 1, 2 * row, COLOR_WHITE, 1);
-                    }
+                    self.set_pixel_count(hbs + x + 2 * offset, 2 * row, COLOR_WHITE, 2);
                 } else {
-                    self.set_pixel_count(hbs + x + 2 * offset, 2 * row, COLOR_BLACK, 1);
-                    if hbs + x + 2 * offset + 1 < 560 {
-                        self.set_pixel_count(hbs + x + 2 * offset + 1, 2 * row, COLOR_BLACK, 1);
-                    }
+                    self.set_pixel_count(hbs + x + 2 * offset, 2 * row, COLOR_BLACK, 2);
                 }
                 mask <<= 1;
                 offset += 1;
@@ -1820,11 +1814,9 @@ impl Video {
 
             while mask != 0x80 {
                 if value & mask > 0 {
-                    self.set_pixel_count(x + 2 * offset, 2 * row, fg_color, 1);
-                    self.set_pixel_count(x + 2 * offset + 1, 2 * row, fg_color, 1);
+                    self.set_pixel_count(x + 2 * offset, 2 * row, fg_color, 2);
                 } else {
-                    self.set_pixel_count(x + 2 * offset, 2 * row, bg_color, 1);
-                    self.set_pixel_count(x + 2 * offset + 1, 2 * row, bg_color, 1);
+                    self.set_pixel_count(x + 2 * offset, 2 * row, bg_color, 2);
                 }
                 mask <<= 1;
                 offset += 1;
