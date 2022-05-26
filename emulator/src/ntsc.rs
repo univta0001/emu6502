@@ -76,30 +76,52 @@ fn scale(array: &[f32], scale: f32) -> Vec<f32> {
     array.iter().map(|value| value * scale).collect()
 }
 
-fn mul(array1: &[f32], array2: &[f32]) -> Vec<f32> {
+pub fn mul(array1: &[f32], array2: &[f32]) -> Vec<f32> {
     zip(array1, array2).map(|(i, j)| i * j).collect()
 }
 
-pub fn decoder_matrix(luma_bandwidth: f32, chroma_bandwidth: f32) -> Vec<Vec<f32>> {
+pub fn ntsc_mul(array1: &[f32;3], array2: &[f32;3]) -> [f32;3] {
+    let mut v = [0.0f32; 3];
+    for i in 0..3 {
+        v[i] = array1[i]*array2[i];
+    }
+    v
+}
+
+pub fn ntsc_add_mul(array0: &[f32;3], array1: &[f32;3], array2: &[f32;3]) -> [f32;3] {
+    let mut v = [0.0f32; 3];
+    for i in 0..3 {
+        v[i] = array0[i]+(array1[i]*array2[i])
+    }
+    v
+}
+
+pub fn decoder_matrix(luma_bandwidth: f32, chroma_bandwidth: f32) -> Vec<[f32;3]> {
     let y_bandwidth = luma_bandwidth / NTSC_SAMPLE_RATE;
     let u_bandwidth = chroma_bandwidth / NTSC_SAMPLE_RATE;
     let v_bandwidth = u_bandwidth;
 
     let w = chebyshev_window(17, 50.0);
     let wy = normalize(&mul(&w, &lanczos_window(17, y_bandwidth)));
-    let wu = scale(&normalize(&mul(&w, &lanczos_window(17, u_bandwidth))), 2.0);
-    let wv = scale(&normalize(&mul(&w, &lanczos_window(17, v_bandwidth))), 2.0);
+    let wu = scale(
+        &normalize(&mul(&w, &lanczos_window(17, u_bandwidth))),
+        2.0,
+    );
+    let wv = scale(
+        &normalize(&mul(&w, &lanczos_window(17, v_bandwidth))),
+        2.0,
+    );
 
     let decoder_matrix = vec![
-        vec![wy[8], wu[8], wv[8]],
-        vec![wy[7], wu[7], wv[7]],
-        vec![wy[6], wu[6], wv[6]],
-        vec![wy[5], wu[5], wv[5]],
-        vec![wy[4], wu[4], wv[4]],
-        vec![wy[3], wu[3], wv[3]],
-        vec![wy[2], wu[2], wv[2]],
-        vec![wy[1], wu[1], wv[1]],
-        vec![wy[0], wu[0], wv[0]],
+        [wy[8], wu[8], wv[8]],
+        [wy[7], wu[7], wv[7]],
+        [wy[6], wu[6], wv[6]],
+        [wy[5], wu[5], wv[5]],
+        [wy[4], wu[4], wv[4]],
+        [wy[3], wu[3], wv[3]],
+        [wy[2], wu[2], wv[2]],
+        [wy[1], wu[1], wv[1]],
+        [wy[0], wu[0], wv[0]],
     ];
     decoder_matrix
 }

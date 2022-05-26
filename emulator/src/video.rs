@@ -59,7 +59,7 @@ pub struct Video {
 
     #[serde(skip_serializing)]
     #[serde(default = "default_ntsc_decoder")]
-    ntsc_decoder: Vec<Vec<f32>>,
+    ntsc_decoder: Vec<[f32;3]>,
 
     #[serde(default = "default_cycle_field")]
     cycle_field: usize,
@@ -2275,7 +2275,7 @@ fn default_frame() -> Vec<u8> {
     vec![0xff; Video::WIDTH * Video::HEIGHT * 4]
 }
 
-fn default_ntsc_decoder() -> Vec<Vec<f32>> {
+fn default_ntsc_decoder() -> Vec<[f32;3]> {
     decoder_matrix(NTSC_LUMA_BANDWIDTH, NTSC_CHROMA_BANDWIDTH)
 }
 
