@@ -880,6 +880,12 @@ impl Video {
         vec
     }
 
+    pub fn invalidate_video_cache(&mut self) {
+        for i in 0..self.video_cache.len() {
+            self.video_cache[i]=u32::MAX;
+        }
+    }
+
     fn get_video_mode(&self) -> u32 {
         let mut mode: u32 = 0;
 
@@ -1135,6 +1141,7 @@ impl Video {
         } else {
             self.cycle_field = CYCLES_PER_FIELD_60HZ
         }
+        self.invalidate_video_cache();
     }
 
     pub fn get_mono_mode(&self) -> bool {
@@ -1143,10 +1150,12 @@ impl Video {
 
     pub fn set_mono_mode(&mut self, state: bool) {
         self.mono_mode = state;
+        self.invalidate_video_cache();
     }
 
     pub fn set_rgb_mode(&mut self, state: bool) {
         self.disable_rgb = !state;
+        self.invalidate_video_cache();
     }
 
     pub fn get_rgb_mode(&self) -> bool {
@@ -1160,6 +1169,7 @@ impl Video {
         } else {
             self.cycle_field = CYCLES_PER_FIELD_60HZ
         }
+        self.invalidate_video_cache();
     }
 
     pub fn is_video_50hz(&self) -> bool {
