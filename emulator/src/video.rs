@@ -103,7 +103,7 @@ pub struct Video {
     rgb_mode: u8,
 }
 
-const NTSC_LUMA_BANDWIDTH: f32 = 2000000.0;
+const NTSC_LUMA_BANDWIDTH: f32 = 2300000.0;
 const NTSC_CHROMA_BANDWIDTH: f32 = 600000.0;
 
 const TEXT_LEN: usize = 0x400;

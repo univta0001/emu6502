@@ -539,7 +539,7 @@ FLAGS:
     --opt_timing rate Override the optimal timing (Default is 0)
     --rgb             Enable RGB mode (Default: RGB mode disabled)
     --mboard 0|1|2    Number of mockingboards to enable
-    --luma bandwidth  Luma B/W (Valid value: 0 to 7159090, Default: 2000000)
+    --luma bandwidth  Luma B/W (Valid value: 0 to 7159090, Default: 2300000)
 
 ARGS:
     [disk 1]          Disk 1 file (woz, dsk, po file). File can be in gz format
