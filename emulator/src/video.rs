@@ -82,6 +82,14 @@ pub struct Video {
     #[serde(default = "default_ntsc_decoder")]
     ntsc_decoder: Vec<Yuv>,
 
+    #[serde(skip_serializing)]
+    #[serde(default = "default_chroma_dhgr")]
+    chroma_dhgr: Vec<Yuv>,
+
+    #[serde(skip_serializing)]
+    #[serde(default = "default_chroma_hgr")]
+    chroma_hgr: Vec<Yuv>,
+
     #[serde(default = "default_cycle_field")]
     cycle_field: usize,
 
@@ -633,6 +641,9 @@ impl Video {
         let ntsc_decoder = decoder_matrix(NTSC_LUMA_BANDWIDTH, NTSC_CHROMA_BANDWIDTH);
         let cycle_field = CYCLES_PER_FIELD_60HZ;
 
+        let chroma_hgr = default_chroma_hgr();
+        let chroma_dhgr = default_chroma_dhgr();
+
         Video {
             frame,
             display_mode: DisplayMode::DEFAULT,
@@ -669,6 +680,8 @@ impl Video {
             mono_mode: false,
             rgb_mode: 0,
             ntsc_decoder,
+            chroma_hgr,
+            chroma_dhgr,
         }
     }
 
@@ -2159,7 +2172,12 @@ impl Video {
 
     fn chroma_ntsc(&self, luma: &[u8], x: usize, pos: usize, dhires: bool) -> Yuv {
         if luma[pos] > 0 {
-            convert_chroma_to_yuv(x, dhires)
+            //convert_chroma_to_yuv(x, dhires)
+            if dhires {
+                self.chroma_dhgr[x]
+            } else {
+                self.chroma_hgr[x]
+            }
         } else {
             [0.0, 0.0, 0.0]
         }
@@ -2764,6 +2782,22 @@ fn default_video_main() -> Vec<u8> {
 
 fn default_video_aux() -> Vec<u8> {
     vec![0u8; 0x10000]
+}
+
+fn default_chroma_hgr() -> Vec<Yuv> {
+    let mut v = Vec::new();
+    for i in 0..560 {
+        v.push(convert_chroma_to_yuv(i, false));
+    }
+    v
+}
+
+fn default_chroma_dhgr() -> Vec<Yuv> {
+    let mut v = Vec::new();
+    for i in 0..560 {
+        v.push(convert_chroma_to_yuv(i, true));
+    }
+    v
 }
 
 fn serialize_display_mode<S: Serializer>(
