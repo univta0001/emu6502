@@ -2183,17 +2183,24 @@ impl Video {
         }
     }
 
-    fn chroma_ntsc_neighbor(
+    fn chroma_ntsc_combined(
         &self,
+        c: &mut Yuv,
         luma: &[u8],
         x: usize,
         pos: usize,
         offset: usize,
         dhires: bool,
-    ) -> Yuv {
-        let left = self.chroma_ntsc(luma, x.saturating_sub(offset), pos - offset, dhires);
-        let right = self.chroma_ntsc(luma, x.saturating_add(offset), pos + offset, dhires);
-        [left[0] + right[0], left[1] + right[1], left[2] + right[2]]
+    ) {
+        let left = if offset > x {
+            [0.0, 0.0, 0.0]
+        } else {
+            self.chroma_ntsc(luma, x - offset, pos - offset, dhires)
+        };
+        let right = self.chroma_ntsc(luma, x + offset, pos + offset, dhires);
+        for i in 0..3 {
+            c[i] += (left[i] + right[i]) * self.ntsc_decoder[offset][i]
+        }
     }
 
     fn chroma_ntsc_color(
@@ -2209,11 +2216,7 @@ impl Video {
             &self.ntsc_decoder[0],
         );
         for i in 1..=neighbor {
-            ntsc_add_mul(
-                &mut c,
-                &self.chroma_ntsc_neighbor(luma, x, pos, i, dhires),
-                &self.ntsc_decoder[i],
-            );
+            self.chroma_ntsc_combined(&mut c, luma, x, pos, i, dhires);
         }
         convert_yuv_to_rgb(c)
     }

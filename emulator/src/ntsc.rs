@@ -88,12 +88,6 @@ pub fn ntsc_mul(array1: &Yuv, array2: &Yuv) -> Yuv {
     v
 }
 
-pub fn ntsc_add_mul(array0: &mut Yuv, array1: &Yuv, array2: &Yuv) {
-    for i in 0..3 {
-        array0[i] += array1[i] * array2[i]
-    }
-}
-
 pub fn decoder_matrix(luma_bandwidth: f32, chroma_bandwidth: f32) -> Vec<Yuv> {
     let y_bandwidth = luma_bandwidth / NTSC_SAMPLE_RATE;
     let u_bandwidth = chroma_bandwidth / NTSC_SAMPLE_RATE;
