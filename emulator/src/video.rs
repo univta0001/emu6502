@@ -1176,6 +1176,11 @@ impl Video {
 
     pub fn set_display_mode(&mut self, mode: DisplayMode) {
         self.display_mode = mode;
+        if self.display_mode == DisplayMode::RGB {
+            self.disable_rgb = false;
+        } else {
+            self.disable_rgb = true;
+        }
         self.invalidate_video_cache();
     }
 
