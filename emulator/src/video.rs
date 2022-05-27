@@ -1,5 +1,5 @@
 use crate::ntsc::*;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 pub type Rgb = [u8; 3];
 pub type Yuv = [f32; 3];
@@ -20,7 +20,10 @@ impl Default for DisplayMode {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Video {
-    #[serde(skip)]
+    #[serde(
+        serialize_with = "serialize_display_mode",
+        deserialize_with = "deserialize_display_mode"
+    )]
     #[serde(default)]
     pub display_mode: DisplayMode,
 
@@ -2528,4 +2531,29 @@ fn default_video_main() -> Vec<u8> {
 
 fn default_video_aux() -> Vec<u8> {
     vec![0u8; 0x10000]
+}
+
+fn serialize_display_mode<S: Serializer>(
+    v: &DisplayMode,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    let value = match v {
+        DisplayMode::NTSC => 1,
+        DisplayMode::MONO => 2,
+        DisplayMode::RGB => 3,
+        _ => 0,
+    };
+    usize::serialize(&value, serializer)
+}
+
+fn deserialize_display_mode<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<DisplayMode, D::Error> {
+    let value = match usize::deserialize(deserializer)? {
+        1 => DisplayMode::NTSC,
+        2 => DisplayMode::MONO,
+        3 => DisplayMode::RGB,
+        _ => DisplayMode::DEFAULT,
+    };
+    Ok(value)
 }

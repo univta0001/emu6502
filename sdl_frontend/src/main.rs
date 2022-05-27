@@ -1021,6 +1021,14 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                                     video.video_aux[0x2000..0x6000]
                                         .clone_from_slice(&memory.aux_memory[0x2000..0x6000]);
                                 }
+
+                                // Restore the display mode
+                                match video.get_display_mode() {
+                                    DisplayMode::NTSC => display_index = 1,
+                                    DisplayMode::MONO => display_index = 2,
+                                    DisplayMode::RGB => display_index = 3,
+                                    _ => display_index = 0,
+                                }
                             }
 
                             // Load the loaded disk into the new cpu
@@ -1043,6 +1051,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                                     }
                                 }
                             }
+
                             // Replace the old cpu with the new cpu
                             cpu = new_cpu;
                         } else {
