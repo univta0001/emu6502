@@ -751,13 +751,12 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     if pargs.contains("--norgb") {
         if let Some(display) = &mut cpu.bus.video {
-            display.set_rgb_mode(false);
+            display.set_display_mode(DisplayMode::DEFAULT);
         }
     }
 
     if pargs.contains("--rgb") {
         if let Some(display) = &mut cpu.bus.video {
-            display.set_rgb_mode(true);
             display.set_display_mode(DisplayMode::RGB);
         }
     }

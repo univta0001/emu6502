@@ -98,7 +98,6 @@ pub struct Video {
     video_50hz: bool,
     mono_mode: bool,
     rgb_mode: u8,
-    disable_rgb: bool,
 }
 
 const NTSC_LUMA_BANDWIDTH: f32 = 2000000.0;
@@ -666,7 +665,6 @@ impl Video {
             video_50hz: false,
             mono_mode: false,
             rgb_mode: 0,
-            disable_rgb: true,
             ntsc_decoder,
         }
     }
@@ -1176,26 +1174,12 @@ impl Video {
 
     pub fn set_display_mode(&mut self, mode: DisplayMode) {
         self.display_mode = mode;
-        if self.display_mode == DisplayMode::RGB {
-            self.disable_rgb = false;
-        } else {
-            self.disable_rgb = true;
-        }
         self.invalidate_video_cache();
     }
 
     pub fn set_mono_mode(&mut self, state: bool) {
         self.mono_mode = state;
         self.invalidate_video_cache();
-    }
-
-    pub fn set_rgb_mode(&mut self, state: bool) {
-        self.disable_rgb = !state;
-        self.invalidate_video_cache();
-    }
-
-    pub fn get_rgb_mode(&self) -> bool {
-        !self.disable_rgb
     }
 
     pub fn set_video_50hz(&mut self, flag: bool) {
@@ -1500,7 +1484,7 @@ impl Video {
             fore_color = COLOR_WHITE;
         }
 
-        if !self.disable_rgb && self.dhires_mode && !self.vid80_mode {
+        if self.display_mode == DisplayMode::RGB && self.dhires_mode && !self.vid80_mode {
             let aux_value = self._read_aux_text_memory(x1, y1);
             back_color = LORES_COLORS[(aux_value & 0xf) as usize];
             fore_color = LORES_COLORS[((aux_value >> 4) & 0xf) as usize];
@@ -1664,7 +1648,7 @@ impl Video {
         }
 
         // Only works for Rgb mode
-        if !self.disable_rgb && !self.vid80_mode && self.dhires_mode {
+        if self.display_mode == DisplayMode::RGB && !self.vid80_mode && self.dhires_mode {
             self._draw_raw_fb_hires_a2_row_col(row, col, value);
             return;
         }
@@ -1680,11 +1664,12 @@ impl Video {
             let mut prev_index: usize;
 
             // Only works in NTSC / PAL mode
-            let an3_mode = if self.disable_rgb && self.dhires_mode && !self.vid80_mode {
-                0x8
-            } else {
-                0x0
-            };
+            let an3_mode =
+                if self.display_mode != DisplayMode::RGB && self.dhires_mode && !self.vid80_mode {
+                    0x8
+                } else {
+                    0x0
+                };
 
             if odd == 0 {
                 prev_index = if col > 0 {
@@ -1754,7 +1739,7 @@ impl Video {
             let mut even_color = if hbs { COLOR_MEDIUM_BLUE } else { COLOR_VIOLET };
 
             // Only works in NTSC / PAL mode
-            if self.disable_rgb && self.dhires_mode && !self.vid80_mode {
+            if self.display_mode != DisplayMode::RGB && self.dhires_mode && !self.vid80_mode {
                 odd_color = COLOR_GREEN;
                 even_color = COLOR_VIOLET;
             }
@@ -2009,7 +1994,7 @@ impl Video {
     }
 
     fn draw_raw_dhires_a2_row_col(&mut self, row: usize, col: usize, value: u8, aux_value: u8) {
-        if ((!self.disable_rgb || self.display_mode == DisplayMode::RGB) && self.rgb_mode == 0x3)
+        if self.display_mode == DisplayMode::RGB && self.rgb_mode == 0x3
             || self.mono_mode
             || self.display_mode == DisplayMode::MONO
         {
@@ -2017,7 +2002,7 @@ impl Video {
             return;
         }
 
-        if (!self.disable_rgb || self.display_mode == DisplayMode::RGB) && self.rgb_mode == 0x1 {
+        if self.display_mode == DisplayMode::RGB && self.rgb_mode == 0x1 {
             self.draw_raw_dhires_160x192_row_col(row, col, value, aux_value);
             return;
         }
@@ -2042,7 +2027,7 @@ impl Video {
             // byte1 + (byte2&0x7f) << 7 + (byte3 & 0x7f) << 14 + (byte4 & 0x7f) << 21;
 
             // Mixed mode
-            if (!self.disable_rgb || self.display_mode == DisplayMode::RGB) && self.rgb_mode == 2 {
+            if self.display_mode == DisplayMode::RGB && self.rgb_mode == 2 {
                 self.draw_raw_dhires_mixed_row_col(row, col);
             } else {
                 let current_value = self.read_hires_memory(ptr, row);
