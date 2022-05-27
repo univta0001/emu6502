@@ -1012,7 +1012,7 @@ impl Video {
         }
     }
 
-    fn _read_text_memory(&mut self, col: usize, row: usize) -> u8 {
+    fn read_text_memory(&mut self, col: usize, row: usize) -> u8 {
         let line = row / 8;
 
         // 000000cd eabab000 -> 000abcde
@@ -1023,7 +1023,7 @@ impl Video {
         self.read_raw_text_memory(addr + col)
     }
 
-    fn _read_aux_text_memory(&mut self, col: usize, row: usize) -> u8 {
+    fn read_aux_text_memory(&mut self, col: usize, row: usize) -> u8 {
         let line = row / 8;
 
         // 000000cd eabab000 -> 000abcde
@@ -1488,7 +1488,7 @@ impl Video {
         }
 
         if self.display_mode == DisplayMode::RGB && self.dhires_mode && !self.vid80_mode {
-            let aux_value = self._read_aux_text_memory(x1, y1);
+            let aux_value = self.read_aux_text_memory(x1, y1);
             back_color = LORES_COLORS[(aux_value & 0xf) as usize];
             fore_color = LORES_COLORS[((aux_value >> 4) & 0xf) as usize];
         }
@@ -1571,9 +1571,12 @@ impl Video {
 
         if self.vid80_mode && self.dhires_mode {
             if !self.mono_mode && !(self.display_mode == DisplayMode::MONO) {
-                for xindex in 0..7 {
-                    self.set_pixel(x1 * 14 + xindex + offset, y1 * 2, color);
-                    self.set_pixel(x1 * 14 + xindex + offset, y1 * 2 + 1, color);
+                if self.display_mode == DisplayMode::NTSC {
+                    self.draw_dlores_ntsc_a2_y(x1, y1, ch, offset, aux);
+                } else {
+                    for xindex in 0..7 {
+                        self.set_pixel_count(x1 * 14 + xindex + offset, y1 * 2, color, 1);
+                    }
                 }
             } else {
                 let color = if yindex < 4 {
@@ -1587,11 +1590,9 @@ impl Video {
                 }
                 for xindex in 0..7 {
                     if color & mask != 0 {
-                        self.set_pixel(x1 * 14 + xindex + offset, y1 * 2, COLOR_WHITE);
-                        self.set_pixel(x1 * 14 + xindex + offset, y1 * 2 + 1, COLOR_WHITE);
+                        self.set_pixel_count(x1 * 14 + xindex + offset, y1 * 2, COLOR_WHITE, 1);
                     } else {
-                        self.set_pixel(x1 * 14 + xindex + offset, y1 * 2, COLOR_BLACK);
-                        self.set_pixel(x1 * 14 + xindex + offset, y1 * 2 + 1, COLOR_BLACK);
+                        self.set_pixel_count(x1 * 14 + xindex + offset, y1 * 2, COLOR_BLACK, 1);
                     }
                     mask <<= 1;
                     if mask > 0xf {
@@ -1600,8 +1601,12 @@ impl Video {
                 }
             }
         } else if !self.mono_mode && !(self.display_mode == DisplayMode::MONO) {
-            for xindex in 0..7 {
-                self.set_a2_pixel(x1 * 7 + xindex, y1, color);
+            if self.display_mode == DisplayMode::NTSC {
+                self.draw_lores_ntsc_a2_y(x1, y1, ch);
+            } else {
+                for xindex in 0..7 {
+                    self.set_a2_pixel(x1 * 7 + xindex, y1, color);
+                }
             }
         } else {
             let color = if yindex < 4 {
@@ -1615,17 +1620,244 @@ impl Video {
             }
             for xindex in 0..14 {
                 if color & mask != 0 {
-                    self.set_pixel(x1 * 14 + xindex, y1 * 2, COLOR_WHITE);
-                    self.set_pixel(x1 * 14 + xindex, y1 * 2 + 1, COLOR_WHITE);
+                    self.set_pixel_count(x1 * 14 + xindex, y1 * 2, COLOR_WHITE, 1);
                 } else {
-                    self.set_pixel(x1 * 14 + xindex, y1 * 2, COLOR_BLACK);
-                    self.set_pixel(x1 * 14 + xindex, y1 * 2 + 1, COLOR_BLACK);
+                    self.set_pixel_count(x1 * 14 + xindex, y1 * 2, COLOR_BLACK, 1);
                 }
                 mask <<= 1;
                 if mask > 0xf {
                     mask = 0x1;
                 }
             }
+        }
+    }
+
+    pub fn draw_lores_ntsc_a2_y(&mut self, x1: usize, y1: usize, ch: u8) {
+        const NEIGHBOR: usize = 6;
+        let mut offset = 0;
+        let mut mask = 0x1;
+        let mut luma = [0u8; 14 + 2 * NEIGHBOR + 1];
+        let yindex = y1 % 8;
+
+        // Prepare luma for col - 1
+        let prev_value = if x1 > 0 {
+            let prev_ch = self.read_text_memory(x1 - 1, y1);
+            if yindex < 4 {
+                prev_ch & 0xf
+            } else {
+                (prev_ch >> 4) & 0xf
+            }
+        } else {
+            0
+        };
+        if x1 > 0 && (x1 - 1) & 1 != 0 {
+            mask <<= 2;
+        }
+
+        let mut count = 14 - NEIGHBOR;
+        while offset != NEIGHBOR {
+            if count == 0 {
+                if prev_value & mask != 0 {
+                    luma[offset] = 1;
+                } else {
+                    luma[offset] = 0;
+                }
+                offset += 1;
+            } else {
+                count -= 1;
+            }
+            mask <<= 1;
+            if mask > 0xf {
+                mask = 0x1;
+            }
+        }
+
+        // Prepare luma for col
+        let value = if yindex < 4 {
+            ch & 0xf
+        } else {
+            (ch >> 4) & 0xf
+        };
+        mask = 0x1;
+        if x1 & 1 != 0 {
+            mask <<= 2;
+        }
+        for _ in 0..14 {
+            if value & mask != 0 {
+                luma[offset] = 1;
+            } else {
+                luma[offset] = 0;
+            }
+            offset += 1;
+            mask <<= 1;
+            if mask > 0xf {
+                mask = 0x1;
+            }
+        }
+
+        // Prepare luma for col + 1
+        mask = 0x1;
+        let next_value = if x1 < 39 {
+            let next_ch = self.read_text_memory(x1 + 1, y1);
+            if yindex < 4 {
+                next_ch & 0xf
+            } else {
+                (next_ch >> 4) & 0xf
+            }
+        } else {
+            0
+        };
+        if (x1 + 1) & 1 != 0 {
+            mask <<= 2;
+        }
+        count = 0;
+        while count != NEIGHBOR {
+            if next_value & mask != 0 {
+                luma[offset] = 1;
+            } else {
+                luma[offset] = 0;
+            }
+            offset += 1;
+            count += 1;
+            mask <<= 1;
+            if mask > 0xf {
+                mask = 0x1;
+            }
+        }
+
+        let x = x1 * 14;
+        for i in 0..14 {
+            let color = self.chroma_ntsc_color(&luma, x + i, NEIGHBOR + i, NEIGHBOR, false);
+            self.set_pixel_count(x + i, y1 * 2, color, 1);
+        }
+    }
+
+    pub fn draw_dlores_ntsc_a2_y(
+        &mut self,
+        x1: usize,
+        y1: usize,
+        ch: u8,
+        offset: usize,
+        aux: bool,
+    ) {
+        const NEIGHBOR: usize = 6;
+        let mut ptr = 0;
+        let mut mask = 0x1;
+        let mut luma = [0u8; 7 + 2 * NEIGHBOR + 1];
+        let yindex = y1 % 8;
+
+        // Prepare luma for col - 1
+        let prev_value = if !aux {
+            if x1 & 1 != 0 {
+                mask <<= 2
+            }
+            let prev_ch = self.read_aux_text_memory(x1, y1);
+            if yindex < 4 {
+                prev_ch & 0xf
+            } else {
+                (prev_ch >> 4) & 0xf
+            }
+        } else if x1 > 0 {
+            if (x1 - 1) & 1 != 0 {
+                mask <<= 2;
+            }
+            let prev_ch = self.read_text_memory(x1 - 1, y1);
+            if yindex < 4 {
+                prev_ch & 0xf
+            } else {
+                (prev_ch >> 4) & 0xf
+            }
+        } else {
+            0
+        };
+
+        let mut count = 7 - NEIGHBOR;
+        while ptr != NEIGHBOR {
+            if count == 0 {
+                if prev_value & mask != 0 {
+                    luma[ptr] = 1;
+                } else {
+                    luma[ptr] = 0;
+                }
+                ptr += 1;
+            } else {
+                count -= 1;
+            }
+            mask <<= 1;
+            if mask > 0xf {
+                mask = 0x1;
+            }
+        }
+
+        // Prepare luma for col
+        let value = if yindex < 4 {
+            ch & 0xf
+        } else {
+            (ch >> 4) & 0xf
+        };
+        mask = 0x1;
+        if x1 & 1 != 0 {
+            mask <<= 2;
+        }
+        for _ in 0..7 {
+            if value & mask != 0 {
+                luma[ptr] = 1;
+            } else {
+                luma[ptr] = 0;
+            }
+            ptr += 1;
+            mask <<= 1;
+            if mask > 0xf {
+                mask = 0x1;
+            }
+        }
+
+        // Prepare luma for col + 1
+        mask = 0x1;
+        let next_value = if aux {
+            if x1 & 1 != 0 {
+                mask <<= 2;
+            }
+            let next_ch = self.read_text_memory(x1, y1);
+            if yindex < 4 {
+                next_ch & 0xf
+            } else {
+                (next_ch >> 4) & 0xf
+            }
+        } else if x1 < 39 {
+            if (x1 + 1) & 1 != 0 {
+                mask <<= 2;
+            }
+            let next_ch = self.read_aux_text_memory(x1 + 1, y1);
+            if yindex < 4 {
+                next_ch & 0xf
+            } else {
+                (next_ch >> 4) & 0xf
+            }
+        } else {
+            0
+        };
+
+        count = 0;
+        while count != NEIGHBOR {
+            if next_value & mask != 0 {
+                luma[ptr] = 1;
+            } else {
+                luma[ptr] = 0;
+            }
+            ptr += 1;
+            count += 1;
+            mask <<= 1;
+            if mask > 0xf {
+                mask = 0x1;
+            }
+        }
+
+        let x = x1 * 14;
+
+        for i in 0..7 {
+            let color = self.chroma_ntsc_color(&luma, x + offset + i, NEIGHBOR + i, NEIGHBOR, true);
+            self.set_pixel_count(x + offset + i, y1 * 2, color, 1);
         }
     }
 
@@ -1836,13 +2068,7 @@ impl Video {
 
     fn draw_raw_hires_ntsc_a2_row_col(&mut self, row: usize, col: usize, value: u8) {
         if row < 192 && col < 40 {
-            let an3 =
-                if self.display_mode != DisplayMode::RGB && self.dhires_mode && !self.vid80_mode {
-                    true
-                } else {
-                    false
-                };
-
+            let an3 = self.display_mode != DisplayMode::RGB && self.dhires_mode && !self.vid80_mode;
             const NEIGHBOR: usize = 3;
             let mut luma = [0u8; 14 + 4 * NEIGHBOR + 1];
             // Populate col-1 luma
