@@ -1,11 +1,29 @@
-use crate::ntsc::decoder_matrix;
+use crate::ntsc::*;
 use serde::{Deserialize, Serialize};
 
 pub type Rgb = [u8; 3];
 pub type Yuv = [f32; 3];
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum DisplayMode {
+    DEFAULT,
+    NTSC,
+    MONO,
+    RGB,
+}
+
+impl Default for DisplayMode {
+    fn default() -> Self {
+        DisplayMode::DEFAULT
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Video {
+    #[serde(skip)]
+    #[serde(default)]
+    pub display_mode: DisplayMode,
+
     #[serde(skip_serializing)]
     #[serde(default = "default_frame")]
     pub frame: Vec<u8>,
@@ -615,6 +633,7 @@ impl Video {
 
         Video {
             frame,
+            display_mode: DisplayMode::DEFAULT,
             video_main: vec![0u8; 0x10000],
             video_aux: vec![0u8; 0x10000],
             video_cache: vec![0x00; 40 * 192],
@@ -907,7 +926,10 @@ impl Video {
         if self.dhires_mode {
             mode |= 0x20;
         }
-        if self.mono_mode || self.rgb_mode == 0x3 {
+        if self.display_mode == DisplayMode::MONO
+            || self.mono_mode
+            || (self.display_mode == DisplayMode::RGB && self.rgb_mode == 0x3)
+        {
             mode |= 0x40;
         }
         mode << 16
@@ -1146,6 +1168,15 @@ impl Video {
 
     pub fn get_mono_mode(&self) -> bool {
         self.mono_mode
+    }
+
+    pub fn get_display_mode(&self) -> DisplayMode {
+        self.display_mode
+    }
+
+    pub fn set_display_mode(&mut self, mode: DisplayMode) {
+        self.display_mode = mode;
+        self.invalidate_video_cache();
     }
 
     pub fn set_mono_mode(&mut self, state: bool) {
@@ -1617,8 +1648,13 @@ impl Video {
     }
 
     fn draw_raw_hires_a2_row_col(&mut self, row: usize, col: usize, value: u8) {
-        if self.mono_mode {
+        if self.display_mode == DisplayMode::MONO || self.mono_mode {
             self.draw_raw_hires_mono_a2_row_col(row, col, value);
+            return;
+        }
+
+        if self.display_mode == DisplayMode::NTSC {
+            self.draw_raw_hires_ntsc_a2_row_col(row, col, value);
             return;
         }
 
@@ -1805,6 +1841,139 @@ impl Video {
         }
     }
 
+    fn draw_raw_hires_ntsc_a2_row_col(&mut self, row: usize, col: usize, value: u8) {
+        if row < 192 && col < 40 {
+            const NEIGHBOR: usize = 3;
+            let mut luma = [0u8; 14 + 4 * NEIGHBOR + 1];
+            // Populate col-1 luma
+            let prev_value = if col > 0 {
+                self.read_hires_memory(col - 1, row)
+            } else {
+                0
+            };
+            let mut offset = 0;
+            let mut hbs = (prev_value & 0x80 > 0) as usize;
+            let mut mask = 1 << (7 - NEIGHBOR);
+            if hbs > 0 {
+                if prev_value & (mask >> 1) > 0 {
+                    luma[2 * offset] = 1
+                } else {
+                    luma[2 * offset] = 0
+                }
+            }
+            while mask != 0x80 {
+                if prev_value & mask > 0 {
+                    luma[hbs + 2 * offset] = 1;
+                    luma[hbs + 2 * offset + 1] = 1;
+                } else {
+                    luma[hbs + 2 * offset] = 0;
+                    luma[hbs + 2 * offset + 1] = 0;
+                }
+                mask <<= 1;
+                offset += 1;
+            }
+
+            // Populate col luma
+            mask = 0x1;
+            hbs = (value & 0x80 > 0) as usize;
+            if hbs > 0 {
+                if prev_value & 0x40 > 0 {
+                    luma[2 * offset] = 1
+                } else {
+                    luma[2 * offset] = 0
+                }
+            }
+            while mask != 0x80 {
+                if value & mask > 0 {
+                    luma[hbs + 2 * offset] = 1;
+                    luma[hbs + 2 * offset + 1] = 1;
+                } else {
+                    luma[hbs + 2 * offset] = 0;
+                    luma[hbs + 2 * offset + 1] = 0;
+                }
+                mask <<= 1;
+                offset += 1;
+            }
+
+            // Populate col+1 luma
+            let next_value = if col < 39 {
+                self.read_hires_memory(col + 1, row)
+            } else {
+                0
+            };
+            mask = 0x1;
+            hbs = (next_value & 0x80 > 0) as usize;
+            if hbs > 0 {
+                if value & 0x40 > 0 {
+                    luma[2 * offset] = 1
+                } else {
+                    luma[2 * offset] = 0
+                }
+            }
+            while mask != (1 << NEIGHBOR) {
+                if next_value & mask > 0 {
+                    luma[hbs + 2 * offset] = 1;
+                    luma[hbs + 2 * offset + 1] = 1;
+                } else {
+                    luma[hbs + 2 * offset] = 0;
+                    luma[hbs + 2 * offset + 1] = 0;
+                }
+                mask <<= 1;
+                offset += 1;
+            }
+
+            let x = col * 14;
+            for i in 0..14 {
+                let color =
+                    self.chroma_ntsc_color(&luma, x + i, 2 * NEIGHBOR + i, 2 * NEIGHBOR, false);
+                self.set_pixel_count(x + i, 2 * row, color, 1);
+            }
+        }
+    }
+
+    fn chroma_ntsc(&self, luma: &[u8], x: usize, pos: usize, dhires: bool) -> Yuv {
+        if luma[pos] > 0 {
+            convert_chroma_to_yuv(x, dhires)
+        } else {
+            [0.0, 0.0, 0.0]
+        }
+    }
+
+    fn chroma_ntsc_neighbor(
+        &self,
+        luma: &[u8],
+        x: usize,
+        pos: usize,
+        offset: usize,
+        dhires: bool,
+    ) -> Yuv {
+        let left = self.chroma_ntsc(luma, x.saturating_sub(offset), pos - offset, dhires);
+        let right = self.chroma_ntsc(luma, x.saturating_add(offset), pos + offset, dhires);
+        [left[0] + right[0], left[1] + right[1], left[2] + right[2]]
+    }
+
+    fn chroma_ntsc_color(
+        &self,
+        luma: &[u8],
+        x: usize,
+        pos: usize,
+        neighbor: usize,
+        dhires: bool,
+    ) -> Rgb {
+        let mut c = ntsc_mul(
+            &self.chroma_ntsc(luma, x, pos, dhires),
+            &self.ntsc_decoder[0],
+        );
+        for i in 1..=neighbor {
+            ntsc_add_mul(
+                &mut c,
+                &self.chroma_ntsc_neighbor(luma, x, pos, i, dhires),
+                &self.ntsc_decoder[i],
+            );
+        }
+        convert_yuv_to_rgb(c)
+    }
+
     // ----- Video-7 SL7 extra modes ----- (from the videocard manual)
     //  AN3 TEXT HIRES 80COL
     //   0    1    ?     0    F/B Text
@@ -1835,13 +2004,21 @@ impl Video {
     }
 
     fn draw_raw_dhires_a2_row_col(&mut self, row: usize, col: usize, value: u8, aux_value: u8) {
-        if (!self.disable_rgb && self.rgb_mode == 0x3) || self.mono_mode {
+        if ((!self.disable_rgb || self.display_mode == DisplayMode::RGB) && self.rgb_mode == 0x3)
+            || self.mono_mode
+            || self.display_mode == DisplayMode::MONO
+        {
             self.draw_raw_dhires_mono_a2_row_col(row, col, value, aux_value);
             return;
         }
 
-        if !self.disable_rgb && self.rgb_mode == 0x1 {
+        if (!self.disable_rgb || self.display_mode == DisplayMode::RGB) && self.rgb_mode == 0x1 {
             self.draw_raw_dhires_160x192_row_col(row, col, value, aux_value);
+            return;
+        }
+
+        if self.display_mode == DisplayMode::NTSC {
+            self.draw_raw_dhires_ntsc_a2_row_col(row, col, value, aux_value);
             return;
         }
 
@@ -1860,7 +2037,7 @@ impl Video {
             // byte1 + (byte2&0x7f) << 7 + (byte3 & 0x7f) << 14 + (byte4 & 0x7f) << 21;
 
             // Mixed mode
-            if !self.disable_rgb && self.rgb_mode == 2 {
+            if (!self.disable_rgb || self.display_mode == DisplayMode::RGB) && self.rgb_mode == 2 {
                 self.draw_raw_dhires_mixed_row_col(row, col);
             } else {
                 let current_value = self.read_hires_memory(ptr, row);
@@ -2157,6 +2334,78 @@ impl Video {
 
                 offset += 4;
                 value_8_pixels >>= 4;
+            }
+        }
+    }
+
+    fn draw_raw_dhires_ntsc_a2_row_col(
+        &mut self,
+        row: usize,
+        col: usize,
+        value: u8,
+        aux_value: u8,
+    ) {
+        if row < 192 && col < 40 {
+            const NEIGHBOR: usize = 6;
+            let mut luma = [0u8; 14 + 2 * NEIGHBOR + 1];
+            let mut offset = 0;
+
+            // Handle luma for col - 1
+            let prev_value = if col > 0 {
+                self.read_hires_memory(col - 1, row)
+            } else {
+                0
+            };
+            let mut mask = 1 << (7 - NEIGHBOR);
+            while mask != 0x80 {
+                if prev_value & mask > 0 {
+                    luma[offset] = 1;
+                } else {
+                    luma[offset] = 0;
+                }
+                mask <<= 1;
+                offset += 1;
+            }
+
+            // Handle luma for col
+            mask = 0x1;
+            while mask != 0x80 {
+                if aux_value & mask > 0 {
+                    luma[offset] = 1;
+                } else {
+                    luma[offset] = 0;
+                }
+                if value & mask > 0 {
+                    luma[offset + 7] = 1;
+                } else {
+                    luma[offset + 7] = 0;
+                }
+                mask <<= 1;
+                offset += 1;
+            }
+            offset += 7;
+
+            // Handle luma for col+1
+            let next_value = if col < 39 {
+                self.read_aux_hires_memory(col + 1, row)
+            } else {
+                0
+            };
+            let mut mask = 0x1;
+            while mask != (1 << NEIGHBOR) {
+                if next_value & mask > 0 {
+                    luma[offset] = 1;
+                } else {
+                    luma[offset] = 0;
+                }
+                mask <<= 1;
+                offset += 1;
+            }
+
+            let x = col * 14;
+            for i in 0..14 {
+                let color = self.chroma_ntsc_color(&luma, x + i, NEIGHBOR + i, NEIGHBOR, true);
+                self.set_pixel_count(x + i, 2 * row, color, 1);
             }
         }
     }

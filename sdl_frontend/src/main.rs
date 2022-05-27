@@ -1,6 +1,7 @@
 //#![windows_subsystem = "windows"]
 
 use emu6502::bus::Bus;
+use emu6502::video::DisplayMode;
 //use emu6502::bus::Mem;
 //use emu6502::trace::trace;
 use emu6502::cpu::CPU;
@@ -52,6 +53,8 @@ struct EventParam<'a> {
     estimated_mhz: &'a mut f32,
     reload_cpu: &'a mut bool,
     save_screenshot: &'a mut bool,
+    display_mode: &'a [DisplayMode; 4],
+    display_index: &'a mut usize,
 }
 
 fn translate_key_to_apple_key(
@@ -385,7 +388,9 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             ..
         } => {
             if let Some(display) = &mut cpu.bus.video {
-                display.set_mono_mode(!display.get_mono_mode());
+                let display_mode = *event_param.display_mode;
+                *event_param.display_index = (*event_param.display_index + 1) % display_mode.len();
+                display.set_display_mode(display_mode[*event_param.display_index]);
             }
         }
         Event::KeyDown {
@@ -553,7 +558,7 @@ Function Keys:
     F3                Swap Disk 1 and Disk 2
     F4                Disable / Enable Joystick
     F5                Disable / Enable Fask Disk emulation
-    F6                Disable / Enable monochrome video
+    F6                Toggle Display Mode (Default, NTSC, Mono, RGB)
     F7                Disable / Enable Joystick jitter
     F8                Disable / Enable 50/60 Hz video
     F9                Disable / Enable full speed emulation
@@ -753,6 +758,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     if pargs.contains("--rgb") {
         if let Some(display) = &mut cpu.bus.video {
             display.set_rgb_mode(true);
+            display.set_display_mode(DisplayMode::RGB);
         }
     }
 
@@ -806,7 +812,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         }
 
         if let Some(display) = &mut cpu.bus.video {
-            display.update_ntsc_matrix(luma,CHROMA_BANDWIDTH);
+            display.update_ntsc_matrix(luma, CHROMA_BANDWIDTH);
         }
     }
 
@@ -843,6 +849,14 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut key_caps = true;
     let mut reload_cpu = false;
     let mut save_screenshot = false;
+
+    let mut display_index = 0;
+    let display_mode = [
+        DisplayMode::DEFAULT,
+        DisplayMode::NTSC,
+        DisplayMode::MONO,
+        DisplayMode::RGB,
+    ];
 
     cpu.reset();
     cpu.setup_emulator();
@@ -953,6 +967,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         estimated_mhz: &mut estimated_mhz,
                         reload_cpu: &mut reload_cpu,
                         save_screenshot: &mut save_screenshot,
+                        display_mode: &display_mode,
+                        display_index: &mut display_index,
                     };
 
                     handle_event(_cpu, event_value, &mut event_param);
