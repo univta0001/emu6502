@@ -1836,6 +1836,13 @@ impl Video {
 
     fn draw_raw_hires_ntsc_a2_row_col(&mut self, row: usize, col: usize, value: u8) {
         if row < 192 && col < 40 {
+            let an3 =
+                if self.display_mode != DisplayMode::RGB && self.dhires_mode && !self.vid80_mode {
+                    true
+                } else {
+                    false
+                };
+
             const NEIGHBOR: usize = 3;
             let mut luma = [0u8; 14 + 4 * NEIGHBOR + 1];
             // Populate col-1 luma
@@ -1918,7 +1925,7 @@ impl Video {
             let x = col * 14;
             for i in 0..14 {
                 let color =
-                    self.chroma_ntsc_color(&luma, x + i, 2 * NEIGHBOR + i, 2 * NEIGHBOR, false);
+                    self.chroma_ntsc_color(&luma, x + i, 2 * NEIGHBOR + i, 2 * NEIGHBOR, an3);
                 self.set_pixel_count(x + i, 2 * row, color, 1);
             }
         }
