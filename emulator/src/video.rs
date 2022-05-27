@@ -1578,7 +1578,7 @@ impl Video {
         };
 
         if self.vid80_mode && self.dhires_mode {
-            if !self.mono_mode {
+            if !self.mono_mode && !(self.display_mode == DisplayMode::MONO) {
                 for xindex in 0..7 {
                     self.set_pixel(x1 * 14 + xindex + offset, y1 * 2, color);
                     self.set_pixel(x1 * 14 + xindex + offset, y1 * 2 + 1, color);
@@ -1607,7 +1607,7 @@ impl Video {
                     }
                 }
             }
-        } else if !self.mono_mode {
+        } else if !self.mono_mode && !(self.display_mode == DisplayMode::MONO) {
             for xindex in 0..7 {
                 self.set_a2_pixel(x1 * 7 + xindex, y1, color);
             }
