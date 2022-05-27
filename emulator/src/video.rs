@@ -2,7 +2,7 @@ use crate::ntsc::decoder_matrix;
 use serde::{Deserialize, Serialize};
 
 pub type Rgb = [u8; 3];
-pub type Yuv = (f32, f32, f32);
+pub type Yuv = [f32; 3];
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Video {
@@ -59,7 +59,7 @@ pub struct Video {
 
     #[serde(skip_serializing)]
     #[serde(default = "default_ntsc_decoder")]
-    ntsc_decoder: Vec<[f32;3]>,
+    ntsc_decoder: Vec<Yuv>,
 
     #[serde(default = "default_cycle_field")]
     cycle_field: usize,
@@ -882,7 +882,7 @@ impl Video {
 
     pub fn invalidate_video_cache(&mut self) {
         for i in 0..self.video_cache.len() {
-            self.video_cache[i]=u32::MAX;
+            self.video_cache[i] = u32::MAX;
         }
     }
 
@@ -2275,7 +2275,7 @@ fn default_frame() -> Vec<u8> {
     vec![0xff; Video::WIDTH * Video::HEIGHT * 4]
 }
 
-fn default_ntsc_decoder() -> Vec<[f32;3]> {
+fn default_ntsc_decoder() -> Vec<Yuv> {
     decoder_matrix(NTSC_LUMA_BANDWIDTH, NTSC_CHROMA_BANDWIDTH)
 }
 

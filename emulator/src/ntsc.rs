@@ -80,37 +80,29 @@ pub fn mul(array1: &[f32], array2: &[f32]) -> Vec<f32> {
     zip(array1, array2).map(|(i, j)| i * j).collect()
 }
 
-pub fn ntsc_mul(array1: &[f32;3], array2: &[f32;3]) -> [f32;3] {
+pub fn ntsc_mul(array1: &Yuv, array2: &Yuv) -> Yuv {
     let mut v = [0.0f32; 3];
     for i in 0..3 {
-        v[i] = array1[i]*array2[i];
+        v[i] = array1[i] * array2[i];
     }
     v
 }
 
-pub fn ntsc_add_mul(array0: &[f32;3], array1: &[f32;3], array2: &[f32;3]) -> [f32;3] {
-    let mut v = [0.0f32; 3];
+pub fn ntsc_add_mul(array0: &mut Yuv, array1: &Yuv, array2: &Yuv) {
     for i in 0..3 {
-        v[i] = array0[i]+(array1[i]*array2[i])
+        array0[i] += array1[i] * array2[i]
     }
-    v
 }
 
-pub fn decoder_matrix(luma_bandwidth: f32, chroma_bandwidth: f32) -> Vec<[f32;3]> {
+pub fn decoder_matrix(luma_bandwidth: f32, chroma_bandwidth: f32) -> Vec<Yuv> {
     let y_bandwidth = luma_bandwidth / NTSC_SAMPLE_RATE;
     let u_bandwidth = chroma_bandwidth / NTSC_SAMPLE_RATE;
     let v_bandwidth = u_bandwidth;
 
     let w = chebyshev_window(17, 50.0);
     let wy = normalize(&mul(&w, &lanczos_window(17, y_bandwidth)));
-    let wu = scale(
-        &normalize(&mul(&w, &lanczos_window(17, u_bandwidth))),
-        2.0,
-    );
-    let wv = scale(
-        &normalize(&mul(&w, &lanczos_window(17, v_bandwidth))),
-        2.0,
-    );
+    let wu = scale(&normalize(&mul(&w, &lanczos_window(17, u_bandwidth))), 2.0);
+    let wv = scale(&normalize(&mul(&w, &lanczos_window(17, v_bandwidth))), 2.0);
 
     let decoder_matrix = vec![
         [wy[8], wu[8], wv[8]],
@@ -135,11 +127,13 @@ pub fn convert_chroma_to_yuv(x_pos: usize, dhgr: bool) -> Yuv {
         2.0 * std::f32::consts::PI * (NTSC_SUBCARRIER * (x_pos as f32 + 84.0 + 0.50) + p)
     };
 
-    (1.0, f32::sin(phase), f32::cos(phase))
+    [1.0, f32::sin(phase), f32::cos(phase)]
 }
 
 pub fn convert_yuv_to_rgb(yuv: Yuv) -> Rgb {
-    let (y, u, v) = yuv;
+    let y = yuv[0];
+    let u = yuv[1];
+    let v = yuv[2];
 
     let r = ((y + 0.00000 * u + 1.13983 * v) * 255.0) as u8;
     let g = ((y - 0.39465 * u - 0.58060 * v) * 255.0) as u8;
