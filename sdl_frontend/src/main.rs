@@ -41,6 +41,7 @@ const CPU_CYCLES_PER_FRAME_60HZ: usize = 17030;
 const CPU_CYCLES_PER_FRAME_50HZ: usize = 20280;
 const AUDIO_SAMPLE_SIZE: u32 = 48000 / 60;
 const CPU_6502_MHZ: usize = 157500 / 11 * 65 / 912;
+const CHROMA_BANDWIDTH: f32 = 600000.0;
 
 const VERSION: &str = "0.1.0";
 
@@ -533,6 +534,7 @@ FLAGS:
     --opt_timing rate Override the optimal timing (Default is 0)
     --rgb             Enable RGB mode (Default: RGB mode disabled)
     --mboard 0|1|2    Number of mockingboards to enable
+    --luma bandwidth  Luma B/W (Valid value: 0 to 7159090, Default: 2000000)
 
 ARGS:
     [disk 1]          Disk 1 file (woz, dsk, po file). File can be in gz format
@@ -795,6 +797,16 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             for _ in 0..mboard {
                 sound.mboard.push(Mockingboard::new());
             }
+        }
+    }
+
+    if let Some(luma) = pargs.opt_value_from_str::<_, f32>("--luma")? {
+        if luma > 7159090.0 {
+            panic!("luma can only accept value from 0 to 7159090");
+        }
+
+        if let Some(display) = &mut cpu.bus.video {
+            display.update_ntsc_matrix(luma,CHROMA_BANDWIDTH);
         }
     }
 
