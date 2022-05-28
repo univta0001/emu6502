@@ -84,11 +84,11 @@ pub struct Video {
 
     #[serde(skip_serializing)]
     #[serde(default = "default_chroma_dhgr")]
-    chroma_dhgr: Vec<Yuv>,
+    chroma_dhgr: Vec<Vec<Rgb>>,
 
     #[serde(skip_serializing)]
     #[serde(default = "default_chroma_hgr")]
-    chroma_hgr: Vec<Yuv>,
+    chroma_hgr: Vec<Vec<Rgb>>,
 
     #[serde(default = "default_cycle_field")]
     cycle_field: usize,
@@ -1740,7 +1740,10 @@ impl Video {
 
         let x = x1 * 14;
         for i in 0..14 {
-            let color = self.chroma_ntsc_color(&luma, x + i, NEIGHBOR + i, NEIGHBOR, false);
+            let pos = (x + i) % 4;
+            let luma_u32 = luma_to_u32(&luma, NEIGHBOR + i, NEIGHBOR);
+            let color = self.chroma_hgr[pos as usize][luma_u32 as usize];
+            //let color = chroma_ntsc_color(&luma, x + i, NEIGHBOR + i, NEIGHBOR, false, &self.ntsc_decoder);
             self.set_pixel_count(x + i, y1 * 2, color, 1);
         }
     }
@@ -1869,7 +1872,10 @@ impl Video {
         let x = x1 * 14;
 
         for i in 0..7 {
-            let color = self.chroma_ntsc_color(&luma, x + offset + i, NEIGHBOR + i, NEIGHBOR, true);
+            let pos = (x + offset + i) % 4;
+            let luma_u32 = luma_to_u32(&luma, NEIGHBOR + i, NEIGHBOR);
+            let color = self.chroma_dhgr[pos as usize][luma_u32 as usize];
+            //let color = chroma_ntsc_color(&luma, x + offset + i, NEIGHBOR + i, NEIGHBOR, true, &self.ntsc_decoder);
             self.set_pixel_count(x + offset + i, y1 * 2, color, 1);
         }
     }
@@ -2163,62 +2169,17 @@ impl Video {
 
             let x = col * 14;
             for i in 0..14 {
-                let color =
-                    self.chroma_ntsc_color(&luma, x + i, 2 * NEIGHBOR + i, 2 * NEIGHBOR, an3);
+                let pos = (x + i) % 4;
+                let luma_u32 = luma_to_u32(&luma, 2 * NEIGHBOR + i, 2 * NEIGHBOR);
+                let color = if an3 {
+                    self.chroma_dhgr[pos as usize][luma_u32 as usize]
+                } else {
+                    self.chroma_hgr[pos as usize][luma_u32 as usize]
+                };
+                //let color = chroma_ntsc_color(&luma, x + i, 2 * NEIGHBOR + i, 2 * NEIGHBOR, an3, &self.ntsc_decoder);
                 self.set_pixel_count(x + i, 2 * row, color, 1);
             }
         }
-    }
-
-    fn chroma_ntsc(&self, luma: &[u8], x: usize, pos: usize, dhires: bool) -> Yuv {
-        if luma[pos] > 0 {
-            //convert_chroma_to_yuv(x, dhires)
-            if dhires {
-                self.chroma_dhgr[x]
-            } else {
-                self.chroma_hgr[x]
-            }
-        } else {
-            [0.0, 0.0, 0.0]
-        }
-    }
-
-    fn chroma_ntsc_combined(
-        &self,
-        c: &mut Yuv,
-        luma: &[u8],
-        x: usize,
-        pos: usize,
-        offset: usize,
-        dhires: bool,
-    ) {
-        let left = if offset > x {
-            [0.0, 0.0, 0.0]
-        } else {
-            self.chroma_ntsc(luma, x - offset, pos - offset, dhires)
-        };
-        let right = self.chroma_ntsc(luma, x + offset, pos + offset, dhires);
-        for i in 0..3 {
-            c[i] += (left[i] + right[i]) * self.ntsc_decoder[offset][i]
-        }
-    }
-
-    fn chroma_ntsc_color(
-        &self,
-        luma: &[u8],
-        x: usize,
-        pos: usize,
-        neighbor: usize,
-        dhires: bool,
-    ) -> Rgb {
-        let mut c = ntsc_mul(
-            &self.chroma_ntsc(luma, x, pos, dhires),
-            &self.ntsc_decoder[0],
-        );
-        for i in 1..=neighbor {
-            self.chroma_ntsc_combined(&mut c, luma, x, pos, i, dhires);
-        }
-        convert_yuv_to_rgb(c)
     }
 
     // ----- Video-7 SL7 extra modes ----- (from the videocard manual)
@@ -2651,7 +2612,10 @@ impl Video {
 
             let x = col * 14;
             for i in 0..14 {
-                let color = self.chroma_ntsc_color(&luma, x + i, NEIGHBOR + i, NEIGHBOR, true);
+                let pos = (x + i) % 4;
+                let luma_u32 = luma_to_u32(&luma, NEIGHBOR + i, NEIGHBOR);
+                let color = self.chroma_dhgr[pos as usize][luma_u32 as usize];
+                //let color = chroma_ntsc_color(&luma, x + i, NEIGHBOR + i, NEIGHBOR, true, &self.ntsc_decoder);
                 self.set_pixel_count(x + i, 2 * row, color, 1);
             }
         }
@@ -2787,20 +2751,111 @@ fn default_video_aux() -> Vec<u8> {
     vec![0u8; 0x10000]
 }
 
-fn default_chroma_hgr() -> Vec<Yuv> {
+fn default_chroma_hgr() -> Vec<Vec<Rgb>> {
     let mut v = Vec::new();
-    for i in 0..560 {
-        v.push(convert_chroma_to_yuv(i, false));
+    const NEIGHBOR: usize = 6;
+    let ntsc_decoder = default_ntsc_decoder();
+    let bits = 1 << (2 * NEIGHBOR + 1);
+
+    for offset in 0..4 {
+        let mut v1 = Vec::new();
+        for i in 0..bits {
+            let luma = usize_to_luma(i, NEIGHBOR);
+            let rgb =
+                chroma_ntsc_color(&luma, offset + 8, NEIGHBOR, NEIGHBOR, false, &ntsc_decoder);
+            v1.push(rgb);
+        }
+        v.push(v1);
     }
     v
 }
 
-fn default_chroma_dhgr() -> Vec<Yuv> {
+fn default_chroma_dhgr() -> Vec<Vec<Rgb>> {
     let mut v = Vec::new();
-    for i in 0..560 {
-        v.push(convert_chroma_to_yuv(i, true));
+    const NEIGHBOR: usize = 6;
+    let bits = 1 << (2 * NEIGHBOR + 1);
+
+    let ntsc_decoder = default_ntsc_decoder();
+
+    for offset in 0..4 {
+        let mut v1 = Vec::new();
+        for i in 0..bits {
+            let luma = usize_to_luma(i, NEIGHBOR);
+            let rgb = chroma_ntsc_color(&luma, offset + 8, NEIGHBOR, NEIGHBOR, true, &ntsc_decoder);
+            v1.push(rgb);
+        }
+        v.push(v1);
     }
     v
+}
+
+fn luma_to_u32(luma: &[u8], pos: usize, neighbor: usize) -> u32 {
+    let mut mask = 0x1;
+    let mut value = 0;
+    for i in 0..(2 * neighbor + 1) {
+        if luma[pos - neighbor + i] != 0 {
+            value |= mask
+        }
+        mask <<= 1;
+    }
+    value
+}
+
+fn usize_to_luma(value: usize, neighbor: usize) -> Vec<u8> {
+    let mut mask = 0x1;
+    let mut v = Vec::new();
+    for _ in 0..(2 * neighbor + 1) {
+        if value & mask != 0 {
+            v.push(1)
+        } else {
+            v.push(0)
+        }
+        mask <<= 1;
+    }
+    v
+}
+
+fn chroma_ntsc(luma: &[u8], x: usize, pos: usize, dhires: bool) -> Yuv {
+    if luma[pos] > 0 {
+        convert_chroma_to_yuv(x % 4, dhires)
+    } else {
+        [0.0, 0.0, 0.0]
+    }
+}
+
+fn chroma_ntsc_combined(
+    c: &mut Yuv,
+    luma: &[u8],
+    x: usize,
+    pos: usize,
+    offset: usize,
+    dhires: bool,
+    ntsc_decoder: &[Yuv],
+) {
+    let left = if offset > x {
+        [0.0, 0.0, 0.0]
+    } else {
+        chroma_ntsc(luma, x - offset, pos - offset, dhires)
+    };
+    let right = chroma_ntsc(luma, x + offset, pos + offset, dhires);
+    for i in 0..3 {
+        c[i] += (left[i] + right[i]) * ntsc_decoder[offset][i]
+    }
+}
+
+fn chroma_ntsc_color(
+    luma: &[u8],
+    x: usize,
+    pos: usize,
+    neighbor: usize,
+    dhires: bool,
+    ntsc_decoder: &[Yuv],
+) -> Rgb {
+    let mut c = ntsc_mul(&chroma_ntsc(luma, x, pos, dhires), &ntsc_decoder[0]);
+    for i in 1..=neighbor {
+        chroma_ntsc_combined(&mut c, luma, x, pos, i, dhires, ntsc_decoder);
+    }
+    convert_yuv_to_rgb(c)
 }
 
 fn serialize_display_mode<S: Serializer>(
