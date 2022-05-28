@@ -42,7 +42,8 @@ const CPU_CYCLES_PER_FRAME_60HZ: usize = 17030;
 const CPU_CYCLES_PER_FRAME_50HZ: usize = 20280;
 const AUDIO_SAMPLE_SIZE: u32 = 48000 / 60;
 const CPU_6502_MHZ: usize = 157500 / 11 * 65 / 912;
-const CHROMA_BANDWIDTH: f32 = 600000.0;
+const NTSC_LUMA_BANDWIDTH: f32 = 2300000.0;
+const NTSC_CHROMA_BANDWIDTH: f32 = 600000.0;
 
 const VERSION: &str = "0.1.0";
 
@@ -527,42 +528,43 @@ USAGE:
     emul6502 [FLAGS] [disk 1] [disk 2]
 
 FLAGS:
-    -h, --help        Prints help information
-    --50hz            Enable 50 Hz emulation     
-    --nojoystick      Disable joystick
-    --xtrim           Set joystick x-trim value
-    --ytrim           Set joystick y-trim value
-    -m, --model MODEL Set apple 2 model. Valid value: apple2p,apple2e,apple2ee
-    --d1 PATH         Set the file path for disk 1 drive at Slot 6 Drive 1
-    --d2 PATH         Set the file path for disk 2 drive at Slot 6 Drive 2
-    --weakbit rate    Set the random weakbit error rate (Default is 0.3)
-    --opt_timing rate Override the optimal timing (Default is 0)
-    --rgb             Enable RGB mode (Default: RGB mode disabled)
-    --mboard 0|1|2    Number of mockingboards to enable
-    --luma bandwidth  Luma B/W (Valid value: 0 to 7159090, Default: 2300000)
+    -h, --help         Prints help information
+    --50hz             Enable 50 Hz emulation     
+    --nojoystick       Disable joystick
+    --xtrim            Set joystick x-trim value
+    --ytrim            Set joystick y-trim value
+    -m, --model MODEL  Set apple 2 model. Valid value: apple2p,apple2e,apple2ee
+    --d1 PATH          Set the file path for disk 1 drive at Slot 6 Drive 1
+    --d2 PATH          Set the file path for disk 2 drive at Slot 6 Drive 2
+    --weakbit rate     Set the random weakbit error rate (Default is 0.3)
+    --opt_timing rate  Override the optimal timing (Default is 0)
+    --rgb              Enable RGB mode (Default: RGB mode disabled)
+    --mboard 0|1|2     Number of mockingboards to enable
+    --luma bandwidth   NTSC Luma B/W (Valid value: 0 to 7159090, Default: 2300000)
+    --chroma bandwidth NTSC Chroma B/W (Valid value: 0 to 7159090, Default: 600000)
 
 ARGS:
-    [disk 1]          Disk 1 file (woz, dsk, po file). File can be in gz format
-    [disk 2]          Disk 2 file (woz, dsk, po file). File can be in gz format
+    [disk 1]           Disk 1 file (woz, dsk, po file). File can be in gz format
+    [disk 2]           Disk 2 file (woz, dsk, po file). File can be in gz format
 
 Function Keys:
-    Ctrl-Shift-F1     Display emulation speed
-    Ctrl-Shift-F2     Disassemble current instructions
-    Ctrl-F1           Eject Disk 1
-    Ctrl-F2           Eject Disk 2
-    Ctrl-F3           Save state in YAML file
-    Ctrl-F4           Load state from YAML file
-    Ctrl-PrintScreen  Save screenshot as screenshot.png
-    F1:               Load Disk 1 file
-    F2:               Load Disk 2 file
-    F3                Swap Disk 1 and Disk 2
-    F4                Disable / Enable Joystick
-    F5                Disable / Enable Fask Disk emulation
-    F6                Toggle Display Mode (Default, NTSC, Mono, RGB)
-    F7                Disable / Enable Joystick jitter
-    F8                Disable / Enable 50/60 Hz video
-    F9                Disable / Enable full speed emulation
-    F12 / Break       Reset
+    Ctrl-Shift-F1      Display emulation speed
+    Ctrl-Shift-F2      Disassemble current instructions
+    Ctrl-F1            Eject Disk 1
+    Ctrl-F2            Eject Disk 2
+    Ctrl-F3            Save state in YAML file
+    Ctrl-F4            Load state from YAML file
+    Ctrl-PrintScreen   Save screenshot as screenshot.png
+    F1:                Load Disk 1 file
+    F2:                Load Disk 2 file
+    F3                 Swap Disk 1 and Disk 2
+    F4                 Disable / Enable Joystick
+    F5                 Disable / Enable Fask Disk emulation
+    F6                 Toggle Display Mode (Default, NTSC, Mono, RGB)
+    F7                 Disable / Enable Joystick jitter
+    F8                 Disable / Enable 50/60 Hz video
+    F9                 Disable / Enable full speed emulation
+    F12 / Break        Reset
 "#,
         VERSION
     );
@@ -717,6 +719,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut cpu = CPU::new(bus);
     let mut _cpu_stats = CpuStats::new();
 
+    let mut ntsc_luma = NTSC_LUMA_BANDWIDTH;
+    let mut ntsc_chroma = NTSC_CHROMA_BANDWIDTH;
+
     // Enable save for disk
     if let Some(drive) = &mut cpu.bus.disk {
         drive.set_enable_save_disk(true);
@@ -809,9 +814,19 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         if luma > 7159090.0 {
             panic!("luma can only accept value from 0 to 7159090");
         }
+        ntsc_luma = luma;
+    }
 
+    if let Some(chroma) = pargs.opt_value_from_str::<_, f32>("--chroma")? {
+        if chroma > 7159090.0 {
+            panic!("chroma can only accept value from 0 to 7159090");
+        }
+        ntsc_chroma = chroma;
+    }
+
+    if ntsc_luma != NTSC_LUMA_BANDWIDTH || ntsc_chroma != NTSC_CHROMA_BANDWIDTH {
         if let Some(display) = &mut cpu.bus.video {
-            display.update_ntsc_matrix(luma, CHROMA_BANDWIDTH);
+            display.update_ntsc_matrix(ntsc_luma, ntsc_chroma);
         }
     }
 
@@ -1029,6 +1044,12 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                                     DisplayMode::RGB => display_index = 3,
                                     _ => display_index = 0,
                                 }
+
+                                // Update NTSC details
+                                video.update_ntsc_matrix(
+                                    video.luma_bandwidth,
+                                    video.chroma_bandwidth,
+                                );
                             }
 
                             // Load the loaded disk into the new cpu

@@ -90,6 +90,12 @@ pub struct Video {
     #[serde(default = "default_chroma_hgr")]
     chroma_hgr: Vec<Vec<Rgb>>,
 
+    #[serde(default = "default_luma_bandwidth")]
+    pub luma_bandwidth: f32,
+
+    #[serde(default = "default_chroma_bandwidth")]
+    pub chroma_bandwidth: f32,
+
     #[serde(default = "default_cycle_field")]
     cycle_field: usize,
 
@@ -638,6 +644,8 @@ impl Video {
         let lut_text_2e_pal = build_lut(true, true, false);
         let lut_hires_pal = build_lut(false, true, false);
 
+        let luma_bandwidth = NTSC_LUMA_BANDWIDTH;
+        let chroma_bandwidth = NTSC_CHROMA_BANDWIDTH;
         let ntsc_decoder = decoder_matrix(NTSC_LUMA_BANDWIDTH, NTSC_CHROMA_BANDWIDTH);
         let cycle_field = CYCLES_PER_FIELD_60HZ;
 
@@ -680,6 +688,8 @@ impl Video {
             mono_mode: false,
             rgb_mode: 0,
             ntsc_decoder,
+            luma_bandwidth,
+            chroma_bandwidth,
             chroma_hgr,
             chroma_dhgr,
         }
@@ -1214,6 +1224,10 @@ impl Video {
 
     pub fn update_ntsc_matrix(&mut self, luma_bandwidth: f32, chroma_bandwidth: f32) {
         self.ntsc_decoder = decoder_matrix(luma_bandwidth, chroma_bandwidth);
+        let new_chroma_hgr = generate_chroma(&self.ntsc_decoder, false);
+        let new_chroma_dhgr = generate_chroma(&self.ntsc_decoder, true);
+        self.chroma_hgr = new_chroma_hgr;
+        self.chroma_dhgr = new_chroma_dhgr;
     }
 
     pub fn set_pixel(&mut self, x: usize, y: usize, rgb: Rgb) {
@@ -2739,6 +2753,14 @@ fn default_ntsc_decoder() -> Vec<Yuv> {
     decoder_matrix(NTSC_LUMA_BANDWIDTH, NTSC_CHROMA_BANDWIDTH)
 }
 
+fn default_luma_bandwidth() -> f32 {
+    NTSC_LUMA_BANDWIDTH
+}
+
+fn default_chroma_bandwidth() -> f32 {
+    NTSC_CHROMA_BANDWIDTH
+}
+
 fn default_cycle_field() -> usize {
     CYCLES_PER_FIELD_60HZ
 }
@@ -2751,10 +2773,9 @@ fn default_video_aux() -> Vec<u8> {
     vec![0u8; 0x10000]
 }
 
-fn default_chroma_hgr() -> Vec<Vec<Rgb>> {
+fn generate_chroma(ntsc_decoder: &[Yuv], dhires: bool) -> Vec<Vec<Rgb>> {
     let mut v = Vec::new();
     const NEIGHBOR: usize = 6;
-    let ntsc_decoder = default_ntsc_decoder();
     let bits = 1 << (2 * NEIGHBOR + 1);
 
     for offset in 0..4 {
@@ -2762,7 +2783,7 @@ fn default_chroma_hgr() -> Vec<Vec<Rgb>> {
         for i in 0..bits {
             let luma = usize_to_luma(i, NEIGHBOR);
             let rgb =
-                chroma_ntsc_color(&luma, offset + 8, NEIGHBOR, NEIGHBOR, false, &ntsc_decoder);
+                chroma_ntsc_color(&luma, offset + 8, NEIGHBOR, NEIGHBOR, dhires, ntsc_decoder);
             v1.push(rgb);
         }
         v.push(v1);
@@ -2770,23 +2791,14 @@ fn default_chroma_hgr() -> Vec<Vec<Rgb>> {
     v
 }
 
-fn default_chroma_dhgr() -> Vec<Vec<Rgb>> {
-    let mut v = Vec::new();
-    const NEIGHBOR: usize = 6;
-    let bits = 1 << (2 * NEIGHBOR + 1);
-
+fn default_chroma_hgr() -> Vec<Vec<Rgb>> {
     let ntsc_decoder = default_ntsc_decoder();
+    generate_chroma(&ntsc_decoder, false)
+}
 
-    for offset in 0..4 {
-        let mut v1 = Vec::new();
-        for i in 0..bits {
-            let luma = usize_to_luma(i, NEIGHBOR);
-            let rgb = chroma_ntsc_color(&luma, offset + 8, NEIGHBOR, NEIGHBOR, true, &ntsc_decoder);
-            v1.push(rgb);
-        }
-        v.push(v1);
-    }
-    v
+fn default_chroma_dhgr() -> Vec<Vec<Rgb>> {
+    let ntsc_decoder = default_ntsc_decoder();
+    generate_chroma(&ntsc_decoder, true)
 }
 
 fn luma_to_u32(luma: &[u8], pos: usize, neighbor: usize) -> u32 {
