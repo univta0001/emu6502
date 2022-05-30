@@ -7,6 +7,11 @@ use std::iter::zip;
 const NTSC_SAMPLE_RATE: f32 = 14318181.818181818;
 const NTSC_SUBCARRIER: f32 = 0.25;
 
+pub const NTSC_LUMA_BANDWIDTH: f32 = 2000000.0;
+pub const NTSC_CHROMA_BANDWIDTH: f32 = 600000.0;
+pub const NTSC_PIXEL_NEIGHBOR: usize = 6;
+pub const NTSC_FILTER_SIZE: usize = 8;
+
 fn real_idft(array: &[f32]) -> Vec<f32> {
     let size = array.len();
     let mut w = vec![0.0; size];
@@ -88,27 +93,41 @@ pub fn ntsc_mul(array1: &Yuv, array2: &Yuv) -> Yuv {
     v
 }
 
+pub fn ntsc_add_mul(array0: &mut Yuv, array1: &Yuv, array2: &Yuv) {
+    for i in 0..3 {
+        array0[i] += array1[i] * array2[i]
+    }
+}
+
 pub fn decoder_matrix(luma_bandwidth: f32, chroma_bandwidth: f32) -> Vec<Yuv> {
     let y_bandwidth = luma_bandwidth / NTSC_SAMPLE_RATE;
     let u_bandwidth = chroma_bandwidth / NTSC_SAMPLE_RATE;
     let v_bandwidth = u_bandwidth;
 
-    let w = chebyshev_window(17, 50.0);
-    let wy = normalize(&mul(&w, &lanczos_window(17, y_bandwidth)));
-    let wu = scale(&normalize(&mul(&w, &lanczos_window(17, u_bandwidth))), 2.0);
-    let wv = scale(&normalize(&mul(&w, &lanczos_window(17, v_bandwidth))), 2.0);
+    let w = chebyshev_window(2 * NTSC_FILTER_SIZE + 1, 50.0);
+    let wy = normalize(&mul(
+        &w,
+        &lanczos_window(2 * NTSC_FILTER_SIZE + 1, y_bandwidth),
+    ));
+    let wu = scale(
+        &normalize(&mul(
+            &w,
+            &lanczos_window(2 * NTSC_FILTER_SIZE + 1, u_bandwidth),
+        )),
+        2.0,
+    );
+    let wv = scale(
+        &normalize(&mul(
+            &w,
+            &lanczos_window(2 * NTSC_FILTER_SIZE + 1, v_bandwidth),
+        )),
+        2.0,
+    );
 
-    let decoder_matrix = vec![
-        [wy[8], wu[8], wv[8]],
-        [wy[7], wu[7], wv[7]],
-        [wy[6], wu[6], wv[6]],
-        [wy[5], wu[5], wv[5]],
-        [wy[4], wu[4], wv[4]],
-        [wy[3], wu[3], wv[3]],
-        [wy[2], wu[2], wv[2]],
-        [wy[1], wu[1], wv[1]],
-        [wy[0], wu[0], wv[0]],
-    ];
+    let mut decoder_matrix = Vec::new();
+    for i in (0..NTSC_FILTER_SIZE + 1).rev() {
+        decoder_matrix.push([wy[i], wu[i], wv[i]]);
+    }
     decoder_matrix
 }
 

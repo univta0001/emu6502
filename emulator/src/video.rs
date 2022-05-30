@@ -117,9 +117,6 @@ pub struct Video {
     rgb_mode: u8,
 }
 
-const NTSC_LUMA_BANDWIDTH: f32 = 2300000.0;
-const NTSC_CHROMA_BANDWIDTH: f32 = 600000.0;
-
 const TEXT_LEN: usize = 0x400;
 const HIRES_LEN: usize = 0x2000;
 const CYCLES_PER_ROW: usize = 65;
@@ -1660,10 +1657,9 @@ impl Video {
     }
 
     pub fn draw_lores_ntsc_a2_y(&mut self, x1: usize, y1: usize, ch: u8) {
-        const NEIGHBOR: usize = 6;
         let mut offset = 0;
         let mut mask = 0x1;
-        let mut luma = [0u8; 14 + 2 * NEIGHBOR + 1];
+        let mut luma = [0u8; 14 + 2 * NTSC_PIXEL_NEIGHBOR + 1];
         let yindex = y1 % 8;
 
         // Prepare luma for col - 1
@@ -1681,8 +1677,8 @@ impl Video {
             mask <<= 2;
         }
 
-        let mut count = 14 - NEIGHBOR;
-        while offset != NEIGHBOR {
+        let mut count = 14 - NTSC_PIXEL_NEIGHBOR;
+        while offset != NTSC_PIXEL_NEIGHBOR {
             if count == 0 {
                 if prev_value & mask != 0 {
                     luma[offset] = 1;
@@ -1738,7 +1734,7 @@ impl Video {
             mask <<= 2;
         }
         count = 0;
-        while count != NEIGHBOR {
+        while count != NTSC_PIXEL_NEIGHBOR {
             if next_value & mask != 0 {
                 luma[offset] = 1;
             } else {
@@ -1755,9 +1751,9 @@ impl Video {
         let x = x1 * 14;
         for i in 0..14 {
             let pos = (x + i) % 4;
-            let luma_u32 = luma_to_u32(&luma, NEIGHBOR + i, NEIGHBOR);
+            let luma_u32 = luma_to_u32(&luma, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR);
             let color = self.chroma_hgr[pos as usize][luma_u32 as usize];
-            //let color = chroma_ntsc_color(&luma, x + i, NEIGHBOR + i, NEIGHBOR, false, &self.ntsc_decoder);
+            //let color = chroma_ntsc_color(&luma, x + i, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR, false, &self.ntsc_decoder);
             self.set_pixel_count(x + i, y1 * 2, color, 1);
         }
     }
@@ -1770,10 +1766,9 @@ impl Video {
         offset: usize,
         aux: bool,
     ) {
-        const NEIGHBOR: usize = 6;
         let mut ptr = 0;
         let mut mask = 0x1;
-        let mut luma = [0u8; 7 + 2 * NEIGHBOR + 1];
+        let mut luma = [0u8; 7 + 2 * NTSC_PIXEL_NEIGHBOR + 1];
         let yindex = y1 % 8;
 
         // Prepare luma for col - 1
@@ -1801,8 +1796,8 @@ impl Video {
             0
         };
 
-        let mut count = 7 - NEIGHBOR;
-        while ptr != NEIGHBOR {
+        let mut count = 7 - NTSC_PIXEL_NEIGHBOR;
+        while ptr != NTSC_PIXEL_NEIGHBOR {
             if count == 0 {
                 if prev_value & mask != 0 {
                     luma[ptr] = 1;
@@ -1869,7 +1864,7 @@ impl Video {
         };
 
         count = 0;
-        while count != NEIGHBOR {
+        while count != NTSC_PIXEL_NEIGHBOR {
             if next_value & mask != 0 {
                 luma[ptr] = 1;
             } else {
@@ -1887,9 +1882,9 @@ impl Video {
 
         for i in 0..7 {
             let pos = (x + offset + i) % 4;
-            let luma_u32 = luma_to_u32(&luma, NEIGHBOR + i, NEIGHBOR);
+            let luma_u32 = luma_to_u32(&luma, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR);
             let color = self.chroma_dhgr[pos as usize][luma_u32 as usize];
-            //let color = chroma_ntsc_color(&luma, x + offset + i, NEIGHBOR + i, NEIGHBOR, true, &self.ntsc_decoder);
+            //let color = chroma_ntsc_color(&luma, x + offset + i, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR, true, &self.ntsc_decoder);
             self.set_pixel_count(x + offset + i, y1 * 2, color, 1);
         }
     }
@@ -2102,8 +2097,7 @@ impl Video {
     fn draw_raw_hires_ntsc_a2_row_col(&mut self, row: usize, col: usize, value: u8) {
         if row < 192 && col < 40 {
             let an3 = self.display_mode != DisplayMode::RGB && self.dhires_mode && !self.vid80_mode;
-            const NEIGHBOR: usize = 3;
-            let mut luma = [0u8; 14 + 4 * NEIGHBOR + 1];
+            let mut luma = [0u8; 14 + 2 * NTSC_PIXEL_NEIGHBOR + 1];
             // Populate col-1 luma
             let prev_value = if col > 0 {
                 self.read_hires_memory(col - 1, row)
@@ -2112,7 +2106,7 @@ impl Video {
             };
             let mut offset = 0;
             let mut hbs = (prev_value & 0x80 > 0) as usize;
-            let mut mask = 1 << (7 - NEIGHBOR);
+            let mut mask = 1 << (7 - (NTSC_PIXEL_NEIGHBOR / 2));
             if hbs > 0 {
                 if prev_value & (mask >> 1) > 0 {
                     luma[2 * offset] = 1
@@ -2169,7 +2163,7 @@ impl Video {
                     luma[2 * offset] = 0
                 }
             }
-            while mask != (1 << NEIGHBOR) {
+            while mask != (1 << (NTSC_PIXEL_NEIGHBOR / 2)) {
                 if next_value & mask > 0 {
                     luma[hbs + 2 * offset] = 1;
                     luma[hbs + 2 * offset + 1] = 1;
@@ -2184,13 +2178,13 @@ impl Video {
             let x = col * 14;
             for i in 0..14 {
                 let pos = (x + i) % 4;
-                let luma_u32 = luma_to_u32(&luma, 2 * NEIGHBOR + i, 2 * NEIGHBOR);
+                let luma_u32 = luma_to_u32(&luma, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR);
                 let color = if an3 {
                     self.chroma_dhgr[pos as usize][luma_u32 as usize]
                 } else {
                     self.chroma_hgr[pos as usize][luma_u32 as usize]
                 };
-                //let color = chroma_ntsc_color(&luma, x + i, 2 * NEIGHBOR + i, 2 * NEIGHBOR, an3, &self.ntsc_decoder);
+                //let color = chroma_ntsc_color(&luma, x + i, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR, an3, &self.ntsc_decoder);
                 self.set_pixel_count(x + i, 2 * row, color, 1);
             }
         }
@@ -2568,8 +2562,7 @@ impl Video {
         aux_value: u8,
     ) {
         if row < 192 && col < 40 {
-            const NEIGHBOR: usize = 6;
-            let mut luma = [0u8; 14 + 2 * NEIGHBOR + 1];
+            let mut luma = [0u8; 14 + 2 * NTSC_PIXEL_NEIGHBOR + 1];
             let mut offset = 0;
 
             // Handle luma for col - 1
@@ -2578,7 +2571,7 @@ impl Video {
             } else {
                 0
             };
-            let mut mask = 1 << (7 - NEIGHBOR);
+            let mut mask = 1 << (7 - NTSC_PIXEL_NEIGHBOR);
             while mask != 0x80 {
                 if prev_value & mask > 0 {
                     luma[offset] = 1;
@@ -2614,7 +2607,7 @@ impl Video {
                 0
             };
             let mut mask = 0x1;
-            while mask != (1 << NEIGHBOR) {
+            while mask != (1 << NTSC_PIXEL_NEIGHBOR) {
                 if next_value & mask > 0 {
                     luma[offset] = 1;
                 } else {
@@ -2627,9 +2620,9 @@ impl Video {
             let x = col * 14;
             for i in 0..14 {
                 let pos = (x + i) % 4;
-                let luma_u32 = luma_to_u32(&luma, NEIGHBOR + i, NEIGHBOR);
+                let luma_u32 = luma_to_u32(&luma, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR);
                 let color = self.chroma_dhgr[pos as usize][luma_u32 as usize];
-                //let color = chroma_ntsc_color(&luma, x + i, NEIGHBOR + i, NEIGHBOR, true, &self.ntsc_decoder);
+                //let color = chroma_ntsc_color(&luma, x + i, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR, true, &self.ntsc_decoder);
                 self.set_pixel_count(x + i, 2 * row, color, 1);
             }
         }
@@ -2775,15 +2768,20 @@ fn default_video_aux() -> Vec<u8> {
 
 fn generate_chroma(ntsc_decoder: &[Yuv], dhires: bool) -> Vec<Vec<Rgb>> {
     let mut v = Vec::new();
-    const NEIGHBOR: usize = 6;
-    let bits = 1 << (2 * NEIGHBOR + 1);
+    let bits = 1 << (2 * NTSC_PIXEL_NEIGHBOR + 1);
 
     for offset in 0..4 {
         let mut v1 = Vec::new();
         for i in 0..bits {
-            let luma = usize_to_luma(i, NEIGHBOR);
-            let rgb =
-                chroma_ntsc_color(&luma, offset + 8, NEIGHBOR, NEIGHBOR, dhires, ntsc_decoder);
+            let luma = usize_to_luma(i, NTSC_PIXEL_NEIGHBOR);
+            let rgb = chroma_ntsc_color(
+                &luma,
+                offset + 8,
+                NTSC_PIXEL_NEIGHBOR,
+                NTSC_PIXEL_NEIGHBOR,
+                dhires,
+                ntsc_decoder,
+            );
             v1.push(rgb);
         }
         v.push(v1);
