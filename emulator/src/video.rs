@@ -745,10 +745,10 @@ impl Video {
                 self.video_dirty[row / 8] = 1;
             }
 
-            // Redraw the whole row in the next 2 cycle
+            // Redraw the whole row in the next 8 cycle
             if self.video_reparse[row] != 0 {
                 if visible_col == 39 {
-                    if self.video_reparse[row] >= 3 {
+                    if self.video_reparse[row] > 8 {
                         self.video_reparse[row] = 0;
                     } else {
                         self.video_reparse[row] += 1;
