@@ -1489,14 +1489,6 @@ impl DiskDrive {
             ));
         }
 
-        // Check the disk type
-        if dsk[offset] != 1 {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Only 5.25 disk is supported for WOZ",
-            ));
-        }
-
         // Check and set the write_protect status
         let disk = &mut self.drive[self.drive_select];
         disk.write_protect = false;
