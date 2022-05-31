@@ -1671,7 +1671,8 @@ impl DiskDrive {
         //let track_to_read = 0;
         let tmap_track = disk.tmap_data[track_to_read as usize];
 
-        self.lss_cycle += 1.0;
+        // LSS is running at 2Mhz i.e. 0.5 us
+        self.lss_cycle += 0.5;
 
         let random_bits = MAX_USABLE_BITS_TRACK_SIZE * 8;
         let track_bits = if tmap_track == 255 {
@@ -1687,7 +1688,7 @@ impl DiskDrive {
             0.0
         };
 
-        if self.lss_cycle >= (disk.optimal_timing as f32 + disk_jitter) / 4.0 {
+        if self.lss_cycle >= (disk.optimal_timing as f32 + disk_jitter) / 8.0 {
             disk.head_mask >>= 1;
             disk.head_bit += 1;
 
@@ -1740,7 +1741,7 @@ impl DiskDrive {
                 };
             }
 
-            self.lss_cycle -= (disk.optimal_timing as f32 + disk_jitter) / 4.0;
+            self.lss_cycle -= (disk.optimal_timing as f32 + disk_jitter) / 8.0;
         }
     }
 
