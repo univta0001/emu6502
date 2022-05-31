@@ -1441,7 +1441,7 @@ impl DiskDrive {
             match chunk_id {
                 // INFO
                 WOZ_INFO_CHUNK => {
-                    self.handle_woz_info(dsk, woz_offset, woz1);
+                    self.handle_woz_info(dsk, woz_offset, woz1)?;
                     info = true;
                     woz_offset += chunk_size as usize;
                 }
@@ -1480,7 +1480,23 @@ impl DiskDrive {
         Ok(())
     }
 
-    fn handle_woz_info(&mut self, dsk: &[u8], offset: usize, woz1: bool) {
+    fn handle_woz_info(&mut self, dsk: &[u8], offset: usize, woz1: bool) -> io::Result<()> {
+        // Check on the info version
+        if dsk[offset] != 1 && dsk[offset] != 2 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Only Info version 1 or version 2 supported for WOZ",
+            ));
+        }
+
+        // Check the disk type
+        if dsk[offset] != 1 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Only 5.25 disk is supported for WOZ",
+            ));
+        }
+
         // Check and set the write_protect status
         let disk = &mut self.drive[self.drive_select];
         disk.write_protect = false;
@@ -1497,6 +1513,8 @@ impl DiskDrive {
         if self.override_optimal_timing != 0 {
             disk.optimal_timing = self.override_optimal_timing;
         }
+
+        Ok(())
     }
 
     fn handle_woz_tmap(&mut self, dsk: &[u8], offset: usize) {
