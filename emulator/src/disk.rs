@@ -1358,6 +1358,7 @@ impl DiskDrive {
         disk.optimal_timing = 32;
         disk.po_mode = po_mode;
         disk.write_protect = false;
+        disk.last_track = 0;
 
         if self.override_optimal_timing != 0 {
             disk.optimal_timing = self.override_optimal_timing;
@@ -1514,6 +1515,9 @@ impl DiskDrive {
             disk.optimal_timing = self.override_optimal_timing;
         }
 
+        // Clear the last disk track
+        disk.last_track = 0;
+
         Ok(())
     }
 
@@ -1646,6 +1650,7 @@ impl DiskDrive {
         disk.filename = "".to_owned();
         disk.modified = false;
         disk.po_mode = false;
+        disk.last_track = 0;
 
         disk.raw_track_data = vec![vec![0u8; MAX_USABLE_BITS_TRACK_SIZE]; DSK_TRACK_SIZE];
         disk.raw_track_bits = vec![0; DSK_TRACK_SIZE];
