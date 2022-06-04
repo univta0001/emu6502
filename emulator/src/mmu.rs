@@ -113,31 +113,7 @@ impl Mem for Mmu {
                 }
             }
             0x200..=0xbfff => {
-                let mut aux_flag = false;
-                if self.rdcardram {
-                    aux_flag = true
-                }
-
-                if self._80storeon {
-                    if (0x400..0x800).contains(&addr) {
-                        if self.video_page2 {
-                            aux_flag = true
-                        } else {
-                            aux_flag = false
-                        }
-                    }
-
-                    if (0x2000..0x4000).contains(&addr) && (self.video_graphics || self.video_hires)
-                    {
-                        if self.video_page2 {
-                            aux_flag = true
-                        } else {
-                            aux_flag = false;
-                        }
-                    }
-                }
-
-                if aux_flag {
+                if self.is_aux_memory(addr) {
                     self.aux_memory[addr as usize]
                 } else {
                     self.cpu_memory[addr as usize]
