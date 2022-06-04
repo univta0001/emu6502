@@ -311,9 +311,7 @@ pub struct CPU {
     pub bus: Bus,
     pub m65c02: bool,
     pub callback: bool,
-    pub halt_cpu: bool,
     pub full_speed: bool,
-    pub alt_cpu: bool,
 
     #[serde(skip_serializing)]
     #[serde(default)]
@@ -322,6 +320,12 @@ pub struct CPU {
     #[serde(skip_serializing)]
     #[serde(default)]
     pub bench_test: bool,
+
+    #[serde(default)]
+    pub alt_cpu: bool,
+
+    #[serde(default)]
+    pub halt_cpu: bool,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]

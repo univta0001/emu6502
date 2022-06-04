@@ -32,6 +32,8 @@ pub struct Bus {
     pub intcxrom: bool,
     pub slotc3rom: bool,
     pub intc8rom: bool,
+
+    #[serde(default)]
     pub halt_cpu: bool,
     //bad_softswitch_addr: HashMap<u16, bool>,
 }
