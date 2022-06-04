@@ -918,7 +918,7 @@ impl Mem for Bus {
                 }
                 if self.slotc3rom {
                     self.read_floating_bus()
-                } else if let Some(display) = &mut self.video {
+                } else if let Some(display) = &self.video {
                     if display.is_apple2e() {
                         self.mem_read(addr)
                     } else {
