@@ -697,6 +697,11 @@ impl Video {
         self.update_video();
     }
 
+    pub fn reset(&mut self) {
+        self._80storeon = false;
+        self.vid80_mode = false;
+    }
+
     pub fn update_video(&mut self) {
         let val = self.cycles % self.cycle_field;
         let row = val / CYCLES_PER_ROW;

@@ -62,6 +62,17 @@ impl Mmu {
         }
     }
 
+    pub fn reset(&mut self) {
+        self._80storeon = false;
+        self.altzp = false;
+        self.rdcardram = false;
+        self.wrcardram = false;
+        self.bank1 = false;
+        self.readbsr = false;
+        self.writebsr = false;
+        self.prewrite = false;
+    }
+
     pub fn is_aux_memory(&self, addr: u16, write_flag: bool) -> bool {
         let mut aux_flag = false;
         if write_flag {

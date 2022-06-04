@@ -158,18 +158,11 @@ impl Bus {
         self.intc8rom = false;
 
         if let Some(mmu) = &mut self.mem {
-            mmu._80storeon = false;
-            mmu.altzp = false;
-            mmu.rdcardram = false;
-            mmu.wrcardram = false;
-            mmu.bank1 = false;
-            mmu.readbsr = false;
-            mmu.writebsr = false;
-            mmu.prewrite = false;
+            mmu.reset();
         }
 
         if let Some(display) = &mut self.video {
-            display._80storeon = false;
+            display.reset();
         }
 
         if !self.disable_audio {

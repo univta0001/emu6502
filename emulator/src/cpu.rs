@@ -1326,7 +1326,7 @@ impl CPU {
             return false;
         }
 
-        if let Some(_) = self.bus.poll_halt_status() {
+        if self.bus.poll_halt_status().is_some() {
             self.alt_cpu = !self.alt_cpu;
         }
 
