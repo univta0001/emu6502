@@ -1,3 +1,4 @@
+use crate::bus::IOCard;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -30,8 +31,10 @@ impl ParallelCard {
     pub fn read_rom(&self, offset: u16) -> u8 {
         ROM[offset as usize]
     }
+}
 
-    pub fn io_access(&self, map_addr: u8, value: u8, write_flag: bool) -> u8 {
+impl IOCard for ParallelCard {
+    fn io_access(&mut self, map_addr: u8, value: u8, write_flag: bool) -> u8 {
         match map_addr {
             // Load output
             0x80 => {

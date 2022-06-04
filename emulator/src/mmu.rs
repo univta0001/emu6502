@@ -52,11 +52,18 @@ impl Mmu {
         }
     }
 
-    pub fn is_aux_memory(&self, addr: u16) -> bool {
+    pub fn is_aux_memory(&self, addr: u16, write_flag: bool) -> bool {
         let mut aux_flag = false;
-        if self.wrcardram {
-            aux_flag = true
+        if write_flag {
+            if self.wrcardram {
+                aux_flag = true
+            }   
+        } else {
+            if self.rdcardram {
+                aux_flag = true
+            }         
         }
+
         if self._80storeon {
             if (0x400..0x800).contains(&addr) {
                 if self.video_page2 {
@@ -113,7 +120,7 @@ impl Mem for Mmu {
                 }
             }
             0x200..=0xbfff => {
-                if self.is_aux_memory(addr) {
+                if self.is_aux_memory(addr, false) {
                     self.aux_memory[addr as usize]
                 } else {
                     self.cpu_memory[addr as usize]
@@ -137,7 +144,7 @@ impl Mem for Mmu {
             }
 
             0x200..=0xbfff => {
-                if self.is_aux_memory(addr) {
+                if self.is_aux_memory(addr, true) {
                     self.aux_memory[addr as usize] = data;
                 } else {
                     self.cpu_memory[addr as usize] = data;

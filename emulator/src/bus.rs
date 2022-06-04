@@ -42,6 +42,10 @@ pub struct Bus {
     //bad_softswitch_addr: HashMap<u16, bool>,
 }
 
+pub trait IOCard {
+    fn io_access(&mut self, map_addr: u8, value: u8, write_flag: bool) -> u8;
+}
+
 pub trait Mem {
     fn mem_read(&self, addr: u16) -> u8;
 
@@ -294,7 +298,7 @@ impl Bus {
         }
     }
 
-    pub fn read_video_latch(&self) -> u8 {
+    fn read_floating_bus(&self) -> u8 {
         if let Some(display) = &self.video {
             display.read_latch()
         } else {
@@ -514,7 +518,7 @@ impl Bus {
                 }
             }
 
-            0x20 => self.read_video_latch(),
+            0x20 => self.read_floating_bus(),
 
             0x29 => {
                 if let Some(display) = &mut self.video {
@@ -534,7 +538,7 @@ impl Bus {
                 }
                 if let Some(display) = &mut self.video {
                     display.enable_graphics(true);
-                    self.read_video_latch()
+                    self.read_floating_bus()
                 } else {
                     0
                 }
@@ -548,7 +552,7 @@ impl Bus {
                 }
                 if let Some(display) = &mut self.video {
                     display.enable_graphics(false);
-                    self.read_video_latch()
+                    self.read_floating_bus()
                 } else {
                     0
                 }
@@ -557,7 +561,7 @@ impl Bus {
             0x52 => {
                 if let Some(display) = &mut self.video {
                     display.enable_mixed_mode(false);
-                    self.read_video_latch()
+                    self.read_floating_bus()
                 } else {
                     0
                 }
@@ -565,7 +569,7 @@ impl Bus {
             0x53 => {
                 if let Some(display) = &mut self.video {
                     display.enable_mixed_mode(true);
-                    self.read_video_latch()
+                    self.read_floating_bus()
                 } else {
                     0
                 }
@@ -580,7 +584,7 @@ impl Bus {
                 if let Some(display) = &mut self.video {
                     display.enable_video_page2(false);
                     display.update_video();
-                    self.read_video_latch()
+                    self.read_floating_bus()
                 } else {
                     0
                 }
@@ -595,7 +599,7 @@ impl Bus {
                 if let Some(display) = &mut self.video {
                     display.enable_video_page2(true);
                     display.update_video();
-                    self.read_video_latch()
+                    self.read_floating_bus()
                 } else {
                     0
                 }
@@ -610,7 +614,7 @@ impl Bus {
                 if let Some(display) = &mut self.video {
                     display.enable_lores(true);
                     display.update_video();
-                    self.read_video_latch()
+                    self.read_floating_bus()
                 } else {
                     0
                 }
@@ -625,7 +629,7 @@ impl Bus {
                 if let Some(display) = &mut self.video {
                     display.enable_lores(false);
                     display.update_video();
-                    self.read_video_latch()
+                    self.read_floating_bus()
                 } else {
                     0
                 }
@@ -636,7 +640,7 @@ impl Bus {
                 if let Some(display) = &mut self.video {
                     display.enable_dhires(true);
                     display.update_video();
-                    self.read_video_latch()
+                    self.read_floating_bus()
                 } else {
                     0
                 }
@@ -646,7 +650,7 @@ impl Bus {
                 if let Some(display) = &mut self.video {
                     display.enable_dhires(false);
                     display.update_video();
-                    self.read_video_latch()
+                    self.read_floating_bus()
                 } else {
                     0
                 }
@@ -777,7 +781,7 @@ impl Bus {
             }
 
             0x90..=0x9f => {
-                if let Some(printer) = &self.parallel {
+                if let Some(printer) = &mut self.parallel {
                     printer.io_access(io_addr - io_slot, value, write_flag)
                 } else {
                     0
@@ -796,7 +800,7 @@ impl Bus {
                     true
                 });
                 */
-                self.read_video_latch()
+                self.read_floating_bus()
             }
         }
     }
@@ -819,7 +823,7 @@ impl Bus {
         if let Some(sound) = &mut self.audio {
             sound.click();
         }
-        self.read_video_latch()
+        self.read_floating_bus()
     }
 
     fn disk_io_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
@@ -881,7 +885,7 @@ impl Mem for Bus {
                     if let Some(printer) = &self.parallel {
                         printer.read_rom(addr & 0xff)
                     } else {
-                        self.read_video_latch()
+                        self.read_floating_bus()
                     }
                 } else {
                     self.mem_read(addr)
@@ -890,7 +894,7 @@ impl Mem for Bus {
 
             0xc200..=0xc2ff | 0xc700..=0xc7ff => {
                 if !self.intcxrom {
-                    self.read_video_latch()
+                    self.read_floating_bus()
                 } else {
                     self.mem_read(addr)
                 }
@@ -901,15 +905,15 @@ impl Mem for Bus {
                     self.intc8rom = true;
                 }
                 if self.slotc3rom {
-                    self.read_video_latch()
+                    self.read_floating_bus()
                 } else if let Some(display) = &mut self.video {
                     if display.is_apple2e() {
                         self.mem_read(addr)
                     } else {
-                        self.read_video_latch()
+                        self.read_floating_bus()
                     }
                 } else {
-                    self.read_video_latch()
+                    self.read_floating_bus()
                 }
             }
 
@@ -920,10 +924,10 @@ impl Mem for Bus {
                             let io_addr = (addr & 0xff) as u8;
                             sound.mboard[0].io_access(io_addr, 0, false)
                         } else {
-                            self.read_video_latch()
+                            self.read_floating_bus()
                         }
                     } else {
-                        self.read_video_latch()
+                        self.read_floating_bus()
                     }
                 } else {
                     self.mem_read(addr)
@@ -937,10 +941,10 @@ impl Mem for Bus {
                             let io_addr = (addr & 0xff) as u8;
                             sound.mboard[1].io_access(io_addr, 0, false)
                         } else {
-                            self.read_video_latch()
+                            self.read_floating_bus()
                         }
                     } else {
-                        self.read_video_latch()
+                        self.read_floating_bus()
                     }
                 } else {
                     self.mem_read(addr)
@@ -952,7 +956,7 @@ impl Mem for Bus {
                     if let Some(drive) = &self.disk {
                         drive.read_rom(addr & 0xff)
                     } else {
-                        self.read_video_latch()
+                        self.read_floating_bus()
                     }
                 } else {
                     self.mem_read(addr)
@@ -967,7 +971,7 @@ impl Mem for Bus {
                 if self.intcxrom || self.intc8rom {
                     self.mem_read(addr)
                 } else {
-                    self.read_video_latch()
+                    self.read_floating_bus()
                 }
             }
         }
@@ -982,7 +986,7 @@ impl Mem for Bus {
                     // Shadow it to the video ram
                     if (0x400..=0xbff).contains(&addr) || (0x2000..=0x5fff).contains(&addr) {
                         if let Some(display) = &mut self.video {
-                            if mmu.is_aux_memory(addr) {
+                            if mmu.is_aux_memory(addr, true) {
                                 display.video_aux[addr as usize] = data;
                             } else {
                                 display.video_main[addr as usize] = data;

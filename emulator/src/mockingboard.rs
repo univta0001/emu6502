@@ -1,3 +1,4 @@
+use crate::bus::IOCard;
 use serde::{Deserialize, Serialize};
 
 const AY_RESET: u8 = 0;
@@ -679,6 +680,16 @@ impl W65C22 {
     }
 }
 
+impl IOCard for Mockingboard {
+    fn io_access(&mut self, map_addr: u8, value: u8, write_flag: bool) -> u8 {
+        if map_addr < 0x80 {
+            self.w65c22[0].io_access(map_addr, value, write_flag)
+        } else {
+            self.w65c22[1].io_access(map_addr - 0x80, value, write_flag)
+        }
+    }
+}
+
 impl Default for W65C22 {
     fn default() -> Self {
         Self::new("")
@@ -765,14 +776,6 @@ impl Mockingboard {
 
     pub fn get_channel_enable(&self, chip: usize) -> u8 {
         self.w65c22[chip].ay8910.get_enable()
-    }
-
-    pub fn io_access(&mut self, map_addr: u8, value: u8, write_flag: bool) -> u8 {
-        if map_addr < 0x80 {
-            self.w65c22[0].io_access(map_addr, value, write_flag)
-        } else {
-            self.w65c22[1].io_access(map_addr - 0x80, value, write_flag)
-        }
     }
 }
 

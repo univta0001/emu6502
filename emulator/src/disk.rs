@@ -1,3 +1,4 @@
+use crate::bus::IOCard;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -1201,75 +1202,6 @@ impl DiskDrive {
         ROM[offset as usize]
     }
 
-    pub fn io_access(&mut self, map_addr: u8, value: u8, read_mode: bool) -> u8 {
-        match map_addr {
-            LOC_PHASE0OFF => {
-                self.set_phase(0, false);
-            }
-            LOC_PHASE0ON => {
-                self.set_phase(0, true);
-            }
-            LOC_PHASE1OFF => {
-                self.set_phase(1, false);
-            }
-            LOC_PHASE1ON => {
-                self.set_phase(1, true);
-            }
-            LOC_PHASE2OFF => {
-                self.set_phase(2, false);
-            }
-            LOC_PHASE2ON => {
-                self.set_phase(2, true);
-            }
-            LOC_PHASE3OFF => {
-                self.set_phase(3, false);
-            }
-            LOC_PHASE3ON => {
-                self.set_phase(3, true);
-            }
-            LOC_DRIVEOFF => {
-                self.motor_status(false);
-            }
-            LOC_DRIVEON => {
-                self.motor_status(true);
-            }
-            LOC_DRIVE1 => {
-                self.drive_select(0);
-            }
-            LOC_DRIVE2 => {
-                self.drive_select(1);
-            }
-            LOC_DRIVEREAD => {
-                self.q6 = false;
-            }
-            LOC_DRIVEWRITE => {
-                self.q6 = true;
-            }
-
-            LOC_DRIVEREADMODE => {
-                self.q7 = false;
-            }
-            LOC_DRIVEWRITEMODE => {
-                self.q7 = true;
-            }
-            _ => todo!(),
-        }
-
-        self.request_fast_disk();
-
-        let mut return_value = 0;
-        if read_mode {
-            if map_addr & 0x1 == 0 {
-                return_value = self.latch
-            } else {
-                return_value = 0
-            }
-        } else {
-            self.bus = value;
-        }
-        return_value
-    }
-
     fn request_fast_disk(&mut self) {
         self.fast_disk_timer = FAST_DISK_INTERVAL;
     }
@@ -1906,6 +1838,77 @@ impl DiskDrive {
             0x0d => self.latch = self.latch << 1 | 0x1,
             _ => self.latch = 0,
         }
+    }
+}
+
+impl IOCard for DiskDrive {
+    fn io_access(&mut self, map_addr: u8, value: u8, read_mode: bool) -> u8 {
+        match map_addr {
+            LOC_PHASE0OFF => {
+                self.set_phase(0, false);
+            }
+            LOC_PHASE0ON => {
+                self.set_phase(0, true);
+            }
+            LOC_PHASE1OFF => {
+                self.set_phase(1, false);
+            }
+            LOC_PHASE1ON => {
+                self.set_phase(1, true);
+            }
+            LOC_PHASE2OFF => {
+                self.set_phase(2, false);
+            }
+            LOC_PHASE2ON => {
+                self.set_phase(2, true);
+            }
+            LOC_PHASE3OFF => {
+                self.set_phase(3, false);
+            }
+            LOC_PHASE3ON => {
+                self.set_phase(3, true);
+            }
+            LOC_DRIVEOFF => {
+                self.motor_status(false);
+            }
+            LOC_DRIVEON => {
+                self.motor_status(true);
+            }
+            LOC_DRIVE1 => {
+                self.drive_select(0);
+            }
+            LOC_DRIVE2 => {
+                self.drive_select(1);
+            }
+            LOC_DRIVEREAD => {
+                self.q6 = false;
+            }
+            LOC_DRIVEWRITE => {
+                self.q6 = true;
+            }
+
+            LOC_DRIVEREADMODE => {
+                self.q7 = false;
+            }
+            LOC_DRIVEWRITEMODE => {
+                self.q7 = true;
+            }
+            _ => todo!(),
+        }
+
+        self.request_fast_disk();
+
+        let mut return_value = 0;
+        if read_mode {
+            if map_addr & 0x1 == 0 {
+                return_value = self.latch
+            } else {
+                return_value = 0
+            }
+        } else {
+            self.bus = value;
+        }
+        return_value
     }
 }
 
