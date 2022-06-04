@@ -883,7 +883,7 @@ impl Video {
         self.apple2e = flag
     }
 
-    pub fn is_apple2e(&mut self) -> bool {
+    pub fn is_apple2e(&self) -> bool {
         self.apple2e
     }
 

@@ -313,6 +313,7 @@ pub struct CPU {
     pub callback: bool,
     pub halt_cpu: bool,
     pub full_speed: bool,
+    pub alt_cpu: bool,
 
     #[serde(skip_serializing)]
     #[serde(default)]
@@ -422,6 +423,7 @@ impl CPU {
             m65c02: false,
             callback: false,
             halt_cpu: false,
+            alt_cpu: false,
             self_test: false,
             bench_test: false,
             full_speed: false,
@@ -1322,6 +1324,10 @@ impl CPU {
         if self.halt_cpu {
             self.halt_cpu = false;
             return false;
+        }
+
+        if let Some(_) = self.bus.poll_halt_status() {
+            self.alt_cpu = !self.alt_cpu;
         }
 
         if let Some(_nmi) = self.bus.poll_nmi_status() {
