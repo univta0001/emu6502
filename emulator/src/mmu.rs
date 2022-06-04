@@ -1,4 +1,4 @@
-use crate::bus::Mem;
+use crate::bus::{Mem, ROM_START, ROM_END};
 use serde::de::{Error, Unexpected};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::BTreeMap;
@@ -23,6 +23,11 @@ pub struct Mmu {
     #[serde(serialize_with = "as_hex", deserialize_with = "from_hex_12k")]
     pub aux_bank2_memory: Vec<u8>,
 
+    pub bank1: bool,
+    pub readbsr: bool,
+    pub writebsr: bool,
+    pub prewrite: bool,
+
     pub rdcardram: bool,
     pub wrcardram: bool,
     pub _80storeon: bool,
@@ -42,6 +47,11 @@ impl Mmu {
             aux_bank1_memory: vec![0; 0x3000],
             aux_bank2_memory: vec![0; 0x3000],
 
+            bank1: false,
+            readbsr: false,
+            writebsr: false,
+            prewrite: false,
+
             rdcardram: false,
             wrcardram: false,
             _80storeon: false,
@@ -57,11 +67,11 @@ impl Mmu {
         if write_flag {
             if self.wrcardram {
                 aux_flag = true
-            }   
+            }
         } else {
             if self.rdcardram {
                 aux_flag = true
-            }         
+            }
         }
 
         if self._80storeon {
@@ -126,7 +136,22 @@ impl Mem for Mmu {
                     self.cpu_memory[addr as usize]
                 }
             }
-
+            ROM_START..=ROM_END => {
+                let bank_addr = addr - 0xd000;
+                if !self.readbsr {
+                    self.mem_read(addr)
+                } else if self.bank1 || (0xe000..=0xffff).contains(&addr) {
+                    if !self.altzp {
+                        self.bank1_memory[bank_addr as usize]
+                    } else {
+                        self.aux_bank1_memory[bank_addr as usize]
+                    }
+                } else if !self.altzp {
+                    self.bank2_memory[bank_addr as usize]
+                } else {
+                    self.aux_bank2_memory[bank_addr as usize]
+                }
+            }
             _ => {
                 unimplemented!("should not reached here")
             }
@@ -150,6 +175,23 @@ impl Mem for Mmu {
                     self.cpu_memory[addr as usize] = data;
                 }
             }
+
+            ROM_START..=ROM_END => {
+                let bank_addr = addr - 0xd000;
+                if self.writebsr {
+                    if self.bank1 || (0xe000..=0xffff).contains(&addr) {
+                        if !self.altzp {
+                            self.bank1_memory[bank_addr as usize] = data;
+                        } else {
+                            self.aux_bank1_memory[bank_addr as usize] = data;
+                        }
+                    } else if !self.altzp {
+                        self.bank2_memory[bank_addr as usize] = data;
+                    } else {
+                        self.aux_bank2_memory[bank_addr as usize] = data;
+                    }
+                }
+            }            
 
             _ => {
                 unimplemented!("should not reached here")

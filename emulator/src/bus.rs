@@ -7,8 +7,8 @@ use rand::Rng;
 //use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
-const ROM_START: u16 = 0xd000;
-const ROM_END: u16 = 0xffff;
+pub const ROM_START: u16 = 0xd000;
+pub const ROM_END: u16 = 0xffff;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Bus {
@@ -27,15 +27,8 @@ pub struct Bus {
     pub joystick_flag: bool,
     pub joystick_jitter: bool,
     pub paddle_trigger: usize,
-
     pub mem: Option<Mmu>,
-    pub bank1: bool,
-    pub readbsr: bool,
-    pub writebsr: bool,
-    pub prewrite: bool,
-
     pub cycles: usize,
-
     pub intcxrom: bool,
     pub slotc3rom: bool,
     pub intc8rom: bool,
@@ -119,10 +112,6 @@ impl Bus {
             video: Some(Video::new()),
             audio: Some(Audio::new()),
             parallel: Some(ParallelCard::new()),
-            bank1: false,
-            readbsr: false,
-            writebsr: false,
-            prewrite: false,
             intcxrom: false,
             slotc3rom: false,
             intc8rom: false,
@@ -162,10 +151,6 @@ impl Bus {
     }
 
     pub fn reset(&mut self) {
-        self.bank1 = false;
-        self.readbsr = false;
-        self.writebsr = false;
-        self.prewrite = false;
         self.intcxrom = false;
         self.slotc3rom = false;
         self.intc8rom = false;
@@ -175,6 +160,10 @@ impl Bus {
             mmu.altzp = false;
             mmu.rdcardram = false;
             mmu.wrcardram = false;
+            mmu.bank1 = false;
+            mmu.readbsr = false;
+            mmu.writebsr = false;
+            mmu.prewrite = false;
         }
 
         if let Some(display) = &mut self.video {
@@ -431,16 +420,24 @@ impl Bus {
             }
 
             0x11 => {
-                if !self.bank1 {
-                    0x80 | (self.keyboard_latch & 0x7f)
+                if let Some(mmu) = &self.mem {
+                    if !mmu.bank1 {
+                        0x80 | (self.keyboard_latch & 0x7f)
+                    } else {
+                        self.keyboard_latch & 0x7f
+                    }
                 } else {
                     self.keyboard_latch & 0x7f
                 }
             }
 
             0x12 => {
-                if self.readbsr {
-                    0x80 | (self.keyboard_latch & 0x7f)
+                if let Some(mmu) = &self.mem {
+                    if mmu.readbsr {
+                        0x80 | (self.keyboard_latch & 0x7f)
+                    } else {
+                        self.keyboard_latch & 0x7f
+                    }
                 } else {
                     self.keyboard_latch & 0x7f
                 }
@@ -709,73 +706,89 @@ impl Bus {
             }
 
             0x80 | 0x84 => {
-                self.readbsr = true;
-                self.writebsr = false;
-                self.bank1 = false;
-                self.prewrite = false;
+                if let Some(mmu) = &mut self.mem {
+                    mmu.readbsr = true;
+                    mmu.writebsr = false;
+                    mmu.bank1 = false;
+                    mmu.prewrite = false;
+                }
                 0
             }
 
             0x81 | 0x85 => {
-                self.readbsr = false;
-                self.bank1 = false;
-                if !write_flag {
-                    self.writebsr = self.prewrite;
-                    self.prewrite = !write_flag;
+                if let Some(mmu) = &mut self.mem {
+                    mmu.readbsr = false;
+                    mmu.bank1 = false;
+                    if !write_flag {
+                        mmu.writebsr = mmu.prewrite;
+                        mmu.prewrite = !write_flag;
+                    }
                 }
                 0
             }
 
             0x82 | 0x86 => {
-                self.readbsr = false;
-                self.writebsr = false;
-                self.bank1 = false;
-                self.prewrite = false;
+                if let Some(mmu) = &mut self.mem {
+                    mmu.readbsr = false;
+                    mmu.writebsr = false;
+                    mmu.bank1 = false;
+                    mmu.prewrite = false;
+                }
                 0
             }
 
             0x83 | 0x87 => {
-                self.readbsr = true;
-                self.bank1 = false;
-                if !write_flag {
-                    self.writebsr = self.prewrite;
-                    self.prewrite = !write_flag;
+                if let Some(mmu) = &mut self.mem {
+                    mmu.readbsr = true;
+                    mmu.bank1 = false;
+                    if !write_flag {
+                        mmu.writebsr = mmu.prewrite;
+                        mmu.prewrite = !write_flag;
+                    }
                 }
                 0
             }
 
             0x88 | 0x8c => {
-                self.readbsr = true;
-                self.writebsr = false;
-                self.bank1 = true;
-                self.prewrite = false;
+                if let Some(mmu) = &mut self.mem {
+                    mmu.readbsr = true;
+                    mmu.writebsr = false;
+                    mmu.bank1 = true;
+                    mmu.prewrite = false;
+                }
                 0
             }
 
             0x89 | 0x8d => {
-                self.readbsr = false;
-                self.bank1 = true;
-                if !write_flag {
-                    self.writebsr = self.prewrite;
-                    self.prewrite = !write_flag;
+                if let Some(mmu) = &mut self.mem {
+                    mmu.readbsr = false;
+                    mmu.bank1 = true;
+                    if !write_flag {
+                        mmu.writebsr = mmu.prewrite;
+                        mmu.prewrite = !write_flag;
+                    }
                 }
                 0
             }
 
             0x8a | 0x8e => {
-                self.readbsr = false;
-                self.writebsr = false;
-                self.bank1 = true;
-                self.prewrite = false;
+                if let Some(mmu) = &mut self.mem {
+                    mmu.readbsr = false;
+                    mmu.writebsr = false;
+                    mmu.bank1 = true;
+                    mmu.prewrite = false;
+                }
                 0
             }
 
             0x8b | 0x8f => {
-                self.readbsr = true;
-                self.bank1 = true;
-                if !write_flag {
-                    self.writebsr = self.prewrite;
-                    self.prewrite = !write_flag;
+                if let Some(mmu) = &mut self.mem {
+                    mmu.readbsr = true;
+                    mmu.bank1 = true;
+                    if !write_flag {
+                        mmu.writebsr = mmu.prewrite;
+                        mmu.prewrite = !write_flag;
+                    }
                 }
                 0
             }
@@ -860,25 +873,13 @@ impl Mem for Bus {
             }
 
             ROM_START..=ROM_END => {
-                let bank_addr = addr - 0xd000;
-                if let Some(mmu) = &self.mem {
-                    if !self.readbsr {
-                        mmu.mem_read(addr)
-                    } else if self.bank1 || (0xe000..=0xffff).contains(&addr) {
-                        if !mmu.altzp {
-                            mmu.bank1_memory[bank_addr as usize]
-                        } else {
-                            mmu.aux_bank1_memory[bank_addr as usize]
-                        }
-                    } else if !mmu.altzp {
-                        mmu.bank2_memory[bank_addr as usize]
-                    } else {
-                        mmu.aux_bank2_memory[bank_addr as usize]
-                    }
+                if let Some(mmu) = &mut self.mem {
+                    mmu.unclocked_addr_read(addr)
                 } else {
                     0
-                }
+                }                
             }
+            
             // Unused slots should be random values
             0xc100..=0xc1ff => {
                 if !self.intcxrom {
@@ -997,21 +998,8 @@ impl Mem for Bus {
             }
 
             ROM_START..=ROM_END => {
-                let bank_addr = addr - 0xd000;
                 if let Some(mmu) = &mut self.mem {
-                    if self.writebsr {
-                        if self.bank1 || (0xe000..=0xffff).contains(&addr) {
-                            if !mmu.altzp {
-                                mmu.bank1_memory[bank_addr as usize] = data;
-                            } else {
-                                mmu.aux_bank1_memory[bank_addr as usize] = data;
-                            }
-                        } else if !mmu.altzp {
-                            mmu.bank2_memory[bank_addr as usize] = data;
-                        } else {
-                            mmu.aux_bank2_memory[bank_addr as usize] = data;
-                        }
-                    }
+                    mmu.unclocked_addr_write(addr, data);
                 }
             }
 
