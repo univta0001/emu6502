@@ -1319,6 +1319,11 @@ impl CPU {
     where
         F: FnMut(&mut CPU),
     {
+        if self.halt_cpu {
+            self.halt_cpu = false;
+            return false;
+        }
+
         if let Some(_nmi) = self.bus.poll_nmi_status() {
             self.interrupt(interrupt::NMI);
         } else if self.bus.irq().is_some() && !self.status.contains(CpuFlags::INTERRUPT_DISABLE) {
@@ -1837,12 +1842,6 @@ impl CPU {
             }
             return false;
         }
-
-        if self.halt_cpu {
-            self.halt_cpu = false;
-            return false;
-        }
-
         true
     }
 }

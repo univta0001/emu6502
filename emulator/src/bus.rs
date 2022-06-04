@@ -877,9 +877,9 @@ impl Mem for Bus {
                     mmu.unclocked_addr_read(addr)
                 } else {
                     0
-                }                
+                }
             }
-            
+
             // Unused slots should be random values
             0xc100..=0xc1ff => {
                 if !self.intcxrom {

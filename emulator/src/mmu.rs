@@ -1,4 +1,4 @@
-use crate::bus::{Mem, ROM_START, ROM_END};
+use crate::bus::{Mem, ROM_END, ROM_START};
 use serde::de::{Error, Unexpected};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::BTreeMap;
@@ -68,10 +68,8 @@ impl Mmu {
             if self.wrcardram {
                 aux_flag = true
             }
-        } else {
-            if self.rdcardram {
-                aux_flag = true
-            }
+        } else if self.rdcardram {
+            aux_flag = true
         }
 
         if self._80storeon {
@@ -191,7 +189,7 @@ impl Mem for Mmu {
                         self.aux_bank2_memory[bank_addr as usize] = data;
                     }
                 }
-            }            
+            }
 
             _ => {
                 unimplemented!("should not reached here")
