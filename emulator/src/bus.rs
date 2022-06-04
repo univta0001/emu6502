@@ -32,6 +32,7 @@ pub struct Bus {
     pub intcxrom: bool,
     pub slotc3rom: bool,
     pub intc8rom: bool,
+    pub halt_cpu: bool,
     //bad_softswitch_addr: HashMap<u16, bool>,
 }
 
@@ -120,6 +121,7 @@ impl Bus {
             disable_audio: false,
             //bad_softswitch_addr: HashMap::new(),
             mem: Some(mem),
+            halt_cpu: false,
         };
 
         // Memory initialization is based on the implementation of AppleWin
@@ -273,6 +275,15 @@ impl Bus {
 
     pub fn poll_nmi_status(&mut self) -> Option<u8> {
         None
+    }
+
+    pub fn poll_halt_status(&mut self) -> Option<()> {
+        if self.halt_cpu {
+            self.halt_cpu = false;
+            Some(())
+        } else {
+            None
+        }
     }
 
     pub fn irq(&mut self) -> Option<usize> {
