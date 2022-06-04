@@ -1,4 +1,4 @@
-use crate::bus::{Mem, ROM_END, ROM_START};
+use crate::bus::{ROM_END, ROM_START};
 use serde::de::{Error, Unexpected};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::BTreeMap;
@@ -102,34 +102,24 @@ impl Mmu {
         }
         aux_flag
     }
-}
 
-impl Mem for Mmu {
-    fn mem_read(&self, addr: u16) -> u8 {
+    pub fn mem_read(&self, addr: u16) -> u8 {
         self.cpu_memory[addr as usize]
     }
 
-    fn mem_write(&mut self, addr: u16, data: u8) {
+    pub fn mem_write(&mut self, addr: u16, data: u8) {
         self.cpu_memory[addr as usize] = data
     }
 
-    fn mem_aux_read(&self, addr: u16) -> u8 {
+    pub fn mem_aux_read(&self, addr: u16) -> u8 {
         self.aux_memory[addr as usize]
     }
 
-    fn mem_aux_write(&mut self, addr: u16, data: u8) {
+    pub fn mem_aux_write(&mut self, addr: u16, data: u8) {
         self.aux_memory[addr as usize] = data
     }
 
-    fn addr_read(&mut self, _addr: u16) -> u8 {
-        unimplemented!("should not reached here")
-    }
-
-    fn addr_write(&mut self, _addr: u16, _data: u8) {
-        unimplemented!("should not reached here")
-    }
-
-    fn unclocked_addr_read(&mut self, addr: u16) -> u8 {
+    pub fn unclocked_addr_read(&self, addr: u16) -> u8 {
         match addr {
             0x0..=0x1ff => {
                 if self.altzp {
@@ -167,7 +157,7 @@ impl Mem for Mmu {
         }
     }
 
-    fn unclocked_addr_write(&mut self, addr: u16, data: u8) {
+    pub fn unclocked_addr_write(&mut self, addr: u16, data: u8) {
         match addr {
             0x0..=0x1ff => {
                 if !self.altzp {

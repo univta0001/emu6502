@@ -27,7 +27,7 @@ pub struct Bus {
     pub joystick_flag: bool,
     pub joystick_jitter: bool,
     pub paddle_trigger: usize,
-    pub mem: Option<Mmu>,
+    pub mem: Mmu,
     pub cycles: usize,
     pub intcxrom: bool,
     pub slotc3rom: bool,
@@ -120,7 +120,7 @@ impl Bus {
             disable_disk: false,
             disable_audio: false,
             //bad_softswitch_addr: HashMap::new(),
-            mem: Some(mem),
+            mem,
             halt_cpu: false,
         };
 
@@ -157,9 +157,7 @@ impl Bus {
         self.slotc3rom = false;
         self.intc8rom = false;
 
-        if let Some(mmu) = &mut self.mem {
-            mmu.reset();
-        }
+        self.mem.reset();
 
         if let Some(display) = &mut self.video {
             display.reset();
@@ -306,9 +304,7 @@ impl Bus {
         match io_addr {
             0x00 => {
                 if write_flag {
-                    if let Some(mmu) = &mut self.mem {
-                        mmu._80storeon = false;
-                    }
+                    self.mem._80storeon = false;
                     if let Some(display) = &mut self.video {
                         display._80storeon = false;
                     }
@@ -318,9 +314,7 @@ impl Bus {
 
             0x01 => {
                 if write_flag {
-                    if let Some(mmu) = &mut self.mem {
-                        mmu._80storeon = true;
-                    }
+                    self.mem._80storeon = true;
                     if let Some(display) = &mut self.video {
                         display._80storeon = true;
                     }
@@ -330,36 +324,28 @@ impl Bus {
 
             0x02 => {
                 if write_flag {
-                    if let Some(mmu) = &mut self.mem {
-                        mmu.rdcardram = false;
-                    }
+                    self.mem.rdcardram = false;
                 }
                 self.keyboard_latch
             }
 
             0x03 => {
                 if write_flag {
-                    if let Some(mmu) = &mut self.mem {
-                        mmu.rdcardram = true;
-                    }
+                    self.mem.rdcardram = true;
                 }
                 self.keyboard_latch
             }
 
             0x04 => {
                 if write_flag {
-                    if let Some(mmu) = &mut self.mem {
-                        mmu.wrcardram = false;
-                    }
+                    self.mem.wrcardram = false;
                 }
                 self.keyboard_latch
             }
 
             0x05 => {
                 if write_flag {
-                    if let Some(mmu) = &mut self.mem {
-                        mmu.wrcardram = true;
-                    }
+                    self.mem.wrcardram = true;
                 }
                 self.keyboard_latch
             }
@@ -380,18 +366,14 @@ impl Bus {
 
             0x08 => {
                 if write_flag {
-                    if let Some(mmu) = &mut self.mem {
-                        mmu.altzp = false;
-                    }
+                    self.mem.altzp = false;
                 }
                 self.keyboard_latch
             }
 
             0x09 => {
                 if write_flag {
-                    if let Some(mmu) = &mut self.mem {
-                        mmu.altzp = true;
-                    }
+                    self.mem.altzp = true;
                 }
                 self.keyboard_latch
             }
@@ -424,48 +406,32 @@ impl Bus {
             }
 
             0x11 => {
-                if let Some(mmu) = &self.mem {
-                    if !mmu.bank1 {
-                        0x80 | (self.keyboard_latch & 0x7f)
-                    } else {
-                        self.keyboard_latch & 0x7f
-                    }
+                if !self.mem.bank1 {
+                    0x80 | (self.keyboard_latch & 0x7f)
                 } else {
                     self.keyboard_latch & 0x7f
                 }
             }
 
             0x12 => {
-                if let Some(mmu) = &self.mem {
-                    if mmu.readbsr {
-                        0x80 | (self.keyboard_latch & 0x7f)
-                    } else {
-                        self.keyboard_latch & 0x7f
-                    }
+                if self.mem.readbsr {
+                    0x80 | (self.keyboard_latch & 0x7f)
                 } else {
                     self.keyboard_latch & 0x7f
                 }
             }
 
             0x13 => {
-                if let Some(mmu) = &self.mem {
-                    if mmu.rdcardram {
-                        0x80 | (self.keyboard_latch & 0x7f)
-                    } else {
-                        self.keyboard_latch & 0x7f
-                    }
+                if self.mem.rdcardram {
+                    0x80 | (self.keyboard_latch & 0x7f)
                 } else {
                     self.keyboard_latch & 0x7f
                 }
             }
 
             0x14 => {
-                if let Some(mmu) = &self.mem {
-                    if mmu.wrcardram {
-                        0x80 | (self.keyboard_latch & 0x7f)
-                    } else {
-                        self.keyboard_latch & 0x7f
-                    }
+                if self.mem.wrcardram {
+                    0x80 | (self.keyboard_latch & 0x7f)
                 } else {
                     self.keyboard_latch & 0x7f
                 }
@@ -480,12 +446,8 @@ impl Bus {
             }
 
             0x16 => {
-                if let Some(mmu) = &self.mem {
-                    if mmu.altzp {
-                        0x80 | (self.keyboard_latch & 0x7f)
-                    } else {
-                        self.keyboard_latch & 0x7f
-                    }
+                if self.mem.altzp {
+                    0x80 | (self.keyboard_latch & 0x7f)
                 } else {
                     self.keyboard_latch & 0x7f
                 }
@@ -500,12 +462,8 @@ impl Bus {
             }
 
             0x18 => {
-                if let Some(mmu) = &self.mem {
-                    if mmu._80storeon {
-                        0x80 | (self.keyboard_latch & 0x7f)
-                    } else {
-                        self.keyboard_latch & 0x7f
-                    }
+                if self.mem._80storeon {
+                    0x80 | (self.keyboard_latch & 0x7f)
                 } else {
                     self.keyboard_latch & 0x7f
                 }
@@ -532,11 +490,7 @@ impl Bus {
             0x30..=0x3f => self.audio_io_access(),
 
             0x50 => {
-                {
-                    if let Some(mmu) = &mut self.mem {
-                        mmu.video_graphics = true;
-                    }
-                }
+                self.mem.video_graphics = true;
                 if let Some(display) = &mut self.video {
                     display.enable_graphics(true);
                     self.read_floating_bus()
@@ -546,11 +500,7 @@ impl Bus {
             }
 
             0x51 => {
-                {
-                    if let Some(mmu) = &mut self.mem {
-                        mmu.video_graphics = false;
-                    }
-                }
+                self.mem.video_graphics = false;
                 if let Some(display) = &mut self.video {
                     display.enable_graphics(false);
                     self.read_floating_bus()
@@ -577,11 +527,7 @@ impl Bus {
             }
 
             0x54 => {
-                {
-                    if let Some(mmu) = &mut self.mem {
-                        mmu.video_page2 = false;
-                    }
-                }
+                self.mem.video_page2 = false;
                 if let Some(display) = &mut self.video {
                     display.enable_video_page2(false);
                     display.update_video();
@@ -592,11 +538,7 @@ impl Bus {
             }
 
             0x55 => {
-                {
-                    if let Some(mmu) = &mut self.mem {
-                        mmu.video_page2 = true;
-                    }
-                }
+                self.mem.video_page2 = true;
                 if let Some(display) = &mut self.video {
                     display.enable_video_page2(true);
                     display.update_video();
@@ -607,11 +549,7 @@ impl Bus {
             }
 
             0x56 => {
-                {
-                    if let Some(mmu) = &mut self.mem {
-                        mmu.video_hires = false;
-                    }
-                }
+                self.mem.video_hires = false;
                 if let Some(display) = &mut self.video {
                     display.enable_lores(true);
                     display.update_video();
@@ -622,11 +560,7 @@ impl Bus {
             }
 
             0x57 => {
-                {
-                    if let Some(mmu) = &mut self.mem {
-                        mmu.video_hires = true;
-                    }
-                }
+                self.mem.video_hires = true;
                 if let Some(display) = &mut self.video {
                     display.enable_lores(false);
                     display.update_video();
@@ -710,89 +644,73 @@ impl Bus {
             }
 
             0x80 | 0x84 => {
-                if let Some(mmu) = &mut self.mem {
-                    mmu.readbsr = true;
-                    mmu.writebsr = false;
-                    mmu.bank1 = false;
-                    mmu.prewrite = false;
-                }
+                self.mem.readbsr = true;
+                self.mem.writebsr = false;
+                self.mem.bank1 = false;
+                self.mem.prewrite = false;
                 0
             }
 
             0x81 | 0x85 => {
-                if let Some(mmu) = &mut self.mem {
-                    mmu.readbsr = false;
-                    mmu.bank1 = false;
-                    if !write_flag {
-                        mmu.writebsr = mmu.prewrite;
-                        mmu.prewrite = !write_flag;
-                    }
+                self.mem.readbsr = false;
+                self.mem.bank1 = false;
+                if !write_flag {
+                    self.mem.writebsr = self.mem.prewrite;
+                    self.mem.prewrite = !write_flag;
                 }
                 0
             }
 
             0x82 | 0x86 => {
-                if let Some(mmu) = &mut self.mem {
-                    mmu.readbsr = false;
-                    mmu.writebsr = false;
-                    mmu.bank1 = false;
-                    mmu.prewrite = false;
-                }
+                self.mem.readbsr = false;
+                self.mem.writebsr = false;
+                self.mem.bank1 = false;
+                self.mem.prewrite = false;
                 0
             }
 
             0x83 | 0x87 => {
-                if let Some(mmu) = &mut self.mem {
-                    mmu.readbsr = true;
-                    mmu.bank1 = false;
-                    if !write_flag {
-                        mmu.writebsr = mmu.prewrite;
-                        mmu.prewrite = !write_flag;
-                    }
+                self.mem.readbsr = true;
+                self.mem.bank1 = false;
+                if !write_flag {
+                    self.mem.writebsr = self.mem.prewrite;
+                    self.mem.prewrite = !write_flag;
                 }
                 0
             }
 
             0x88 | 0x8c => {
-                if let Some(mmu) = &mut self.mem {
-                    mmu.readbsr = true;
-                    mmu.writebsr = false;
-                    mmu.bank1 = true;
-                    mmu.prewrite = false;
-                }
+                self.mem.readbsr = true;
+                self.mem.writebsr = false;
+                self.mem.bank1 = true;
+                self.mem.prewrite = false;
                 0
             }
 
             0x89 | 0x8d => {
-                if let Some(mmu) = &mut self.mem {
-                    mmu.readbsr = false;
-                    mmu.bank1 = true;
-                    if !write_flag {
-                        mmu.writebsr = mmu.prewrite;
-                        mmu.prewrite = !write_flag;
-                    }
+                self.mem.readbsr = false;
+                self.mem.bank1 = true;
+                if !write_flag {
+                    self.mem.writebsr = self.mem.prewrite;
+                    self.mem.prewrite = !write_flag;
                 }
                 0
             }
 
             0x8a | 0x8e => {
-                if let Some(mmu) = &mut self.mem {
-                    mmu.readbsr = false;
-                    mmu.writebsr = false;
-                    mmu.bank1 = true;
-                    mmu.prewrite = false;
-                }
+                self.mem.readbsr = false;
+                self.mem.writebsr = false;
+                self.mem.bank1 = true;
+                self.mem.prewrite = false;
                 0
             }
 
             0x8b | 0x8f => {
-                if let Some(mmu) = &mut self.mem {
-                    mmu.readbsr = true;
-                    mmu.bank1 = true;
-                    if !write_flag {
-                        mmu.writebsr = mmu.prewrite;
-                        mmu.prewrite = !write_flag;
-                    }
+                self.mem.readbsr = true;
+                self.mem.bank1 = true;
+                if !write_flag {
+                    self.mem.writebsr = self.mem.prewrite;
+                    self.mem.prewrite = !write_flag;
                 }
                 0
             }
@@ -868,21 +786,9 @@ impl Mem for Bus {
 
     fn unclocked_addr_read(&mut self, addr: u16) -> u8 {
         match addr {
-            0x0..=0xbfff => {
-                if let Some(mmu) = &mut self.mem {
-                    mmu.unclocked_addr_read(addr)
-                } else {
-                    0
-                }
-            }
+            0x0..=0xbfff => self.mem.unclocked_addr_read(addr),
 
-            ROM_START..=ROM_END => {
-                if let Some(mmu) = &mut self.mem {
-                    mmu.unclocked_addr_read(addr)
-                } else {
-                    0
-                }
-            }
+            ROM_START..=ROM_END => self.mem.unclocked_addr_read(addr),
 
             // Unused slots should be random values
             0xc100..=0xc1ff => {
@@ -911,7 +817,7 @@ impl Mem for Bus {
                 }
                 if self.slotc3rom {
                     self.read_floating_bus()
-                } else if let Some(display) = &self.video {
+                } else if let Some(display) = &mut self.video {
                     if display.is_apple2e() {
                         self.mem_read(addr)
                     } else {
@@ -985,26 +891,22 @@ impl Mem for Bus {
     fn unclocked_addr_write(&mut self, addr: u16, data: u8) {
         match addr {
             0x0..=0xbfff => {
-                if let Some(mmu) = &mut self.mem {
-                    mmu.unclocked_addr_write(addr, data);
+                self.mem.unclocked_addr_write(addr, data);
 
-                    // Shadow it to the video ram
-                    if (0x400..=0xbff).contains(&addr) || (0x2000..=0x5fff).contains(&addr) {
-                        if let Some(display) = &mut self.video {
-                            if mmu.is_aux_memory(addr, true) {
-                                display.video_aux[addr as usize] = data;
-                            } else {
-                                display.video_main[addr as usize] = data;
-                            }
+                // Shadow it to the video ram
+                if (0x400..=0xbff).contains(&addr) || (0x2000..=0x5fff).contains(&addr) {
+                    if let Some(display) = &mut self.video {
+                        if self.mem.is_aux_memory(addr, true) {
+                            display.video_aux[addr as usize] = data;
+                        } else {
+                            display.video_main[addr as usize] = data;
                         }
                     }
                 }
             }
 
             ROM_START..=ROM_END => {
-                if let Some(mmu) = &mut self.mem {
-                    mmu.unclocked_addr_write(addr, data);
-                }
+                self.mem.unclocked_addr_write(addr, data);
             }
 
             0xc000..=0xc0ff => {
@@ -1012,6 +914,9 @@ impl Mem for Bus {
             }
 
             0xc100..=0xc3ff => {
+                if (0xc200..=0xc2ff).contains(&addr) {
+                    self.halt_cpu = true;
+                }
                 /*
                 eprintln!(
                     "UNIMP WRITE to addr 0x{:04X} with value 0x{:02x}",
@@ -1054,31 +959,19 @@ impl Mem for Bus {
     }
 
     fn mem_read(&self, addr: u16) -> u8 {
-        if let Some(mmu) = &self.mem {
-            mmu.mem_read(addr)
-        } else {
-            0
-        }
+        self.mem.mem_read(addr)
     }
 
     fn mem_write(&mut self, addr: u16, data: u8) {
-        if let Some(mmu) = &mut self.mem {
-            mmu.mem_write(addr, data);
-        }
+        self.mem.mem_write(addr, data);
     }
 
     fn mem_aux_read(&self, addr: u16) -> u8 {
-        if let Some(mmu) = &self.mem {
-            mmu.mem_aux_read(addr)
-        } else {
-            0
-        }
+        self.mem.mem_aux_read(addr)
     }
 
     fn mem_aux_write(&mut self, addr: u16, data: u8) {
-        if let Some(mmu) = &mut self.mem {
-            mmu.mem_aux_write(addr, data);
-        }
+        self.mem.mem_aux_write(addr, data);
     }
 }
 
