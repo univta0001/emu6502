@@ -73,6 +73,9 @@ struct Disk {
     po_mode: bool,
     filename: String,
     loaded: bool,
+
+    #[serde(default)]
+    track_40: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -822,7 +825,7 @@ fn create_woz2_trk(dsk: &[u8], woz_offset: usize, disk: &Disk, newdsk: &mut Vec<
 
 // This functions assumes that the woz data comes originally from dsk / po
 fn convert_woz_to_dsk(disk: &mut Disk) -> io::Result<()> {
-    let no_of_tracks: usize = if disk.raw_track_bits[39] > 0 { 40 } else { 35 };
+    let no_of_tracks: usize = if disk.track_40 { 40 } else { 35 };
     let mut data = vec![0u8; 16 * 256 * no_of_tracks];
 
     for t in 0..no_of_tracks {
@@ -1291,6 +1294,12 @@ impl DiskDrive {
         disk.po_mode = po_mode;
         disk.write_protect = false;
         disk.last_track = 0;
+
+        if no_of_tracks > 35 {
+            disk.track_40 = true;
+        } else {
+            disk.track_40 = false;
+        }
 
         if self.override_optimal_timing != 0 {
             disk.optimal_timing = self.override_optimal_timing;
@@ -1921,6 +1930,7 @@ impl Disk {
             optimal_timing: 32,
             track: 0,
             last_track: 0,
+            track_40: false,
             phase: 0,
             head: 0,
             head_mask: 0x80,
