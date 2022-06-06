@@ -388,18 +388,22 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             keycode: Some(Keycode::F6),
             ..
         } => {
-            if let Some(display) = &mut cpu.bus.video {
+            if let Some(display) = &cpu.bus.video {
                 let display_mode = *event_param.display_mode;
                 *event_param.display_index = (*event_param.display_index + 1) % display_mode.len();
-                display.set_display_mode(display_mode[*event_param.display_index]);
+                display
+                    .borrow_mut()
+                    .set_display_mode(display_mode[*event_param.display_index]);
             }
         }
         Event::KeyDown {
             keycode: Some(Keycode::F5),
             ..
         } => {
-            if let Some(drive) = &mut cpu.bus.disk {
-                drive.set_disable_fast_disk(!drive.get_disable_fast_disk());
+            if let Some(drive) = &cpu.bus.disk {
+                let mut drv = drive.borrow_mut();
+                let drive_flag = drv.get_disable_fast_disk();
+                drv.set_disable_fast_disk(!drive_flag);
             }
         }
         Event::KeyDown {
@@ -434,8 +438,8 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                 } else {
                     eprintln!("Unable to open save file dialog");
                 }
-            } else if let Some(drive) = &mut cpu.bus.disk {
-                drive.swap_drive();
+            } else if let Some(drive) = &cpu.bus.disk {
+                drive.borrow_mut().swap_drive();
             }
         }
 
@@ -505,7 +509,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             let (status, value) =
                 translate_key_to_apple_key(cpu.is_apple2e(), event_param.key_caps, value, keymod);
             if status {
-                cpu.bus.keyboard_latch = (value + 128) as u8;
+                *cpu.bus.keyboard_latch.borrow_mut() = (value + 128) as u8;
             }
         }
 
@@ -574,27 +578,28 @@ fn load_disk<P>(cpu: &mut CPU, path: P, drive: usize) -> Result<(), Box<dyn Erro
 where
     P: AsRef<Path>,
 {
-    if let Some(disk_drive) = &mut cpu.bus.disk {
+    if let Some(disk_drive) = &cpu.bus.disk {
+        let mut drv = disk_drive.borrow_mut();
         let path_ref = path.as_ref();
-        let drive_selected = disk_drive.drive_selected();
-        disk_drive.drive_select(drive);
-        disk_drive.load_disk_image(path_ref)?;
-        disk_drive.set_disk_filename(path_ref);
-        disk_drive.set_loaded(true);
-        disk_drive.drive_select(drive_selected);
+        let drive_selected = drv.drive_selected();
+        drv.drive_select(drive);
+        drv.load_disk_image(path_ref)?;
+        drv.set_disk_filename(path_ref);
+        drv.set_loaded(true);
+        drv.drive_select(drive_selected);
     }
     Ok(())
 }
 
 fn eject_disk(cpu: &mut CPU, drive: usize) {
-    if let Some(disk_drive) = &mut cpu.bus.disk {
-        disk_drive.eject(drive);
+    if let Some(disk_drive) = &cpu.bus.disk {
+        disk_drive.borrow_mut().eject(drive);
     }
 }
 
 fn is_disk_loaded(cpu: &CPU, drive: usize) -> bool {
     if let Some(disk_drive) = &cpu.bus.disk {
-        let is_loaded = disk_drive.is_loaded(drive);
+        let is_loaded = disk_drive.borrow().is_loaded(drive);
         return is_loaded;
     }
     false
@@ -602,7 +607,7 @@ fn is_disk_loaded(cpu: &CPU, drive: usize) -> bool {
 
 fn get_disk_filename(cpu: &CPU, drive: usize) -> Option<String> {
     if let Some(disk_drive) = &cpu.bus.disk {
-        let filename = disk_drive.get_disk_filename(drive);
+        let filename = disk_drive.borrow().get_disk_filename(drive);
         return Some(filename);
     }
     None
@@ -695,7 +700,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     canvas.set_scale(2.0, 2.0).unwrap();
 
     if let Some(display) = &bus.video {
-        texture.update(None, &display.frame, 560 * 4).unwrap();
+        texture
+            .update(None, &display.borrow().frame, 560 * 4)
+            .unwrap();
     }
     canvas.copy(&texture, None, None).unwrap();
     canvas.present();
@@ -723,8 +730,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut ntsc_chroma = NTSC_CHROMA_BANDWIDTH;
 
     // Enable save for disk
-    if let Some(drive) = &mut cpu.bus.disk {
-        drive.set_enable_save_disk(true);
+    if let Some(drive) = &cpu.bus.disk {
+        drive.borrow_mut().set_enable_save_disk(true);
     }
 
     //cpu.load(apple2_rom, 0xd000);
@@ -737,8 +744,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     // Handle optional arguments
     if pargs.contains("--50hz") {
-        if let Some(display) = &mut cpu.bus.video {
-            display.set_video_50hz(true);
+        if let Some(display) = &cpu.bus.video {
+            display.borrow_mut().set_video_50hz(true);
         }
     }
 
@@ -755,14 +762,14 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
 
     if pargs.contains("--norgb") {
-        if let Some(display) = &mut cpu.bus.video {
-            display.set_display_mode(DisplayMode::DEFAULT);
+        if let Some(display) = &cpu.bus.video {
+            display.borrow_mut().set_display_mode(DisplayMode::DEFAULT);
         }
     }
 
     if pargs.contains("--rgb") {
-        if let Some(display) = &mut cpu.bus.video {
-            display.set_display_mode(DisplayMode::RGB);
+        if let Some(display) = &cpu.bus.video {
+            display.borrow_mut().set_display_mode(DisplayMode::RGB);
         }
     }
 
@@ -776,14 +783,14 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
 
     if let Some(input_rate) = pargs.opt_value_from_str::<_, f32>("--weakbit")? {
-        if let Some(drive) = &mut cpu.bus.disk {
-            drive.set_random_one_rate(input_rate);
+        if let Some(drive) = &cpu.bus.disk {
+            drive.borrow_mut().set_random_one_rate(input_rate);
         }
     }
 
     if let Some(input_rate) = pargs.opt_value_from_str::<_, u8>("--opt_timing")? {
-        if let Some(drive) = &mut cpu.bus.disk {
-            drive.set_override_optimal_timing(input_rate);
+        if let Some(drive) = &cpu.bus.disk {
+            drive.borrow_mut().set_override_optimal_timing(input_rate);
         }
     }
 
@@ -802,10 +809,11 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             panic!("mboard only accepts 0, 1 or 2 as value");
         }
 
-        if let Some(sound) = &mut cpu.bus.audio {
-            sound.mboard.clear();
+        if let Some(sound) = &cpu.bus.audio {
+            let mut snd = sound.borrow_mut();
+            snd.mboard.clear();
             for _ in 0..mboard {
-                sound.mboard.push(Mockingboard::new());
+                snd.mboard.push(Mockingboard::new());
             }
         }
     }
@@ -825,19 +833,22 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
 
     if ntsc_luma != NTSC_LUMA_BANDWIDTH || ntsc_chroma != NTSC_CHROMA_BANDWIDTH {
-        if let Some(display) = &mut cpu.bus.video {
-            display.update_ntsc_matrix(ntsc_luma, ntsc_chroma);
+        if let Some(display) = &cpu.bus.video {
+            display
+                .borrow_mut()
+                .update_ntsc_matrix(ntsc_luma, ntsc_chroma);
         }
     }
 
     // Load dsk image
     if let Ok(input_file) = pargs.free_from_str::<String>() {
         let path = Path::new(&input_file);
-        if let Some(disk_drive) = &mut cpu.bus.disk {
-            disk_drive.drive_select(0);
-            disk_drive.load_disk_image(path)?;
-            disk_drive.set_disk_filename(&path.display().to_string());
-            disk_drive.set_loaded(true);
+        if let Some(disk_drive) = &cpu.bus.disk {
+            let mut drv = disk_drive.borrow_mut();
+            drv.drive_select(0);
+            drv.load_disk_image(path)?;
+            drv.set_disk_filename(&path.display().to_string());
+            drv.set_loaded(true);
         }
     }
 
@@ -845,10 +856,11 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     if !remaining.is_empty() {
         let path = Path::new(&remaining[0]);
         if let Some(disk_drive) = &mut cpu.bus.disk {
-            disk_drive.drive_select(1);
-            disk_drive.load_disk_image(path)?;
-            disk_drive.set_disk_filename(&path.display().to_string());
-            disk_drive.set_loaded(true);
+            let mut drv = disk_drive.borrow_mut();
+            drv.drive_select(1);
+            drv.load_disk_image(path)?;
+            drv.set_disk_filename(&path.display().to_string());
+            drv.set_loaded(true);
         }
     }
 
@@ -888,7 +900,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             let mut cpu_period = 16_667;
 
             if let Some(display) = &_cpu.bus.video {
-                if display.is_video_50hz() {
+                if display.borrow().is_video_50hz() {
                     cpu_cycles = CPU_CYCLES_PER_FRAME_50HZ;
                     cpu_period = 20_000;
                 }
@@ -897,21 +909,23 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             if dcyc >= cpu_cycles {
                 let video_elapsed = video_refresh.elapsed().as_micros() + video_offset;
                 if video_elapsed >= 16_667 {
-                    if let Some(sound) = &mut _cpu.bus.audio {
+                    if let Some(sound) = &_cpu.bus.audio {
+                        let mut snd = sound.borrow_mut();
                         if audio_device.size() < AUDIO_SAMPLE_SIZE * 2 * 4 {
-                            let _ = audio_device.queue_audio(&sound.data.sample[..]);
-                            sound.clear_buffer();
+                            let _ = audio_device.queue_audio(&snd.data.sample[..]);
+                            snd.clear_buffer();
                         } else {
-                            sound.clear_buffer();
+                            snd.clear_buffer();
                         }
                     }
 
-                    if let Some(display) = &mut _cpu.bus.video {
+                    if let Some(display) = &_cpu.bus.video {
+                        let mut disp = display.borrow_mut();
                         if save_screenshot {
                             if let Ok(output) = File::create("screenshot.png") {
                                 let encoder = PngEncoder::new(output);
                                 let result =
-                                    encoder.write_image(&display.frame, 560, 384, ColorType::Rgba8);
+                                    encoder.write_image(&disp.frame, 560, 384, ColorType::Rgba8);
                                 if result.is_err() {
                                     eprintln!("Unable to create PNG file");
                                 }
@@ -922,7 +936,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                             save_screenshot = false;
                         }
 
-                        let dirty_region = display.get_dirty_region();
+                        let dirty_region = disp.get_dirty_region();
 
                         /*
                         if dirty_region.len() > 0
@@ -938,14 +952,14 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                             let end = 16 * ((region.1 - region.0) + 1);
                             let rect = Rect::new(0, start as i32, 560, end as u32);
                             texture
-                                .update(rect, &display.frame[start * 4 * 560..], 560 * 4)
+                                .update(rect, &disp.frame[start * 4 * 560..], 560 * 4)
                                 .unwrap();
                             canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
                         }
-                        display.clear_video_dirty();
+                        disp.clear_video_dirty();
 
                         let disk_is_on = if let Some(drive) = &_cpu.bus.disk {
-                            drive.is_motor_on()
+                            drive.borrow().is_motor_on()
                         } else {
                             false
                         };
@@ -953,7 +967,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         if disk_is_on {
                             let rect = Rect::new(552, 0, 8, 8);
                             texture
-                                .update(rect, &display.frame[552 * 4..], 560 * 4)
+                                .update(rect, &disp.frame[552 * 4..], 560 * 4)
                                 .unwrap();
                             canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
                             canvas.set_draw_color(Color::RGBA(255, 0, 0, 128));
@@ -961,7 +975,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         } else {
                             let rect = Rect::new(552, 0, 8, 8);
                             texture
-                                .update(rect, &display.frame[552 * 4..], 560 * 4)
+                                .update(rect, &disp.frame[552 * 4..], 560 * 4)
                                 .unwrap();
                             canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
                         }
@@ -994,7 +1008,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
 
                 let disk_normal_speed = if let Some(drive) = &_cpu.bus.disk {
-                    drive.is_normal_disk()
+                    drive.borrow().is_normal_disk()
                 } else {
                     true
                 };
@@ -1026,18 +1040,19 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
                             // Initialize new cpu video memory
                             if let Some(video) = &mut new_cpu.bus.video {
-                                let mmu = &new_cpu.bus.mem;
-                                video.video_main[0x400..0xc00]
+                                let mmu = new_cpu.bus.mem.borrow();
+                                let mut disp = video.borrow_mut();
+                                disp.video_main[0x400..0xc00]
                                     .clone_from_slice(&mmu.cpu_memory[0x400..0xc00]);
-                                video.video_aux[0x400..0xc00]
+                                disp.video_aux[0x400..0xc00]
                                     .clone_from_slice(&mmu.aux_memory[0x400..0xc00]);
-                                video.video_main[0x2000..0x6000]
+                                disp.video_main[0x2000..0x6000]
                                     .clone_from_slice(&mmu.cpu_memory[0x2000..0x6000]);
-                                video.video_aux[0x2000..0x6000]
+                                disp.video_aux[0x2000..0x6000]
                                     .clone_from_slice(&mmu.aux_memory[0x2000..0x6000]);
 
                                 // Restore the display mode
-                                match video.get_display_mode() {
+                                match disp.get_display_mode() {
                                     DisplayMode::NTSC => display_index = 1,
                                     DisplayMode::MONO => display_index = 2,
                                     DisplayMode::RGB => display_index = 3,
@@ -1045,10 +1060,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                                 }
 
                                 // Update NTSC details
-                                video.update_ntsc_matrix(
-                                    video.luma_bandwidth,
-                                    video.chroma_bandwidth,
-                                );
+                                let luma_bandwidth = disp.luma_bandwidth;
+                                let chroma_bandwidth = disp.chroma_bandwidth;
+                                disp.update_ntsc_matrix(luma_bandwidth, chroma_bandwidth);
                             }
 
                             // Load the loaded disk into the new cpu

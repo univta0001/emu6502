@@ -1299,7 +1299,7 @@ impl CPU {
     pub fn setup_emulator(&mut self) {
         if self.is_apple2e() {
             if let Some(display) = &mut self.bus.video {
-                display.set_apple2e(true);
+                display.borrow_mut().set_apple2e(true);
             }
         }
 
@@ -1338,7 +1338,7 @@ impl CPU {
             self.interrupt(interrupt::NMI);
         } else if self.bus.irq().is_some() && !self.status.contains(CpuFlags::INTERRUPT_DISABLE) {
             let irq_happen = self.bus.irq().unwrap();
-            let cycles_elapsed = self.bus.cycles.saturating_sub(irq_happen);
+            let cycles_elapsed = self.bus.cycles.borrow().saturating_sub(irq_happen);
 
             // If the interrupt happens on the last cycle of the opcode, execute the opcode and
             // then the interrupt handling routine
