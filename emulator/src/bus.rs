@@ -41,7 +41,10 @@ pub struct Bus {
 
 pub trait IOCard {
     fn reset(&mut self);
+    fn rom_access(&mut self, addr: u8, value: u8, write_flag: bool) -> u8;
     fn io_access(&mut self, map_addr: u8, value: u8, write_flag: bool) -> u8;
+    fn poll_irq(&mut self) -> Option<usize>;
+    fn poll_halt_status(&mut self) -> Option<()>;
 }
 
 pub trait Mem {
@@ -850,7 +853,7 @@ impl Mem for Bus {
             0xc100..=0xc1ff => {
                 if !*self.intcxrom.borrow() {
                     if let Some(printer) = &self.parallel {
-                        printer.borrow().read_rom(addr & 0xff)
+                        printer.borrow_mut().rom_access((addr & 0xff) as u8, 0, false)
                     } else {
                         self.read_floating_bus()
                     }
@@ -890,7 +893,7 @@ impl Mem for Bus {
                         let mut snd = sound.borrow_mut();
                         if !snd.mboard.is_empty() {
                             let io_addr = (addr & 0xff) as u8;
-                            snd.mboard[0].io_access(io_addr, 0, false)
+                            snd.mboard[0].rom_access(io_addr, 0, false)
                         } else {
                             self.read_floating_bus()
                         }
@@ -908,7 +911,7 @@ impl Mem for Bus {
                         let mut snd = sound.borrow_mut();
                         if snd.mboard.len() >= 2 {
                             let io_addr = (addr & 0xff) as u8;
-                            snd.mboard[1].io_access(io_addr, 0, false)
+                            snd.mboard[1].rom_access(io_addr, 0, false)
                         } else {
                             self.read_floating_bus()
                         }
@@ -923,7 +926,7 @@ impl Mem for Bus {
             0xc600..=0xc6ff => {
                 if !*self.intcxrom.borrow() {
                     if let Some(drive) = &self.disk {
-                        drive.borrow().read_rom(addr & 0xff)
+                        drive.borrow_mut().rom_access((addr & 0xff) as u8, 0, false)
                     } else {
                         self.read_floating_bus()
                     }
@@ -990,7 +993,7 @@ impl Mem for Bus {
                     let mut snd = sound.borrow_mut();
                     if !snd.mboard.is_empty() {
                         let io_addr = (addr & 0xff) as u8;
-                        let _write = snd.mboard[0].io_access(io_addr, data, true);
+                        let _write = snd.mboard[0].rom_access(io_addr, data, true);
                     }
                 }
             }
@@ -1000,7 +1003,7 @@ impl Mem for Bus {
                     let mut snd = sound.borrow_mut();
                     if snd.mboard.len() >= 2 {
                         let io_addr = (addr & 0xff) as u8;
-                        let _write = snd.mboard[1].io_access(io_addr, data, true);
+                        let _write = snd.mboard[1].rom_access(io_addr, data, true);
                     }
                 }
             }

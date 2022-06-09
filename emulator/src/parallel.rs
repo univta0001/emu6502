@@ -28,13 +28,17 @@ impl ParallelCard {
         ParallelCard {}
     }
 
-    pub fn read_rom(&self, offset: u16) -> u8 {
+    pub fn read_rom(&self, offset: u8) -> u8 {
         ROM[offset as usize]
     }
 }
 
 impl IOCard for ParallelCard {
     fn reset(&mut self) {
+    }
+
+    fn rom_access(&mut self, map_addr: u8, _value: u8, _write_flag: bool) -> u8 {
+        self.read_rom(map_addr)
     }
     
     fn io_access(&mut self, map_addr: u8, value: u8, write_flag: bool) -> u8 {
@@ -54,6 +58,14 @@ impl IOCard for ParallelCard {
             _ => {}
         }
         0
+    }
+
+    fn poll_irq(&mut self) -> Option<usize> {
+        None
+    }
+
+    fn poll_halt_status(&mut self) -> Option<()> {
+        None
     }
 }
 
