@@ -681,6 +681,12 @@ impl W65C22 {
 }
 
 impl IOCard for Mockingboard {
+    fn reset(&mut self) {
+        self.w65c22[0].reset();
+        self.w65c22[1].reset();
+        self.rng = 1;
+    }
+
     fn io_access(&mut self, map_addr: u8, value: u8, write_flag: bool) -> u8 {
         if map_addr < 0x80 {
             self.w65c22[0].io_access(map_addr, value, write_flag)
@@ -713,12 +719,6 @@ impl Mockingboard {
     pub fn tick(&mut self) {
         self.w65c22[0].tick();
         self.w65c22[1].tick();
-    }
-
-    pub fn reset(&mut self) {
-        self.w65c22[0].reset();
-        self.w65c22[1].reset();
-        self.rng = 1;
     }
 
     pub fn poll_irq(&mut self) -> Option<usize> {

@@ -1124,10 +1124,6 @@ impl DiskDrive {
         self.step_lss();
     }
 
-    pub fn reset(&mut self) {
-        self.motor_status(false);
-    }
-
     pub fn motor_status(&mut self, flag: bool) {
         if flag {
             self.drive[self.drive_select].motor_status = true;
@@ -1851,6 +1847,10 @@ impl DiskDrive {
 }
 
 impl IOCard for DiskDrive {
+    fn reset(&mut self) {
+        self.motor_status(false);
+    }
+
     fn io_access(&mut self, map_addr: u8, value: u8, read_mode: bool) -> u8 {
         match map_addr {
             LOC_PHASE0OFF => {

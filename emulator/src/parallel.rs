@@ -34,6 +34,9 @@ impl ParallelCard {
 }
 
 impl IOCard for ParallelCard {
+    fn reset(&mut self) {
+    }
+    
     fn io_access(&mut self, map_addr: u8, value: u8, write_flag: bool) -> u8 {
         match map_addr {
             // Load output

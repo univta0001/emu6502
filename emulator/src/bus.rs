@@ -40,6 +40,7 @@ pub struct Bus {
 }
 
 pub trait IOCard {
+    fn reset(&mut self);
     fn io_access(&mut self, map_addr: u8, value: u8, write_flag: bool) -> u8;
 }
 
