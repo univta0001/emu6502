@@ -43,8 +43,6 @@ pub trait IOCard {
     fn reset(&mut self);
     fn rom_access(&mut self, addr: u8, value: u8, write_flag: bool) -> u8;
     fn io_access(&mut self, map_addr: u8, value: u8, write_flag: bool) -> u8;
-    fn poll_irq(&mut self) -> Option<usize>;
-    fn poll_halt_status(&mut self) -> Option<()>;
 }
 
 pub trait Mem {

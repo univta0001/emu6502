@@ -698,22 +698,6 @@ impl IOCard for Mockingboard {
     fn io_access(&mut self, _map_addr: u8, _value: u8, _write_flag: bool) -> u8 {
         0
     }
-
-    fn poll_irq(&mut self) -> Option<usize> {
-        let result1 = self.w65c22[0].poll_irq();
-        let result2 = self.w65c22[1].poll_irq();
-        if result1.is_some() {
-            result1
-        } else if result2.is_some() {
-            result2
-        } else {
-            None
-        }
-    }
-
-    fn poll_halt_status(&mut self) -> Option<()> {
-        None
-    }
 }
 
 impl Default for W65C22 {
@@ -739,6 +723,18 @@ impl Mockingboard {
     pub fn tick(&mut self) {
         self.w65c22[0].tick();
         self.w65c22[1].tick();
+    }
+
+    pub fn poll_irq(&mut self) -> Option<usize> {
+        let result1 = self.w65c22[0].poll_irq();
+        let result2 = self.w65c22[1].poll_irq();
+        if result1.is_some() {
+            result1
+        } else if result2.is_some() {
+            result2
+        } else {
+            None
+        }
     }
 
     pub fn get_tone_level(&self, chip: usize, channel: usize) -> bool {

@@ -59,14 +59,6 @@ impl IOCard for ParallelCard {
         }
         0
     }
-
-    fn poll_irq(&mut self) -> Option<usize> {
-        None
-    }
-
-    fn poll_halt_status(&mut self) -> Option<()> {
-        None
-    }
 }
 
 impl Default for ParallelCard {

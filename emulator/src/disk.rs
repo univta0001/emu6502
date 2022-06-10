@@ -1923,14 +1923,6 @@ impl IOCard for DiskDrive {
         }
         return_value
     }
-
-    fn poll_irq(&mut self) -> Option<usize> {
-        None
-    }
-
-    fn poll_halt_status(&mut self) -> Option<()> {
-        None
-    }
 }
 
 impl Disk {
