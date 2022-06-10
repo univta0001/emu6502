@@ -23,6 +23,8 @@ quote = "1.0.18"
 syn = "1.0.96"
 ppv-lite86 = "0.2.16"
 semver = "1.0.9"
+iz80 = "0.3.5"
+derivative = "2.2.0"
 
 [dev-dependencies]
 regex = "1.5.6"

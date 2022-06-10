@@ -3,6 +3,7 @@ use crate::disk::DiskDrive;
 use crate::mmu::Mmu;
 use crate::parallel::ParallelCard;
 use crate::video::Video;
+use derivative::*;
 use rand::Rng;
 //use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
@@ -11,7 +12,17 @@ use std::cell::RefCell;
 pub const ROM_START: u16 = 0xd000;
 pub const ROM_END: u16 = 0xffff;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, PartialEq)]
+pub enum IODevice {
+    None,
+    Disk,
+    Printer(ParallelCard),
+    Mockingboard(usize),
+    Z80,
+}
+
+#[derive(Serialize, Deserialize, Derivative)]
+#[derivative(Debug)]
 pub struct Bus {
     pub disk: Option<RefCell<DiskDrive>>,
     pub video: Option<RefCell<Video>>,
@@ -35,8 +46,11 @@ pub struct Bus {
     pub intc8rom: RefCell<bool>,
 
     #[serde(default)]
-    pub halt_cpu: bool,
+    pub halt_cpu: RefCell<bool>,
     //bad_softswitch_addr: HashMap<u16, bool>,
+    #[serde(default = "default_io_slot")]
+    #[derivative(Debug = "ignore")]
+    pub io_slot: Vec<RefCell<IODevice>>,
 }
 
 pub trait IOCard {
@@ -126,7 +140,8 @@ impl Bus {
             disable_audio: false,
             //bad_softswitch_addr: HashMap::new(),
             mem,
-            halt_cpu: false,
+            halt_cpu: RefCell::new(false),
+            io_slot: default_io_slot(),
         };
 
         // Memory initialization is based on the implementation of AppleWin
@@ -215,6 +230,86 @@ impl Bus {
         *self.cycles.borrow_mut() = cycles;
     }
 
+    pub fn register_device(&mut self, device: IODevice, slot: usize) {
+        if slot < self.io_slot.len() {
+            if device == IODevice::Disk {
+                for i in 1..8 {
+                    if i != slot && *self.io_slot[i].borrow() == IODevice::Disk {
+                        self.io_slot[i] = RefCell::new(IODevice::None)
+                    }
+                }
+            }
+            self.io_slot[slot] = RefCell::new(device);
+        }
+    }
+
+    pub fn unregister_device(&mut self, slot: usize) {
+        if slot < self.io_slot.len() {
+            self.io_slot[slot] = RefCell::new(IODevice::None);
+        }
+    }
+
+    fn iodevice_io_access(&self, addr: u16, value: u8, write_flag: bool) -> u8 {
+        let slot = (((addr & 0x00ff) - 0x0080) >> 4) as usize;
+        if slot < self.io_slot.len() {
+            let mut slot_value = self.io_slot[slot].borrow_mut();
+            let io_addr = ((addr & 0x00ff) - ((slot as u16) << 4)) as u8;
+            //eprintln!("IOAccess - {:04x} {} {}",addr,slot,io_addr);
+            let return_value = match &mut *slot_value {
+                IODevice::None => {
+                    if !*self.intcxrom.borrow() {
+                        self.read_floating_bus()
+                    } else {
+                        self.mem_read(addr)
+                    }
+                }
+                IODevice::Disk => self.disk_io_access(addr, value, write_flag),
+                IODevice::Printer(printer) => printer.io_access(io_addr, value, write_flag),
+                IODevice::Mockingboard(_) => 0,
+                IODevice::Z80 => 0,
+            };
+            return_value
+        } else {
+            self.read_floating_bus()
+        }
+    }
+
+    fn iodevice_rom_access(&self, addr: u16, value: u8, write_flag: bool) -> u8 {
+        if !*self.intcxrom.borrow() {
+            let ioaddr = (addr & 0xff) as u8;
+            let slot = ((addr >> 8) & 0x0f) as usize;
+            if slot < self.io_slot.len() {
+                let mut slot_value = self.io_slot[slot].borrow_mut();
+                //eprintln!("ROMAccess - {:04x} {} {}",addr,slot,ioaddr);
+                let return_value = match &mut *slot_value {
+                    IODevice::None => {
+                        if !*self.intcxrom.borrow() {
+                            self.read_floating_bus()
+                        } else {
+                            self.mem_read(addr)
+                        }
+                    }
+                    IODevice::Printer(printer) => printer.rom_access(ioaddr, value, write_flag),
+                    IODevice::Disk => self.disk_rom_access(addr),
+                    IODevice::Mockingboard(item) => {
+                        self.mb_rom_access(addr, value, write_flag, *item)
+                    }
+                    IODevice::Z80 => {
+                        if write_flag {
+                            *self.halt_cpu.borrow_mut() = true;
+                        }
+                        self.read_floating_bus()
+                    }
+                };
+                return_value
+            } else {
+                self.read_floating_bus()
+            }
+        } else {
+            self.mem_read(addr)
+        }
+    }
+
     pub fn toggle_joystick(&mut self) {
         self.joystick_flag = !self.joystick_flag;
         self.update_joystick();
@@ -278,8 +373,9 @@ impl Bus {
     }
 
     pub fn poll_halt_status(&mut self) -> Option<()> {
-        if self.halt_cpu {
-            self.halt_cpu = false;
+        let mut halt_status = self.halt_cpu.borrow_mut();
+        if *halt_status {
+            *halt_status = false;
             Some(())
         } else {
             None
@@ -312,7 +408,6 @@ impl Bus {
 
     pub fn io_access(&self, addr: u16, value: u8, write_flag: bool) -> u8 {
         let io_addr = (addr & 0xff) as u8;
-        let io_slot = ((addr - 0x0080) & 0xf0) as u8;
 
         match io_addr {
             0x00 => {
@@ -768,16 +863,7 @@ impl Bus {
                 0
             }
 
-            0x90..=0x9f => {
-                if let Some(printer) = &self.parallel {
-                    printer
-                        .borrow_mut()
-                        .io_access(io_addr - io_slot, value, write_flag)
-                } else {
-                    0
-                }
-            }
-            0xe0..=0xef => self.disk_io_access(addr, value, write_flag),
+            0x90..=0xff => self.iodevice_io_access(addr, value, write_flag),
 
             _ => {
                 /*
@@ -816,6 +902,18 @@ impl Bus {
         self.read_floating_bus()
     }
 
+    fn disk_rom_access(&self, addr: u16) -> u8 {
+        if !*self.intcxrom.borrow() {
+            if let Some(drive) = &self.disk {
+                drive.borrow_mut().rom_access((addr & 0xff) as u8, 0, false)
+            } else {
+                self.read_floating_bus()
+            }
+        } else {
+            self.mem_read(addr)
+        }
+    }
+
     fn disk_io_access(&self, addr: u16, value: u8, write_flag: bool) -> u8 {
         let io_addr = (addr & 0xff) as u8;
         let io_slot = ((addr - 0x0080) & 0xf0) as u8;
@@ -826,6 +924,23 @@ impl Bus {
                 .io_access(io_addr - io_slot, value, write_flag)
         } else {
             0
+        }
+    }
+
+    fn mb_rom_access(&self, addr: u16, value: u8, write_flag: bool, device_no: usize) -> u8 {
+        if !*self.intcxrom.borrow() {
+            if let Some(sound) = &self.audio {
+                let mut snd = sound.borrow_mut();
+                if !snd.mboard.is_empty() {
+                    let io_addr = (addr & 0xff) as u8;
+                    if device_no < snd.mboard.len() {
+                        return snd.mboard[device_no].rom_access(io_addr, value, write_flag);
+                    }
+                }
+            }
+            self.read_floating_bus()
+        } else {
+            self.mem_read(addr)
         }
     }
 }
@@ -848,25 +963,7 @@ impl Mem for Bus {
             ROM_START..=ROM_END => self.mem.borrow_mut().unclocked_addr_read(addr),
 
             // Unused slots should be random values
-            0xc100..=0xc1ff => {
-                if !*self.intcxrom.borrow() {
-                    if let Some(printer) = &self.parallel {
-                        printer.borrow_mut().rom_access((addr & 0xff) as u8, 0, false)
-                    } else {
-                        self.read_floating_bus()
-                    }
-                } else {
-                    self.mem_read(addr)
-                }
-            }
-
-            0xc200..=0xc2ff | 0xc700..=0xc7ff => {
-                if !*self.intcxrom.borrow() {
-                    self.read_floating_bus()
-                } else {
-                    self.mem_read(addr)
-                }
-            }
+            0xc100..=0xc2ff | 0xc400..=0xc7ff => self.iodevice_rom_access(addr, 0, false),
 
             0xc300..=0xc3ff => {
                 if !*self.slotc3rom.borrow() {
@@ -882,54 +979,6 @@ impl Mem for Bus {
                     }
                 } else {
                     self.read_floating_bus()
-                }
-            }
-
-            0xc400..=0xc4ff => {
-                if !*self.intcxrom.borrow() {
-                    if let Some(sound) = &self.audio {
-                        let mut snd = sound.borrow_mut();
-                        if !snd.mboard.is_empty() {
-                            let io_addr = (addr & 0xff) as u8;
-                            snd.mboard[0].rom_access(io_addr, 0, false)
-                        } else {
-                            self.read_floating_bus()
-                        }
-                    } else {
-                        self.read_floating_bus()
-                    }
-                } else {
-                    self.mem_read(addr)
-                }
-            }
-
-            0xc500..=0xc5ff => {
-                if !*self.intcxrom.borrow() {
-                    if let Some(sound) = &self.audio {
-                        let mut snd = sound.borrow_mut();
-                        if snd.mboard.len() >= 2 {
-                            let io_addr = (addr & 0xff) as u8;
-                            snd.mboard[1].rom_access(io_addr, 0, false)
-                        } else {
-                            self.read_floating_bus()
-                        }
-                    } else {
-                        self.read_floating_bus()
-                    }
-                } else {
-                    self.mem_read(addr)
-                }
-            }
-
-            0xc600..=0xc6ff => {
-                if !*self.intcxrom.borrow() {
-                    if let Some(drive) = &self.disk {
-                        drive.borrow_mut().rom_access((addr & 0xff) as u8, 0, false)
-                    } else {
-                        self.read_floating_bus()
-                    }
-                } else {
-                    self.mem_read(addr)
                 }
             }
 
@@ -973,40 +1022,11 @@ impl Mem for Bus {
                 let _write = self.io_access(addr, data, true);
             }
 
-            0xc100..=0xc3ff => {
-                if (0xc200..=0xc2ff).contains(&addr) {
-                    self.halt_cpu = true;
-                }
-
-                /*
-                eprintln!(
-                    "UNIMP WRITE to addr 0x{:04X} with value 0x{:02x}",
-                    addr, data
-                );
-                */
+            0xc100..=0xc7ff => {
+                self.iodevice_rom_access(addr, data, true);
             }
 
-            0xc400..=0xc4ff => {
-                if let Some(sound) = &mut self.audio {
-                    let mut snd = sound.borrow_mut();
-                    if !snd.mboard.is_empty() {
-                        let io_addr = (addr & 0xff) as u8;
-                        let _write = snd.mboard[0].rom_access(io_addr, data, true);
-                    }
-                }
-            }
-
-            0xc500..=0xc5ff => {
-                if let Some(sound) = &mut self.audio {
-                    let mut snd = sound.borrow_mut();
-                    if snd.mboard.len() >= 2 {
-                        let io_addr = (addr & 0xff) as u8;
-                        let _write = snd.mboard[1].rom_access(io_addr, data, true);
-                    }
-                }
-            }
-
-            0xc600..=0xcffe => {
+            0xc800..=0xcffe => {
                 /*
                 eprintln!(
                     "UNIMP WRITE to addr 0x{:04X} with value 0x{:02x}",
@@ -1042,4 +1062,17 @@ impl Default for Bus {
     fn default() -> Self {
         Self::new()
     }
+}
+
+fn default_io_slot() -> Vec<RefCell<IODevice>> {
+    let mut io_slot = Vec::new();
+    for _ in 0..8 {
+        io_slot.push(RefCell::new(IODevice::None))
+    }
+
+    io_slot[1] = RefCell::new(IODevice::Printer(ParallelCard::new()));
+    io_slot[4] = RefCell::new(IODevice::Mockingboard(0));
+    io_slot[6] = RefCell::new(IODevice::Disk);
+
+    io_slot
 }

@@ -4,7 +4,12 @@ use crate::opcodes::OpCode;
 //use std::collections::HashMap;
 //use crate::trace::disassemble;
 //use crate::trace::trace;
-use serde::{Deserialize, Serialize};
+use derivative::*;
+use iz80::*;
+use serde::de::Error;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::cell::RefCell;
+use std::collections::BTreeMap;
 
 bitflags! {
     /// # Status Register (P) http://wiki.nesdev.com/w/index.php/Status_flags
@@ -300,7 +305,8 @@ pub const OPCODES: [OpCode; 256] = [
     OpCode::new(0xff, "BBS7", 3, 5, AddressingMode::ZeroPage_Relative, true),
 ];
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Derivative)]
+#[derivative(Debug)]
 pub struct CPU {
     pub register_a: u8,
     pub register_x: u8,
@@ -326,6 +332,11 @@ pub struct CPU {
 
     #[serde(default)]
     pub halt_cpu: bool,
+
+    #[serde(default = "default_z80cpu")]
+    #[derivative(Debug = "ignore")]
+    #[serde(serialize_with = "serialize_cpu", deserialize_with = "deserialize_cpu")]
+    pub z80cpu: RefCell<Cpu>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -431,6 +442,7 @@ impl CPU {
             self_test: false,
             bench_test: false,
             full_speed: false,
+            z80cpu: default_z80cpu(),
         }
     }
 
@@ -1347,6 +1359,11 @@ impl CPU {
             }
         }
 
+        if self.alt_cpu {
+            self.z80cpu.borrow_mut().execute_instruction(&mut self.bus);
+            return true;
+        }
+
         self.callback = true;
         callback(self);
         self.callback = false;
@@ -1854,6 +1871,112 @@ impl CPU {
         }
         true
     }
+}
+
+impl Machine for Bus {
+    fn peek(&self, address: u16) -> u8 {
+        //eprintln!("Peek addr = {:04x} {:04X}", address, translate_address(address));
+        /*
+        let const_ptr = self as *const Bus;
+        let mut_ptr = const_ptr as *mut Bus;
+        unsafe {
+            (*mut_ptr).addr_read(translate_z80address(address))
+        }
+        */
+        self.addr_read(translate_z80address(address))
+    }
+
+    fn poke(&mut self, address: u16, value: u8) {
+        //eprintln!("Poke addr = {:04x} {:04X} {:02X}", address, translate_address(address), value);
+        self.addr_write(translate_z80address(address as u16), value);
+    }
+
+    fn port_in(&mut self, _address: u16) -> u8 {
+        unimplemented!("In Port not implemented")
+    }
+
+    fn port_out(&mut self, _address: u16, _value: u8) {
+        unimplemented!("Out Port not implemented")
+    }
+}
+
+fn default_z80cpu() -> RefCell<Cpu> {
+    RefCell::new(Cpu::new())
+}
+
+fn translate_z80address(address: u16) -> u16 {
+    match address {
+        0x0000..=0xafff => address + 0x1000,
+        0xb000..=0xdfff => address + 0x2000,
+        0xe000..=0xefff => address - 0x2000,
+        0xf000..=0xffff => address - 0xf000,
+    }
+}
+
+fn hex_to_u8(c: u8) -> std::io::Result<u8> {
+    match c {
+        b'A'..=b'F' => Ok(c - b'A' + 10),
+        b'a'..=b'f' => Ok(c - b'a' + 10),
+        b'0'..=b'9' => Ok(c - b'0'),
+        _ => Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Invalid hex char",
+        )),
+    }
+}
+
+fn hex_get16(map: &BTreeMap<String, String>, key: &str) -> std::io::Result<u16> {
+    let value = &map[key];
+
+    if value.len() != 4 {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Invalid hex length",
+        ));
+    }
+
+    let mut v: u16 = 0;
+    for item in value.chars().collect::<Vec<_>>() {
+        v <<= 4;
+        v += hex_to_u8(item as u8)? as u16
+    }
+    Ok(v)
+}
+
+fn serialize_cpu<S: Serializer>(v: &RefCell<Cpu>, serializer: S) -> Result<S::Ok, S::Error> {
+    let mut map = BTreeMap::new();
+    let mut value = v.borrow_mut();
+    let r = value.registers();
+
+    map.insert("AF", format!("{:04X}", r.get16(Reg16::AF)));
+    map.insert("BC", format!("{:04X}", r.get16(Reg16::BC)));
+    map.insert("DE", format!("{:04X}", r.get16(Reg16::DE)));
+    map.insert("HL", format!("{:04X}", r.get16(Reg16::HL)));
+    map.insert("SP", format!("{:04X}", r.get16(Reg16::SP)));
+    map.insert("IX", format!("{:04X}", r.get16(Reg16::IX)));
+    map.insert("IY", format!("{:04X}", r.get16(Reg16::IY)));
+    map.insert("PC", format!("{:04X}", r.pc()));
+
+    BTreeMap::serialize(&map, serializer)
+}
+
+fn deserialize_cpu<'de, D: Deserializer<'de>>(deserializer: D) -> Result<RefCell<Cpu>, D::Error> {
+    let map = BTreeMap::<String, String>::deserialize(deserializer)?;
+    let v = default_z80cpu();
+    {
+        let mut value = v.borrow_mut();
+        let r = value.registers();
+        r.set16(Reg16::AF, hex_get16(&map, "AF").map_err(Error::custom)?);
+        r.set16(Reg16::BC, hex_get16(&map, "BC").map_err(Error::custom)?);
+        r.set16(Reg16::DE, hex_get16(&map, "DE").map_err(Error::custom)?);
+        r.set16(Reg16::HL, hex_get16(&map, "HL").map_err(Error::custom)?);
+        r.set16(Reg16::SP, hex_get16(&map, "SP").map_err(Error::custom)?);
+        r.set16(Reg16::IX, hex_get16(&map, "IX").map_err(Error::custom)?);
+        r.set16(Reg16::IY, hex_get16(&map, "IY").map_err(Error::custom)?);
+        r.set_pc(hex_get16(&map, "PC").map_err(Error::custom)?);
+    }
+
+    Ok(v)
 }
 
 #[cfg(test)]

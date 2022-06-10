@@ -1,7 +1,7 @@
 use crate::bus::IOCard;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct ParallelCard {}
 
 const ROM: [u8; 256] = [
@@ -34,13 +34,12 @@ impl ParallelCard {
 }
 
 impl IOCard for ParallelCard {
-    fn reset(&mut self) {
-    }
+    fn reset(&mut self) {}
 
     fn rom_access(&mut self, map_addr: u8, _value: u8, _write_flag: bool) -> u8 {
         self.read_rom(map_addr)
     }
-    
+
     fn io_access(&mut self, map_addr: u8, value: u8, write_flag: bool) -> u8 {
         match map_addr {
             // Load output

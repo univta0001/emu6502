@@ -1,6 +1,7 @@
 //#![windows_subsystem = "windows"]
 
 use emu6502::bus::Bus;
+use emu6502::bus::IODevice;
 use emu6502::video::DisplayMode;
 //use emu6502::bus::Mem;
 //use emu6502::trace::trace;
@@ -543,7 +544,8 @@ FLAGS:
     --weakbit rate     Set the random weakbit error rate (Default is 0.3)
     --opt_timing rate  Override the optimal timing (Default is 0)
     --rgb              Enable RGB mode (Default: RGB mode disabled)
-    --mboard 0|1|2     Number of mockingboards to enable
+    --mboard 0|1|2    Number of mockingboards to enable in Slot 4 and/or Slot 5
+    --z80             Enable Z80 in Slot 4    
     --luma bandwidth   NTSC Luma B/W (Valid value: 0 to 7159090, Default: 2300000)
     --chroma bandwidth NTSC Chroma B/W (Valid value: 0 to 7159090, Default: 600000)
 
@@ -809,13 +811,20 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             panic!("mboard only accepts 0, 1 or 2 as value");
         }
 
-        if let Some(sound) = &cpu.bus.audio {
-            let mut snd = sound.borrow_mut();
-            snd.mboard.clear();
+        if let Some(sound) = &mut cpu.bus.audio {
+            sound.borrow_mut().mboard.clear();
             for _ in 0..mboard {
-                snd.mboard.push(Mockingboard::new());
+                sound.borrow_mut().mboard.push(Mockingboard::new());
+            }
+            for i in 0..mboard {
+                cpu.bus
+                    .register_device(IODevice::Mockingboard(i as usize), (4 + i) as usize);
             }
         }
+    }
+
+    if pargs.contains("--z80") {
+        cpu.bus.register_device(IODevice::Z80, 4);
     }
 
     if let Some(luma) = pargs.opt_value_from_str::<_, f32>("--luma")? {
