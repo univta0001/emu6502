@@ -1855,7 +1855,7 @@ impl IOCard for DiskDrive {
         self.read_rom(map_addr)
     }
 
-    fn io_access(&mut self, map_addr: u8, value: u8, read_mode: bool) -> u8 {
+    fn io_access(&mut self, map_addr: u8, value: u8, write_mode: bool) -> u8 {
         match map_addr {
             LOC_PHASE0OFF => {
                 self.set_phase(0, false);
@@ -1912,7 +1912,7 @@ impl IOCard for DiskDrive {
         self.request_fast_disk();
 
         let mut return_value = 0;
-        if read_mode {
+        if !write_mode {
             if map_addr & 0x1 == 0 {
                 return_value = self.latch
             } else {

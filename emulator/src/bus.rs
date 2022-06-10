@@ -825,7 +825,7 @@ impl Bus {
         if let Some(drive) = &self.disk {
             drive
                 .borrow_mut()
-                .io_access(io_addr - io_slot, value, !write_flag)
+                .io_access(io_addr - io_slot, value, write_flag)
         } else {
             0
         }
