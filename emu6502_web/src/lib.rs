@@ -1,5 +1,6 @@
 use emu6502::bus::Bus;
 use emu6502::cpu::CPU;
+use emu6502::bus::IODevice;
 use wasm_bindgen::prelude::*;
 use emu6502::mockingboard::Mockingboard;
 
@@ -189,6 +190,10 @@ pub async fn init_emul() -> Emulator {
         for _ in 0..2 {
             snd.mboard.push(Mockingboard::new());
         }
+    }
+
+    for i in 0..2 {
+        cpu.bus.register_device(IODevice::Mockingboard(i as usize),(4+i) as usize);
     }
 
     cpu.reset();
