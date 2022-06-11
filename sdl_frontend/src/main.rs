@@ -545,7 +545,6 @@ FLAGS:
     --opt_timing rate  Override the optimal timing (Default is 0)
     --rgb              Enable RGB mode (Default: RGB mode disabled)
     --mboard 0|1|2     Number of mockingboards to enable in Slot 4 and/or Slot 5
-    --z80              Enable Z80 in Slot 4
     --luma bandwidth   NTSC Luma B/W (Valid value: 0-7159090, Default: 2300000)
     --chroma bandwidth NTSC Chroma B/W (Valid value: 0-7159090, Default: 600000)
 
@@ -821,10 +820,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     .register_device(IODevice::Mockingboard(i as usize), (4 + i) as usize);
             }
         }
-    }
-
-    if pargs.contains("--z80") {
-        cpu.bus.register_device(IODevice::Z80, 4);
     }
 
     if let Some(luma) = pargs.opt_value_from_str::<_, f32>("--luma")? {

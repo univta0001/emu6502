@@ -16,7 +16,7 @@ Features in the emulator
 - 60 Hz / 50Hz display mode support
 - Support for Vapor-lock cycle counting demos e.g. megademo, mad2
 - NTSC emulation supported
-- Z80 Emulation at Slot 4
+- Z80 Emulation at Slot 2
 
 ## Tested Platform
 
