@@ -917,7 +917,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
             if dcyc >= cpu_cycles {
                 let video_elapsed = video_refresh.elapsed().as_micros() + video_offset;
-                if video_elapsed >= 16_667 {
+                if video_elapsed >= (cpu_period as u128) {
                     if let Some(sound) = &_cpu.bus.audio {
                         let mut snd = sound.borrow_mut();
                         if audio_device.size() < AUDIO_SAMPLE_SIZE * 2 * 4 {
@@ -991,7 +991,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         canvas.present();
                     }
 
-                    video_offset = video_elapsed % 16_667;
+                    video_offset = video_elapsed % (cpu_period as u128);
                     video_refresh = Instant::now();
                 }
 
