@@ -1471,6 +1471,7 @@ impl DiskDrive {
         }
 
         // Check for 13 sector disk
+        disk.disk_rom13 = false;
         if dsk[offset + 38] == 2 {
             disk.disk_rom13 = true
         }
