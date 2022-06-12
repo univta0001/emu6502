@@ -1,4 +1,3 @@
-use crate::bus::IOCard;
 use serde::{Deserialize, Serialize};
 
 const AY_RESET: u8 = 0;
@@ -680,26 +679,6 @@ impl W65C22 {
     }
 }
 
-impl IOCard for Mockingboard {
-    fn reset(&mut self) {
-        self.w65c22[0].reset();
-        self.w65c22[1].reset();
-        self.rng = 1;
-    }
-
-    fn rom_access(&mut self, map_addr: u8, value: u8, write_flag: bool) -> u8 {
-        if map_addr < 0x80 {
-            self.w65c22[0].io_access(map_addr, value, write_flag)
-        } else {
-            self.w65c22[1].io_access(map_addr - 0x80, value, write_flag)
-        }
-    }
-
-    fn io_access(&mut self, _map_addr: u8, _value: u8, _write_flag: bool) -> u8 {
-        0
-    }
-}
-
 impl Default for W65C22 {
     fn default() -> Self {
         Self::new("")
@@ -723,6 +702,20 @@ impl Mockingboard {
     pub fn tick(&mut self) {
         self.w65c22[0].tick();
         self.w65c22[1].tick();
+    }
+
+    pub fn reset(&mut self) {
+        self.w65c22[0].reset();
+        self.w65c22[1].reset();
+        self.rng = 1;
+    }
+
+    pub fn rom_access(&mut self, map_addr: u8, value: u8, write_flag: bool) -> u8 {
+        if map_addr < 0x80 {
+            self.w65c22[0].io_access(map_addr, value, write_flag)
+        } else {
+            self.w65c22[1].io_access(map_addr - 0x80, value, write_flag)
+        }
     }
 
     pub fn poll_irq(&mut self) -> Option<usize> {

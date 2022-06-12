@@ -53,12 +53,6 @@ pub struct Bus {
     pub io_slot: Vec<RefCell<IODevice>>,
 }
 
-pub trait IOCard {
-    fn reset(&mut self);
-    fn rom_access(&mut self, addr: u8, value: u8, write_flag: bool) -> u8;
-    fn io_access(&mut self, map_addr: u8, value: u8, write_flag: bool) -> u8;
-}
-
 pub trait Mem {
     fn mem_read(&self, addr: u16) -> u8;
 
@@ -289,7 +283,7 @@ impl Bus {
                             self.mem_read(addr)
                         }
                     }
-                    IODevice::Printer(printer) => printer.rom_access(ioaddr, value, write_flag),
+                    IODevice::Printer(printer) => printer.rom_access(ioaddr),
                     IODevice::Disk => self.disk_rom_access(addr),
                     IODevice::Mockingboard(item) => {
                         self.mb_rom_access(addr, value, write_flag, *item)
