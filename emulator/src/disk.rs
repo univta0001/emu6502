@@ -1317,6 +1317,7 @@ impl DiskDrive {
         disk.po_mode = po_mode;
         disk.write_protect = false;
         disk.last_track = 0;
+        disk.disk_rom13 = false;
 
         if no_of_tracks > 35 {
             disk.track_40 = true;
@@ -1469,6 +1470,7 @@ impl DiskDrive {
             disk.write_protect = true;
         }
 
+        // Check for 13 sector disk
         if dsk[offset + 38] == 2 {
             disk.disk_rom13 = true
         }
