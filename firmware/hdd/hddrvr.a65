@@ -317,15 +317,16 @@ done
 
 ;======================================
 
-; 33 unused bytes
+; 16 unused bytes
 boot_other
- txa
- lsr
- lsr
- lsr
- lsr
- ldx #0
- jmp $fab6
+ lda $00
+ bne applesoft
+ lda $01
+ cmp $7f8
+ bne applesoft
+ jmp $faba
+applesoft
+ jmp $e000
 
 !zone data
 
