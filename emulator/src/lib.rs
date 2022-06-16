@@ -10,6 +10,7 @@ pub mod opcodes;
 pub mod parallel;
 pub mod trace;
 pub mod video;
+pub mod harddisk;
 
 #[macro_use]
 extern crate bitflags;

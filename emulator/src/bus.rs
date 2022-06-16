@@ -1,5 +1,6 @@
 use crate::audio::Audio;
 use crate::disk::DiskDrive;
+use crate::harddisk::HardDisk;
 use crate::mmu::Mmu;
 use crate::parallel::ParallelCard;
 use crate::video::Video;
@@ -19,6 +20,7 @@ pub enum IODevice {
     Printer(ParallelCard),
     Mockingboard(usize),
     Z80,
+    HardDisk,
 }
 
 #[derive(Serialize, Deserialize, Derivative)]
@@ -28,6 +30,7 @@ pub struct Bus {
     pub video: Option<RefCell<Video>>,
     pub audio: Option<RefCell<Audio>>,
     pub parallel: Option<RefCell<ParallelCard>>,
+    pub harddisk: Option<RefCell<HardDisk>>,
     pub keyboard_latch: RefCell<u8>,
     pub pushbutton_latch: [u8; 4],
     pub paddle_latch: [u8; 4],
@@ -126,6 +129,7 @@ impl Bus {
             video: Some(RefCell::new(Video::new())),
             audio: Some(RefCell::new(Audio::new())),
             parallel: Some(RefCell::new(ParallelCard::new())),
+            harddisk: Some(RefCell::new(HardDisk::new())),
             intcxrom: RefCell::new(false),
             slotc3rom: RefCell::new(false),
             intc8rom: RefCell::new(false),
@@ -213,6 +217,10 @@ impl Bus {
             if let Some(drive) = &self.disk {
                 drive.borrow_mut().tick();
             }
+
+            if let Some(harddrive) = &self.harddisk {
+                harddrive.borrow_mut().tick();
+            }
         }
     }
 
@@ -261,6 +269,7 @@ impl Bus {
                 IODevice::Printer(printer) => printer.io_access(io_addr, value, write_flag),
                 IODevice::Mockingboard(_) => 0,
                 IODevice::Z80 => 0,
+                IODevice::HardDisk => self.harddisk_io_access(addr, value, write_flag),
             };
             return_value
         } else {
@@ -294,6 +303,7 @@ impl Bus {
                         }
                         self.read_floating_bus()
                     }
+                    IODevice::HardDisk => self.harddisk_rom_access(addr),
                 };
                 return_value
             } else {
@@ -921,6 +931,35 @@ impl Bus {
         }
     }
 
+    fn harddisk_rom_access(&self, addr: u16) -> u8 {
+        if !*self.intcxrom.borrow() {
+            if let Some(drive) = &self.harddisk {
+                drive.borrow_mut().rom_access((addr & 0xff) as u8)
+            } else {
+                self.read_floating_bus()
+            }
+        } else {
+            self.mem_read(addr)
+        }
+    }
+
+    fn harddisk_io_access(&self, addr: u16, value: u8, write_flag: bool) -> u8 {
+        let io_addr = (addr & 0xff) as u8;
+        let io_slot = ((addr - 0x0080) & 0xf0) as u8;
+
+        if let Some(drive) = &self.harddisk {
+            drive.borrow_mut().io_access(
+                &self.mem,
+                &self.video,
+                io_addr - io_slot,
+                value,
+                write_flag,
+            )
+        } else {
+            0
+        }
+    }
+
     fn mb_rom_access(&self, addr: u16, value: u8, write_flag: bool, device_no: usize) -> u8 {
         if !*self.intcxrom.borrow() {
             if let Some(sound) = &self.audio {
@@ -998,7 +1037,7 @@ impl Mem for Bus {
 
                 // Shadow it to the video ram
                 if (0x400..=0xbff).contains(&addr) || (0x2000..=0x5fff).contains(&addr) {
-                    if let Some(display) = &mut self.video {
+                    if let Some(display) = &self.video {
                         if mmu.is_aux_memory(addr, true) {
                             display.borrow_mut().video_aux[addr as usize] = data;
                         } else {
@@ -1068,6 +1107,7 @@ fn default_io_slot() -> Vec<RefCell<IODevice>> {
     io_slot[2] = RefCell::new(IODevice::Z80);
     io_slot[4] = RefCell::new(IODevice::Mockingboard(0));
     io_slot[6] = RefCell::new(IODevice::Disk);
+    io_slot[7] = RefCell::new(IODevice::HardDisk);
 
     io_slot
 }

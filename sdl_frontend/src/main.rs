@@ -31,6 +31,7 @@ use sdl2::render::RenderTarget;
 use sdl2::GameControllerSubsystem;
 use std::collections::HashMap;
 use std::error::Error;
+use std::ffi::OsStr;
 use std::fs;
 use std::fs::File;
 use std::path::Path;
@@ -367,18 +368,63 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         }
 
         Event::KeyDown {
-            keycode: Some(Keycode::F8),
+            keycode: Some(Keycode::F11),
+            keymod,
             ..
         } => {
-            cpu.bus.toggle_video_freq();
+            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                eject_harddisk(cpu, 1);
+            } else {
+                let result = nfd2::open_file_dialog(Some("hdv,2mg"), None);
+                if result.is_ok() {
+                    if let Ok(Response::Okay(file_path)) = result {
+                        let result = load_harddisk(cpu, &file_path, 1);
+                        if let Err(e) = result {
+                            eprintln!("Unable to load hard disk {} : {}", file_path.display(), e);
+                        }
+                    }
+                } else {
+                    eprintln!("Unable to open hard disk file dialog");
+                }
+            }
         }
 
+        Event::KeyDown {
+            keycode: Some(Keycode::F10),
+            keymod,
+            ..
+        } => {
+            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                eject_harddisk(cpu, 0);
+            } else {
+                let result = nfd2::open_file_dialog(Some("hdv,2mg"), None);
+                if result.is_ok() {
+                    if let Ok(Response::Okay(file_path)) = result {
+                        let result = load_harddisk(cpu, &file_path, 0);
+                        if let Err(e) = result {
+                            eprintln!("Unable to load hard disk {} : {}", file_path.display(), e);
+                        }
+                    }
+                } else {
+                    eprintln!("Unable to open hard disk file dialog");
+                }
+            }
+        }
+        
         Event::KeyDown {
             keycode: Some(Keycode::F9),
             ..
         } => {
             cpu.full_speed = !cpu.full_speed;
         }
+
+        Event::KeyDown {
+            keycode: Some(Keycode::F8),
+            ..
+        } => {
+            cpu.bus.toggle_video_freq();
+        }
+
         Event::KeyDown {
             keycode: Some(Keycode::F7),
             ..
@@ -541,6 +587,8 @@ FLAGS:
     -m, --model MODEL  Set apple 2 model. Valid value: apple2p,apple2e,apple2ee
     --d1 PATH          Set the file path for disk 1 drive at Slot 6 Drive 1
     --d2 PATH          Set the file path for disk 2 drive at Slot 6 Drive 2
+    --h1 PATH          Set the file path for hard disk 1
+    --h2 PATH          Set the file path for hard disk 2
     --weakbit rate     Set the random weakbit error rate (Default is 0.3)
     --opt_timing rate  Override the optimal timing (Default is 0)
     --rgb              Enable RGB mode (Default: RGB mode disabled)
@@ -559,6 +607,8 @@ Function Keys:
     Ctrl-F2            Eject Disk 2
     Ctrl-F3            Save state in YAML file
     Ctrl-F4            Load state from YAML file
+    Ctrl-F10           Eject Hard Disk 1
+    Ctrl-F11           Eject Hard Disk 2
     Ctrl-PrintScreen   Save screenshot as screenshot.png
     F1:                Load Disk 1 file
     F2:                Load Disk 2 file
@@ -569,10 +619,30 @@ Function Keys:
     F7                 Disable / Enable Joystick jitter
     F8                 Disable / Enable 50/60 Hz video
     F9                 Disable / Enable full speed emulation
+    F10                Load Hard Disk 1 file
+    F11                Load Hard Disk 2 file
     F12 / Break        Reset
 "#,
         VERSION
     );
+}
+
+fn load_image<P>(cpu: &mut CPU, path: P, drive: usize) -> Result<(), Box<dyn Error + Send + Sync>>
+where
+    P: AsRef<Path>,
+{
+    let path_ref = path.as_ref();
+
+    if let Some(ext) = path_ref.extension() {
+        if ext.eq_ignore_ascii_case(OsStr::new("2mg"))
+            || ext.eq_ignore_ascii_case(OsStr::new("hdv"))
+        {
+            load_harddisk(cpu, path_ref, drive)?;
+        } else {
+            load_disk(cpu, path_ref, drive)?;
+        }
+    }
+    Ok(())
 }
 
 fn load_disk<P>(cpu: &mut CPU, path: P, drive: usize) -> Result<(), Box<dyn Error + Send + Sync>>
@@ -592,6 +662,33 @@ where
     Ok(())
 }
 
+fn load_harddisk<P>(
+    cpu: &mut CPU,
+    path: P,
+    drive: usize,
+) -> Result<(), Box<dyn Error + Send + Sync>>
+where
+    P: AsRef<Path>,
+{
+    if let Some(harddrive) = &mut cpu.bus.harddisk {
+        let path_ref = path.as_ref();
+        let mut drv = harddrive.borrow_mut();
+        let drive_selected = drv.drive_selected();
+        drv.drive_select(drive);
+        drv.load_hdv_2mg_file(path_ref)?;
+        drv.set_disk_filename(path_ref);
+        drv.set_loaded(true);
+        drv.drive_select(drive_selected);
+    }
+    Ok(())
+}
+
+fn eject_harddisk(cpu: &mut CPU, drive: usize) {
+    if let Some(disk_drive) = &cpu.bus.harddisk {
+        disk_drive.borrow_mut().eject(drive);
+    }
+}
+
 fn eject_disk(cpu: &mut CPU, drive: usize) {
     if let Some(disk_drive) = &cpu.bus.disk {
         disk_drive.borrow_mut().eject(drive);
@@ -606,8 +703,24 @@ fn is_disk_loaded(cpu: &CPU, drive: usize) -> bool {
     false
 }
 
+fn is_harddisk_loaded(cpu: &CPU, drive: usize) -> bool {
+    if let Some(disk_drive) = &cpu.bus.harddisk {
+        let is_loaded = disk_drive.borrow().is_loaded(drive);
+        return is_loaded;
+    }
+    false
+}
+
 fn get_disk_filename(cpu: &CPU, drive: usize) -> Option<String> {
     if let Some(disk_drive) = &cpu.bus.disk {
+        let filename = disk_drive.borrow().get_disk_filename(drive);
+        return Some(filename);
+    }
+    None
+}
+
+fn get_harddisk_filename(cpu: &CPU, drive: usize) -> Option<String> {
+    if let Some(disk_drive) = &cpu.bus.harddisk {
         let filename = disk_drive.borrow().get_disk_filename(drive);
         return Some(filename);
     }
@@ -735,6 +848,11 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         drive.borrow_mut().set_enable_save_disk(true);
     }
 
+    // Enable save for hard disk
+    if let Some(drive) = &cpu.bus.harddisk {
+        drive.borrow_mut().set_enable_save_disk(true);
+    }
+
     //cpu.load(apple2_rom, 0xd000);
     //cpu.load(apple2e_rom, 0xc000);
     cpu.load(&apple2ee_rom, 0xc000);
@@ -805,6 +923,16 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         load_disk(&mut cpu, path, 1)?;
     }
 
+    if let Some(input_file) = pargs.opt_value_from_str::<_, String>("--h1")? {
+        let path = Path::new(&input_file);
+        load_harddisk(&mut cpu, path, 0)?;
+    }
+
+    if let Some(input_file) = pargs.opt_value_from_str::<_, String>("--h2")? {
+        let path = Path::new(&input_file);
+        load_harddisk(&mut cpu, path, 1)?;
+    }
+
     if let Some(mboard) = pargs.opt_value_from_str::<_, u8>("--mboard")? {
         if mboard > 2 {
             panic!("mboard only accepts 0, 1 or 2 as value");
@@ -847,25 +975,13 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     // Load dsk image
     if let Ok(input_file) = pargs.free_from_str::<String>() {
         let path = Path::new(&input_file);
-        if let Some(disk_drive) = &cpu.bus.disk {
-            let mut drv = disk_drive.borrow_mut();
-            drv.drive_select(0);
-            drv.load_disk_image(path)?;
-            drv.set_disk_filename(&path.display().to_string());
-            drv.set_loaded(true);
-        }
+        load_image(&mut cpu, path, 0)?;
     }
 
     let remaining = pargs.finish();
     if !remaining.is_empty() {
         let path = Path::new(&remaining[0]);
-        if let Some(disk_drive) = &mut cpu.bus.disk {
-            let mut drv = disk_drive.borrow_mut();
-            drv.drive_select(1);
-            drv.load_disk_image(path)?;
-            drv.set_disk_filename(&path.display().to_string());
-            drv.set_loaded(true);
-        }
+        load_image(&mut cpu, path, 1)?;
     }
 
     let mut t = Instant::now();
@@ -962,10 +1078,16 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         }
                         disp.clear_video_dirty();
 
-                        let disk_is_on = if let Some(drive) = &_cpu.bus.disk {
-                            drive.borrow().is_motor_on()
-                        } else {
-                            false
+                        let disk_is_on = {
+                            let mut disk_status = false;
+                            let mut harddisk_status = false;
+                            if let Some(drive) = &_cpu.bus.disk {
+                                disk_status = drive.borrow().is_motor_on();
+                            }
+                            if let Some(drive) = &_cpu.bus.harddisk {
+                                harddisk_status = drive.borrow().is_busy();
+                            }
+                            disk_status || harddisk_status
                         };
 
                         if disk_is_on {
@@ -1078,6 +1200,21 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                                         {
                                             let result =
                                                 load_disk(&mut new_cpu, &disk_filename, drive);
+                                            if let Err(e) = result {
+                                                eprintln!(
+                                                    "Unable to load disk {} : {}",
+                                                    file_path.display(),
+                                                    e
+                                                );
+                                            }
+                                        }
+                                    }
+                                    if is_harddisk_loaded(&new_cpu, drive) {
+                                        if let Some(disk_filename) =
+                                            get_harddisk_filename(&new_cpu, drive)
+                                        {
+                                            let result =
+                                                load_harddisk(&mut new_cpu, &disk_filename, drive);
                                             if let Err(e) = result {
                                                 eprintln!(
                                                     "Unable to load disk {} : {}",
