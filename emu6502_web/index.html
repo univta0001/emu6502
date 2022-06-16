@@ -37,7 +37,7 @@
             await init();
             const emu6502 = await wasm.init_emul();
 
-            const load_disk = (success, filter=".dsk,.po,.woz,.dsk.gz,.po.gz,.woz.gz") => {
+            const load_disk = (success,filter=".dsk,.po,.woz,.hdv,.2mg,.dsk.gz,.po.gz,.woz.gz") => {
                 var frm = document.createElement("form");
                 var upload = document.createElement("input");
                 upload.type = "file";

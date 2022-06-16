@@ -15,8 +15,26 @@ pub struct Emulator {
 #[wasm_bindgen]
 impl Emulator {
     pub fn load_disk(&mut self, name: &str, array: &[u8], drive: usize) -> bool {
-        if let Some(disk_drive) = &mut self.cpu.bus.disk {
+        if name.ends_with(".2mg") || name.ends_with(".hdv") {
+            if let Some(harddrive) = &mut self.cpu.bus.harddisk {
+                let hdv_mode = name.ends_with(".hdv");
+                let mut drv = harddrive.borrow_mut();
+                let drive_selected = drv.drive_selected();
+                drv.drive_select(drive);
+                let result = drv.load_hdv_2mg_array(array,hdv_mode);
+                if result.is_err() {
+                    return false
+                }
+                drv.set_disk_filename(name);
+                drv.set_loaded(true);
+                drv.drive_select(drive_selected);
+                true
+            } else {
+                false
+            }
+        } else if let Some(disk_drive) = &mut self.cpu.bus.disk {
             let mut drv = disk_drive.borrow_mut();
+            let drive_selected = drv.drive_selected();
             drv.drive_select(drive);
             let dsk: Vec<u8> = array.to_vec();
 
@@ -51,6 +69,7 @@ impl Emulator {
             }
             drv.set_disk_filename(name);
             drv.set_loaded(true);
+            drv.drive_select(drive_selected);
             true
         } else {
             false
@@ -167,11 +186,19 @@ impl Emulator {
     }
 
     pub fn is_disk_motor_on(&self) -> bool {
-        if let Some(drive) = &self.cpu.bus.disk {
-            return drive.borrow().is_motor_on();
+        let disk_on = if let Some(drive) = &self.cpu.bus.disk {
+            drive.borrow().is_motor_on()
         } else {
-            return false;
-        }
+            false
+        };
+
+        let harddisk_on = if let Some(drive) = &self.cpu.bus.harddisk {
+            drive.borrow().is_busy()
+        } else {
+            false
+        };
+
+        disk_on || harddisk_on
     }
 }
 
