@@ -478,6 +478,7 @@ impl Bus {
             0x07 => {
                 if write_flag {
                     *self.intcxrom.borrow_mut() = true;
+                    *self.slotc3rom.borrow_mut() = false;
                 }
                 *self.keyboard_latch.borrow()
             }
@@ -862,8 +863,8 @@ impl Bus {
                 mmu.bank1 = true;
                 if !write_flag {
                     mmu.writebsr = mmu.prewrite;
-                    mmu.prewrite = !write_flag;
                 }
+                mmu.prewrite = !write_flag;
                 0
             }
 

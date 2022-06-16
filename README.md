@@ -8,6 +8,7 @@ Features in the emulator
 
 - 6502 / 65C02 cycle accurate emulation
 - Disk II interface for floppy disk drives
+- File Format supported (dsk, po, woz version 1 and version 2, hdv, 2mg)
 - Language Card for Apple ][+
 - Mockingboard support at Slot 4 and Slot 5
 - Parallel printer card
@@ -17,6 +18,7 @@ Features in the emulator
 - Support for Vapor-lock cycle counting demos e.g. megademo, mad2
 - NTSC emulation supported
 - Z80 Emulation at Slot 2
+- Hard Disk support 
 
 ## Tested Platform
 
@@ -32,7 +34,7 @@ Features in the emulator
 - [Apple II Disk Drive Article](http://www.doc.ic.ac.uk/~ih/doc/stepper/others/example3/diskii_specs.html) by Neil Parker
 - [Understanding the Apple //e](https://archive.org/details/Understanding_the_Apple_IIe) by Jim Sather.
 - [AppleWin](https://github.com/AppleWin/AppleWin/), whose source code is a goldmine of useful references.
-- [A2 Audit](https://github.com/zellyn/a2audit) and a2audit, for allowing me to get really nitpicky in my memory emulation.
+- [A2 Audit](https://github.com/zellyn/a2audit) and a2audit, good resource to test out language card and aux memory compliance.
 - [MB Audit](https://github.com/tomcw/mb-audit) A good test suite for testing mockingboard functionalities
 - W65C22 (W65C22N and W65C22S) Versatile Interface Adapter (VIA) Datasheet
 - [NTSC Emulation](https://observablehq.com/@zellyn/apple-ii-ntsc-emulation-openemulator-explainer) A good explanation on NTSC emulation by Openemulator by Zellyn Hunter
