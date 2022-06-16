@@ -823,8 +823,8 @@ impl Bus {
                 mmu.bank1 = false;
                 if !write_flag {
                     mmu.writebsr = mmu.prewrite;
-                    mmu.prewrite = !write_flag;
                 }
+                mmu.prewrite = !write_flag;
                 0
             }
 
