@@ -195,9 +195,6 @@ impl Bus {
             if let Some(drive) = &self.disk {
                 drive.borrow_mut().reset();
             }
-            if let Some(drive) = &self.harddisk {
-                drive.borrow_mut().reset();
-            }
         }
     }
 
