@@ -175,7 +175,7 @@ impl HardDisk {
                             let start = block_offset + disk.offset;
                             let end = block_offset + disk.offset + HD_BLOCK_SIZE;
 
-                            //eprintln!("Reading ${:04x} ${:04x} ${:04x}", block_offset, start, end);
+                            //eprintln!("Reading ${:04x} ${:04x} ${:04x}",block_offset,start,end);
                             if block_offset < disk.offset + disk.data_len {
                                 let mut mmu = mem.borrow_mut();
                                 let mut buf = [0u8; HD_BLOCK_SIZE];
@@ -263,7 +263,6 @@ impl HardDisk {
                                         .seek(SeekFrom::Start(start as u64))
                                         .and_then(|_| f.write_all(&buf));
                                     if result.is_err() {
-                                        eprintln!("Error encountered = {:?}", result);
                                         disk.error = 1;
                                         return DeviceStatus::DeviceIoError as u8;
                                     }
