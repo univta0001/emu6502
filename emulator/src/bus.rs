@@ -796,13 +796,12 @@ impl Bus {
 
                 if write_mode {
                     if !write_flag {
-                        mmu.prewrite += 1;
-                        if mmu.prewrite >= 2 {
+                        if mmu.prewrite {
                             mmu.writebsr = true;
-                            mmu.prewrite = 0;
                         }
+                        mmu.prewrite = true;
                     } else {
-                        mmu.prewrite = 0;
+                        mmu.prewrite = false;
                     }
 
                     if off_mode {
@@ -812,7 +811,7 @@ impl Bus {
                     }
                 } else {
                     mmu.writebsr = false;
-                    mmu.prewrite = 0;
+                    mmu.prewrite = false;
 
                     if off_mode {
                         mmu.readbsr = false;
@@ -826,7 +825,6 @@ impl Bus {
                 } else {
                     mmu.bank1 = false;
                 }
-
                 0
             }
 

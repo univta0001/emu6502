@@ -26,7 +26,7 @@ pub struct Mmu {
     pub bank1: bool,
     pub readbsr: bool,
     pub writebsr: bool,
-    pub prewrite: usize,
+    pub prewrite: bool,
 
     pub rdcardram: bool,
     pub wrcardram: bool,
@@ -50,7 +50,7 @@ impl Mmu {
             bank1: false,
             readbsr: false,
             writebsr: false,
-            prewrite: 0,
+            prewrite: false,
 
             rdcardram: false,
             wrcardram: false,
@@ -70,7 +70,7 @@ impl Mmu {
         self.bank1 = false;
         self.readbsr = false;
         self.writebsr = false;
-        self.prewrite = 0;
+        self.prewrite = false;
     }
 
     pub fn is_aux_memory(&self, addr: u16, write_flag: bool) -> bool {
