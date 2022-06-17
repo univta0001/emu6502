@@ -410,7 +410,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                 }
             }
         }
-        
+
         Event::KeyDown {
             keycode: Some(Keycode::F9),
             ..

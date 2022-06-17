@@ -788,83 +788,45 @@ impl Bus {
                 0
             }
 
-            0x80 | 0x84 => {
+            0x80..=0x8f => {
                 let mut mmu = self.mem.borrow_mut();
-                mmu.readbsr = true;
-                mmu.writebsr = false;
-                mmu.bank1 = false;
-                mmu.prewrite = false;
-                0
-            }
+                let write_mode = (io_addr & 0x01) > 0;
+                let off_mode = (io_addr & 0x02) > 0;
+                let bank1_mode = (io_addr & 0x08) > 0;
 
-            0x81 | 0x85 => {
-                let mut mmu = self.mem.borrow_mut();
-                mmu.readbsr = false;
-                mmu.bank1 = false;
-                if !write_flag {
-                    mmu.writebsr = mmu.prewrite;
-                    mmu.prewrite = !write_flag;
+                if write_mode {
+                    if !write_flag {
+                        mmu.prewrite += 1;
+                        if mmu.prewrite >= 2 {
+                            mmu.writebsr = true;
+                            mmu.prewrite = 0;
+                        }
+                    } else {
+                        mmu.prewrite = 0;
+                    }
+
+                    if off_mode {
+                        mmu.readbsr = true;
+                    } else {
+                        mmu.readbsr = false;
+                    }
+                } else {
+                    mmu.writebsr = false;
+                    mmu.prewrite = 0;
+
+                    if off_mode {
+                        mmu.readbsr = false;
+                    } else {
+                        mmu.readbsr = true;
+                    }
                 }
-                0
-            }
 
-            0x82 | 0x86 => {
-                let mut mmu = self.mem.borrow_mut();
-                mmu.readbsr = false;
-                mmu.writebsr = false;
-                mmu.bank1 = false;
-                mmu.prewrite = false;
-                0
-            }
-
-            0x83 | 0x87 => {
-                let mut mmu = self.mem.borrow_mut();
-                mmu.readbsr = true;
-                mmu.bank1 = false;
-                if !write_flag {
-                    mmu.writebsr = mmu.prewrite;
+                if bank1_mode {
+                    mmu.bank1 = true;
+                } else {
+                    mmu.bank1 = false;
                 }
-                mmu.prewrite = !write_flag;
-                0
-            }
 
-            0x88 | 0x8c => {
-                let mut mmu = self.mem.borrow_mut();
-                mmu.readbsr = true;
-                mmu.writebsr = false;
-                mmu.bank1 = true;
-                mmu.prewrite = false;
-                0
-            }
-
-            0x89 | 0x8d => {
-                let mut mmu = self.mem.borrow_mut();
-                mmu.readbsr = false;
-                mmu.bank1 = true;
-                if !write_flag {
-                    mmu.writebsr = mmu.prewrite;
-                    mmu.prewrite = !write_flag;
-                }
-                0
-            }
-
-            0x8a | 0x8e => {
-                let mut mmu = self.mem.borrow_mut();
-                mmu.readbsr = false;
-                mmu.writebsr = false;
-                mmu.bank1 = true;
-                mmu.prewrite = false;
-                0
-            }
-
-            0x8b | 0x8f => {
-                let mut mmu = self.mem.borrow_mut();
-                mmu.readbsr = true;
-                mmu.bank1 = true;
-                if !write_flag {
-                    mmu.writebsr = mmu.prewrite;
-                }
-                mmu.prewrite = !write_flag;
                 0
             }
 
