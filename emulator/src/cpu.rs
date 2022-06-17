@@ -2518,7 +2518,7 @@ mod test {
         let bus = Bus::new();
         let mut cpu = CPU::new(bus);
         cpu.reset();
-        let bank2_code = [
+        let bank1_code = [
             0xAD, 0x8B, 0xC0, // 00       LDA $C08B
             0xAD, 0x8B, 0xC0, // 03       LDA $C08B
             0x8D, 0x89, 0xC0, // 06       STA $C089
@@ -2531,10 +2531,38 @@ mod test {
             0x00, // END
         ];
         cpu.bus.set_cycles(0);
-        cpu.load_and_run(&bank2_code);
+        cpu.load_and_run(&bank1_code);
         assert_eq!(
             cpu.register_a, 0xa1,
             "Bank 1 address should be written with 0xA1"
+        );
+    }
+
+    #[test]
+    fn test_bank_1_reset_prewrite() {
+        let bus = Bus::new();
+        let mut cpu = CPU::new(bus);
+        cpu.reset();
+        let bank1_code = [
+            0xAD, 0x8B, 0xC0, // 00       LDA $C08B
+            0xAD, 0x8B, 0xC0, // 03       LDA $C08B
+            0xA9, 0x11,       // 06       LDA #$11
+            0x8D, 0x7B, 0xD1, // 08       STA $D17B
+            0xAD, 0x80, 0xC0, // 0B       LDA $C080
+            0xAD, 0x8B, 0xC0, // 0E       LDA $C08B
+            0x8D, 0x8B, 0xC0, // 11       STA $C08B
+            0xAD, 0x8B, 0xC0, // 14       LDA $C08B
+            0xEE, 0x7B, 0xD1, // 17       INC $D17B
+            0xAD, 0x8B, 0xC0, // 1A       LDA $C08B
+            0xAD, 0x8B, 0xC0, // 1D       LDA $C08B
+            0xAD, 0x7B, 0xD1, // 20       LDA $D17B
+            0x00, // END
+        ];
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&bank1_code);
+        assert_eq!(
+            cpu.register_a, 0x11,
+            "Bank 1 $D17B should be 17. Bank 1 prewrite not reset"
         );
     }
 
@@ -2562,6 +2590,35 @@ mod test {
             "Bank 2 address should be written with 0xA2"
         );
     }
+
+    #[test]
+    fn test_bank_2_reset_prewrite() {
+        let bus = Bus::new();
+        let mut cpu = CPU::new(bus);
+        cpu.reset();
+        let bank2_code = [
+            0xAD, 0x83, 0xC0, // 00       LDA $C083
+            0xAD, 0x83, 0xC0, // 03       LDA $C083
+            0xA9, 0x11,       // 06       LDA #$11
+            0x8D, 0x7B, 0xD1, // 08       STA $D17B
+            0xAD, 0x80, 0xC0, // 0B       LDA $C080
+            0xAD, 0x83, 0xC0, // 0E       LDA $C083
+            0x8D, 0x83, 0xC0, // 11       STA $C083
+            0xAD, 0x83, 0xC0, // 14       LDA $C083
+            0xEE, 0x7B, 0xD1, // 17       INC $D17B
+            0xAD, 0x83, 0xC0, // 1A       LDA $C083
+            0xAD, 0x83, 0xC0, // 1D       LDA $C083
+            0xAD, 0x7B, 0xD1, // 20       LDA $D17B
+            0x00, // END
+        ];
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&bank2_code);
+        assert_eq!(
+            cpu.register_a, 0x11,
+            "Bank 2 $D17B should be 17. Bank 2 prewrite not reset"
+        );
+    }
+
     /*
     #[test]
     // Counter test from steve2
