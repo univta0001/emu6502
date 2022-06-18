@@ -869,6 +869,17 @@ impl Video {
                     return 0x80;
                 }
             }
+
+            0xc021 => {
+                if write_flag {
+                    if _value & 0x80 > 0 {
+                        self.mono_mode = true;
+                    } else {
+                        self.mono_mode = false;
+                    }
+                }
+            }
+
             0xc029 => {
                 if write_flag {
                     if _value & 0x20 > 0 {
