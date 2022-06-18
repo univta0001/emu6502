@@ -798,7 +798,7 @@ impl Video {
     }
 
     pub fn io_access(&mut self, addr: u16, _value: u8, write_flag: bool) -> u8 {
-        let value = 0;
+        let mut value = 0;
         match addr {
             0xc00c => {
                 if write_flag {
@@ -877,6 +877,8 @@ impl Video {
                     } else {
                         self.mono_mode = false;
                     }
+                } else if self.mono_mode {
+                    value |= 0x80;
                 }
             }
 
@@ -887,12 +889,14 @@ impl Video {
                     } else {
                         self.mono_mode = false;
                     }
+                } else if self.mono_mode {
+                    value |= 0x20;
                 }
             }
 
             _ => {}
         }
-        value & 0x7f
+        value
     }
 
     pub fn set_apple2e(&mut self, flag: bool) {

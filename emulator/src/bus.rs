@@ -602,11 +602,19 @@ impl Bus {
 
             0x20 => self.read_floating_bus(),
 
+            0x21 => {
+                if let Some(display) = &self.video {
+                    display.borrow_mut().io_access(addr, value, write_flag)
+                } else {
+                    self.read_floating_bus()
+                }
+            }            
+
             0x29 => {
                 if let Some(display) = &self.video {
                     display.borrow_mut().io_access(addr, value, write_flag)
                 } else {
-                    0
+                    self.read_floating_bus()
                 }
             }
 
