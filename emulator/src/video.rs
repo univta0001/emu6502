@@ -623,13 +623,13 @@ impl Video {
     pub fn new() -> Self {
         let mut frame = vec![0xff; Video::WIDTH * Video::HEIGHT * 4];
 
-        for y in 0..384 {
-            for x in 0..560 {
+        for y in 0..Video::HEIGHT {
+            for x in 0..Video::WIDTH {
                 // B,G,R,A
-                frame[x * 4 + y * 560 * 4] = 0x00;
-                frame[x * 4 + 1 + y * 560 * 4] = 0x00;
-                frame[x * 4 + 2 + y * 560 * 4] = 0x00;
-                frame[x * 4 + 3 + y * 560 * 4] = 0xff;
+                frame[x * 4 + y * Video::WIDTH * 4] = 0x00;
+                frame[x * 4 + 1 + y * Video::WIDTH * 4] = 0x00;
+                frame[x * 4 + 2 + y * Video::WIDTH * 4] = 0x00;
+                frame[x * 4 + 3 + y * Video::WIDTH * 4] = 0xff;
             }
         }
 
@@ -1281,7 +1281,7 @@ impl Video {
 
     pub fn set_pixel_count(&mut self, x: usize, y: usize, rgb: Rgb, count: usize) {
         for i in 0..count {
-            if x + i < 560 {
+            if x + i < Video::WIDTH {
                 self.set_pixel_2(x + i, y, rgb);
             } else {
                 break;
@@ -2564,7 +2564,7 @@ impl Video {
             let mut offset = 0;
             for _ in 0..4 {
                 let color = LORES_COLORS[(value_8_pixels & 0xf) as usize];
-                if x + offset + 3 < 560 {
+                if x + offset + 3 < Video::WIDTH {
                     self.set_pixel_count(x + offset, row * 2, color, 4);
                 }
 
