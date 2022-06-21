@@ -49,6 +49,9 @@ pub struct Bus {
     pub intc8rom: RefCell<bool>,
 
     #[serde(default)]
+    pub ioudis: RefCell<bool>,
+
+    #[serde(default)]
     pub halt_cpu: RefCell<bool>,
     //bad_softswitch_addr: HashMap<u16, bool>,
     #[serde(default = "default_io_slot")]
@@ -133,6 +136,7 @@ impl Bus {
             intcxrom: RefCell::new(false),
             slotc3rom: RefCell::new(false),
             intc8rom: RefCell::new(false),
+            ioudis: RefCell::new(false),
             disable_video: false,
             disable_disk: false,
             disable_audio: false,
@@ -471,6 +475,9 @@ impl Bus {
             0x06 => {
                 if write_flag {
                     *self.intcxrom.borrow_mut() = false;
+                    if *self.slotc3rom.borrow() {
+                        *self.intc8rom.borrow_mut() = false;
+                    }
                 }
                 *self.keyboard_latch.borrow()
             }
@@ -791,9 +798,42 @@ impl Bus {
                 }
             }
 
-            0x70..=0x7f => {
+            0x70 => {
                 *self.paddle_trigger.borrow_mut() = *self.cycles.borrow();
                 0
+            }
+
+            0x7e => {
+                let val = self.read_floating_bus() & 0x7f;
+                if write_flag {
+                    *self.ioudis.borrow_mut() = true;
+                    val
+                } else {
+                    if *self.ioudis.borrow() {
+                        val
+                    } else {
+                        val | 0x80
+                    }
+                }
+            }
+
+            0x7f => {
+                let val = self.read_floating_bus() & 0x7f;
+                if write_flag {
+                    *self.ioudis.borrow_mut() = false;
+                    val
+                } else {
+                    if let Some(display) = &self.video {
+                        let disp = display.borrow();
+                        if disp.is_dhires_mode() {
+                            val | 0x80
+                        } else {
+                            val
+                        }
+                    } else {
+                        val
+                    }
+                }
             }
 
             0x80..=0x8f => {

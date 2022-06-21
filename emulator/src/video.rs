@@ -1209,6 +1209,10 @@ impl Video {
         self.graphics_mode
     }
 
+    pub fn is_dhires_mode(&self) -> bool {
+        self.dhires_mode
+    }
+
     pub fn is_hires_mode(&self) -> bool {
         !self.lores_mode
     }
