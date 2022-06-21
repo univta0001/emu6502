@@ -1007,11 +1007,8 @@ impl Mem for Bus {
                 // Shadow it to the video ram
                 if (0x400..=0xbff).contains(&addr) || (0x2000..=0x5fff).contains(&addr) {
                     if let Some(display) = &self.video {
-                        if mmu.is_aux_memory(addr, true) {
-                            display.borrow_mut().video_aux[addr as usize] = data;
-                        } else {
-                            display.borrow_mut().video_main[addr as usize] = data;
-                        }
+                        let aux_memory = mmu.is_aux_memory(addr, true);
+                        display.borrow_mut().update_shadow_memory(aux_memory,addr,data);
                     }
                 }
             }

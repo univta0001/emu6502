@@ -750,10 +750,10 @@ impl Video {
                 self.video_dirty[row / 8] = 1;
             }
 
-            // Redraw the whole row in the next 8 cycle
+            // Redraw the whole row in the next 2 cycle
             if self.video_reparse[row] != 0 {
                 if visible_col == 39 {
-                    if self.video_reparse[row] > 8 {
+                    if self.video_reparse[row] > 2 {
                         self.video_reparse[row] = 0;
                     } else {
                         self.video_reparse[row] += 1;
@@ -793,6 +793,22 @@ impl Video {
                     self.draw_char_a2_y(visible_col, row / 8, video_aux_latch, row % 8, 0);
                 }
                 self.draw_char_a2_y(visible_col, row / 8, video_value, row % 8, 7);
+            }
+        }
+    }
+
+    pub fn update_shadow_memory(&mut self, aux_memory: bool, addr: u16, value: u8) {
+        if aux_memory {
+            self.video_aux[addr as usize] = value;
+        } else {
+            self.video_main[addr as usize] = value;
+        }
+
+        if (0x2000..=0x5fff).contains(&addr) {
+            // 000fghcd eabab000 -> abcdefgh
+            let row = ((addr <<  1) & 0xc0) | ((addr >>  4) & 0x38) | ((addr >> 10) & 0x07);
+            if row < 192 {
+                self.video_reparse[row as usize] = 1;
             }
         }
     }
