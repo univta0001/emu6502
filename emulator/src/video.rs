@@ -804,7 +804,15 @@ impl Video {
             self.video_main[addr as usize] = value;
         }
 
-        if (0x2000..=0x5fff).contains(&addr) {
+        if (0x0400..=0x0bff).contains(&addr) {
+            // 000000cd eabab000 -> 000abcde
+            let row = ((addr & 0x18) | ((addr >> 7) & 0x06) | ((addr & 0x80) >> 7)) * 8;
+            if row < 192 {
+                for i in 0..8 {
+                    self.video_reparse[row as usize + i] = 1;
+                }
+            }
+        } else if (0x2000..=0x5fff).contains(&addr) {
             // 000fghcd eabab000 -> abcdefgh
             let row = ((addr <<  1) & 0xc0) | ((addr >>  4) & 0x38) | ((addr >> 10) & 0x07);
             if row < 192 {
