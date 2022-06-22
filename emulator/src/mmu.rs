@@ -92,7 +92,7 @@ impl Mmu {
                 }
             }
 
-            if (self.video_graphics || self.video_hires) && (0x2000..0x4000).contains(&addr) {
+            if self.video_hires && (0x2000..0x4000).contains(&addr) {
                 if self.video_page2 {
                     aux_flag = true
                 } else {
