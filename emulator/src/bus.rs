@@ -49,6 +49,9 @@ pub struct Bus {
     pub intc8rom: RefCell<bool>,
 
     #[serde(default)]
+    pub iou: RefCell<bool>,
+
+    #[serde(default)]
     pub halt_cpu: RefCell<bool>,
     //bad_softswitch_addr: HashMap<u16, bool>,
     #[serde(default = "default_io_slot")]
@@ -138,6 +141,7 @@ impl Bus {
             disable_audio: false,
             //bad_softswitch_addr: HashMap::new(),
             mem,
+            iou: RefCell::new(false),
             halt_cpu: RefCell::new(false),
             io_slot: default_io_slot(),
         };
@@ -794,9 +798,38 @@ impl Bus {
                 }
             }
 
-            0x70..=0x7f => {
+            0x70 => {
                 *self.paddle_trigger.borrow_mut() = *self.cycles.borrow();
                 0
+            }
+
+            0x7e => {
+                let val = self.read_floating_bus() & 0x7f;
+                if write_flag {
+                    *self.iou.borrow_mut() = false;
+                    val
+                } else if !*self.iou.borrow() {
+                    val | 0x80
+                } else {
+                    val
+                }
+            }
+
+            0x7f => {
+                let val = self.read_floating_bus() & 0x7f;
+                if write_flag {
+                    *self.iou.borrow_mut() = true;
+                    val
+                } else if let Some(display) = &self.video {
+                    let disp = display.borrow();
+                    if disp.is_dhires_mode() {
+                        val | 0x80
+                    } else {
+                        val
+                    }
+                } else {
+                    val
+                }
             }
 
             0x80..=0x8f => {
