@@ -1078,6 +1078,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         }
                         disp.clear_video_dirty();
 
+                        let mut harddisk_on = false;
                         let disk_is_on = {
                             let mut disk_status = false;
                             let mut harddisk_status = false;
@@ -1086,6 +1087,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                             }
                             if let Some(drive) = &_cpu.bus.harddisk {
                                 harddisk_status = drive.borrow().is_busy();
+                                if harddisk_status {
+                                    harddisk_on = true;
+                                }
                             }
                             disk_status || harddisk_status
                         };
@@ -1096,7 +1100,11 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                                 .update(rect, &disp.frame[552 * 4..], 560 * 4)
                                 .unwrap();
                             canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
-                            canvas.set_draw_color(Color::RGBA(255, 0, 0, 128));
+                            if harddisk_on {
+                                canvas.set_draw_color(Color::RGBA(0, 255, 0, 128));
+                            } else {
+                                canvas.set_draw_color(Color::RGBA(255, 0, 0, 128));
+                            }
                             let _result = draw_circle(&mut canvas, 560 - 4, 4, 2);
                         } else {
                             let rect = Rect::new(552, 0, 8, 8);
