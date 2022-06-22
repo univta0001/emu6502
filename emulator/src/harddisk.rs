@@ -29,7 +29,7 @@ const ROM: [u8; 256] = [
 ];
 
 const HD_BLOCK_SIZE: usize = 512;
-const CYCLES_FOR_RW_BLOCK: usize = HD_BLOCK_SIZE;
+const CYCLES_FOR_RW_BLOCK: usize = HD_BLOCK_SIZE * 8;
 
 /*
 Memory map for hard disk (derived from AppleWin)
