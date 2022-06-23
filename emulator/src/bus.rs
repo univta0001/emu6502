@@ -3,6 +3,7 @@ use crate::disk::DiskDrive;
 use crate::harddisk::HardDisk;
 use crate::mmu::Mmu;
 use crate::parallel::ParallelCard;
+use crate::noslotclock::NoSlotClock;
 use crate::video::Video;
 use derivative::*;
 use rand::Rng;
@@ -47,6 +48,9 @@ pub struct Bus {
     pub intcxrom: RefCell<bool>,
     pub slotc3rom: RefCell<bool>,
     pub intc8rom: RefCell<bool>,
+
+    #[serde(default)]
+    pub noslotclock: RefCell<NoSlotClock>,
 
     #[serde(default)]
     pub iou: RefCell<bool>,
@@ -136,6 +140,7 @@ impl Bus {
             intcxrom: RefCell::new(false),
             slotc3rom: RefCell::new(false),
             intc8rom: RefCell::new(false),
+            noslotclock: RefCell::new(NoSlotClock::new()),
             disable_video: false,
             disable_disk: false,
             disable_audio: false,
@@ -288,6 +293,15 @@ impl Bus {
             if slot < self.io_slot.len() {
                 let mut slot_value = self.io_slot[slot].borrow_mut();
                 //eprintln!("ROMAccess - {:04x} {} {}",addr,slot,ioaddr);
+
+                // Implement no slot clock
+                let mut clock = self.noslotclock.borrow_mut();
+                if clock.is_clock_register_enabled() {
+                    return clock.io_access(addr, 0, false)
+                } else {
+                    clock.io_access(addr, 0, false);
+                }
+
                 let return_value = match &mut *slot_value {
                     IODevice::None => {
                         if !*self.intcxrom.borrow() {
@@ -1004,6 +1018,14 @@ impl Mem for Bus {
             0xc100..=0xc2ff | 0xc400..=0xc7ff => self.iodevice_rom_access(addr, 0, false),
 
             0xc300..=0xc3ff => {
+                // Implement no slot clock
+                let mut clock = self.noslotclock.borrow_mut();
+                if clock.is_clock_register_enabled() {
+                    return clock.io_access(addr, 0, false)
+                } else {
+                    clock.io_access(addr, 0, false);
+                }
+
                 if !*self.slotc3rom.borrow() {
                     *self.intc8rom.borrow_mut() = true;
                 }

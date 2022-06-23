@@ -11,6 +11,7 @@ pub mod opcodes;
 pub mod parallel;
 pub mod trace;
 pub mod video;
+pub mod noslotclock;
 
 #[macro_use]
 extern crate bitflags;
