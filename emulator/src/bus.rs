@@ -1106,7 +1106,6 @@ fn default_io_slot() -> Vec<RefCell<IODevice>> {
     }
 
     io_slot[1] = RefCell::new(IODevice::Printer(ParallelCard::new()));
-    io_slot[2] = RefCell::new(IODevice::Z80);
     io_slot[4] = RefCell::new(IODevice::Mockingboard(0));
     io_slot[6] = RefCell::new(IODevice::Disk);
     io_slot[7] = RefCell::new(IODevice::HardDisk);

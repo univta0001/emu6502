@@ -582,7 +582,7 @@ FLAGS:
     -h, --help         Prints help information
     --50hz             Enable 50 Hz emulation     
     --nojoystick       Disable joystick
-    --noz80            Disable z80 at slot 2
+    --z80              Enable z80 at slot 2
     --xtrim            Set joystick x-trim value
     --ytrim            Set joystick y-trim value
     -m, --model MODEL  Set apple 2 model. Valid value: apple2p,apple2e,apple2ee
@@ -873,8 +873,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         cpu.bus.set_joystick(false);
     }
 
-    if pargs.contains("--noz80") {
-        cpu.bus.register_device(IODevice::None, 2);
+    if pargs.contains("--z80") {
+        cpu.bus.register_device(IODevice::Z80, 2);
     }
 
     if let Some(xtrim) = pargs.opt_value_from_str::<_, i8>("--xtrim")? {

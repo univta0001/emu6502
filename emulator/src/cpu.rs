@@ -1892,11 +1892,12 @@ impl Machine for Bus {
     }
 
     fn port_in(&mut self, _address: u16) -> u8 {
-        unimplemented!("In Port not implemented")
+        // In Port not implemented
+        0
     }
 
     fn port_out(&mut self, _address: u16, _value: u8) {
-        unimplemented!("Out Port not implemented")
+        // Out Port not implemented
     }
 }
 
