@@ -575,6 +575,18 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             }
         }
 
+        Event::MouseButtonDown {
+            mouse_btn: sdl2::mouse::MouseButton::Middle,
+            ..
+        } => {
+            if event_param.clipboard_text.is_empty() {
+                let clipboard = event_param.video_subsystem.clipboard();
+                if let Ok(text) = clipboard.clipboard_text() {
+                    *event_param.clipboard_text = text.replace('\n',"");
+                }
+            }
+        }
+
         Event::KeyDown {
             keycode: Some(value),
             keymod,
