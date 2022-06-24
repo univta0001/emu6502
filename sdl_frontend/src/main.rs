@@ -1053,6 +1053,19 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             let mut cpu_cycles = CPU_CYCLES_PER_FRAME_60HZ;
             let mut cpu_period = 16_667;
 
+            // Handle clipboard text if any
+            if !clipboard_text.is_empty() {
+                let mut latch = _cpu.bus.keyboard_latch.borrow_mut();
+
+                // Only put into keyboard latch when it is ready
+                if *latch < 0x80 {
+                    if let Some(ch) = clipboard_text.chars().next() {
+                        *latch = (ch as u8) + 0x80;
+                        clipboard_text = clipboard_text[1..].to_string();
+                    }
+                }
+            }
+
             if let Some(display) = &_cpu.bus.video {
                 if display.borrow().is_video_50hz() {
                     cpu_cycles = CPU_CYCLES_PER_FRAME_50HZ;
@@ -1152,19 +1165,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
                     video_offset = video_elapsed % (cpu_period as u128);
                     video_refresh = Instant::now();
-                }
-
-                // Handle clipboard text if any
-                if !clipboard_text.is_empty() {
-                    let mut latch = _cpu.bus.keyboard_latch.borrow_mut();
-
-                    // Only put into keyboard latch when it is ready
-                    if *latch < 0x80 {
-                        if let Some(ch) = clipboard_text.chars().next() {
-                            *latch = (ch as u8) + 0x80;
-                            clipboard_text = clipboard_text[1..].to_string();
-                        }
-                    }
                 }
 
                 let mut event = _event_pump.poll_event();
