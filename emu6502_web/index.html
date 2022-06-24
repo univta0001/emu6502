@@ -91,6 +91,8 @@
 
             // Setup Keyboard Handler
             const onKeydown = (e) => {
+                let apple2e = emu6502.is_apple2e();
+
                 if (e.isComposing || e.keyCode === 229) {
                     return; 
                 }
@@ -105,12 +107,21 @@
                     return emu6502.keyboard_latch(21);
                 }
 
+                if (apple2e && e.keyCode == 38) {
+                    // Keycode.Up
+                    return emu6502.keyboard_latch(11);
+                }
+
+                if (apple2e && e.keyCode == 40) {
+                    // Keycode.Down
+                    return emu6502.keyboard_latch(10);
+                }
+
                 if (e.keyCode == ascii_to_int(']') && e.ctrlKey) {
                     return emu6502.keyboard_latch(29);
                 }
 
                 let value = e.keyCode & 0x7f;
-                let apple2e = emu6502.is_apple2e();
                 let shift_mode = e.shiftKey;
                 let ctrl_mode = e.ctrlKey;
                 let caps_mode = e.getModifierState("CapsLock");

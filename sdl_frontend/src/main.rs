@@ -68,8 +68,18 @@ fn translate_key_to_apple_key(
 ) -> (bool, i16) {
     if keycode == Keycode::Left {
         return (true, 8);
-    } else if keycode == Keycode::Right {
+    }
+
+    if keycode == Keycode::Right {
         return (true, 21);
+    }
+
+    if apple2e && keycode == Keycode::Up {
+        return (true, 11);
+    }
+
+    if apple2e && keycode == Keycode::Down {
+        return (true, 10);
     }
 
     if !apple2e && keycode == Keycode::Backquote {
