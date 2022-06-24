@@ -28,6 +28,7 @@ use sdl2::rect::Rect;
 use sdl2::render::BlendMode;
 use sdl2::render::Canvas;
 use sdl2::render::RenderTarget;
+use sdl2::VideoSubsystem;
 use sdl2::GameControllerSubsystem;
 use std::collections::HashMap;
 use std::error::Error;
@@ -50,6 +51,7 @@ const NTSC_CHROMA_BANDWIDTH: f32 = 600000.0;
 const VERSION: &str = "0.1.0";
 
 struct EventParam<'a> {
+    video_subsystem: &'a VideoSubsystem,
     game_controller: &'a GameControllerSubsystem,
     gamepads: &'a mut HashMap<u32, (u32, GameController)>,
     key_caps: &'a mut bool,
@@ -58,6 +60,7 @@ struct EventParam<'a> {
     save_screenshot: &'a mut bool,
     display_mode: &'a [DisplayMode; 4],
     display_index: &'a mut usize,
+    clipboard_text: &'a mut String,
 }
 
 fn translate_key_to_apple_key(
@@ -559,6 +562,20 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         }
 
         Event::KeyDown {
+            keycode: Some(Keycode::Insert),
+            keymod,
+            ..
+        } => {
+            if (keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD)) &&
+                event_param.clipboard_text.is_empty() {
+                let clipboard = event_param.video_subsystem.clipboard();
+                if let Ok(text) = clipboard.clipboard_text() {
+                    *event_param.clipboard_text = text.replace('\n',"");
+                }
+            }
+        }
+
+        Event::KeyDown {
             keycode: Some(value),
             keymod,
             ..
@@ -1011,6 +1028,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut reload_cpu = false;
     let mut save_screenshot = false;
 
+    let mut clipboard_text = String::new();
+
     let mut display_index = 0;
     let display_mode = [
         DisplayMode::DEFAULT,
@@ -1135,9 +1154,23 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     video_refresh = Instant::now();
                 }
 
+                // Handle clipboard text if any
+                if !clipboard_text.is_empty() {
+                    let mut latch = _cpu.bus.keyboard_latch.borrow_mut();
+
+                    // Only put into keyboard latch when it is ready
+                    if *latch < 0x80 {
+                        if let Some(ch) = clipboard_text.chars().next() {
+                            *latch = (ch as u8) + 0x80;
+                            clipboard_text = clipboard_text[1..].to_string();
+                        }
+                    }
+                }
+
                 let mut event = _event_pump.poll_event();
                 while let Some(event_value) = event {
                     let mut event_param = EventParam {
+                        video_subsystem: &video_subsystem,
                         game_controller: &game_controller,
                         gamepads: &mut gamepads,
                         key_caps: &mut key_caps,
@@ -1146,6 +1179,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         save_screenshot: &mut save_screenshot,
                         display_mode: &display_mode,
                         display_index: &mut display_index,
+                        clipboard_text: &mut clipboard_text,
                     };
 
                     handle_event(_cpu, event_value, &mut event_param);
