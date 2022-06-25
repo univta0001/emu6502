@@ -703,11 +703,15 @@ impl Video {
     }
 
     pub fn update_video(&mut self) {
-        let val = self.cycles % self.cycle_field;
+        if self.cycles >= self.cycle_field {
+            self.cycles -= self.cycle_field;
+        }
+
+        let val = self.cycles;
         let row = val / CYCLES_PER_ROW;
         let col = val % CYCLES_PER_ROW;
 
-        if self.cycles % CYCLES_PER_FIELD_60HZ == 0 {
+        if self.cycles == 0 {
             let elapsed = instant::SystemTime::now()
                 .duration_since(instant::SystemTime::UNIX_EPOCH)
                 .unwrap()
@@ -728,7 +732,6 @@ impl Video {
         // 25 clock cycle of horizontal blank
         // followed by 40 clock cycles displayed line
         let video_value = self.read_video_data(val, row);
-        let video_aux_latch = self.read_aux_video_data(val, row);
         self.video_latch = self.prev_video_data;
         self.prev_video_data = video_value;
 
@@ -736,6 +739,7 @@ impl Video {
             return;
         }
 
+        let video_aux_latch = self.read_aux_video_data(val, row);
         let visible_col = col - CYCLES_PER_HBL;
         let video_mode = self.get_video_mode();
         let video_data = video_value as u32 | (video_aux_latch as u32) << 8 | video_mode;
@@ -1027,17 +1031,11 @@ impl Video {
     }
 
     fn read_video_data(&mut self, cycle: usize, r: usize) -> u8 {
-        if !self.graphics_mode {
-            self.read_video_text_data(cycle)
-        } else if !self.mixed_mode || r < 160 {
-            if !self.lores_mode {
-                if !self.video_50hz {
-                    self.read_raw_hires_memory(self.lut_hires[cycle])
-                } else {
-                    self.read_raw_hires_memory(self.lut_hires_pal[cycle])
-                }
+        if self.graphics_mode && (!self.mixed_mode || r < 160) && !self.lores_mode {
+            if !self.video_50hz {
+                self.read_raw_hires_memory(self.lut_hires[cycle])
             } else {
-                self.read_video_text_data(cycle)
+                self.read_raw_hires_memory(self.lut_hires_pal[cycle])
             }
         } else {
             self.read_video_text_data(cycle)
@@ -1059,17 +1057,11 @@ impl Video {
     }
 
     fn read_aux_video_data(&mut self, cycle: usize, r: usize) -> u8 {
-        if !self.graphics_mode {
-            self.read_video_aux_text_data(cycle)
-        } else if !self.mixed_mode || r < 160 {
-            if !self.lores_mode {
-                if !self.video_50hz {
-                    self.read_raw_aux_hires_memory(self.lut_hires[cycle])
-                } else {
-                    self.read_raw_aux_hires_memory(self.lut_hires_pal[cycle])
-                }
+        if self.graphics_mode && (!self.mixed_mode || r < 160) && !self.lores_mode {
+            if !self.video_50hz {
+                self.read_raw_aux_hires_memory(self.lut_hires[cycle])
             } else {
-                self.read_video_aux_text_data(cycle)
+                self.read_raw_aux_hires_memory(self.lut_hires_pal[cycle])
             }
         } else {
             self.read_video_aux_text_data(cycle)
