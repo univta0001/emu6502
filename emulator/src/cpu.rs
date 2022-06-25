@@ -1196,11 +1196,10 @@ impl CPU {
 
     fn branch(&mut self, op: &OpCode, condition: bool) {
         let addr = self.get_immediate_addr(op, self.program_counter);
-        let offset = self.bus.addr_read(addr) as i8 as u16;
 
         if condition {
             self.tick();
-
+            let offset = self.bus.addr_read(addr) as i8 as u16;
             let jump_addr = self.program_counter.wrapping_add(offset);
 
             if self.program_counter & 0xFF00 != jump_addr & 0xFF00 {
@@ -1208,6 +1207,8 @@ impl CPU {
             }
 
             self.program_counter = jump_addr;
+        } else {
+            self.tick();
         }
     }
 
