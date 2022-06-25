@@ -703,15 +703,11 @@ impl Video {
     }
 
     pub fn update_video(&mut self) {
-        if self.cycles >= self.cycle_field {
-            self.cycles -= self.cycle_field;
-        }
-
-        let val = self.cycles;
+        let val = self.cycles % self.cycle_field;
         let row = val / CYCLES_PER_ROW;
         let col = val % CYCLES_PER_ROW;
 
-        if self.cycles == 0 {
+        if val == 0 {
             let elapsed = instant::SystemTime::now()
                 .duration_since(instant::SystemTime::UNIX_EPOCH)
                 .unwrap()
