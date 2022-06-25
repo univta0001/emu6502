@@ -769,34 +769,27 @@ impl Video {
 
             self.video_cache[video_index] = video_data;
 
-            if !self.graphics_mode {
+            if !self.graphics_mode || (self.mixed_mode && row >=160) { 
                 if self.vid80_mode {
                     self.draw_char_a2_y(visible_col, row / 8, video_aux_latch, row % 8, 0);
                 }
                 self.draw_char_a2_y(visible_col, row / 8, video_value, row % 8, 7);
-            } else if !self.mixed_mode || row < 160 {
-                if !self.lores_mode {
-                    if self.vid80_mode && self.dhires_mode {
-                        self.draw_raw_dhires_a2_row_col(
-                            row,
-                            visible_col,
-                            video_value,
-                            video_aux_latch,
-                        );
-                    } else {
-                        self.draw_raw_hires_a2_row_col(row, visible_col, video_value);
-                    }
+            } else if !self.lores_mode {
+                if self.vid80_mode && self.dhires_mode {
+                    self.draw_raw_dhires_a2_row_col(
+                        row,
+                        visible_col,
+                        video_value,
+                        video_aux_latch,
+                    );
                 } else {
-                    if self.vid80_mode {
-                        self.draw_lores_a2_y(visible_col, row, video_aux_latch, 0, true);
-                    }
-                    self.draw_lores_a2_y(visible_col, row, video_value, 7, false);
+                    self.draw_raw_hires_a2_row_col(row, visible_col, video_value);
                 }
             } else {
                 if self.vid80_mode {
-                    self.draw_char_a2_y(visible_col, row / 8, video_aux_latch, row % 8, 0);
+                    self.draw_lores_a2_y(visible_col, row, video_aux_latch, 0, true);
                 }
-                self.draw_char_a2_y(visible_col, row / 8, video_value, row % 8, 7);
+                self.draw_lores_a2_y(visible_col, row, video_value, 7, false);
             }
         }
     }
