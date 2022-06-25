@@ -1179,8 +1179,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     video_refresh = Instant::now();
                 }
 
-                let mut event = _event_pump.poll_event();
-                while let Some(event_value) = event {
+                for event_value in _event_pump.poll_iter() {
                     let mut event_param = EventParam {
                         video_subsystem: &video_subsystem,
                         game_controller: &game_controller,
@@ -1195,7 +1194,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     };
 
                     handle_event(_cpu, event_value, &mut event_param);
-                    event = _event_pump.poll_event();
                 }
                 let video_cpu_update = t.elapsed().as_micros();
                 let adj_ms =
