@@ -1058,16 +1058,18 @@ impl Mem for Bus {
 
     fn unclocked_addr_write(&mut self, addr: u16, data: u8) {
         match addr {
-            0x0..=0xbfff => {
+            0x0..=0x3ff | 0xc00..=0x1fff | 0x6000..=0xbfff => {
+                self.mem.borrow_mut().unclocked_addr_write(addr, data);
+            }
+
+            0x400..=0xbff | 0x2000..=0x5fff => {
                 let mut mmu = self.mem.borrow_mut();
                 mmu.unclocked_addr_write(addr, data);
 
                 // Shadow it to the video ram
-                if (0x400..=0xbff).contains(&addr) || (0x2000..=0x5fff).contains(&addr) {
-                    if let Some(display) = &self.video {
-                        let aux_memory = mmu.is_aux_memory(addr, true);
-                        display.borrow_mut().update_shadow_memory(aux_memory,addr,data);
-                    }
+                if let Some(display) = &self.video {
+                    let aux_memory = mmu.is_aux_memory(addr, true);
+                    display.borrow_mut().update_shadow_memory(aux_memory,addr,data);
                 }
             }
 
