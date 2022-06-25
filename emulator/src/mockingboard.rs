@@ -146,7 +146,7 @@ struct AY8910 {
     _name: String,
     current_reg: u8,
     reg: Vec<u8>,
-    tone: Vec<Tone>,
+    tone: [Tone;3],
     envelope: Envelope,
     noise: Noise,
     rng: usize,
@@ -158,7 +158,7 @@ impl AY8910 {
             _name: name.to_owned(),
             current_reg: 0,
             reg: vec![0; 16],
-            tone: vec![Tone::new(), Tone::new(), Tone::new()],
+            tone: [Tone::new(), Tone::new(), Tone::new()],
             envelope: Envelope::new(),
             noise: Noise::new(),
             rng: 1,
@@ -172,13 +172,13 @@ impl AY8910 {
     }
 
     fn update_tone(&mut self) {
-        for item in &mut self.tone {
-            if item.period > 0 {
-                let env_period = item.period as usize;
-                item.count += 1;
-                if item.count >= env_period {
-                    item.count -= env_period;
-                    item.level = !item.level
+        for i in 0..self.tone.len() {
+            if self.tone[i].period > 0 {
+                let env_period = self.tone[i].period as usize;
+                self.tone[i].count += 1;
+                if self.tone[i].count >= env_period {
+                    self.tone[i].count -= env_period;
+                    self.tone[i].level = !self.tone[i].level
                 }
             }
         }
@@ -687,14 +687,14 @@ impl Default for W65C22 {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Mockingboard {
-    w65c22: Vec<W65C22>,
+    w65c22: [W65C22;2],
     rng: usize,
 }
 
 impl Mockingboard {
     pub fn new() -> Self {
         Mockingboard {
-            w65c22: vec![W65C22::new("#1"), W65C22::new("#2")],
+            w65c22: [W65C22::new("#1"), W65C22::new("#2")],
             rng: 1,
         }
     }
