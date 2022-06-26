@@ -28,8 +28,9 @@ use sdl2::rect::Rect;
 use sdl2::render::BlendMode;
 use sdl2::render::Canvas;
 use sdl2::render::RenderTarget;
-use sdl2::VideoSubsystem;
 use sdl2::GameControllerSubsystem;
+use sdl2::VideoSubsystem;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsStr;
@@ -566,11 +567,12 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             keymod,
             ..
         } => {
-            if (keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD)) &&
-                event_param.clipboard_text.is_empty() {
+            if (keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD))
+                && event_param.clipboard_text.is_empty()
+            {
                 let clipboard = event_param.video_subsystem.clipboard();
                 if let Ok(text) = clipboard.clipboard_text() {
-                    *event_param.clipboard_text = text.replace('\n',"");
+                    *event_param.clipboard_text = text.replace('\n', "");
                 }
             }
         }
@@ -582,7 +584,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             if event_param.clipboard_text.is_empty() {
                 let clipboard = event_param.video_subsystem.clipboard();
                 if let Ok(text) = clipboard.clipboard_text() {
-                    *event_param.clipboard_text = text.replace('\n',"");
+                    *event_param.clipboard_text = text.replace('\n', "");
                 }
             }
         }
@@ -985,7 +987,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         if let Some(sound) = &mut cpu.bus.audio {
             sound.borrow_mut().mboard.clear();
             for _ in 0..mboard {
-                sound.borrow_mut().mboard.push(Mockingboard::new());
+                sound
+                    .borrow_mut()
+                    .mboard
+                    .push(RefCell::new(Mockingboard::new()));
             }
             for i in 0..mboard {
                 cpu.bus

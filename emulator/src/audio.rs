@@ -1,5 +1,6 @@
 use crate::mockingboard::Mockingboard;
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 
 type Channel = i16;
 type HigherChannel = i32;
@@ -17,7 +18,7 @@ const AY_LEVEL: [u16; 16] = [
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Audio {
     pub data: AudioData,
-    pub mboard: Vec<Mockingboard>,
+    pub mboard: Vec<RefCell<Mockingboard>>,
     fcycles: f32,
     fcycles_per_sample: f32,
     dc_filter: usize,
@@ -41,13 +42,13 @@ impl Audio {
             fcycles: 0.0,
             fcycles_per_sample: CPU_6502_MHZ as f32 / DEFAULT_RATE as f32,
             dc_filter: 32768 + 12000,
-            mboard: vec![Mockingboard::default()],
+            mboard: vec![RefCell::new(Mockingboard::default())],
         }
     }
 
     pub fn tick(&mut self) {
         self.fcycles += 1.0;
-        self.mboard.iter_mut().for_each(|mb| mb.tick());
+        self.mboard.iter_mut().for_each(|mb| mb.borrow_mut().tick());
 
         if self.fcycles >= (self.fcycles_per_sample) {
             self.fcycles -= self.fcycles_per_sample;
@@ -78,7 +79,8 @@ impl Audio {
     }
 
     fn update_phase(&mut self, phase: &mut HigherChannel, channel: usize) {
-        for mboard in &self.mboard {
+        for mb in &self.mboard {
+            let mboard = mb.borrow_mut();
             for tone in 0..3 {
                 // The max tone volume is 0xffff. Normalized it by dividing by 2
                 let volume = (AY_LEVEL[mboard.get_tone_volume(channel, tone)] / 2) as HigherChannel;

@@ -10,6 +10,7 @@ use rand::Rng;
 //use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
+use std::cell::RefMut;
 
 pub const ROM_START: u16 = 0xd000;
 pub const ROM_END: u16 = 0xffff;
@@ -208,7 +209,7 @@ impl Bus {
                     .borrow_mut()
                     .mboard
                     .iter_mut()
-                    .for_each(|mb| mb.reset())
+                    .for_each(|mb| mb.borrow_mut().reset())
             }
         }
 
@@ -278,27 +279,32 @@ impl Bus {
             let mut slot_value = self.io_slot[slot].borrow_mut();
             let io_addr = ((addr & 0x00ff) - ((slot as u16) << 4)) as u8;
             //eprintln!("IOAccess - {:04x} {} {}",addr,slot,io_addr);
-            let return_value = match &mut *slot_value {
-                IODevice::None => {
-                    if !*self.intcxrom.borrow() {
-                        self.read_floating_bus()
+            let return_value: Option<Box<RefMut<'_, dyn Card>>> = match &mut *slot_value {
+                IODevice::Printer(printer) => Some(Box::new(printer.borrow_mut())),
+                IODevice::Disk => {
+                    if let Some(drive) = &self.disk {
+                        Some(Box::new(drive.borrow_mut()))
                     } else {
-                        self.mem_read(addr)
+                        None
                     }
                 }
-                IODevice::Disk => self.disk_io_access(addr, value, write_flag),
-                IODevice::Printer(printer) => printer.borrow_mut().io_access(
-                    &self.mem,
-                    &self.video,
-                    io_addr,
-                    value,
-                    write_flag,
-                ),
-                IODevice::Mockingboard(_) => 0,
-                IODevice::Z80 => 0,
-                IODevice::HardDisk => self.harddisk_io_access(addr, value, write_flag),
+                IODevice::HardDisk => {
+                    if let Some(drive) = &self.harddisk {
+                        Some(Box::new(drive.borrow_mut()))
+                    } else {
+                        None
+                    }
+                }
+                IODevice::Mockingboard(_) => None,
+                IODevice::Z80 => None,
+                _ => None,
             };
-            return_value
+
+            if let Some(mut device) = return_value {
+                device.io_access(&self.mem, &self.video, io_addr, value, write_flag)
+            } else {
+                self.read_floating_bus()
+            }
         } else {
             self.read_floating_bus()
         }
@@ -320,28 +326,54 @@ impl Bus {
                     clock.io_access(addr, 0, false);
                 }
 
-                let return_value = match &mut *slot_value {
-                    IODevice::None => {
-                        if !*self.intcxrom.borrow() {
-                            self.read_floating_bus()
+                let audio = if let Some(sound) = &self.audio {
+                    Some(sound.borrow_mut())
+                } else {
+                    None
+                };
+
+                let return_value: Option<Box<RefMut<'_, dyn Card>>> = match &mut *slot_value {
+                    IODevice::Printer(printer) => Some(Box::new(printer.borrow_mut())),
+                    IODevice::Disk => {
+                        if let Some(drive) = &self.disk {
+                            Some(Box::new(drive.borrow_mut()))
                         } else {
-                            self.mem_read(addr)
+                            None
                         }
                     }
-                    IODevice::Printer(printer) => printer.borrow_mut().rom_access(ioaddr, 0, false),
-                    IODevice::Disk => self.disk_rom_access(addr),
-                    IODevice::Mockingboard(item) => {
-                        self.mb_rom_access(addr, value, write_flag, *item)
+                    IODevice::HardDisk => {
+                        if let Some(drive) = &self.harddisk {
+                            Some(Box::new(drive.borrow_mut()))
+                        } else {
+                            None
+                        }
                     }
                     IODevice::Z80 => {
                         if write_flag {
                             *self.halt_cpu.borrow_mut() = true;
                         }
-                        self.read_floating_bus()
+                        None
                     }
-                    IODevice::HardDisk => self.harddisk_rom_access(addr),
+                    IODevice::Mockingboard(device_no) => {
+                        if audio.is_some() {
+                            let snd = audio.as_ref().unwrap();
+                            if snd.mboard.is_empty() || *device_no >= snd.mboard.len() {
+                                None
+                            } else {
+                                Some(Box::new(snd.mboard[*device_no].borrow_mut()))
+                            }
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
                 };
-                return_value
+
+                if let Some(mut device) = return_value {
+                    device.rom_access(ioaddr, value, write_flag)
+                } else {
+                    self.read_floating_bus()
+                }
             } else {
                 self.read_floating_bus()
             }
@@ -429,7 +461,7 @@ impl Bus {
                     .borrow_mut()
                     .mboard
                     .iter_mut()
-                    .find_map(|mb| mb.poll_irq())
+                    .find_map(|mb| mb.borrow_mut().poll_irq())
             } else {
                 None
             }
@@ -941,81 +973,6 @@ impl Bus {
             sound.borrow_mut().click();
         }
         self.read_floating_bus()
-    }
-
-    fn disk_rom_access(&self, addr: u16) -> u8 {
-        if !*self.intcxrom.borrow() {
-            if let Some(drive) = &self.disk {
-                drive.borrow_mut().rom_access((addr & 0xff) as u8, 0, false)
-            } else {
-                self.read_floating_bus()
-            }
-        } else {
-            self.mem_read(addr)
-        }
-    }
-
-    fn disk_io_access(&self, addr: u16, value: u8, write_flag: bool) -> u8 {
-        let io_addr = (addr & 0xff) as u8;
-        let io_slot = ((addr - 0x0080) & 0xf0) as u8;
-
-        if let Some(drive) = &self.disk {
-            drive.borrow_mut().io_access(
-                &self.mem,
-                &self.video,
-                io_addr - io_slot,
-                value,
-                write_flag,
-            )
-        } else {
-            0
-        }
-    }
-
-    fn harddisk_rom_access(&self, addr: u16) -> u8 {
-        if !*self.intcxrom.borrow() {
-            if let Some(drive) = &self.harddisk {
-                drive.borrow_mut().rom_access((addr & 0xff) as u8, 0, false)
-            } else {
-                self.read_floating_bus()
-            }
-        } else {
-            self.mem_read(addr)
-        }
-    }
-
-    fn harddisk_io_access(&self, addr: u16, value: u8, write_flag: bool) -> u8 {
-        let io_addr = (addr & 0xff) as u8;
-        let io_slot = ((addr - 0x0080) & 0xf0) as u8;
-
-        if let Some(drive) = &self.harddisk {
-            drive.borrow_mut().io_access(
-                &self.mem,
-                &self.video,
-                io_addr - io_slot,
-                value,
-                write_flag,
-            )
-        } else {
-            0
-        }
-    }
-
-    fn mb_rom_access(&self, addr: u16, value: u8, write_flag: bool, device_no: usize) -> u8 {
-        if !*self.intcxrom.borrow() {
-            if let Some(sound) = &self.audio {
-                let mut snd = sound.borrow_mut();
-                if !snd.mboard.is_empty() {
-                    let io_addr = (addr & 0xff) as u8;
-                    if device_no < snd.mboard.len() {
-                        return snd.mboard[device_no].rom_access(io_addr, value, write_flag);
-                    }
-                }
-            }
-            self.read_floating_bus()
-        } else {
-            self.mem_read(addr)
-        }
     }
 }
 

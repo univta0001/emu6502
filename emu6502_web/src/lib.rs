@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use emu6502::bus::Bus;
 use emu6502::cpu::CPU;
 use emu6502::bus::IODevice;
@@ -215,7 +216,7 @@ pub async fn init_emul() -> Emulator {
         let mut snd = sound.borrow_mut();
         snd.mboard.clear();
         for _ in 0..2 {
-            snd.mboard.push(Mockingboard::new());
+            snd.mboard.push(RefCell::new(Mockingboard::new()));
         }
     }
 
