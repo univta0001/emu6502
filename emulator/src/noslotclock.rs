@@ -130,7 +130,7 @@ impl NoSlotClock {
 
     fn clock_write(&mut self, addr: u16) {
         if !self.write_enabled {
-            return
+            return;
         }
 
         if !self.clock_register_enabled {
@@ -142,7 +142,6 @@ impl NoSlotClock {
             } else {
                 self.write_enabled = false;
             }
-            
         } else if self.clock_register.next_bit() {
             self.clock_register_enabled = false;
         }
@@ -152,8 +151,10 @@ impl NoSlotClock {
         let now = Local::now();
 
         let centisecond = now.nanosecond() / 1_000_000;
-        self.clock_register.write_nibble((centisecond % 10) as usize);
-        self.clock_register.write_nibble((centisecond / 10) as usize);
+        self.clock_register
+            .write_nibble((centisecond % 10) as usize);
+        self.clock_register
+            .write_nibble((centisecond / 10) as usize);
 
         let second = now.second();
         self.clock_register.write_nibble((second % 10) as usize);

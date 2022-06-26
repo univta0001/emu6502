@@ -2548,7 +2548,7 @@ mod test {
         let bank1_code = [
             0xAD, 0x8B, 0xC0, // 00       LDA $C08B
             0xAD, 0x8B, 0xC0, // 03       LDA $C08B
-            0xA9, 0x11,       // 06       LDA #$11
+            0xA9, 0x11, // 06       LDA #$11
             0x8D, 0x7B, 0xD1, // 08       STA $D17B
             0xAD, 0x80, 0xC0, // 0B       LDA $C080
             0xAD, 0x8B, 0xC0, // 0E       LDA $C08B
@@ -2578,7 +2578,7 @@ mod test {
             0xAD, 0x83, 0xC0, // 03       LDA $C083
             0x8D, 0x81, 0xC0, // 06       STA $C081
             0xAD, 0x81, 0xC0, // 09       LDA $C081
-            0xA9, 0xA2,       // 0C       LDA #$A2
+            0xA9, 0xA2, // 0C       LDA #$A2
             0x8D, 0x00, 0xD0, // 0E       STA $D000
             0xAD, 0x83, 0xC0, // 11       LDA $C083
             0xAD, 0x83, 0xC0, // 14       LDA $C083
@@ -2601,7 +2601,7 @@ mod test {
         let bank2_code = [
             0xAD, 0x83, 0xC0, // 00       LDA $C083
             0xAD, 0x83, 0xC0, // 03       LDA $C083
-            0xA9, 0x11,       // 06       LDA #$11
+            0xA9, 0x11, // 06       LDA #$11
             0x8D, 0x7B, 0xD1, // 08       STA $D17B
             0xAD, 0x80, 0xC0, // 0B       LDA $C080
             0xAD, 0x83, 0xC0, // 0E       LDA $C083

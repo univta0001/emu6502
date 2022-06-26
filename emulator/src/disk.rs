@@ -1,8 +1,12 @@
+use crate::bus::Card;
+use crate::mmu::Mmu;
+use crate::video::Video;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::prelude::*;
@@ -1149,10 +1153,6 @@ impl DiskDrive {
         self.motor_status(false);
     }
 
-    pub fn rom_access(&mut self, map_addr: u8, _value: u8, _write_mode: bool) -> u8 {
-        self.read_rom(map_addr)
-    }
-
     pub fn motor_status(&mut self, flag: bool) {
         if flag {
             self.drive[self.drive_select].motor_status = true;
@@ -1886,9 +1886,59 @@ impl DiskDrive {
             _ => self.latch = 0,
         }
     }
+}
 
-    pub fn io_access(&mut self, map_addr: u8, value: u8, write_mode: bool) -> u8 {
-        match map_addr {
+impl Disk {
+    pub fn new() -> Self {
+        Disk {
+            raw_track_data: vec![vec![0u8; 0]; DSK_TRACK_SIZE],
+            raw_track_bits: vec![0; DSK_TRACK_SIZE],
+            tmap_data: vec![0xffu8; WOZ_TMAP_SIZE],
+            optimal_timing: 32,
+            track: 0,
+            last_track: 0,
+            track_40: false,
+            phase: 0,
+            head: 0,
+            head_mask: 0x80,
+            head_bit: 0,
+            write_protect: false,
+            motor_status: false,
+            modified: false,
+            po_mode: false,
+            filename: "".to_owned(),
+            loaded: false,
+            disk_rom13: false,
+        }
+    }
+}
+
+impl Default for Disk {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Default for DiskDrive {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Card for DiskDrive {
+    fn rom_access(&mut self, map_addr: u8, _value: u8, _write_mode: bool) -> u8 {
+        self.read_rom(map_addr)
+    }
+
+    fn io_access(
+        &mut self,
+        _mem: &RefCell<Mmu>,
+        _video: &Option<RefCell<Video>>,
+        addr: u8,
+        value: u8,
+        write_mode: bool,
+    ) -> u8 {
+        match addr {
             LOC_PHASE0OFF => {
                 self.set_phase(0, false);
             }
@@ -1945,7 +1995,7 @@ impl DiskDrive {
 
         let mut return_value = 0;
         if !write_mode {
-            if map_addr & 0x1 == 0 {
+            if addr & 0x1 == 0 {
                 return_value = self.latch
             } else {
                 return_value = 0
@@ -1954,43 +2004,6 @@ impl DiskDrive {
             self.bus = value;
         }
         return_value
-    }
-}
-
-impl Disk {
-    pub fn new() -> Self {
-        Disk {
-            raw_track_data: vec![vec![0u8; 0]; DSK_TRACK_SIZE],
-            raw_track_bits: vec![0; DSK_TRACK_SIZE],
-            tmap_data: vec![0xffu8; WOZ_TMAP_SIZE],
-            optimal_timing: 32,
-            track: 0,
-            last_track: 0,
-            track_40: false,
-            phase: 0,
-            head: 0,
-            head_mask: 0x80,
-            head_bit: 0,
-            write_protect: false,
-            motor_status: false,
-            modified: false,
-            po_mode: false,
-            filename: "".to_owned(),
-            loaded: false,
-            disk_rom13: false,
-        }
-    }
-}
-
-impl Default for Disk {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Default for DiskDrive {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

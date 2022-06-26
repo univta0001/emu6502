@@ -765,19 +765,14 @@ impl Video {
 
             self.video_cache[video_index] = video_data;
 
-            if !self.graphics_mode || (self.mixed_mode && row >=160) { 
+            if !self.graphics_mode || (self.mixed_mode && row >= 160) {
                 if self.vid80_mode {
                     self.draw_char_a2_y(visible_col, row / 8, video_aux_latch, row % 8, 0);
                 }
                 self.draw_char_a2_y(visible_col, row / 8, video_value, row % 8, 7);
             } else if !self.lores_mode {
                 if self.vid80_mode && self.dhires_mode {
-                    self.draw_raw_dhires_a2_row_col(
-                        row,
-                        visible_col,
-                        video_value,
-                        video_aux_latch,
-                    );
+                    self.draw_raw_dhires_a2_row_col(row, visible_col, video_value, video_aux_latch);
                 } else {
                     self.draw_raw_hires_a2_row_col(row, visible_col, video_value);
                 }
@@ -807,7 +802,7 @@ impl Video {
             }
         } else if (0x2000..=0x5fff).contains(&addr) {
             // 000fghcd eabab000 -> abcdefgh
-            let row = ((addr <<  1) & 0xc0) | ((addr >>  4) & 0x38) | ((addr >> 10) & 0x07);
+            let row = ((addr << 1) & 0xc0) | ((addr >> 4) & 0x38) | ((addr >> 10) & 0x07);
             if row < 192 {
                 self.video_reparse[row as usize] = 1;
             }

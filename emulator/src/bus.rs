@@ -2,8 +2,8 @@ use crate::audio::Audio;
 use crate::disk::DiskDrive;
 use crate::harddisk::HardDisk;
 use crate::mmu::Mmu;
-use crate::parallel::ParallelCard;
 use crate::noslotclock::NoSlotClock;
+use crate::parallel::ParallelCard;
 use crate::video::Video;
 use derivative::*;
 use rand::Rng;
@@ -14,11 +14,23 @@ use std::cell::RefCell;
 pub const ROM_START: u16 = 0xd000;
 pub const ROM_END: u16 = 0xffff;
 
+pub trait Card {
+    fn rom_access(&mut self, addr: u8, value: u8, write_flag: bool) -> u8;
+    fn io_access(
+        &mut self,
+        mem: &RefCell<Mmu>,
+        video: &Option<RefCell<Video>>,
+        addr: u8,
+        value: u8,
+        write_flag: bool,
+    ) -> u8;
+}
+
 #[derive(Serialize, Deserialize, PartialEq)]
 pub enum IODevice {
     None,
     Disk,
-    Printer(ParallelCard),
+    Printer(RefCell<ParallelCard>),
     Mockingboard(usize),
     Z80,
     HardDisk,
@@ -275,7 +287,13 @@ impl Bus {
                     }
                 }
                 IODevice::Disk => self.disk_io_access(addr, value, write_flag),
-                IODevice::Printer(printer) => printer.io_access(io_addr, value, write_flag),
+                IODevice::Printer(printer) => printer.borrow_mut().io_access(
+                    &self.mem,
+                    &self.video,
+                    io_addr,
+                    value,
+                    write_flag,
+                ),
                 IODevice::Mockingboard(_) => 0,
                 IODevice::Z80 => 0,
                 IODevice::HardDisk => self.harddisk_io_access(addr, value, write_flag),
@@ -297,7 +315,7 @@ impl Bus {
                 // Implement no slot clock
                 let mut clock = self.noslotclock.borrow_mut();
                 if clock.is_clock_register_enabled() {
-                    return clock.io_access(addr, 0, false)
+                    return clock.io_access(addr, 0, false);
                 } else {
                     clock.io_access(addr, 0, false);
                 }
@@ -310,7 +328,7 @@ impl Bus {
                             self.mem_read(addr)
                         }
                     }
-                    IODevice::Printer(printer) => printer.rom_access(ioaddr),
+                    IODevice::Printer(printer) => printer.borrow_mut().rom_access(ioaddr, 0, false),
                     IODevice::Disk => self.disk_rom_access(addr),
                     IODevice::Mockingboard(item) => {
                         self.mb_rom_access(addr, value, write_flag, *item)
@@ -629,7 +647,7 @@ impl Bus {
                 } else {
                     self.read_floating_bus()
                 }
-            }            
+            }
 
             0x29 => {
                 if let Some(display) = &self.video {
@@ -942,9 +960,13 @@ impl Bus {
         let io_slot = ((addr - 0x0080) & 0xf0) as u8;
 
         if let Some(drive) = &self.disk {
-            drive
-                .borrow_mut()
-                .io_access(io_addr - io_slot, value, write_flag)
+            drive.borrow_mut().io_access(
+                &self.mem,
+                &self.video,
+                io_addr - io_slot,
+                value,
+                write_flag,
+            )
         } else {
             0
         }
@@ -953,7 +975,7 @@ impl Bus {
     fn harddisk_rom_access(&self, addr: u16) -> u8 {
         if !*self.intcxrom.borrow() {
             if let Some(drive) = &self.harddisk {
-                drive.borrow_mut().rom_access((addr & 0xff) as u8)
+                drive.borrow_mut().rom_access((addr & 0xff) as u8, 0, false)
             } else {
                 self.read_floating_bus()
             }
@@ -1021,7 +1043,7 @@ impl Mem for Bus {
                 // Implement no slot clock
                 let mut clock = self.noslotclock.borrow_mut();
                 if clock.is_clock_register_enabled() {
-                    return clock.io_access(addr, 0, false)
+                    return clock.io_access(addr, 0, false);
                 } else {
                     clock.io_access(addr, 0, false);
                 }
@@ -1069,7 +1091,9 @@ impl Mem for Bus {
                 // Shadow it to the video ram
                 if let Some(display) = &self.video {
                     let aux_memory = mmu.is_aux_memory(addr, true);
-                    display.borrow_mut().update_shadow_memory(aux_memory,addr,data);
+                    display
+                        .borrow_mut()
+                        .update_shadow_memory(aux_memory, addr, data);
                 }
             }
 
@@ -1129,7 +1153,7 @@ fn default_io_slot() -> Vec<RefCell<IODevice>> {
         io_slot.push(RefCell::new(IODevice::None))
     }
 
-    io_slot[1] = RefCell::new(IODevice::Printer(ParallelCard::new()));
+    io_slot[1] = RefCell::new(IODevice::Printer(RefCell::new(ParallelCard::new())));
     io_slot[4] = RefCell::new(IODevice::Mockingboard(0));
     io_slot[6] = RefCell::new(IODevice::Disk);
     io_slot[7] = RefCell::new(IODevice::HardDisk);

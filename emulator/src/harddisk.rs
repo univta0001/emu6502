@@ -1,3 +1,4 @@
+use crate::bus::Card;
 use crate::mmu::Mmu;
 use crate::video::Video;
 use derivative::*;
@@ -116,10 +117,6 @@ impl HardDisk {
         }
     }
 
-    pub fn rom_access(&self, offset: u8) -> u8 {
-        ROM[offset as usize]
-    }
-
     pub fn tick(&mut self) {
         let disk = &mut self.drive[self.drive_select];
         if disk.busy_cycle > 0 {
@@ -132,7 +129,161 @@ impl HardDisk {
         disk.busy_cycle > 0
     }
 
-    pub fn io_access(
+    pub fn set_disk_filename<P>(&mut self, filename_path: P)
+    where
+        P: AsRef<Path>,
+    {
+        let filename = filename_path.as_ref();
+        if let Ok(real_path) = self.absolute_path(filename) {
+            let disk = &mut self.drive[self.drive_select];
+            disk.filename = real_path.display().to_string().replace("\\\\", "\\");
+        } else {
+            let disk = &mut self.drive[self.drive_select];
+            disk.filename = filename.display().to_string().replace("\\\\", "");
+        }
+    }
+
+    pub fn get_disk_filename(&self, drive: usize) -> String {
+        let disk = &self.drive[drive];
+        disk.filename.to_owned()
+    }
+
+    pub fn set_enable_save_disk(&mut self, value: bool) {
+        self.enable_save = value;
+    }
+
+    pub fn set_loaded(&mut self, state: bool) {
+        let disk = &mut self.drive[self.drive_select];
+        disk.loaded = state;
+    }
+
+    pub fn is_loaded(&self, drive: usize) -> bool {
+        let disk = &self.drive[drive];
+        disk.loaded
+    }
+
+    pub fn drive_select(&mut self, drive: usize) {
+        self.drive_select = drive;
+    }
+
+    pub fn drive_selected(&self) -> usize {
+        self.drive_select
+    }
+
+    pub fn eject(&mut self, drive_select: usize) {
+        let disk = &mut self.drive[drive_select];
+        disk.loaded = false;
+        disk.write_protect = false;
+        disk.filename = "".to_owned();
+        disk.raw_data = vec![0u8; 0];
+        disk.data_len = 0;
+        disk.error = 0;
+    }
+
+    pub fn load_hdv_2mg_file<P>(&mut self, filename_path: P) -> io::Result<()>
+    where
+        P: AsRef<Path>,
+    {
+        let filename = filename_path.as_ref();
+        let hdv_mode = !filename
+            .extension()
+            .unwrap()
+            .eq_ignore_ascii_case(OsStr::new("2mg"));
+        let dsk = std::fs::read(&filename)?;
+        self.load_hdv_2mg_array(&dsk, hdv_mode)
+    }
+
+    pub fn load_hdv_2mg_array(&mut self, dsk: &[u8], hdv_mode: bool) -> io::Result<()> {
+        let disk = &mut self.drive[self.drive_select];
+        disk.raw_data = vec![0; dsk.len()];
+        disk.raw_data[..].copy_from_slice(dsk);
+        disk.offset = 0;
+        disk.error = 0;
+        disk.data_len = dsk.len();
+        disk.write_protect = false;
+
+        if !hdv_mode {
+            (disk.offset, disk.data_len) = parse_2mg_array(dsk)?;
+            if dsk[0x13] & 0x80 > 0 {
+                disk.write_protect = true
+            }
+        }
+        Ok(())
+    }
+
+    fn absolute_path(&self, path: impl AsRef<Path>) -> io::Result<PathBuf> {
+        let path = path.as_ref();
+
+        let absolute_path = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            std::env::current_dir()?.join(path)
+        };
+
+        Ok(absolute_path)
+    }
+}
+
+fn read_dsk_u32(dsk: &[u8], offset: usize) -> u32 {
+    dsk[offset] as u32
+        + (dsk[offset + 1] as u32) * 256
+        + (dsk[offset + 2] as u32) * 65536
+        + (dsk[offset + 3] as u32) * 16777216
+}
+
+fn parse_2mg_array(dsk: &[u8]) -> io::Result<(usize, usize)> {
+    if read_dsk_u32(dsk, 0) != 0x474d4932 || dsk.len() < 0x40 {
+        return Err(std::io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Invalid 2mg file",
+        ));
+    }
+
+    let format = read_dsk_u32(dsk, 0x0c);
+    let blocks = read_dsk_u32(dsk, 0x14);
+    let offset = read_dsk_u32(dsk, 0x18);
+    let len = read_dsk_u32(dsk, 0x1c);
+    let comment_len = read_dsk_u32(dsk, 0x24);
+    let creator_len = read_dsk_u32(dsk, 0x28);
+
+    if dsk.len() != (offset + len + comment_len + creator_len) as usize
+        || len % HD_BLOCK_SIZE as u32 != 0
+    {
+        return Err(std::io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Invalid 2mg file - Len error",
+        ));
+    }
+
+    if format != 1 {
+        return Err(std::io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Only 2mg Prodos format is supported",
+        ));
+    }
+
+    if blocks * HD_BLOCK_SIZE as u32 != len {
+        return Err(std::io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "2mg blocks does not match disk data length",
+        ));
+    }
+
+    Ok((offset as usize, len as usize))
+}
+
+impl Default for HardDisk {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Card for HardDisk {
+    fn rom_access(&mut self, addr: u8, _value: u8, _write_flag: bool) -> u8 {
+        ROM[addr as usize]
+    }
+
+    fn io_access(
         &mut self,
         mem: &RefCell<Mmu>,
         video: &Option<RefCell<Video>>,
@@ -347,153 +498,5 @@ impl HardDisk {
             }
             _ => DeviceStatus::DeviceIoError as u8,
         }
-    }
-
-    pub fn set_disk_filename<P>(&mut self, filename_path: P)
-    where
-        P: AsRef<Path>,
-    {
-        let filename = filename_path.as_ref();
-        if let Ok(real_path) = self.absolute_path(filename) {
-            let disk = &mut self.drive[self.drive_select];
-            disk.filename = real_path.display().to_string().replace("\\\\", "\\");
-        } else {
-            let disk = &mut self.drive[self.drive_select];
-            disk.filename = filename.display().to_string().replace("\\\\", "");
-        }
-    }
-
-    pub fn get_disk_filename(&self, drive: usize) -> String {
-        let disk = &self.drive[drive];
-        disk.filename.to_owned()
-    }
-
-    pub fn set_enable_save_disk(&mut self, value: bool) {
-        self.enable_save = value;
-    }
-
-    pub fn set_loaded(&mut self, state: bool) {
-        let disk = &mut self.drive[self.drive_select];
-        disk.loaded = state;
-    }
-
-    pub fn is_loaded(&self, drive: usize) -> bool {
-        let disk = &self.drive[drive];
-        disk.loaded
-    }
-
-    pub fn drive_select(&mut self, drive: usize) {
-        self.drive_select = drive;
-    }
-
-    pub fn drive_selected(&self) -> usize {
-        self.drive_select
-    }
-
-    pub fn eject(&mut self, drive_select: usize) {
-        let disk = &mut self.drive[drive_select];
-        disk.loaded = false;
-        disk.write_protect = false;
-        disk.filename = "".to_owned();
-        disk.raw_data = vec![0u8; 0];
-        disk.data_len = 0;
-        disk.error = 0;
-    }
-
-    pub fn load_hdv_2mg_file<P>(&mut self, filename_path: P) -> io::Result<()>
-    where
-        P: AsRef<Path>,
-    {
-        let filename = filename_path.as_ref();
-        let hdv_mode = !filename
-            .extension()
-            .unwrap()
-            .eq_ignore_ascii_case(OsStr::new("2mg"));
-        let dsk = std::fs::read(&filename)?;
-        self.load_hdv_2mg_array(&dsk, hdv_mode)
-    }
-
-    pub fn load_hdv_2mg_array(&mut self, dsk: &[u8], hdv_mode: bool) -> io::Result<()> {
-        let disk = &mut self.drive[self.drive_select];
-        disk.raw_data = vec![0; dsk.len()];
-        disk.raw_data[..].copy_from_slice(dsk);
-        disk.offset = 0;
-        disk.error = 0;
-        disk.data_len = dsk.len();
-        disk.write_protect = false;
-
-        if !hdv_mode {
-            (disk.offset, disk.data_len) = parse_2mg_array(dsk)?;
-            if dsk[0x13] & 0x80 > 0 {
-                disk.write_protect = true
-            }
-        }
-        Ok(())
-    }
-
-    fn absolute_path(&self, path: impl AsRef<Path>) -> io::Result<PathBuf> {
-        let path = path.as_ref();
-
-        let absolute_path = if path.is_absolute() {
-            path.to_path_buf()
-        } else {
-            std::env::current_dir()?.join(path)
-        };
-
-        Ok(absolute_path)
-    }
-}
-
-fn read_dsk_u32(dsk: &[u8], offset: usize) -> u32 {
-    dsk[offset] as u32
-        + (dsk[offset + 1] as u32) * 256
-        + (dsk[offset + 2] as u32) * 65536
-        + (dsk[offset + 3] as u32) * 16777216
-}
-
-fn parse_2mg_array(dsk: &[u8]) -> io::Result<(usize, usize)> {
-    if read_dsk_u32(dsk, 0) != 0x474d4932 || dsk.len() < 0x40 {
-        return Err(std::io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "Invalid 2mg file",
-        ));
-    }
-
-    let format = read_dsk_u32(dsk, 0x0c);
-    let blocks = read_dsk_u32(dsk, 0x14);
-    let offset = read_dsk_u32(dsk, 0x18);
-    let len = read_dsk_u32(dsk, 0x1c);
-    let comment_len = read_dsk_u32(dsk, 0x24);
-    let creator_len = read_dsk_u32(dsk, 0x28);
-
-    if dsk.len() != (offset + len + comment_len + creator_len) as usize
-        || len % HD_BLOCK_SIZE as u32 != 0
-    {
-        return Err(std::io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "Invalid 2mg file - Len error",
-        ));
-    }
-
-    if format != 1 {
-        return Err(std::io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "Only 2mg Prodos format is supported",
-        ));
-    }
-
-    if blocks * HD_BLOCK_SIZE as u32 != len {
-        return Err(std::io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "2mg blocks does not match disk data length",
-        ));
-    }
-
-    Ok((offset as usize, len as usize))
-}
-
-impl Default for HardDisk {
-    fn default() -> Self {
-        Self::new()
     }
 }

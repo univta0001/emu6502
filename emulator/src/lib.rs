@@ -6,12 +6,12 @@ pub mod disk;
 pub mod harddisk;
 pub mod mmu;
 pub mod mockingboard;
+pub mod noslotclock;
 pub mod ntsc;
 pub mod opcodes;
 pub mod parallel;
 pub mod trace;
 pub mod video;
-pub mod noslotclock;
 
 #[macro_use]
 extern crate bitflags;

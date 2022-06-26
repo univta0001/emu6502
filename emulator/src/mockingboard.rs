@@ -1,4 +1,8 @@
+use crate::bus::Card;
+use crate::mmu::Mmu;
+use crate::video::Video;
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 
 const AY_RESET: u8 = 0;
 const AY_INACTIVE: u8 = 4;
@@ -146,7 +150,7 @@ struct AY8910 {
     _name: String,
     current_reg: u8,
     reg: Vec<u8>,
-    tone: [Tone;3],
+    tone: [Tone; 3],
     envelope: Envelope,
     noise: Noise,
     rng: usize,
@@ -172,7 +176,7 @@ impl AY8910 {
     }
 
     fn update_tone(&mut self) {
-        for i in 0..self.tone.len() {
+        for i in 0..3 {
             if self.tone[i].period > 0 {
                 let env_period = self.tone[i].period as usize;
                 self.tone[i].count += 1;
@@ -687,7 +691,7 @@ impl Default for W65C22 {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Mockingboard {
-    w65c22: [W65C22;2],
+    w65c22: [W65C22; 2],
     rng: usize,
 }
 
@@ -708,14 +712,6 @@ impl Mockingboard {
         self.w65c22[0].reset();
         self.w65c22[1].reset();
         self.rng = 1;
-    }
-
-    pub fn rom_access(&mut self, map_addr: u8, value: u8, write_flag: bool) -> u8 {
-        if map_addr < 0x80 {
-            self.w65c22[0].io_access(map_addr, value, write_flag)
-        } else {
-            self.w65c22[1].io_access(map_addr - 0x80, value, write_flag)
-        }
     }
 
     pub fn poll_irq(&mut self) -> Option<usize> {
@@ -780,6 +776,27 @@ impl Default for Mockingboard {
     // Default to use mockingboard in slot 4
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Card for Mockingboard {
+    fn rom_access(&mut self, addr: u8, value: u8, write_flag: bool) -> u8 {
+        if addr < 0x80 {
+            self.w65c22[0].io_access(addr, value, write_flag)
+        } else {
+            self.w65c22[1].io_access(addr - 0x80, value, write_flag)
+        }
+    }
+
+    fn io_access(
+        &mut self,
+        _mem: &RefCell<Mmu>,
+        _video: &Option<RefCell<Video>>,
+        _addr: u8,
+        _value: u8,
+        _write_flag: bool,
+    ) -> u8 {
+        0
     }
 }
 

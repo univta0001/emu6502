@@ -1,4 +1,8 @@
+use crate::bus::Card;
+use crate::mmu::Mmu;
+use crate::video::Video;
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct ParallelCard {}
@@ -26,13 +30,28 @@ impl ParallelCard {
     pub fn new() -> Self {
         ParallelCard {}
     }
+}
 
-    pub fn rom_access(&self, offset: u8) -> u8 {
-        ROM[offset as usize]
+impl Default for ParallelCard {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Card for ParallelCard {
+    fn rom_access(&mut self, addr: u8, _value: u8, _write_flag: bool) -> u8 {
+        ROM[addr as usize]
     }
 
-    pub fn io_access(&mut self, map_addr: u8, value: u8, write_flag: bool) -> u8 {
-        match map_addr {
+    fn io_access(
+        &mut self,
+        _mem: &RefCell<Mmu>,
+        _video: &Option<RefCell<Video>>,
+        addr: u8,
+        value: u8,
+        write_flag: bool,
+    ) -> u8 {
+        match addr {
             // Load output
             0x80 => {
                 if write_flag {
@@ -48,11 +67,5 @@ impl ParallelCard {
             _ => {}
         }
         0
-    }
-}
-
-impl Default for ParallelCard {
-    fn default() -> Self {
-        Self::new()
     }
 }
