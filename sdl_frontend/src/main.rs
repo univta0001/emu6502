@@ -1202,7 +1202,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 }
                 let video_cpu_update = t.elapsed().as_micros();
                 let adj_ms =
-                    ((cpu_period * dcyc) / cpu_cycles).saturating_sub(1000000 / CPU_6502_MHZ);
+                    (dcyc * 1000 / CPU_6502_MHZ).saturating_sub(1000000 / CPU_6502_MHZ);
                 let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
 
                 let disk_normal_speed = if let Some(drive) = &_cpu.bus.disk {
