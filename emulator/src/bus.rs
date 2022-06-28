@@ -282,18 +282,16 @@ impl Bus {
             let return_value: Option<Box<RefMut<'_, dyn Card>>> = match &mut *slot_value {
                 IODevice::Printer(printer) => Some(Box::new(printer.borrow_mut())),
                 IODevice::Disk => {
-                    if let Some(drive) = &self.disk {
-                        Some(Box::new(drive.borrow_mut()))
-                    } else {
-                        None
-                    }
+                    self.disk.as_ref().map(|drive| {
+                        let card: RefMut<'_,dyn Card> = drive.borrow_mut();
+                        Box::new(card)
+                    })
                 }
                 IODevice::HardDisk => {
-                    if let Some(drive) = &self.harddisk {
-                        Some(Box::new(drive.borrow_mut()))
-                    } else {
-                        None
-                    }
+                    self.harddisk.as_ref().map(|drive| {
+                        let card: RefMut<'_,dyn Card> = drive.borrow_mut();
+                        Box::new(card)
+                    })
                 }
                 IODevice::Mockingboard(_) => None,
                 IODevice::Z80 => None,
@@ -326,27 +324,21 @@ impl Bus {
                     clock.io_access(addr, 0, false);
                 }
 
-                let audio = if let Some(sound) = &self.audio {
-                    Some(sound.borrow_mut())
-                } else {
-                    None
-                };
+                let audio = self.audio.as_ref().map(|sound| sound.borrow_mut());
 
                 let return_value: Option<Box<RefMut<'_, dyn Card>>> = match &mut *slot_value {
                     IODevice::Printer(printer) => Some(Box::new(printer.borrow_mut())),
                     IODevice::Disk => {
-                        if let Some(drive) = &self.disk {
-                            Some(Box::new(drive.borrow_mut()))
-                        } else {
-                            None
-                        }
+                        self.disk.as_ref().map(|drive| {
+                            let card: RefMut<'_,dyn Card> = drive.borrow_mut();
+                            Box::new(card)
+                        })
                     }
                     IODevice::HardDisk => {
-                        if let Some(drive) = &self.harddisk {
-                            Some(Box::new(drive.borrow_mut()))
-                        } else {
-                            None
-                        }
+                        self.harddisk.as_ref().map(|drive| {
+                            let card: RefMut<'_,dyn Card> = drive.borrow_mut();
+                            Box::new(card)
+                        })
                     }
                     IODevice::Z80 => {
                         if write_flag {

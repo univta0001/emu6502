@@ -1201,8 +1201,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     handle_event(_cpu, event_value, &mut event_param);
                 }
                 let video_cpu_update = t.elapsed().as_micros();
-                let adj_ms =
-                    (dcyc * 1_000_000 / CPU_6502_MHZ).saturating_sub(1_000_000_000 / CPU_6502_MHZ);
+                let adj_ms = dcyc * 1_000_000 / CPU_6502_MHZ;
                 let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
 
                 let disk_normal_speed = if let Some(drive) = &_cpu.bus.disk {
@@ -1212,7 +1211,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 };
 
                 if adj_time > 0 && disk_normal_speed && !_cpu.full_speed {
-                    std::thread::sleep(std::time::Duration::from_micros(adj_time as u64));
+                    spin_sleep::sleep(std::time::Duration::from_micros(adj_time as u64));
                 }
 
                 let elapsed = t.elapsed().as_micros();
