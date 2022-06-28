@@ -45,7 +45,7 @@ use std::time::Instant;
 const CPU_CYCLES_PER_FRAME_60HZ: usize = 17030;
 const CPU_CYCLES_PER_FRAME_50HZ: usize = 20280;
 const AUDIO_SAMPLE_SIZE: u32 = 48000 / 60;
-const CPU_6502_MHZ: usize = 157500 / 11 * 65 / 912;
+const CPU_6502_MHZ: usize = 157500 * 1000 / 11 * 65 / 912;
 const NTSC_LUMA_BANDWIDTH: f32 = 2300000.0;
 const NTSC_CHROMA_BANDWIDTH: f32 = 600000.0;
 
@@ -1202,7 +1202,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 }
                 let video_cpu_update = t.elapsed().as_micros();
                 let adj_ms =
-                    (dcyc * 1000 / CPU_6502_MHZ).saturating_sub(1000000 / CPU_6502_MHZ);
+                    (dcyc * 1_000_000 / CPU_6502_MHZ).saturating_sub(1_000_000_000 / CPU_6502_MHZ);
                 let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
 
                 let disk_normal_speed = if let Some(drive) = &_cpu.bus.disk {
