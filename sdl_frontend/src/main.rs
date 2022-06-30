@@ -8,7 +8,7 @@ use emu6502::video::DisplayMode;
 use emu6502::cpu::CPU;
 use emu6502::cpu_stats::CpuStats;
 use emu6502::mockingboard::Mockingboard;
-use emu6502::trace::disassemble;
+use emu6502::trace::{adjust_disassemble_addr,disassemble_addr};
 use image::codecs::png::PngEncoder;
 use image::ColorType;
 use image::ImageEncoder;
@@ -512,7 +512,8 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
                     let mut output = String::new();
-                    disassemble(&mut output, cpu);
+                    let addr = adjust_disassemble_addr(cpu, cpu.program_counter, -10);
+                    disassemble_addr(&mut output, cpu, addr, 20);
                     eprintln!("{}", output);
                 } else {
                     eject_disk(cpu, 1);
