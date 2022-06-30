@@ -316,6 +316,7 @@ pub struct CPU {
     pub stack_pointer: u8,
     pub bus: Bus,
     pub m65c02: bool,
+    pub m65c02_rockwell_disable: bool,
     pub callback: bool,
     pub full_speed: bool,
 
@@ -404,8 +405,13 @@ mod interrupt {
     };
 }
 
-fn absolute_x_force_tick(op: &OpCode) -> bool {
-    matches!(op.code, 0x9d | 0x3e | 0x7e | 0x1e | 0x5e | 0xfe | 0xde)
+fn absolute_x_force_tick(op: &OpCode, apple2e: bool) -> bool {
+    if apple2e {
+        matches!(op.code, 0x9d | 0x3e | 0x7e | 0x1e | 0x5e | 0xfe | 0xde)
+    } else {
+        matches!(op.code, 0x9d | 0xfe | 0xde)
+    }
+
     /*
     op.code == 0x9d
         || op.code == 0x3e
@@ -436,6 +442,7 @@ impl CPU {
             status: CpuFlags::from_bits_truncate(0b100100),
             bus,
             m65c02: false,
+            m65c02_rockwell_disable: false,
             callback: false,
             halt_cpu: false,
             alt_cpu: false,
@@ -532,7 +539,7 @@ impl CPU {
                 self.bus.unclocked_addr_read(addr);
             }
 
-            if !self.callback && (page_crossed || absolute_x_force_tick(op)) {
+            if !self.callback && (page_crossed || absolute_x_force_tick(op, self.is_apple2e())) {
                 self.tick();
             }
             addr
@@ -1213,27 +1220,31 @@ impl CPU {
     }
 
     fn rmb(&mut self, bit: u8) {
-        if self.m65c02 {
+        if self.m65c02 && !self.m65c02_rockwell_disable {
             let zp = self.next_byte();
             let value = self.bus.addr_read(zp as u16);
             self.tick();
             let mask = (1 << bit) ^ 0xff;
             self.bus.addr_write(zp as u16, value & mask);
+        } else {
+            self.tick();
         }
     }
 
     fn smb(&mut self, bit: u8) {
-        if self.m65c02 {
+        if self.m65c02 &&  !self.m65c02_rockwell_disable {
             let zp = self.next_byte();
             let value = self.bus.addr_read(zp as u16);
             self.tick();
             let mask = 1 << bit;
             self.bus.addr_write(zp as u16, value | mask);
+        } else {
+            self.tick();
         }
     }
 
     fn bbr(&mut self, bit: u8) {
-        if self.m65c02 {
+        if self.m65c02 && !self.m65c02_rockwell_disable {
             let zp = self.next_byte();
             let value = self.bus.addr_read(zp as u16);
             let jump: i8 = self.next_byte() as i8;
@@ -1244,11 +1255,13 @@ impl CPU {
                 let jump_addr = self.program_counter.wrapping_add(jump as u16);
                 self.program_counter = jump_addr;
             }
+        } else {
+            self.tick();
         }
     }
 
     fn bbs(&mut self, bit: u8) {
-        if self.m65c02 {
+        if self.m65c02 && !self.m65c02_rockwell_disable {
             let zp = self.next_byte();
             let value = self.bus.addr_read(zp as u16);
             let jump: i8 = self.next_byte() as i8;
@@ -1259,6 +1272,8 @@ impl CPU {
                 let jump_addr = self.program_counter.wrapping_add(jump as u16);
                 self.program_counter = jump_addr;
             }
+        } else {
+            self.tick();
         }
     }
 
@@ -2512,6 +2527,156 @@ mod test {
             cpu.bus.get_cycles(),
             5,
             "STZ absolute,x opcodes should have 5 cycles"
+        );
+    }
+
+    #[test]
+    fn test_6502_shift() {
+        let bus = Bus::new();
+        let mut cpu = CPU::new(bus);
+        cpu.reset();
+        cpu.m65c02 = false;
+        let mut opcodes = [0xa2, 0x00, 0x1e, 0xff, 0x00, 0x00];
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&opcodes);
+        assert_eq!(
+            cpu.bus.get_cycles(),
+            8,
+            "ASL ADDR,X (0x1e) opcodes should have 7 cycles"
+        );
+        opcodes = [0xa2, 0x01, 0x1e, 0xff, 0x00, 0x00];
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&opcodes);
+        assert_eq!(
+            cpu.bus.get_cycles(),
+            9,
+            "ASL ADDR,X (0x1e) opcodes should have 7 cycles"
+        );
+
+        opcodes = [0xa2, 0x00, 0x5e, 0xff, 0x00, 0x00];
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&opcodes);
+        assert_eq!(
+            cpu.bus.get_cycles(),
+            8,
+            "LSR ADDR,X (0x1e) opcodes should have 7 cycles"
+        );
+        opcodes = [0xa2, 0x01, 0x5e, 0xff, 0x00, 0x00];
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&opcodes);
+        assert_eq!(
+            cpu.bus.get_cycles(),
+            9,
+            "LSR ADDR,X (0x1e) opcodes should have 7 cycles"
+        );
+
+        opcodes = [0xa2, 0x00, 0x3e, 0xff, 0x00, 0x00];
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&opcodes);
+        assert_eq!(
+            cpu.bus.get_cycles(),
+            8,
+            "ROL ADDR,X (0x1e) opcodes should have 7 cycles"
+        );
+        opcodes = [0xa2, 0x01, 0x3e, 0xff, 0x00, 0x00];
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&opcodes);
+        assert_eq!(
+            cpu.bus.get_cycles(),
+            9,
+            "ROL ADDR,X (0x1e) opcodes should have 7 cycles"
+        );
+
+        opcodes = [0xa2, 0x00, 0x7e, 0xff, 0x00, 0x00];
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&opcodes);
+        assert_eq!(
+            cpu.bus.get_cycles(),
+            8,
+            "ROR ADDR,X (0x1e) opcodes should have 7 cycles"
+        );
+        opcodes = [0xa2, 0x01, 0x7e, 0xff, 0x00, 0x00];
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&opcodes);
+        assert_eq!(
+            cpu.bus.get_cycles(),
+            9,
+            "ROR ADDR,X (0x1e) opcodes should have 7 cycles"
+        );
+    }
+
+    #[test]
+    fn test_65c02_shift() {
+        let bus = Bus::new();
+        let mut cpu = CPU::new(bus);
+        cpu.reset();
+        cpu.m65c02 = true;
+        let mut opcodes = [0xa2, 0x00, 0x1e, 0xff, 0x00, 0x00];
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&opcodes);
+        assert_eq!(
+            cpu.bus.get_cycles(),
+            8,
+            "ASL ADDR,X (0x1e) opcodes should have 6 cycles"
+        );
+        opcodes = [0xa2, 0x01, 0x1e, 0xff, 0x00, 0x00];
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&opcodes);
+        assert_eq!(
+            cpu.bus.get_cycles(),
+            9,
+            "ASL ADDR,X (0x1e) opcodes should have 7 cycles"
+        );
+
+        opcodes = [0xa2, 0x00, 0x5e, 0xff, 0x00, 0x00];
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&opcodes);
+        assert_eq!(
+            cpu.bus.get_cycles(),
+            8,
+            "LSR ADDR,X (0x5e) opcodes should have 6 cycles"
+        );
+        opcodes = [0xa2, 0x01, 0x5e, 0xff, 0x00, 0x00];
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&opcodes);
+        assert_eq!(
+            cpu.bus.get_cycles(),
+            9,
+            "LSR ADDR,X (0x5e) opcodes should have 7 cycles"
+        );
+
+        opcodes = [0xa2, 0x00, 0x3e, 0xff, 0x00, 0x00];
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&opcodes);
+        assert_eq!(
+            cpu.bus.get_cycles(),
+            8,
+            "ROL ADDR,X (0x3e) opcodes should have 6 cycles"
+        );
+        opcodes = [0xa2, 0x01, 0x3e, 0xff, 0x00, 0x00];
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&opcodes);
+        assert_eq!(
+            cpu.bus.get_cycles(),
+            9,
+            "ROL ADDR,X (0x3e) opcodes should have 7 cycles"
+        );
+
+        opcodes = [0xa2, 0x00, 0x7e, 0xff, 0x00, 0x00];
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&opcodes);
+        assert_eq!(
+            cpu.bus.get_cycles(),
+            8,
+            "ROR ADDR,X (0x7e) opcodes should have 6 cycles"
+        );
+        opcodes = [0xa2, 0x01, 0x7e, 0xff, 0x00, 0x00];
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&opcodes);
+        assert_eq!(
+            cpu.bus.get_cycles(),
+            9,
+            "ROR ADDR,X (0x7e) opcodes should have 7 cycles"
         );
     }
 
