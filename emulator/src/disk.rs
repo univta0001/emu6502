@@ -1738,14 +1738,10 @@ impl DiskDrive {
                     disk.head_bit = 0;
                 }
 
-                self.bit_buffer |= if track[disk.head] & disk.head_mask as u8 == 0 {
-                    0
-                } else {
-                    1
-                };
+                self.bit_buffer |= (track[disk.head] & disk.head_mask as u8 != 0) as u8;
             }
 
-            if disk.loaded && tmap_track != 0xff && self.bit_buffer & 0x0f != 0 {
+            if self.bit_buffer & 0x0f != 0 {
                 self.pulse = (self.bit_buffer & 0x2) >> 1;
             } else {
                 // Based on WOZ2 (https://applesaucefdc.com/woz/reference2/)
