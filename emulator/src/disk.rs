@@ -520,7 +520,7 @@ fn save_dsk_woz_to_disk(disk: &mut Disk) -> io::Result<()> {
     Ok(())
 }
 
-fn remove_unused_disk_tracks(disk: &mut Disk) {
+fn _remove_unused_disk_tracks(disk: &mut Disk) {
     for qt in 0..160 {
         let tmap_track = disk.tmap_data[qt] as usize;
         if tmap_track != 0xff {
@@ -542,7 +542,22 @@ fn remove_unused_disk_tracks(disk: &mut Disk) {
     }
 }
 
-fn expand_unused_disk_tracks(disk: &mut Disk) {
+fn expand_unused_disk_track(disk: &mut Disk, qt: usize) {
+    let tmap_track = disk.tmap_data[qt];
+    if tmap_track == 0xff {
+        // Create a empty track and assigned a new tmap entry
+        for t in 0..160 {
+            if disk.raw_track_data[t].is_empty() {
+                disk.tmap_data[qt] = t as u8;
+                disk.raw_track_data[t] = vec![0u8; MAX_USABLE_BITS_TRACK_SIZE];
+                disk.raw_track_bits[t] = MAX_USABLE_BITS_TRACK_SIZE * 8;
+                break;
+            }
+        }
+    }
+}
+
+fn _expand_unused_disk_tracks(disk: &mut Disk) {
     for qt in 0..160 {
         let tmap_track = disk.tmap_data[qt];
         if tmap_track == 0xff {
@@ -631,7 +646,7 @@ fn save_woz_file(disk: &mut Disk) -> io::Result<()> {
     let mut info = false;
     let mut chunk_size;
 
-    remove_unused_disk_tracks(disk);
+    //remove_unused_disk_tracks(disk);
 
     while woz_offset < dsk.len() {
         let chunk_id = read_woz_u32(&dsk, woz_offset);
@@ -751,7 +766,7 @@ fn save_woz_file(disk: &mut Disk) -> io::Result<()> {
         file.write_all(&newdsk)?;
     }
 
-    expand_unused_disk_tracks(disk);
+    //expand_unused_disk_tracks(disk);
     Ok(())
 }
 
@@ -1336,7 +1351,7 @@ impl DiskDrive {
             disk.optimal_timing = self.override_optimal_timing;
         }
 
-        expand_unused_disk_tracks(disk);
+        //expand_unused_disk_tracks(disk);
 
         Ok(())
     }
@@ -1447,8 +1462,8 @@ impl DiskDrive {
             ));
         }
 
-        let disk = &mut self.drive[self.drive_select];
-        expand_unused_disk_tracks(disk);
+        //let disk = &mut self.drive[self.drive_select];
+        //expand_unused_disk_tracks(disk);
 
         Ok(())
     }
@@ -1779,14 +1794,21 @@ impl DiskDrive {
 
     fn write_track(&mut self, track_to_write: i32, write_value: bool) {
         let disk = &mut self.drive[self.drive_select];
-        let tmap_track = disk.tmap_data[track_to_write as usize];
+        let mut tmap_track = disk.tmap_data[track_to_write as usize];
+
+        if tmap_track == 0xff {
+            expand_unused_disk_track(disk, track_to_write as usize);
+            tmap_track = disk.tmap_data[track_to_write as usize];
+        }
 
         if tmap_track != 0xff {
             if track_to_write > 0 {
+                expand_unused_disk_track(disk, (track_to_write - 1) as usize);
                 disk.tmap_data[(track_to_write - 1) as usize] = tmap_track;
             }
 
             if track_to_write + 1 < 160 {
+                expand_unused_disk_track(disk, (track_to_write + 1) as usize);
                 disk.tmap_data[(track_to_write + 1) as usize] = tmap_track;
             }
 

@@ -281,18 +281,14 @@ impl Bus {
             //eprintln!("IOAccess - {:04x} {} {}",addr,slot,io_addr);
             let return_value: Option<Box<RefMut<'_, dyn Card>>> = match &mut *slot_value {
                 IODevice::Printer(printer) => Some(Box::new(printer.borrow_mut())),
-                IODevice::Disk => {
-                    self.disk.as_ref().map(|drive| {
-                        let card: RefMut<'_,dyn Card> = drive.borrow_mut();
-                        Box::new(card)
-                    })
-                }
-                IODevice::HardDisk => {
-                    self.harddisk.as_ref().map(|drive| {
-                        let card: RefMut<'_,dyn Card> = drive.borrow_mut();
-                        Box::new(card)
-                    })
-                }
+                IODevice::Disk => self.disk.as_ref().map(|drive| {
+                    let card: RefMut<'_, dyn Card> = drive.borrow_mut();
+                    Box::new(card)
+                }),
+                IODevice::HardDisk => self.harddisk.as_ref().map(|drive| {
+                    let card: RefMut<'_, dyn Card> = drive.borrow_mut();
+                    Box::new(card)
+                }),
                 IODevice::Mockingboard(_) => None,
                 IODevice::Z80 => None,
                 _ => None,
@@ -328,18 +324,14 @@ impl Bus {
 
                 let return_value: Option<Box<RefMut<'_, dyn Card>>> = match &mut *slot_value {
                     IODevice::Printer(printer) => Some(Box::new(printer.borrow_mut())),
-                    IODevice::Disk => {
-                        self.disk.as_ref().map(|drive| {
-                            let card: RefMut<'_,dyn Card> = drive.borrow_mut();
-                            Box::new(card)
-                        })
-                    }
-                    IODevice::HardDisk => {
-                        self.harddisk.as_ref().map(|drive| {
-                            let card: RefMut<'_,dyn Card> = drive.borrow_mut();
-                            Box::new(card)
-                        })
-                    }
+                    IODevice::Disk => self.disk.as_ref().map(|drive| {
+                        let card: RefMut<'_, dyn Card> = drive.borrow_mut();
+                        Box::new(card)
+                    }),
+                    IODevice::HardDisk => self.harddisk.as_ref().map(|drive| {
+                        let card: RefMut<'_, dyn Card> = drive.borrow_mut();
+                        Box::new(card)
+                    }),
                     IODevice::Z80 => {
                         if write_flag {
                             *self.halt_cpu.borrow_mut() = true;

@@ -1232,7 +1232,7 @@ impl CPU {
     }
 
     fn smb(&mut self, bit: u8) {
-        if self.m65c02 &&  !self.m65c02_rockwell_disable {
+        if self.m65c02 && !self.m65c02_rockwell_disable {
             let zp = self.next_byte();
             let value = self.bus.addr_read(zp as u16);
             self.tick();
