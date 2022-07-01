@@ -1421,6 +1421,13 @@ impl DiskDrive {
         let mut info = false;
         let mut tmap = false;
         let mut trks = false;
+
+        let disk = &mut self.drive[self.drive_select];
+        for track in 0..DSK_TRACK_SIZE {
+            disk.raw_track_data[track].clear();
+            disk.raw_track_bits[track] = 0;
+        }
+
         while woz_offset < dsk.len() {
             let chunk_id = read_woz_u32(dsk, woz_offset);
             let chunk_size = read_woz_u32(dsk, woz_offset + 4);
@@ -1799,12 +1806,10 @@ impl DiskDrive {
 
         if tmap_track != 0xff {
             if track_to_write > 0 {
-                expand_unused_disk_track(disk, (track_to_write - 1) as usize);
                 disk.tmap_data[(track_to_write - 1) as usize] = tmap_track;
             }
 
             if track_to_write + 1 < 160 {
-                expand_unused_disk_track(disk, (track_to_write + 1) as usize);
                 disk.tmap_data[(track_to_write + 1) as usize] = tmap_track;
             }
 
