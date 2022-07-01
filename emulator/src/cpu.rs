@@ -316,9 +316,11 @@ pub struct CPU {
     pub stack_pointer: u8,
     pub bus: Bus,
     pub m65c02: bool,
-    pub m65c02_rockwell_disable: bool,
     pub callback: bool,
     pub full_speed: bool,
+
+    #[serde(default)]
+    pub m65c02_rockwell_disable: bool,
 
     #[serde(skip_serializing)]
     #[serde(default)]
