@@ -880,29 +880,19 @@ impl CPU {
 
     fn add_to_register_a(&mut self, data: u8, sub: bool) {
         let result: u8;
+        let old_register_a = self.register_a;
 
         if !self.status.contains(CpuFlags::DECIMAL_MODE) {
             let sum = self.register_a as u16
                 + data as u16
-                + (if self.status.contains(CpuFlags::CARRY) {
-                    1
-                } else {
-                    0
-                }) as u16;
-
-            let carry = sum > 0xff;
-
-            self.status.set(CpuFlags::CARRY, carry);
-            self.status.set(CpuFlags::ZERO, sum & 0xff == 0);
+                + self.status.contains(CpuFlags::CARRY) as u16;
+            self.status.set(CpuFlags::CARRY, sum > 0xff);
             result = sum as u8;
+            self.set_register_a(result);
         } else {
             let mut sum = (self.register_a & 0xf) as i16
                 + (data & 0xf) as i16
-                + (if self.status.contains(CpuFlags::CARRY) {
-                    1
-                } else {
-                    0
-                }) as i16;
+                + self.status.contains(CpuFlags::CARRY) as u8 as i16;
 
             let high_nibble = (self.register_a & 0xf0) as i16 + (data & 0xf0) as i16;
 
@@ -924,34 +914,23 @@ impl CPU {
                 sum += 0x60;
             }
 
-            let carry = sum > 0xff;
-
             result = (sum & 0xff) as u8;
+            self.status.set(CpuFlags::CARRY, sum > 0xff);
+            self.set_register_a(result);
 
-            self.status.set(CpuFlags::CARRY, carry);
-            self.status.set(CpuFlags::ZERO, sum & 0xff == 0);
+            if !self.m65c02 {
+                let binary_sum = old_register_a as u16
+                    + data as u16
+                    + self.status.contains(CpuFlags::CARRY) as u16;
+                self.status.set(CpuFlags::NEGATIVE, binary_sum & 0x80 > 0);
+            }
         }
 
         // Compute overflow V
         self.status.set(
             CpuFlags::OVERFLOW,
-            (data ^ result) & (result ^ self.register_a) & 0x80 != 0,
+            (data ^ result) & (result ^ old_register_a) & 0x80 != 0,
         );
-
-        let old_register_a = self.register_a;
-        self.set_register_a(result);
-
-        if self.status.contains(CpuFlags::DECIMAL_MODE) && !self.m65c02 {
-            let binary_sum = old_register_a as u16
-                + data as u16
-                + (if self.status.contains(CpuFlags::CARRY) {
-                    1
-                } else {
-                    0
-                }) as u16;
-
-            self.status.set(CpuFlags::NEGATIVE, binary_sum & 0x80 > 0);
-        }
     }
 
     fn sbc(&mut self, op: &OpCode) {
