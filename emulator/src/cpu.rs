@@ -1163,8 +1163,7 @@ impl CPU {
     fn php(&mut self) {
         self.tick();
         let mut flags = self.status;
-        flags.insert(CpuFlags::BREAK);
-        flags.insert(CpuFlags::UNUSED);
+        flags.insert(CpuFlags::BREAK | CpuFlags::UNUSED);
         self.stack_push(flags.bits());
     }
 
