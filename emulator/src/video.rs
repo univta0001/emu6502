@@ -697,6 +697,10 @@ impl Video {
         self.update_video();
     }
 
+    pub fn get_cycles(&self) -> usize {
+        self.cycles
+    }
+
     pub fn reset(&mut self) {
         self._80storeon = false;
         self.vid80_mode = false;
