@@ -2,6 +2,7 @@ use crate::audio::Audio;
 use crate::disk::DiskDrive;
 use crate::harddisk::HardDisk;
 use crate::mmu::Mmu;
+use crate::mouse::Mouse;
 use crate::noslotclock::NoSlotClock;
 use crate::parallel::ParallelCard;
 use crate::video::Video;
@@ -42,6 +43,7 @@ pub enum IODevice {
     Mockingboard(usize),
     Z80,
     HardDisk,
+    Mouse,
 }
 
 #[derive(Serialize, Deserialize, Derivative)]
@@ -68,6 +70,9 @@ pub struct Bus {
     pub intcxrom: RefCell<bool>,
     pub slotc3rom: RefCell<bool>,
     pub intc8rom: RefCell<bool>,
+
+    #[serde(default)]
+    pub mouse: Option<RefCell<Mouse>>,
 
     #[serde(default)]
     pub noslotclock: RefCell<NoSlotClock>,
@@ -157,6 +162,7 @@ impl Bus {
             audio: Some(RefCell::new(Audio::new())),
             parallel: Some(RefCell::new(ParallelCard::new())),
             harddisk: Some(RefCell::new(HardDisk::new())),
+            mouse: Some(RefCell::new(Mouse::new())),
             intcxrom: RefCell::new(false),
             slotc3rom: RefCell::new(false),
             intc8rom: RefCell::new(false),
@@ -293,6 +299,13 @@ impl Bus {
                         None
                     }
                 }
+                IODevice::Mouse => {
+                    if let Some(device) = &self.mouse {
+                        Some(Box::new(device.borrow_mut()))
+                    } else {
+                        None
+                    }
+                }
                 IODevice::Disk => {
                     if let Some(drive) = &self.disk {
                         Some(Box::new(drive.borrow_mut()))
@@ -343,6 +356,13 @@ impl Bus {
                     IODevice::Printer => {
                         if let Some(printer) = &self.parallel {
                             Some(Box::new(printer.borrow_mut()))
+                        } else {
+                            None
+                        }
+                    }
+                    IODevice::Mouse => {
+                        if let Some(device) = &self.mouse {
+                            Some(Box::new(device.borrow_mut()))
                         } else {
                             None
                         }
@@ -441,6 +461,14 @@ impl Bus {
         }
     }
 
+    pub fn set_mouse_state(&mut self, x: i32, y: i32, buttons: &[bool; 2]) {
+        if let Some(device) = &mut self.mouse {
+            let mut mouse_interface = device.borrow_mut();
+            mouse_interface.set_state(x, y, buttons);
+            mouse_interface.tick(*self.cycles.borrow());
+        }
+    }
+
     pub fn reset_paddle_latch(&mut self, paddle: usize) {
         if self.joystick_flag {
             if paddle % 2 == 0 {
@@ -468,6 +496,15 @@ impl Bus {
     }
 
     pub fn irq(&mut self) -> Option<usize> {
+        if !self.disable_video {
+            if let Some(device) = &mut self.mouse {
+                let irq = device.borrow_mut().poll_irq();
+                if irq.is_some() {
+                    return irq;
+                }
+            }
+        }
+
         if !self.disable_audio {
             if let Some(sound) = &mut self.audio {
                 sound
@@ -1117,6 +1154,7 @@ impl Default for Bus {
 
         this.io_slot[1] = RefCell::new(IODevice::Printer);
         this.io_slot[4] = RefCell::new(IODevice::Mockingboard(0));
+        this.io_slot[5] = RefCell::new(IODevice::Mouse);
         this.io_slot[6] = RefCell::new(IODevice::Disk);
         this.io_slot[7] = RefCell::new(IODevice::HardDisk);
 

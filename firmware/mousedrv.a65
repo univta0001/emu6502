@@ -50,6 +50,7 @@ start
 
 ; Mouse Entry Points
 ; Assume X = $Cn, Y = $n0, A = input , interrupt is disabled, carry flag is cleared
+; Except for ServeMouse
 *= $0012	; org $cn12
  !byte <SET_MOUSE
  !byte <SERVE_MOUSE
@@ -72,6 +73,19 @@ SET_MOUSE
  bcc COMMAND_EXECUTE
 
 SERVE_MOUSE
+ lda $06
+ lda #$60
+ sta $06
+ jsr $0006
+ sty $06
+ tsx
+ lda $0100,x
+ tax
+ asl
+ asl
+ asl
+ asl
+ tay
  lda #cmd_servemouse
  bne COMMAND_EXECUTE
 

@@ -1201,6 +1201,13 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
                     handle_event(_cpu, event_value, &mut event_param);
                 }
+
+                // Get mouse state
+                let mouse_state = _event_pump.mouse_state();
+                let buttons = [mouse_state.left(), mouse_state.right()];
+                _cpu.bus
+                    .set_mouse_state(mouse_state.x(), mouse_state.y(), &buttons);
+
                 let video_cpu_update = t.elapsed().as_micros();
                 let adj_ms = dcyc * 1_000_000 / CPU_6502_MHZ;
                 let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
