@@ -16,12 +16,19 @@ pub const ROM_START: u16 = 0xd000;
 pub const ROM_END: u16 = 0xffff;
 
 pub trait Card {
-    fn rom_access(&mut self, addr: u8, value: u8, write_flag: bool) -> u8;
+    fn rom_access(
+        &mut self,
+        mem: &RefCell<Mmu>,
+        video: &Option<RefCell<Video>>,
+        addr: u16,
+        value: u8,
+        write_flag: bool,
+    ) -> u8;
     fn io_access(
         &mut self,
         mem: &RefCell<Mmu>,
         video: &Option<RefCell<Video>>,
-        addr: u8,
+        addr: u16,
         value: u8,
         write_flag: bool,
     ) -> u8;
@@ -31,7 +38,7 @@ pub trait Card {
 pub enum IODevice {
     None,
     Disk,
-    Printer(RefCell<ParallelCard>),
+    Printer,
     Mockingboard(usize),
     Z80,
     HardDisk,
@@ -277,25 +284,36 @@ impl Bus {
         let slot = (((addr & 0x00ff) - 0x0080) >> 4) as usize;
         if slot < self.io_slot.len() {
             let mut slot_value = self.io_slot[slot].borrow_mut();
-            let io_addr = ((addr & 0x00ff) - ((slot as u16) << 4)) as u8;
             //eprintln!("IOAccess - {:04x} {} {}",addr,slot,io_addr);
             let return_value: Option<Box<RefMut<'_, dyn Card>>> = match &mut *slot_value {
-                IODevice::Printer(printer) => Some(Box::new(printer.borrow_mut())),
-                IODevice::Disk => self.disk.as_ref().map(|drive| {
-                    let card: RefMut<'_, dyn Card> = drive.borrow_mut();
-                    Box::new(card)
-                }),
-                IODevice::HardDisk => self.harddisk.as_ref().map(|drive| {
-                    let card: RefMut<'_, dyn Card> = drive.borrow_mut();
-                    Box::new(card)
-                }),
+                IODevice::Printer => {
+                    if let Some(printer) = &self.parallel {
+                        Some(Box::new(printer.borrow_mut()))
+                    } else {
+                        None
+                    }
+                }
+                IODevice::Disk => {
+                    if let Some(drive) = &self.disk {
+                        Some(Box::new(drive.borrow_mut()))
+                    } else {
+                        None
+                    }
+                }
+                IODevice::HardDisk => {
+                    if let Some(drive) = &self.harddisk {
+                        Some(Box::new(drive.borrow_mut()))
+                    } else {
+                        None
+                    }
+                }
                 IODevice::Mockingboard(_) => None,
                 IODevice::Z80 => None,
                 _ => None,
             };
 
             if let Some(mut device) = return_value {
-                device.io_access(&self.mem, &self.video, io_addr, value, write_flag)
+                device.io_access(&self.mem, &self.video, addr, value, write_flag)
             } else {
                 self.read_floating_bus()
             }
@@ -306,7 +324,6 @@ impl Bus {
 
     fn iodevice_rom_access(&self, addr: u16, value: u8, write_flag: bool) -> u8 {
         if !*self.intcxrom.borrow() {
-            let ioaddr = (addr & 0xff) as u8;
             let slot = ((addr >> 8) & 0x0f) as usize;
             if slot < self.io_slot.len() {
                 let mut slot_value = self.io_slot[slot].borrow_mut();
@@ -323,15 +340,27 @@ impl Bus {
                 let audio = self.audio.as_ref().map(|sound| sound.borrow_mut());
 
                 let return_value: Option<Box<RefMut<'_, dyn Card>>> = match &mut *slot_value {
-                    IODevice::Printer(printer) => Some(Box::new(printer.borrow_mut())),
-                    IODevice::Disk => self.disk.as_ref().map(|drive| {
-                        let card: RefMut<'_, dyn Card> = drive.borrow_mut();
-                        Box::new(card)
-                    }),
-                    IODevice::HardDisk => self.harddisk.as_ref().map(|drive| {
-                        let card: RefMut<'_, dyn Card> = drive.borrow_mut();
-                        Box::new(card)
-                    }),
+                    IODevice::Printer => {
+                        if let Some(printer) = &self.parallel {
+                            Some(Box::new(printer.borrow_mut()))
+                        } else {
+                            None
+                        }
+                    }
+                    IODevice::Disk => {
+                        if let Some(drive) = &self.disk {
+                            Some(Box::new(drive.borrow_mut()))
+                        } else {
+                            None
+                        }
+                    }
+                    IODevice::HardDisk => {
+                        if let Some(drive) = &self.harddisk {
+                            Some(Box::new(drive.borrow_mut()))
+                        } else {
+                            None
+                        }
+                    }
                     IODevice::Z80 => {
                         if write_flag {
                             *self.halt_cpu.borrow_mut() = true;
@@ -354,7 +383,7 @@ impl Bus {
                 };
 
                 if let Some(mut device) = return_value {
-                    device.rom_access(ioaddr, value, write_flag)
+                    device.rom_access(&self.mem, &self.video, addr, value, write_flag)
                 } else {
                     self.read_floating_bus()
                 }
@@ -1084,7 +1113,14 @@ impl Mem for Bus {
 
 impl Default for Bus {
     fn default() -> Self {
-        Self::new()
+        let mut this = Self::new();
+
+        this.io_slot[1] = RefCell::new(IODevice::Printer);
+        this.io_slot[4] = RefCell::new(IODevice::Mockingboard(0));
+        this.io_slot[6] = RefCell::new(IODevice::Disk);
+        this.io_slot[7] = RefCell::new(IODevice::HardDisk);
+
+        this
     }
 }
 
@@ -1093,11 +1129,5 @@ fn default_io_slot() -> Vec<RefCell<IODevice>> {
     for _ in 0..8 {
         io_slot.push(RefCell::new(IODevice::None))
     }
-
-    io_slot[1] = RefCell::new(IODevice::Printer(RefCell::new(ParallelCard::new())));
-    io_slot[4] = RefCell::new(IODevice::Mockingboard(0));
-    io_slot[6] = RefCell::new(IODevice::Disk);
-    io_slot[7] = RefCell::new(IODevice::HardDisk);
-
     io_slot
 }

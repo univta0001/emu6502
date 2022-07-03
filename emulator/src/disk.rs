@@ -1949,19 +1949,28 @@ impl Default for DiskDrive {
 }
 
 impl Card for DiskDrive {
-    fn rom_access(&mut self, map_addr: u8, _value: u8, _write_mode: bool) -> u8 {
-        self.read_rom(map_addr)
+    fn rom_access(
+        &mut self,
+        _mem: &RefCell<Mmu>,
+        _video: &Option<RefCell<Video>>,
+        addr: u16,
+        _value: u8,
+        _write_mode: bool,
+    ) -> u8 {
+        self.read_rom((addr & 0xff) as u8)
     }
 
     fn io_access(
         &mut self,
         _mem: &RefCell<Mmu>,
         _video: &Option<RefCell<Video>>,
-        addr: u8,
+        addr: u16,
         value: u8,
         write_mode: bool,
     ) -> u8 {
-        match addr {
+        let slot = (((addr & 0x00ff) - 0x0080) >> 4) as usize;
+        let io_addr = ((addr & 0x00ff) - ((slot as u16) << 4)) as u8;
+        match io_addr {
             LOC_PHASE0OFF => {
                 self.set_phase(0, false);
             }

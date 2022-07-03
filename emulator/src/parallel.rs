@@ -39,19 +39,28 @@ impl Default for ParallelCard {
 }
 
 impl Card for ParallelCard {
-    fn rom_access(&mut self, addr: u8, _value: u8, _write_flag: bool) -> u8 {
-        ROM[addr as usize]
+    fn rom_access(
+        &mut self,
+        _mem: &RefCell<Mmu>,
+        _video: &Option<RefCell<Video>>,
+        addr: u16,
+        _value: u8,
+        _write_flag: bool,
+    ) -> u8 {
+        ROM[(addr & 0xff) as usize]
     }
 
     fn io_access(
         &mut self,
         _mem: &RefCell<Mmu>,
         _video: &Option<RefCell<Video>>,
-        addr: u8,
+        addr: u16,
         value: u8,
         write_flag: bool,
     ) -> u8 {
-        match addr {
+        let slot = (((addr & 0x00ff) - 0x0080) >> 4) as usize;
+        let io_addr = ((addr & 0x00ff) - ((slot as u16) << 4)) as u8;
+        match io_addr {
             // Load output
             0x80 => {
                 if write_flag {

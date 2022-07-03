@@ -780,11 +780,20 @@ impl Default for Mockingboard {
 }
 
 impl Card for Mockingboard {
-    fn rom_access(&mut self, addr: u8, value: u8, write_flag: bool) -> u8 {
-        if addr < 0x80 {
-            self.w65c22[0].io_access(addr, value, write_flag)
+    fn rom_access(
+        &mut self,
+        _mem: &RefCell<Mmu>,
+        _video: &Option<RefCell<Video>>,
+        addr: u16,
+        value: u8,
+        write_flag: bool,
+    ) -> u8 {
+        let map_addr: u8 = (addr & 0xff) as u8;
+
+        if map_addr < 0x80 {
+            self.w65c22[0].io_access(map_addr, value, write_flag)
         } else {
-            self.w65c22[1].io_access(addr - 0x80, value, write_flag)
+            self.w65c22[1].io_access(map_addr - 0x80, value, write_flag)
         }
     }
 
@@ -792,7 +801,7 @@ impl Card for Mockingboard {
         &mut self,
         _mem: &RefCell<Mmu>,
         _video: &Option<RefCell<Video>>,
-        _addr: u8,
+        _addr: u16,
         _value: u8,
         _write_flag: bool,
     ) -> u8 {
