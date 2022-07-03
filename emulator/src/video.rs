@@ -1197,6 +1197,16 @@ impl Video {
         self.video_page2
     }
 
+    pub fn is_vbl(&self) -> bool {
+        let val = self.cycles % self.cycle_field;
+        let row = val / CYCLES_PER_ROW;
+        if row < 192 {
+            return false;
+        } else {
+            return true;
+        }
+    }
+
     pub fn enable_video_80col(&mut self, state: bool) {
         self.vid80_mode = state;
     }

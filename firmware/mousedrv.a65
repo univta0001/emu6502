@@ -1,0 +1,115 @@
+!cpu 6502	; Compatible with all Apple2's
+!to "mousedrv.bin", plain
+!sl "mousedrv.labels"
+
+; constants
+m_execute = $c080
+m_status = $c081		; b0=error (0 = ok)
+m_command = $c082
+m_param = $c083
+
+cmd_setmouse = $0
+cmd_servemouse = $1
+cmd_readmouse = $2
+cmd_clearmouse = $3
+cmd_posmouse = $4
+cmd_clampmouse = $5
+cmd_homemouse = $6
+cmd_initmouse = $7
+
+MON_RTS = $ff58
+
+;======================================
+
+!zone code
+
+*= $0000	; org $0000
+
+; The Autoboot rom will call this.
+start
+
+; Autoboot and ProDOS look at the following few opcodes to detect mouse device
+; $Cn05 = $38
+; $Cn07 = $18
+; $Cn0B = $01
+; $Cn0C = $20
+; $CnFB = $D6
+
+ bit MON_RTS
+ bvs BASIC_ENTRY
+ sec
+ bcc BASIC_ENTRY
+ clv
+ bvc BASIC_ENTRY
+
+; $Cn0b must be $01
+ !byte $01
+
+; $cn0c must be $20
+ !byte $20
+
+; Mouse Entry Points
+; Assume X = $Cn, Y = $n0, A = input , interrupt is disabled, carry flag is cleared
+*= $0012	; org $cn12
+ !byte <SET_MOUSE
+ !byte <SERVE_MOUSE
+ !byte <READ_MOUSE
+ !byte <CLEAR_MOUSE
+ !byte <POS_MOUSE
+ !byte <CLAMP_MOUSE
+ !byte <HOME_MOUSE
+ !byte <INIT_MOUSE
+
+*= $0020    ; org $cn20
+BASIC_ENTRY 
+ rts
+
+SET_MOUSE
+ cmp #$10
+ bcs STATUS_RETURN
+ sta m_param,y
+ lda #cmd_setmouse
+ bcc COMMAND_EXECUTE
+
+SERVE_MOUSE
+ lda #cmd_servemouse
+ bne COMMAND_EXECUTE
+
+READ_MOUSE
+ lda #cmd_readmouse
+ bne COMMAND_EXECUTE
+
+CLEAR_MOUSE
+ lda #cmd_clearmouse
+ bne COMMAND_EXECUTE
+
+POS_MOUSE
+ lda #cmd_posmouse
+ bne COMMAND_EXECUTE
+
+CLAMP_MOUSE
+ sta m_param,y
+ lda #cmd_clampmouse
+ bne COMMAND_EXECUTE
+
+HOME_MOUSE
+ lda #cmd_homemouse
+ bne COMMAND_EXECUTE
+
+INIT_MOUSE
+ lda #cmd_initmouse
+
+COMMAND_EXECUTE
+ sta m_command,y
+ lda m_execute,y
+ lda m_status,y
+ ror
+STATUS_RETURN
+ rts
+
+*= $00fb    ; org $cnfb
+ !byte $d6
+ !byte $ff
+ !byte $ff
+ !byte $ff
+ !byte $01
