@@ -247,9 +247,6 @@ impl Mouse {
         let x = self.x;
         let y = self.y;
 
-        self.interrupt = 0;
-        self.irq_happen = 0;
-
         let status = self.get_status();
 
         // Update the x position
@@ -288,6 +285,11 @@ impl Mouse {
         // Update the y position
         mmu.mem_write(Y_LOW + slot, 0);
         mmu.mem_write(Y_HIGH + slot, 0);
+
+        self.interrupt = 0;
+        self.irq_happen = 0;
+        let status = self.get_status();
+        mmu.mem_write(STATUS + slot, status);
 
         self.last_x = 0;
         self.last_y = 0;
