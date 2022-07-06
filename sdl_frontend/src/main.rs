@@ -8,7 +8,7 @@ use emu6502::video::DisplayMode;
 use emu6502::cpu::CPU;
 use emu6502::cpu_stats::CpuStats;
 use emu6502::mockingboard::Mockingboard;
-use emu6502::trace::{adjust_disassemble_addr,disassemble_addr};
+use emu6502::trace::{adjust_disassemble_addr, disassemble_addr};
 use image::codecs::png::PngEncoder;
 use image::ColorType;
 use image::ImageEncoder;

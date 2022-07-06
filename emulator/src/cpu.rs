@@ -883,9 +883,8 @@ impl CPU {
         let old_register_a = self.register_a;
 
         if !self.status.contains(CpuFlags::DECIMAL_MODE) {
-            let sum = self.register_a as u16
-                + data as u16
-                + self.status.contains(CpuFlags::CARRY) as u16;
+            let sum =
+                self.register_a as u16 + data as u16 + self.status.contains(CpuFlags::CARRY) as u16;
             self.status.set(CpuFlags::CARRY, sum > 0xff);
             result = sum as u8;
             self.set_register_a(result);

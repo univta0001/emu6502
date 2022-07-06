@@ -291,31 +291,31 @@ impl Bus {
         if slot < self.io_slot.len() {
             let mut slot_value = self.io_slot[slot].borrow_mut();
             //eprintln!("IOAccess - {:04x} {} {}",addr,slot,io_addr);
-            let return_value: Option<Box<RefMut<'_, dyn Card>>> = match &mut *slot_value {
+            let return_value: Option<RefMut<'_, dyn Card>> = match &mut *slot_value {
                 IODevice::Printer => {
                     if let Some(printer) = &self.parallel {
-                        Some(Box::new(printer.borrow_mut()))
+                        Some(printer.borrow_mut())
                     } else {
                         None
                     }
                 }
                 IODevice::Mouse => {
                     if let Some(device) = &self.mouse {
-                        Some(Box::new(device.borrow_mut()))
+                        Some(device.borrow_mut())
                     } else {
                         None
                     }
                 }
                 IODevice::Disk => {
                     if let Some(drive) = &self.disk {
-                        Some(Box::new(drive.borrow_mut()))
+                        Some(drive.borrow_mut())
                     } else {
                         None
                     }
                 }
                 IODevice::HardDisk => {
                     if let Some(drive) = &self.harddisk {
-                        Some(Box::new(drive.borrow_mut()))
+                        Some(drive.borrow_mut())
                     } else {
                         None
                     }
@@ -352,31 +352,31 @@ impl Bus {
 
                 let audio = self.audio.as_ref().map(|sound| sound.borrow_mut());
 
-                let return_value: Option<Box<RefMut<'_, dyn Card>>> = match &mut *slot_value {
+                let return_value: Option<RefMut<'_, dyn Card>> = match &mut *slot_value {
                     IODevice::Printer => {
                         if let Some(printer) = &self.parallel {
-                            Some(Box::new(printer.borrow_mut()))
+                            Some(printer.borrow_mut())
                         } else {
                             None
                         }
                     }
                     IODevice::Mouse => {
                         if let Some(device) = &self.mouse {
-                            Some(Box::new(device.borrow_mut()))
+                            Some(device.borrow_mut())
                         } else {
                             None
                         }
                     }
                     IODevice::Disk => {
                         if let Some(drive) = &self.disk {
-                            Some(Box::new(drive.borrow_mut()))
+                            Some(drive.borrow_mut())
                         } else {
                             None
                         }
                     }
                     IODevice::HardDisk => {
                         if let Some(drive) = &self.harddisk {
-                            Some(Box::new(drive.borrow_mut()))
+                            Some(drive.borrow_mut())
                         } else {
                             None
                         }
@@ -388,12 +388,11 @@ impl Bus {
                         None
                     }
                     IODevice::Mockingboard(device_no) => {
-                        if audio.is_some() {
-                            let snd = audio.as_ref().unwrap();
+                        if let Some(snd) = &audio {
                             if snd.mboard.is_empty() || *device_no >= snd.mboard.len() {
                                 None
                             } else {
-                                Some(Box::new(snd.mboard[*device_no].borrow_mut()))
+                                Some(snd.mboard[*device_no].borrow_mut())
                             }
                         } else {
                             None
@@ -1153,8 +1152,8 @@ impl Default for Bus {
         let mut this = Self::new();
 
         this.io_slot[1] = RefCell::new(IODevice::Printer);
-        this.io_slot[4] = RefCell::new(IODevice::Mockingboard(0));
-        this.io_slot[5] = RefCell::new(IODevice::Mouse);
+        this.io_slot[4] = RefCell::new(IODevice::Mouse);
+        this.io_slot[5] = RefCell::new(IODevice::Mockingboard(0));
         this.io_slot[6] = RefCell::new(IODevice::Disk);
         this.io_slot[7] = RefCell::new(IODevice::HardDisk);
 

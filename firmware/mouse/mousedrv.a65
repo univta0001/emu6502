@@ -68,7 +68,7 @@ BASIC_ENTRY     pha
                 pha
                 php
                 sei
-                jsr   $FF58
+                jsr   MON_IORTS
                 tsx
                 lda   $0100,X
                 tax
@@ -98,14 +98,17 @@ PRENTRY         pla
                 lda   #cmd_setmouse
                 ora   #$80
                 bne   COMMAND_EXECUTE
-INENTRY2        sta   $C081,Y
+INENTRY2        lda   #cmd_readmouse
+                ora   #$80
+                sta   m_command,y
+                lda   m_execute,y
                 pla
-                lda   $0638,X
+                lda   $0638,x
                 tax
                 pla
                 tay
                 pla
-                lda   $0200,X
+                lda   $0200,x
                 rts
 
 SET_MOUSE       cmp   #$10
