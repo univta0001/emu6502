@@ -626,6 +626,7 @@ FLAGS:
     --nojoystick       Disable joystick
     --xtrim            Set joystick x-trim value
     --ytrim            Set joystick y-trim value
+    --mouse_rate       Set the mouse sensitivity (Default is 1, Min value is 1)
     -m, --model MODEL  Set apple 2 model. Valid value: apple2p,apple2e,apple2ee
     --d1 PATH          Set the file path for disk 1 drive at Slot 6 Drive 1
     --d2 PATH          Set the file path for disk 2 drive at Slot 6 Drive 2
@@ -810,7 +811,7 @@ fn draw_circle<T: RenderTarget>(
     Ok(())
 }
 
-fn register_device(cpu: &mut CPU,device: &str, slot: usize) {
+fn register_device(cpu: &mut CPU, device: &str, slot: usize) {
     match device {
         "none" => cpu.bus.register_device(IODevice::None, slot),
         "harddisk" => cpu.bus.register_device(IODevice::HardDisk, slot),
@@ -1062,6 +1063,13 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 .borrow_mut()
                 .update_ntsc_matrix(ntsc_luma, ntsc_chroma);
         }
+    }
+
+    if let Some(rate) = pargs.opt_value_from_str::<_, i32>("--mouse_rate")? {
+        if rate < 1 {
+            panic!("Mouse rate must be equal or greater than 1");
+        }
+        cpu.bus.set_mouse_rate(rate);
     }
 
     // Load dsk image

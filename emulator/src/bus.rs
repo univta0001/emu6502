@@ -463,8 +463,15 @@ impl Bus {
     pub fn set_mouse_state(&mut self, x: i32, y: i32, buttons: &[bool; 2]) {
         if let Some(device) = &mut self.mouse {
             let mut mouse_interface = device.borrow_mut();
-            mouse_interface.set_state(x, y, buttons);
             mouse_interface.tick(*self.cycles.borrow());
+            mouse_interface.set_state(x, y, buttons);
+        }
+    }
+
+    pub fn set_mouse_rate(&mut self, rate: i32) {
+        if let Some(device) = &mut self.mouse {
+            let mut mouse_interface = device.borrow_mut();
+            mouse_interface.set_sensitivity(rate);
         }
     }
 
