@@ -322,9 +322,9 @@ impl Mouse {
     fn clamp_mouse(&mut self, mem: &RefCell<Mmu>, value: usize) {
         let mmu = mem.borrow();
         let min = (mmu.mem_read(CLAMP_MIN_HIGH) as i32 * 256 + mmu.mem_read(CLAMP_MIN_LOW) as i32)
-            & 0xffff;
+            as i16 as i32;
         let max = (mmu.mem_read(CLAMP_MAX_HIGH) as i32 * 256 + mmu.mem_read(CLAMP_MAX_LOW) as i32)
-            & 0xffff;
+            as i16 as i32;
 
         if value == 0 {
             self.clamp_min_x = min;
