@@ -149,7 +149,7 @@ impl Mouse {
 
         if !self.enabled {
             mmu.mem_write(KEY_POINTER + slot, 0);
-            return;
+            return
         }
 
         let keyboard_pressed = mmu.mem_read(0xc000) > 0x7f;
@@ -313,7 +313,7 @@ impl Mouse {
         let x = (mmu.mem_read(X_HIGH) as i32 * 256 + mmu.mem_read(X_LOW) as i32) as i16 as i32;
         let y = (mmu.mem_read(Y_HIGH) as i32 * 256 + mmu.mem_read(Y_LOW) as i32) as i16 as i32;
         //eprintln!("PosMouse x={} y={} min_x={} max_x={} min_y={} max_y={}",
-        //          x, y, self.clamp_min_x, self.clamp_max_x, self.clamp_min_y, self.clamp_max_y);
+        //        x, y, self.clamp_min_x, self.clamp_max_x, self.clamp_min_y, self.clamp_max_y);
         self.x = x;
         self.y = y;
         */

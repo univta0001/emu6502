@@ -632,6 +632,13 @@ FLAGS:
     --d2 PATH          Set the file path for disk 2 drive at Slot 6 Drive 2
     --h1 PATH          Set the file path for hard disk 1
     --h2 PATH          Set the file path for hard disk 2
+    --s1 device        Device at slot 1 (none,harddisk,mboard,z80,mouse,parallel)
+    --s2 device        Device at slot 2 (none,harddisk,mboard,z80,mouse,parallel)
+    --s3 device        Device at slot 3 (none,harddisk,mboard,z80,mouse,parallel)
+    --s4 device        Device at slot 4 (none,harddisk,mboard,z80,mouse,parallel)
+    --s5 device        Device at slot 5 (none,harddisk,mboard,z80,mouse,parallel)
+    --s6 device        Device at slot 6 (none,harddisk,mboard,z80,mouse,parallel)
+    --s7 device        Device at slot 7 (none,harddisk,mboard,z80,mouse,parallel)
     --weakbit rate     Set the random weakbit error rate (Default is 0.3)
     --opt_timing rate  Override the optimal timing (Default is 0)
     --rgb              Enable RGB mode (Default: RGB mode disabled)
@@ -802,6 +809,18 @@ fn draw_circle<T: RenderTarget>(
         canvas.draw_line(Point::new(cx - y, cy - x), Point::new(cx + y, cy - x))?;
     }
     Ok(())
+}
+
+fn register_device(cpu: &mut CPU,device: &str, slot: usize) {
+    match device {
+        "none" => cpu.bus.register_device(IODevice::None, slot),
+        "harddisk" => cpu.bus.register_device(IODevice::HardDisk, slot),
+        "mboard" => cpu.bus.register_device(IODevice::Mockingboard(0), slot),
+        "mouse" => cpu.bus.register_device(IODevice::Mouse, slot),
+        "parallel" => cpu.bus.register_device(IODevice::Printer, slot),
+        "z80" => cpu.bus.register_device(IODevice::Z80, slot),
+        _ => {}
+    }
 }
 
 fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
@@ -978,6 +997,34 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     if let Some(input_file) = pargs.opt_value_from_str::<_, String>("--h2")? {
         let path = Path::new(&input_file);
         load_harddisk(&mut cpu, path, 1)?;
+    }
+
+    if let Some(device) = pargs.opt_value_from_str::<_, String>("--s1")? {
+        register_device(&mut cpu, &device, 1);
+    }
+
+    if let Some(device) = pargs.opt_value_from_str::<_, String>("--s2")? {
+        register_device(&mut cpu, &device, 2);
+    }
+
+    if let Some(device) = pargs.opt_value_from_str::<_, String>("--s3")? {
+        register_device(&mut cpu, &device, 3);
+    }
+
+    if let Some(device) = pargs.opt_value_from_str::<_, String>("--s4")? {
+        register_device(&mut cpu, &device, 4);
+    }
+
+    if let Some(device) = pargs.opt_value_from_str::<_, String>("--s5")? {
+        register_device(&mut cpu, &device, 5);
+    }
+
+    if let Some(device) = pargs.opt_value_from_str::<_, String>("--s6")? {
+        register_device(&mut cpu, &device, 6);
+    }
+
+    if let Some(device) = pargs.opt_value_from_str::<_, String>("--s7")? {
+        register_device(&mut cpu, &device, 7);
     }
 
     if let Some(mboard) = pargs.opt_value_from_str::<_, u8>("--mboard")? {
