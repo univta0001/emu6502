@@ -854,6 +854,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         .build()
         .unwrap();
 
+    let _event_subsystem = sdl_context.event()?;
+    let _mouse_context = sdl_context.mouse();
+
     // Create the game controller
     let game_controller = sdl_context.game_controller()?;
     let mut gamepads: HashMap<u32, (u32, GameController)> = HashMap::new();
@@ -1085,7 +1088,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
 
     let mut t = Instant::now();
-    let mut dcyc = 0;
     let mut previous_cycles = 0;
     let mut estimated_mhz: f32 = 0.0;
 
@@ -1108,6 +1110,17 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     cpu.reset();
     cpu.setup_emulator();
+
+    // Change the refresh video to the start of the VBL instead of end of the VBL
+    let mut dcyc = if let Some(display) = &cpu.bus.video {
+        if display.borrow().is_video_50hz() {
+            CPU_CYCLES_PER_FRAME_50HZ - 65 * 192
+        } else {
+            CPU_CYCLES_PER_FRAME_60HZ - 65 * 192
+        }
+    } else {
+        CPU_CYCLES_PER_FRAME_60HZ - 65 * 192
+    };
 
     loop {
         if reload_cpu {
@@ -1257,6 +1270,18 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 let buttons = [mouse_state.left(), mouse_state.right()];
                 _cpu.bus
                     .set_mouse_state(mouse_state.x(), mouse_state.y(), &buttons);
+
+                /*
+                // Update the mouse pointer if required
+                if let Some(display) = &mut _cpu.bus.video {
+                    let mut disp = display.borrow_mut();
+                    if disp.is_update_mouse() {
+                        let (_x,_y) = disp.get_update_mouse_ptr();
+                        _mouse_context.warp_mouse_in_window(canvas.window(),_x,_y);
+                        _event_subsystem.flush_event(sdl2::event::EventType::MouseMotion);
+                    }
+                }
+                */
 
                 let video_cpu_update = t.elapsed().as_micros();
                 let adj_ms = dcyc * 1_000_000 / CPU_6502_MHZ;

@@ -158,8 +158,8 @@ impl Mouse {
 
         let x_range = self.clamp_max_x - self.clamp_min_x;
         let y_range = self.clamp_max_y - self.clamp_min_y;
-        let mut x = ((self.x * x_range) / (WIDTH-1) + self.clamp_min_x) as i16 as i32;
-        let mut y = ((self.y * y_range) / (HEIGHT-1) + self.clamp_min_y) as i16 as i32;
+        let mut x = ((self.x * x_range) / (WIDTH - 1) + self.clamp_min_x) as i16 as i32;
+        let mut y = ((self.y * y_range) / (HEIGHT - 1) + self.clamp_min_y) as i16 as i32;
 
         x = i32::max(self.clamp_min_x, i32::min(x, self.clamp_max_x));
         y = i32::max(self.clamp_min_y, i32::min(y, self.clamp_max_y));
@@ -268,8 +268,8 @@ impl Mouse {
 
         let x_range = self.clamp_max_x - self.clamp_min_x;
         let y_range = self.clamp_max_y - self.clamp_min_y;
-        let mut new_x = ((x * x_range) / (WIDTH-1) + self.clamp_min_x) as i16 as i32;
-        let mut new_y = ((y * y_range) / (HEIGHT-1) + self.clamp_min_y) as i16 as i32;
+        let mut new_x = ((x * x_range) / (WIDTH - 1) + self.clamp_min_x) as i16 as i32;
+        let mut new_y = ((y * y_range) / (HEIGHT - 1) + self.clamp_min_y) as i16 as i32;
 
         new_x = i32::max(self.clamp_min_x, i32::min(new_x, self.clamp_max_x));
         new_y = i32::max(self.clamp_min_y, i32::min(new_y, self.clamp_max_y));
@@ -310,7 +310,7 @@ impl Mouse {
         }
     }
 
-    fn pos_mouse(&mut self, _mem: &RefCell<Mmu>, _slot: u16) {
+    fn pos_mouse(&mut self, _mem: &RefCell<Mmu>, mut _video: &Option<RefCell<Video>>) {
         /*
         let mmu = mem.borrow();
         let clamp_x = (mmu.mem_read(X_HIGH) as i32 * 256 + mmu.mem_read(X_LOW) as i32) as i16 as i32;
@@ -329,6 +329,11 @@ impl Mouse {
 
         self.x = x;
         self.y = y;
+
+        // Request for update of mouse pointer
+        if let Some(display) = &mut video {
+            display.borrow_mut().request_update_mouse(x,y);
+        }
         */
     }
 
@@ -436,7 +441,7 @@ impl Card for Mouse {
     fn io_access(
         &mut self,
         mem: &RefCell<Mmu>,
-        _video: &Option<RefCell<Video>>,
+        video: &Option<RefCell<Video>>,
         addr: u16,
         value: u8,
         write_flag: bool,
@@ -463,7 +468,7 @@ impl Card for Mouse {
                 SERVE_MOUSE => self.serve_mouse(mem, slot),
                 READ_MOUSE => self.read_mouse(mem, slot),
                 CLEAR_MOUSE => self.clear_mouse(),
-                POS_MOUSE => self.pos_mouse(mem, slot),
+                POS_MOUSE => self.pos_mouse(mem, video),
                 HOME_MOUSE => self.home_mouse(),
                 _ => {}
             },

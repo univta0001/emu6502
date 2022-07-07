@@ -99,6 +99,15 @@ pub struct Video {
     #[serde(default = "default_cycle_field")]
     cycle_field: usize,
 
+    #[serde(default)]
+    request_mouse: bool,
+
+    #[serde(default)]
+    request_mouse_x: i32,
+
+    #[serde(default)]
+    request_mouse_y: i32,
+
     graphics_mode: bool,
     mixed_mode: bool,
     lores_mode: bool,
@@ -689,6 +698,9 @@ impl Video {
             chroma_bandwidth,
             chroma_hgr,
             chroma_dhgr,
+            request_mouse: false,
+            request_mouse_x: 0,
+            request_mouse_y: 0,
         }
     }
 
@@ -1205,6 +1217,21 @@ impl Video {
         let val = self.cycles % self.cycle_field;
         let row = val / CYCLES_PER_ROW;
         row >= 192
+    }
+
+    pub fn request_update_mouse(&mut self, x: i32, y: i32) {
+        self.request_mouse = true;
+        self.request_mouse_x = x;
+        self.request_mouse_y = y;
+    }
+
+    pub fn is_update_mouse(&self) -> bool {
+        self.request_mouse
+    }
+
+    pub fn get_update_mouse_ptr(&mut self) -> (i32, i32) {
+        self.request_mouse = false;
+        (self.request_mouse_x, self.request_mouse_y)
     }
 
     pub fn enable_video_80col(&mut self, state: bool) {
