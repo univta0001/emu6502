@@ -158,8 +158,8 @@ impl Mouse {
 
         let x_range = self.clamp_max_x - self.clamp_min_x;
         let y_range = self.clamp_max_y - self.clamp_min_y;
-        let mut x = ((self.x * x_range) / (WIDTH - 1) + self.clamp_min_x) as i16 as i32;
-        let mut y = ((self.y * y_range) / (HEIGHT - 1) + self.clamp_min_y) as i16 as i32;
+        let mut x = ((self.x * x_range) / (WIDTH-1) + self.clamp_min_x) as i16 as i32;
+        let mut y = ((self.y * y_range) / (HEIGHT-1) + self.clamp_min_y) as i16 as i32;
 
         x = i32::max(self.clamp_min_x, i32::min(x, self.clamp_max_x));
         y = i32::max(self.clamp_min_y, i32::min(y, self.clamp_max_y));
@@ -192,7 +192,7 @@ impl Mouse {
         mmu.mem_write(MODE + slot, self.mode);
     }
 
-    fn enable_mouse(&mut self, mem: &RefCell<Mmu>, slot: u16, value: u8) {
+    fn enable_mouse(&mut self, value: u8) {
         //eprintln!("EnableMouse");
         if value & 0x01 > 0 {
             self.enabled = true;
@@ -202,11 +202,6 @@ impl Mouse {
             self.enabled = false;
             self.mode &= !1;
         }
-
-        let mut mmu = mem.borrow_mut();
-
-        // Update mode
-        mmu.mem_write(MODE + slot, self.mode);
     }
 
     fn get_status(&self) -> u8 {
@@ -273,8 +268,8 @@ impl Mouse {
 
         let x_range = self.clamp_max_x - self.clamp_min_x;
         let y_range = self.clamp_max_y - self.clamp_min_y;
-        let mut new_x = ((x * x_range) / (WIDTH - 1) + self.clamp_min_x) as i16 as i32;
-        let mut new_y = ((y * y_range) / (HEIGHT - 1) + self.clamp_min_y) as i16 as i32;
+        let mut new_x = ((x * x_range) / (WIDTH-1) + self.clamp_min_x) as i16 as i32;
+        let mut new_y = ((y * y_range) / (HEIGHT-1) + self.clamp_min_y) as i16 as i32;
 
         new_x = i32::max(self.clamp_min_x, i32::min(new_x, self.clamp_max_x));
         new_y = i32::max(self.clamp_min_y, i32::min(new_y, self.clamp_max_y));
@@ -302,24 +297,11 @@ impl Mouse {
         }
     }
 
-    fn clear_mouse(&mut self, mem: &RefCell<Mmu>, slot: u16) {
+    fn clear_mouse(&mut self) {
         //eprintln!("ClearMouse");
         self.x = 0;
         self.y = 0;
-
-        let mut mmu = mem.borrow_mut();
-        // Update the x position
-        mmu.mem_write(X_LOW + slot, 0);
-        mmu.mem_write(X_HIGH + slot, 0);
-
-        // Update the y position
-        mmu.mem_write(Y_LOW + slot, 0);
-        mmu.mem_write(Y_HIGH + slot, 0);
-
-        // Update status by clearing status bits
-        let status = self.get_status() & !0x0e;
-        mmu.mem_write(STATUS + slot, status);
-
+        self.interrupt &= !0xe;
         self.last_x = 0;
         self.last_y = 0;
         for i in 0..2 {
@@ -330,7 +312,7 @@ impl Mouse {
 
     fn pos_mouse(&mut self, _mem: &RefCell<Mmu>, _slot: u16) {
         /*
-        let mut mmu = mem.borrow_mut();
+        let mmu = mem.borrow();
         let clamp_x = (mmu.mem_read(X_HIGH) as i32 * 256 + mmu.mem_read(X_LOW) as i32) as i16 as i32;
         let clamp_y = (mmu.mem_read(Y_HIGH) as i32 * 256 + mmu.mem_read(Y_LOW) as i32) as i16 as i32;
         let x_range = self.clamp_max_x - self.clamp_min_x;
@@ -339,22 +321,14 @@ impl Mouse {
         let mut y = (((clamp_y - self.clamp_min_y) * (HEIGHT-1)) / y_range) as i16 as i32;
 
         x = i32::max(0, i32::min(x, WIDTH-1));
-        y = i32::max(0, i32::min(y, HEIGHT-1));
+        y = i32::max(0, i32::min(y, HEIGHT-1)) - HEIGHT - 1;
 
-        eprintln!("PosMouse clamp_x={} clamp_y={} x={} y={} min_x={} max_x={} min_y={} max_y={}",
-                clamp_x, clamp_y, x, y,
-                self.clamp_min_x, self.clamp_max_x, self.clamp_min_y, self.clamp_max_y);
+        //eprintln!("PosMouse clamp_x={} clamp_y={} x={} y={} min_x={} max_x={} min_y={} max_y={}",
+        //        clamp_x, clamp_y, x, y,
+        //        self.clamp_min_x, self.clamp_max_x, self.clamp_min_y, self.clamp_max_y);
 
         self.x = x;
         self.y = y;
-
-        // Update the x position
-        mmu.mem_write(X_LOW + slot, (x % 256) as u8);
-        mmu.mem_write(X_HIGH + slot, (x / 256) as u8);
-
-        // Update the y position
-        mmu.mem_write(Y_LOW + slot, (y % 256) as u8);
-        mmu.mem_write(Y_HIGH + slot, (y / 256) as u8);
         */
     }
 
@@ -378,35 +352,15 @@ impl Mouse {
         }
     }
 
-    fn home_mouse(&mut self, mem: &RefCell<Mmu>, slot: u16) {
+    fn home_mouse(&mut self) {
         //eprintln!("HomeMouse");
         self.x = 0;
         self.y = 0;
-
-        let mut mmu = mem.borrow_mut();
-
-        // Update the x position
-        mmu.mem_write(X_LOW + slot, 0);
-        mmu.mem_write(X_HIGH + slot, 0);
-
-        // Update the y position
-        mmu.mem_write(Y_LOW + slot, 0);
-        mmu.mem_write(Y_HIGH + slot, 0);
     }
 
-    fn init_mouse(&mut self, mem: &RefCell<Mmu>, slot: u16) {
+    fn init_mouse(&mut self) {
         //eprintln!("InitMouse");
         self.reset();
-
-        let mut mmu = mem.borrow_mut();
-
-        // Update the x position
-        mmu.mem_write(X_LOW + slot, 0);
-        mmu.mem_write(X_HIGH + slot, 0);
-
-        // Update the y position
-        mmu.mem_write(Y_LOW + slot, 0);
-        mmu.mem_write(Y_HIGH + slot, 0);
     }
 
     pub fn set_state(&mut self, x: i32, y: i32, buttons: &[bool; 2]) {
@@ -492,7 +446,7 @@ impl Card for Mouse {
 
         match map_addr & 0x0f {
             // Execute
-            0 => self.enable_mouse(mem, slot, value),
+            0 => self.enable_mouse(value),
 
             // Status
             1 => self.mouse_status(mem, slot),
@@ -505,12 +459,12 @@ impl Card for Mouse {
             3 => match value & 0x0f {
                 CLAMP_MOUSE_X => self.clamp_mouse(mem, 0),
                 CLAMP_MOUSE_Y => self.clamp_mouse(mem, 1),
-                INIT_MOUSE => self.init_mouse(mem, slot),
+                INIT_MOUSE => self.init_mouse(),
                 SERVE_MOUSE => self.serve_mouse(mem, slot),
                 READ_MOUSE => self.read_mouse(mem, slot),
-                CLEAR_MOUSE => self.clear_mouse(mem, slot),
+                CLEAR_MOUSE => self.clear_mouse(),
                 POS_MOUSE => self.pos_mouse(mem, slot),
-                HOME_MOUSE => self.home_mouse(mem, slot),
+                HOME_MOUSE => self.home_mouse(),
                 _ => {}
             },
 
