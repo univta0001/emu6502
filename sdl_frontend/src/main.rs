@@ -632,17 +632,17 @@ FLAGS:
     --d2 PATH          Set the file path for disk 2 drive at Slot 6 Drive 2
     --h1 PATH          Set the file path for hard disk 1
     --h2 PATH          Set the file path for hard disk 2
-    --s1 device        Device at slot 1 (none,harddisk,mboard,z80,mouse,parallel)
-    --s2 device        Device at slot 2 (none,harddisk,mboard,z80,mouse,parallel)
-    --s3 device        Device at slot 3 (none,harddisk,mboard,z80,mouse,parallel)
-    --s4 device        Device at slot 4 (none,harddisk,mboard,z80,mouse,parallel)
-    --s5 device        Device at slot 5 (none,harddisk,mboard,z80,mouse,parallel)
-    --s6 device        Device at slot 6 (none,harddisk,mboard,z80,mouse,parallel)
-    --s7 device        Device at slot 7 (none,harddisk,mboard,z80,mouse,parallel)
+    --s1 device        Device slot 1 (none,harddisk,mboard,z80,mouse,parallel)
+    --s2 device        Device slot 2 (none,harddisk,mboard,z80,mouse,parallel)
+    --s3 device        Device slot 3 (none,harddisk,mboard,z80,mouse,parallel)
+    --s4 device        Device slot 4 (none,harddisk,mboard,z80,mouse,parallel)
+    --s5 device        Device slot 5 (none,harddisk,mboard,z80,mouse,parallel)
+    --s6 device        Device slot 6 (none,harddisk,mboard,z80,mouse,parallel)
+    --s7 device        Device slot 7 (none,harddisk,mboard,z80,mouse,parallel)
     --weakbit rate     Set the random weakbit error rate (Default is 0.3)
     --opt_timing rate  Override the optimal timing (Default is 0)
     --rgb              Enable RGB mode (Default: RGB mode disabled)
-    --mboard 0|1|2     Number of mockingboards to enable in Slot 4 and/or Slot 5
+    --mboard 0|1|2     Number of mockingboards in Slot 4 and/or Slot 5
     --luma bandwidth   NTSC Luma B/W (Valid value: 0-7159090, Default: 2300000)
     --chroma bandwidth NTSC Chroma B/W (Valid value: 0-7159090, Default: 600000)
 
