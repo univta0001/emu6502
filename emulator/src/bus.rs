@@ -532,14 +532,16 @@ impl Bus {
 
         match io_addr {
             0x00 => {
+                let mut mmu = self.mem.borrow_mut();
                 if write_flag {
-                    let mut mmu = self.mem.borrow_mut();
                     mmu._80storeon = false;
                     if let Some(display) = &self.video {
                         display.borrow_mut()._80storeon = false;
                     }
                 }
-                *self.keyboard_latch.borrow()
+                let value = *self.keyboard_latch.borrow();
+                mmu.mem_write(0xc000, value);
+                value
             }
 
             0x01 => {
@@ -644,6 +646,8 @@ impl Bus {
             0x10 => {
                 let mut keyboard_latch = self.keyboard_latch.borrow_mut();
                 *keyboard_latch &= 0x7f;
+                let mut mmu = self.mem.borrow_mut();
+                mmu.mem_write(0xc000, *keyboard_latch);
                 *keyboard_latch
             }
 

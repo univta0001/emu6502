@@ -1,66 +1,37 @@
-!cpu 6502	; Compatible with all Apple2's
+; mousedrv.a65
 !to "mousedrv.bin", plain
+!cpu 6502
 
-; constants
-m_execute = $c080
-m_status = $c081		; b0=error (0 = ok)
-m_command = $c082
-m_param = $c083
-
-cmd_setmouse = $0
-cmd_servemouse = $1
-cmd_readmouse = $2
-cmd_clearmouse = $3
-cmd_posmouse = $4
-cmd_clampmouse = $5
-cmd_homemouse = $6
-cmd_initmouse = $7
+; Constants
 
 MON_IORTS = $ff58
+KSWL = $38
+KSWH = $39
 
-;======================================
+* = $0000
 
-!zone code
-
-*= $0000	; org $0000
-
-; The Autoboot rom will call this.
-start
-
-; Autoboot and ProDOS look at the following few opcodes to detect mouse device
-; $Cn05 = $38
-; $Cn07 = $18
-; $Cn0B = $01
-; $Cn0C = $20
-; $CnFB = $D6
-
-                bit   MON_IORTS
-                bvs   BASIC_ENTRY
-                sec
+                bit   MON_IORTS         ; Set overflow flag
+                bvs   BASIC_ENTRY       ; Branch always
+INENTRY         sec
                 bcc   BASIC_ENTRY
-                clv
-                bvc   BASIC_ENTRY
+OENTRY          clv
+                bvc   BASIC_ENTRY       ; Branch always for IN#
 
-; $Cn0b must be $01
-                !byte $01
+                !byte $01,$20
+                !fill 4,<ERROR1
+                !byte $00
 
-; $cn0c must be $20
-                !byte $20
+* = $0012                               ; Entry point for mouse routines
+                !byte <SETMOUSE
+                !byte <SERVEMOUSE
+                !byte <READMOUSE
+                !byte <CLEARMOUSE
+                !byte <POSMOUSE
+                !byte <CLAMPMOUSE
+                !byte <HOMEMOUSE
+                !byte <INITMOUSE
+                !fill 6,<ERROR1
 
-; Mouse Entry Points
-; Assume X = $Cn, Y = $n0, A = input , interrupt is disabled, carry flag is cleared
-; Except for ServeMouse
-*= $0012	; org $cn12
-                !byte <SET_MOUSE
-                !byte <SERVE_MOUSE
-                !byte <READ_MOUSE
-                !byte <CLEAR_MOUSE
-                !byte <POS_MOUSE
-                !byte <CLAMP_MOUSE
-                !byte <HOME_MOUSE
-                !byte <INIT_MOUSE
-
-*= $0020    ; org $cn20
 BASIC_ENTRY     pha
                 tya
                 pha
@@ -68,99 +39,111 @@ BASIC_ENTRY     pha
                 pha
                 php
                 sei
-                jsr   MON_IORTS
+                jsr   MON_IORTS         ; Get the card slot number
                 tsx
-                lda   $0100,X
-                tax
+                lda   $0100,x
+                tax                     ; Store $Cx in X
                 asl
                 asl
                 asl
                 asl
-                tay
+                tay                     ; Store $n0 in Y
                 plp
-                bvc   INENTRY
-                lda   $38
+                bvc   INENTRY2
+                lda   KSWL
                 bne   PRENTRY
                 txa
-                eor   $39
+                eor   KSWH
                 bne   PRENTRY
-                lda   #$05
-                STA   $38
-                bne   INENTRY2
+                lda   #<INENTRY
+                sta   KSWL
+                bne   INENTRY3
 
-INENTRY         bcs   INENTRY2
+INENTRY2        bcs   INENTRY3
+
 PRENTRY         pla
                 tax
                 pla
+                nop
                 pla
-                and   #$01
-                sta   m_param,y
-                lda   #cmd_setmouse
-                ora   #$80
-                bne   COMMAND_EXECUTE
-INENTRY2        lda   #cmd_readmouse
-                ora   #$80
-                sta   m_command,y
-                lda   m_execute,y
-                pla
-                lda   $0638,x
-                tax
-                pla
-                tay
-                pla
-                lda   $0200,x
+                sta   $c080,y           ; Enable Mouse = 1
                 rts
 
-SET_MOUSE       cmp   #$10
-                bcs   STATUS_RETURN
-                sta   m_param,y
-                lda   #cmd_setmouse
-                beq   COMMAND_EXECUTE
+INENTRY3        sta   $c081,y
+                pla
+                lda   $0638,x           ; Get the position buffer for result
+                tax
+                pla
+                tay
+                pla
+                lda   $0200,x           ; Get the value of the buffer
+                rts
 
-SERVE_MOUSE     lda   $06
+* = $006d
+
+SETMOUSE        cmp   #$10              ; Check that the mode is less than 0x10
+                bcs   ERROR
+                sta   $c082,y
+                rts
+SERVEMOUSE      pha
+                clc
+                bcc   SERVEMOUSE1
+SERVEMOUSE2     sta   $c083,y
+                lda   $06b8,x           ; Check that the interrupt is served
+                and   #$0e
+                bne   SERVEMOUSE3
+                sec                     ; There is no interrupt return error
+SERVEMOUSE3     pla
+                rts
+CLAMPMOUSE      cmp   #$02              ; Only accept 0 for X and 1 for Y
+                bcs   ERROR
+                sta   $c083,y
+                rts
+READMOUSE       lda   #$04
+                sta   $c083,y
+                clc
+                nop
+                nop
+                rts
+INITMOUSE       nop
+                lda   #$02
+CALL_ENTRY      sta   $c083,y
+                clc
+                rts
+CLEARMOUSE      nop
+                lda   #$05
+                bne   CALL_ENTRY
+POSMOUSE        nop
+                lda   #$06
+                bne   CALL_ENTRY
+HOMEMOUSE       nop
+                lda   #$07
+                bne   CALL_ENTRY
+ERROR1          ldx   #$03
+ERROR           sec
+                rts
+
+SERVEMOUSE1     php
+                lda   $00
+                pha
                 lda   #$60
-                sta   $06
-                jsr   $0006
-                sty   $06
+                sta   $00
+                sei
+                jsr   $0000
                 tsx
+                pla
+                sta   $00
                 lda   $0100,x
+                plp
                 tax
                 asl
                 asl
                 asl
                 asl
                 tay
-                lda   #cmd_servemouse
-                bne   COMMAND_EXECUTE
+                lda   #$03
+                clc
+                bcc   SERVEMOUSE2
 
-READ_MOUSE      lda   #cmd_readmouse
-                bne   COMMAND_EXECUTE
-
-CLEAR_MOUSE     lda   #cmd_clearmouse
-                bne   COMMAND_EXECUTE
-
-POS_MOUSE       lda   #cmd_posmouse
-                bne   COMMAND_EXECUTE
-
-CLAMP_MOUSE     and   #$01
-                sta   m_param,y
-                lda   #cmd_clampmouse
-                bne   COMMAND_EXECUTE
-
-HOME_MOUSE      lda   #cmd_homemouse
-                bne   COMMAND_EXECUTE
-
-INIT_MOUSE      lda   #cmd_initmouse
-
-COMMAND_EXECUTE sta   m_command,y
-                lda   m_execute,y
-                lda   m_status,y
-                ror
-STATUS_RETURN   rts
-
-*= $00fb    ; org $cnfb
-                !byte $d6
-                !byte $ff
-                !byte $ff
-                !byte $ff
-                !byte $01
+* = $00fb
+                !byte $d6,$ff,$ff,$ff,$01

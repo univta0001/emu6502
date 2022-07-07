@@ -37,7 +37,7 @@ const ROM: [u8; 256] = [
     0xae, 0x00, 0x6d, 0x75, 0x8e, 0x9f, 0xa4, 0x86, 0xa9, 0x97, 0xae, 0xae, 0xae, 0xae, 0xae, 0xae,
     0x48, 0x98, 0x48, 0x8a, 0x48, 0x08, 0x78, 0x20, 0x58, 0xff, 0xba, 0xbd, 0x00, 0x01, 0xaa, 0x0a,
     0x0a, 0x0a, 0x0a, 0xa8, 0x28, 0x50, 0x0f, 0xa5, 0x38, 0xd0, 0x0d, 0x8a, 0x45, 0x39, 0xd0, 0x08,
-    0xa5, 0x05, 0x85, 0x38, 0xd0, 0x0b, 0xb0, 0x09, 0x68, 0xaa, 0x68, 0xea, 0x68, 0x99, 0x80, 0xc0,
+    0xa9, 0x05, 0x85, 0x38, 0xd0, 0x0b, 0xb0, 0x09, 0x68, 0xaa, 0x68, 0xea, 0x68, 0x99, 0x80, 0xc0,
     0x60, 0x99, 0x81, 0xc0, 0x68, 0xbd, 0x38, 0x06, 0xaa, 0x68, 0xa8, 0x68, 0xbd, 0x00, 0x02, 0x60,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc9, 0x10, 0xb0,
     0x3f, 0x99, 0x82, 0xc0, 0x60, 0x48, 0x18, 0x90, 0x39, 0x99, 0x83, 0xc0, 0xbd, 0xb8, 0x06, 0x29,
@@ -147,6 +147,11 @@ impl Mouse {
         //eprintln!("MouseStatus");
         let mut mmu = mem.borrow_mut();
 
+        if !self.enabled {
+            mmu.mem_write(KEY_POINTER + slot, 0);
+            return
+        }
+
         let keyboard_pressed = mmu.mem_read(0xc000) > 0x7f;
 
         // Button return value based on AppleMouse User Manual
@@ -160,22 +165,23 @@ impl Mouse {
 
         */
         let button_state =
-            ((((self.buttons[0] as u8) << 1) + (self.last_buttons[0] as u8)) ^ 0x3) + 1;
+            ((((self.buttons[0] as u8) << 1) + self.last_buttons[0] as u8) ^ 0x3) + 1;
 
         let text = if !keyboard_pressed {
-            format!("{:>4},{:>4},+{}\r", self.x, self.y, button_state)
+            format!("{},{},{}\r", self.x, self.y, button_state)
         } else {
-            format!("{:>4},{:>4},-{}\r", self.x, self.y, button_state)
+            format!("{},{},-{}\r", self.x, self.y, button_state)
         };
 
         for (i, c) in text.as_bytes().iter().enumerate() {
             mmu.mem_write(KEY_INPUT + i as u16, c + 128);
         }
         mmu.mem_write(KEY_POINTER + slot, (text.len() - 1) as u8);
+        self.last_buttons[0] = self.buttons[0];
     }
 
     fn set_mouse(&mut self, value: u8) {
-        //eprintln!("SetMouse = {:02x}", self.parameter);
+        //eprintln!("SetMouse = {:02x}", value);
         if value & 0x1 > 0 {
             self.enabled = true;
         } else {
@@ -305,7 +311,8 @@ impl Mouse {
         let mmu = mem.borrow();
         let x = (mmu.mem_read(X_HIGH) as i32 * 256 + mmu.mem_read(X_LOW) as i32) as i16 as i32;
         let y = (mmu.mem_read(Y_HIGH) as i32 * 256 + mmu.mem_read(Y_LOW) as i32) as i16 as i32;
-        //eprintln!("PosMouse x={} y={}", x, y);
+        //eprintln!("PosMouse x={} y={} min_x={} max_x={} min_y={} max_y={}", 
+        //        x, y, self.clamp_min_x, self.clamp_max_x, self.clamp_min_y, self.clamp_max_y);
         self.x = x;
         self.y = y;
     }
@@ -353,8 +360,8 @@ impl Mouse {
         let x_range = self.clamp_max_x - self.clamp_min_x;
         let y_range = self.clamp_max_y - self.clamp_min_y;
 
-        let new_x = (x * x_range / WIDTH + self.clamp_min_x) & 0xffff;
-        let new_y = (y * y_range / HEIGHT + self.clamp_min_y) & 0xffff;
+        let new_x = ((x * x_range) / WIDTH + self.clamp_min_x) as i16 as i32;
+        let new_y = ((y * y_range) / HEIGHT + self.clamp_min_y) as i16 as i32;
 
         if new_x != self.x || new_y != self.y {
             self.interrupt_move = true;
