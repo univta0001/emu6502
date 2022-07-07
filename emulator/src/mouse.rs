@@ -149,7 +149,7 @@ impl Mouse {
 
         if !self.enabled {
             mmu.mem_write(KEY_POINTER + slot, 0);
-            return
+            return;
         }
 
         let keyboard_pressed = mmu.mem_read(0xc000) > 0x7f;
@@ -307,22 +307,24 @@ impl Mouse {
         }
     }
 
-    fn pos_mouse(&mut self, mem: &RefCell<Mmu>) {
+    fn pos_mouse(&mut self, _mem: &RefCell<Mmu>) {
+        /*
         let mmu = mem.borrow();
         let x = (mmu.mem_read(X_HIGH) as i32 * 256 + mmu.mem_read(X_LOW) as i32) as i16 as i32;
         let y = (mmu.mem_read(Y_HIGH) as i32 * 256 + mmu.mem_read(Y_LOW) as i32) as i16 as i32;
-        //eprintln!("PosMouse x={} y={} min_x={} max_x={} min_y={} max_y={}", 
-        //        x, y, self.clamp_min_x, self.clamp_max_x, self.clamp_min_y, self.clamp_max_y);
+        //eprintln!("PosMouse x={} y={} min_x={} max_x={} min_y={} max_y={}",
+        //          x, y, self.clamp_min_x, self.clamp_max_x, self.clamp_min_y, self.clamp_max_y);
         self.x = x;
         self.y = y;
+        */
     }
 
     fn clamp_mouse(&mut self, mem: &RefCell<Mmu>, value: usize) {
         let mmu = mem.borrow();
         let min = (mmu.mem_read(CLAMP_MIN_HIGH) as i32 * 256 + mmu.mem_read(CLAMP_MIN_LOW) as i32)
-            as i16 as i32;
+            & 0xffff;
         let max = (mmu.mem_read(CLAMP_MAX_HIGH) as i32 * 256 + mmu.mem_read(CLAMP_MAX_LOW) as i32)
-            as i16 as i32;
+            & 0xffff;
 
         if value == 0 {
             self.clamp_min_x = min;

@@ -1156,8 +1156,8 @@ impl Default for Bus {
         let mut this = Self::new();
 
         this.io_slot[1] = RefCell::new(IODevice::Printer);
-        this.io_slot[4] = RefCell::new(IODevice::Mouse);
-        this.io_slot[5] = RefCell::new(IODevice::Mockingboard(0));
+        this.io_slot[4] = RefCell::new(IODevice::Mockingboard(0));
+        this.io_slot[5] = RefCell::new(IODevice::Mouse);
         this.io_slot[6] = RefCell::new(IODevice::Disk);
         this.io_slot[7] = RefCell::new(IODevice::HardDisk);
 
