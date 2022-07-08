@@ -158,8 +158,8 @@ impl Mouse {
 
         let x_range = self.clamp_max_x - self.clamp_min_x;
         let y_range = self.clamp_max_y - self.clamp_min_y;
-        let mut x = ((self.x * x_range) / (WIDTH - 1) + self.clamp_min_x) as i16 as i32;
-        let mut y = ((self.y * y_range) / (HEIGHT - 1) + self.clamp_min_y) as i16 as i32;
+        let mut x = ((self.x * x_range) / (WIDTH-1) + self.clamp_min_x) as i16 as i32;
+        let mut y = ((self.y * y_range) / (HEIGHT-1) + self.clamp_min_y) as i16 as i32;
 
         x = i32::max(self.clamp_min_x, i32::min(x, self.clamp_max_x));
         y = i32::max(self.clamp_min_y, i32::min(y, self.clamp_max_y));
@@ -268,8 +268,8 @@ impl Mouse {
 
         let x_range = self.clamp_max_x - self.clamp_min_x;
         let y_range = self.clamp_max_y - self.clamp_min_y;
-        let mut new_x = ((x * x_range) / (WIDTH - 1) + self.clamp_min_x) as i16 as i32;
-        let mut new_y = ((y * y_range) / (HEIGHT - 1) + self.clamp_min_y) as i16 as i32;
+        let mut new_x = ((x * x_range) / (WIDTH-1) + self.clamp_min_x) as i16 as i32;
+        let mut new_y = ((y * y_range) / (HEIGHT-1) + self.clamp_min_y) as i16 as i32;
 
         new_x = i32::max(self.clamp_min_x, i32::min(new_x, self.clamp_max_x));
         new_y = i32::max(self.clamp_min_y, i32::min(new_y, self.clamp_max_y));
@@ -349,11 +349,23 @@ impl Mouse {
             let range = max - min;
             self.clamp_max_x = min + range / self.sensitivity;
             //eprintln!("ClampMouse X - {} {}", self.clamp_min_y, self.clamp_max_y);
+
+            if self.x > self.clamp_max_x {
+                self.x = self.clamp_max_x
+            } else if self.x < self.clamp_min_x {
+                self.x = self.clamp_min_x
+            }
         } else {
             self.clamp_min_y = min;
             let range = max - min;
             self.clamp_max_y = min + range / self.sensitivity;
             //eprintln!("ClampMouse Y - {} {}", self.clamp_min_y, self.clamp_max_y);
+            
+            if self.y > self.clamp_max_y {
+                self.y = self.clamp_max_y
+            } else if self.y < self.clamp_min_y {
+                self.y = self.clamp_min_y
+            }            
         }
     }
 
