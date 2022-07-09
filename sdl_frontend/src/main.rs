@@ -626,7 +626,6 @@ FLAGS:
     --nojoystick       Disable joystick
     --xtrim            Set joystick x-trim value
     --ytrim            Set joystick y-trim value
-    --mouse_rate       Set the mouse sensitivity (Default is 1, Min value is 1)
     -m, --model MODEL  Set apple 2 model. Valid value: apple2p,apple2e,apple2ee
     --d1 PATH          Set the file path for disk 1 drive at Slot 6 Drive 1
     --d2 PATH          Set the file path for disk 2 drive at Slot 6 Drive 2
@@ -854,9 +853,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         .build()
         .unwrap();
 
-    let _event_subsystem = sdl_context.event()?;
-    let _mouse_context = sdl_context.mouse();
-
     // Create the game controller
     let game_controller = sdl_context.game_controller()?;
     let mut gamepads: HashMap<u32, (u32, GameController)> = HashMap::new();
@@ -1068,13 +1064,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         }
     }
 
-    if let Some(rate) = pargs.opt_value_from_str::<_, i32>("--mouse_rate")? {
-        if rate < 1 {
-            panic!("Mouse rate must be equal or greater than 1");
-        }
-        cpu.bus.set_mouse_rate(rate);
-    }
-
     // Load dsk image
     if let Ok(input_file) = pargs.free_from_str::<String>() {
         let path = Path::new(&input_file);
@@ -1270,18 +1259,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 let buttons = [mouse_state.left(), mouse_state.right()];
                 _cpu.bus
                     .set_mouse_state(mouse_state.x(), mouse_state.y(), &buttons);
-
-                /*
-                // Update the mouse pointer if required
-                if let Some(display) = &mut _cpu.bus.video {
-                    let mut disp = display.borrow_mut();
-                    if disp.is_update_mouse() {
-                        let (_x,_y) = disp.get_update_mouse_ptr();
-                        _mouse_context.warp_mouse_in_window(canvas.window(),_x,_y);
-                        _event_subsystem.flush_event(sdl2::event::EventType::MouseMotion);
-                    }
-                }
-                */
 
                 let video_cpu_update = t.elapsed().as_micros();
                 let adj_ms = dcyc * 1_000_000 / CPU_6502_MHZ;

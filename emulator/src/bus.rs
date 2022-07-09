@@ -468,13 +468,6 @@ impl Bus {
         }
     }
 
-    pub fn set_mouse_rate(&mut self, rate: i32) {
-        if let Some(device) = &mut self.mouse {
-            let mut mouse_interface = device.borrow_mut();
-            mouse_interface.set_sensitivity(rate);
-        }
-    }
-
     pub fn reset_paddle_latch(&mut self, paddle: usize) {
         if self.joystick_flag {
             if paddle % 2 == 0 {

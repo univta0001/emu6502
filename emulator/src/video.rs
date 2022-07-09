@@ -1219,21 +1219,6 @@ impl Video {
         row >= 192
     }
 
-    pub fn request_update_mouse(&mut self, x: i32, y: i32) {
-        self.request_mouse = true;
-        self.request_mouse_x = x;
-        self.request_mouse_y = y;
-    }
-
-    pub fn is_update_mouse(&self) -> bool {
-        self.request_mouse
-    }
-
-    pub fn get_update_mouse_ptr(&mut self) -> (i32, i32) {
-        self.request_mouse = false;
-        (self.request_mouse_x, self.request_mouse_y)
-    }
-
     pub fn enable_video_80col(&mut self, state: bool) {
         self.vid80_mode = state;
     }
