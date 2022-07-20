@@ -424,7 +424,7 @@ impl Card for Mouse {
     fn rom_access(
         &mut self,
         _mem: &RefCell<Mmu>,
-        _video: &Option<RefCell<Video>>,
+        _video: &RefCell<Video>,
         addr: u16,
         _value: u8,
         _write_flag: bool,
@@ -435,7 +435,7 @@ impl Card for Mouse {
     fn io_access(
         &mut self,
         mem: &RefCell<Mmu>,
-        _video: &Option<RefCell<Video>>,
+        _video: &RefCell<Video>,
         addr: u16,
         value: u8,
         write_flag: bool,

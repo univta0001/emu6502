@@ -282,7 +282,7 @@ impl Card for HardDisk {
     fn rom_access(
         &mut self,
         _mem: &RefCell<Mmu>,
-        _video: &Option<RefCell<Video>>,
+        _video: &RefCell<Video>,
         addr: u16,
         _value: u8,
         _write_flag: bool,
@@ -293,7 +293,7 @@ impl Card for HardDisk {
     fn io_access(
         &mut self,
         mem: &RefCell<Mmu>,
-        video: &Option<RefCell<Video>>,
+        video: &RefCell<Video>,
         addr: u16,
         value: u8,
         write_flag: bool,
@@ -345,14 +345,12 @@ impl Card for HardDisk {
                                     if (0x400..=0xbff).contains(&addr)
                                         || (0x2000..=0x5fff).contains(&addr)
                                     {
-                                        if let Some(display) = video {
-                                            if mmu.is_aux_memory(addr, true) {
-                                                display.borrow_mut().video_aux[addr as usize] =
-                                                    *data;
-                                            } else {
-                                                display.borrow_mut().video_main[addr as usize] =
-                                                    *data;
-                                            }
+                                        if mmu.is_aux_memory(addr, true) {
+                                            video.borrow_mut().video_aux[addr as usize] =
+                                                *data;
+                                        } else {
+                                            video.borrow_mut().video_main[addr as usize] =
+                                                *data;
                                         }
                                     }
                                 }

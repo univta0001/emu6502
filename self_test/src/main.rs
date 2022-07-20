@@ -1,8 +1,7 @@
 //#![windows_subsystem = "windows"]
 
 use emu6502::bus::Bus;
-use emu6502::cpu::CPU;
-use emu6502::cpu_stats::CpuStats;
+use emu6502::cpu::{CPU,CpuStats};
 use std::error::Error;
 use std::io::{self, BufWriter, Write};
 

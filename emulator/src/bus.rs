@@ -20,7 +20,7 @@ pub trait Card {
     fn rom_access(
         &mut self,
         mem: &RefCell<Mmu>,
-        video: &Option<RefCell<Video>>,
+        video: &RefCell<Video>,
         addr: u16,
         value: u8,
         write_flag: bool,
@@ -28,7 +28,7 @@ pub trait Card {
     fn io_access(
         &mut self,
         mem: &RefCell<Mmu>,
-        video: &Option<RefCell<Video>>,
+        video: &RefCell<Video>,
         addr: u16,
         value: u8,
         write_flag: bool,
@@ -49,11 +49,11 @@ pub enum IODevice {
 #[derive(Serialize, Deserialize, Derivative)]
 #[derivative(Debug)]
 pub struct Bus {
-    pub disk: Option<RefCell<DiskDrive>>,
-    pub video: Option<RefCell<Video>>,
-    pub audio: Option<RefCell<Audio>>,
-    pub parallel: Option<RefCell<ParallelCard>>,
-    pub harddisk: Option<RefCell<HardDisk>>,
+    pub disk: RefCell<DiskDrive>,
+    pub video: RefCell<Video>,
+    pub audio: RefCell<Audio>,
+    pub parallel: RefCell<ParallelCard>,
+    pub harddisk: RefCell<HardDisk>,
     pub keyboard_latch: RefCell<u8>,
     pub pushbutton_latch: [u8; 4],
     pub paddle_latch: [u8; 4],
@@ -72,7 +72,7 @@ pub struct Bus {
     pub intc8rom: RefCell<bool>,
 
     #[serde(default)]
-    pub mouse: Option<RefCell<Mouse>>,
+    pub mouse: RefCell<Mouse>,
 
     #[serde(default)]
     pub noslotclock: RefCell<NoSlotClock>,
@@ -157,12 +157,12 @@ impl Bus {
             joystick_flag: true,
             joystick_jitter: false,
             cycles: RefCell::new(0),
-            disk: Some(RefCell::new(DiskDrive::default())),
-            video: Some(RefCell::new(Video::new())),
-            audio: Some(RefCell::new(Audio::new())),
-            parallel: Some(RefCell::new(ParallelCard::new())),
-            harddisk: Some(RefCell::new(HardDisk::new())),
-            mouse: Some(RefCell::new(Mouse::new())),
+            disk: RefCell::new(DiskDrive::default()),
+            video: RefCell::new(Video::new()),
+            audio: RefCell::new(Audio::new()),
+            parallel: RefCell::new(ParallelCard::new()),
+            harddisk: RefCell::new(HardDisk::new()),
+            mouse: RefCell::new(Mouse::new()),
             intcxrom: RefCell::new(false),
             slotc3rom: RefCell::new(false),
             intc8rom: RefCell::new(false),
@@ -211,25 +211,18 @@ impl Bus {
         *self.intc8rom.borrow_mut() = false;
 
         self.mem.borrow_mut().reset();
-
-        if let Some(display) = &mut self.video {
-            display.borrow_mut().reset();
-        }
+        self.video.borrow_mut().reset();
 
         if !self.disable_audio {
-            if let Some(sound) = &mut self.audio {
-                sound
-                    .borrow_mut()
-                    .mboard
-                    .iter_mut()
-                    .for_each(|mb| mb.borrow_mut().reset())
-            }
+            self.audio
+                .borrow_mut()
+                .mboard
+                .iter_mut()
+                .for_each(|mb| mb.borrow_mut().reset())
         }
 
         if !self.disable_disk {
-            if let Some(drive) = &self.disk {
-                drive.borrow_mut().reset();
-            }
+            self.disk.borrow_mut().reset();
         }
     }
 
@@ -237,25 +230,16 @@ impl Bus {
         *self.cycles.borrow_mut() += 1;
 
         if !self.disable_video {
-            if let Some(display) = &self.video {
-                display.borrow_mut().tick();
-            }
+            self.video.borrow_mut().tick();
         }
 
         if !self.disable_audio {
-            if let Some(sound) = &self.audio {
-                sound.borrow_mut().tick();
-            }
+            self.audio.borrow_mut().tick();
         }
 
         if !self.disable_disk {
-            if let Some(drive) = &self.disk {
-                drive.borrow_mut().tick();
-            }
-
-            if let Some(harddrive) = &self.harddisk {
-                harddrive.borrow_mut().tick();
-            }
+            self.disk.borrow_mut().tick();
+            self.harddisk.borrow_mut().tick();
         }
     }
 
@@ -293,32 +277,16 @@ impl Bus {
             //eprintln!("IOAccess - {:04x} {} {}",addr,slot,io_addr);
             let return_value: Option<RefMut<'_, dyn Card>> = match &mut *slot_value {
                 IODevice::Printer => {
-                    if let Some(printer) = &self.parallel {
-                        Some(printer.borrow_mut())
-                    } else {
-                        None
-                    }
+                    Some(self.parallel.borrow_mut())
                 }
                 IODevice::Mouse => {
-                    if let Some(device) = &self.mouse {
-                        Some(device.borrow_mut())
-                    } else {
-                        None
-                    }
+                    Some(self.mouse.borrow_mut())
                 }
                 IODevice::Disk => {
-                    if let Some(drive) = &self.disk {
-                        Some(drive.borrow_mut())
-                    } else {
-                        None
-                    }
+                    Some(self.disk.borrow_mut())
                 }
                 IODevice::HardDisk => {
-                    if let Some(drive) = &self.harddisk {
-                        Some(drive.borrow_mut())
-                    } else {
-                        None
-                    }
+                    Some(self.harddisk.borrow_mut())
                 }
                 IODevice::Mockingboard(_) => None,
                 IODevice::Z80 => None,
@@ -350,36 +318,20 @@ impl Bus {
                     clock.io_access(addr, 0, false);
                 }
 
-                let audio = self.audio.as_ref().map(|sound| sound.borrow_mut());
+                let audio = self.audio.borrow_mut();
 
                 let return_value: Option<RefMut<'_, dyn Card>> = match &mut *slot_value {
                     IODevice::Printer => {
-                        if let Some(printer) = &self.parallel {
-                            Some(printer.borrow_mut())
-                        } else {
-                            None
-                        }
+                        Some(self.parallel.borrow_mut())
                     }
                     IODevice::Mouse => {
-                        if let Some(device) = &self.mouse {
-                            Some(device.borrow_mut())
-                        } else {
-                            None
-                        }
+                        Some(self.mouse.borrow_mut())
                     }
                     IODevice::Disk => {
-                        if let Some(drive) = &self.disk {
-                            Some(drive.borrow_mut())
-                        } else {
-                            None
-                        }
+                        Some(self.disk.borrow_mut())
                     }
                     IODevice::HardDisk => {
-                        if let Some(drive) = &self.harddisk {
-                            Some(drive.borrow_mut())
-                        } else {
-                            None
-                        }
+                        Some(self.harddisk.borrow_mut())
                     }
                     IODevice::Z80 => {
                         if write_flag {
@@ -388,14 +340,10 @@ impl Bus {
                         None
                     }
                     IODevice::Mockingboard(device_no) => {
-                        if let Some(snd) = &audio {
-                            if snd.mboard.is_empty() || *device_no >= snd.mboard.len() {
-                                None
-                            } else {
-                                Some(snd.mboard[*device_no].borrow_mut())
-                            }
-                        } else {
+                        if audio.mboard.is_empty() || *device_no >= audio.mboard.len() {
                             None
+                        } else {
+                            Some(audio.mboard[*device_no].borrow_mut())
                         }
                     }
                     _ => None,
@@ -455,17 +403,13 @@ impl Bus {
     }
 
     pub fn toggle_video_freq(&mut self) {
-        if let Some(display) = &mut self.video {
-            display.borrow_mut().toggle_video_freq();
-        }
+        self.video.borrow_mut().toggle_video_freq();
     }
 
     pub fn set_mouse_state(&mut self, x: i32, y: i32, buttons: &[bool; 2]) {
-        if let Some(device) = &mut self.mouse {
-            let mut mouse_interface = device.borrow_mut();
-            mouse_interface.tick(*self.cycles.borrow());
-            mouse_interface.set_state(x, y, buttons);
-        }
+        let mut mouse_interface = self.mouse.borrow_mut();
+        mouse_interface.tick(*self.cycles.borrow());
+        mouse_interface.set_state(x, y, buttons);
     }
 
     pub fn reset_paddle_latch(&mut self, paddle: usize) {
@@ -496,35 +440,25 @@ impl Bus {
 
     pub fn irq(&mut self) -> Option<usize> {
         if !self.disable_video {
-            if let Some(device) = &mut self.mouse {
-                let irq = device.borrow_mut().poll_irq();
-                if irq.is_some() {
-                    return irq;
-                }
+            let irq = self.mouse.borrow_mut().poll_irq();
+            if irq.is_some() {
+                return irq;
             }
         }
 
         if !self.disable_audio {
-            if let Some(sound) = &mut self.audio {
-                sound
-                    .borrow_mut()
-                    .mboard
-                    .iter_mut()
-                    .find_map(|mb| mb.borrow_mut().poll_irq())
-            } else {
-                None
-            }
+            self.audio
+                .borrow_mut()
+                .mboard
+                .iter_mut()
+                .find_map(|mb| mb.borrow_mut().poll_irq())
         } else {
             None
         }
     }
 
     fn read_floating_bus(&self) -> u8 {
-        if let Some(display) = &self.video {
-            display.borrow().read_latch()
-        } else {
-            0
-        }
+        self.video.borrow().read_latch()
     }
 
     pub fn io_access(&self, addr: u16, value: u8, write_flag: bool) -> u8 {
@@ -535,9 +469,7 @@ impl Bus {
                 let mut mmu = self.mem.borrow_mut();
                 if write_flag {
                     mmu._80storeon = false;
-                    if let Some(display) = &self.video {
-                        display.borrow_mut()._80storeon = false;
-                    }
+                    self.video.borrow_mut()._80storeon = false;
                 }
                 let value = *self.keyboard_latch.borrow();
                 mmu.mem_write(0xc000, value);
@@ -548,9 +480,7 @@ impl Bus {
                 if write_flag {
                     let mut mmu = self.mem.borrow_mut();
                     mmu._80storeon = true;
-                    if let Some(display) = &self.video {
-                        display.borrow_mut()._80storeon = true;
-                    }
+                    self.video.borrow_mut()._80storeon = true;
                 }
                 *self.keyboard_latch.borrow()
             }
@@ -636,11 +566,7 @@ impl Bus {
             }
 
             0x0c..=0x0f => {
-                if let Some(display) = &self.video {
-                    display.borrow_mut().io_access(addr, value, write_flag)
-                } else {
-                    *self.keyboard_latch.borrow()
-                }
+                self.video.borrow_mut().io_access(addr, value, write_flag)
             }
 
             0x10 => {
@@ -716,30 +642,18 @@ impl Bus {
             }
 
             0x19..=0x1f => {
-                if let Some(display) = &self.video {
-                    display.borrow_mut().io_access(addr, value, write_flag)
-                        | (*self.keyboard_latch.borrow() & 0x7f)
-                } else {
-                    *self.keyboard_latch.borrow() & 0x7f
-                }
+                self.video.borrow_mut().io_access(addr, value, write_flag)
+                    | (*self.keyboard_latch.borrow() & 0x7f)
             }
 
             0x20 => self.read_floating_bus(),
 
             0x21 => {
-                if let Some(display) = &self.video {
-                    display.borrow_mut().io_access(addr, value, write_flag)
-                } else {
-                    self.read_floating_bus()
-                }
+                self.video.borrow_mut().io_access(addr, value, write_flag)
             }
 
             0x29 => {
-                if let Some(display) = &self.video {
-                    display.borrow_mut().io_access(addr, value, write_flag)
-                } else {
-                    self.read_floating_bus()
-                }
+                self.video.borrow_mut().io_access(addr, value, write_flag)
             }
 
             0x30..=0x3f => self.audio_io_access(),
@@ -747,126 +661,86 @@ impl Bus {
             0x50 => {
                 let mut mmu = self.mem.borrow_mut();
                 mmu.video_graphics = true;
-                if let Some(display) = &self.video {
-                    let val = self.read_floating_bus();
-                    display.borrow_mut().enable_graphics(true);
-                    val
-                } else {
-                    0
-                }
+                let val = self.read_floating_bus();
+                self.video.borrow_mut().enable_graphics(true);
+                val
             }
 
             0x51 => {
                 let mut mmu = self.mem.borrow_mut();
                 mmu.video_graphics = false;
-                if let Some(display) = &self.video {
-                    let val = self.read_floating_bus();
-                    display.borrow_mut().enable_graphics(false);
-                    val
-                } else {
-                    0
-                }
+                let val = self.read_floating_bus();
+                self.video.borrow_mut().enable_graphics(false);
+                val
             }
 
             0x52 => {
-                if let Some(display) = &self.video {
-                    let val = self.read_floating_bus();
-                    display.borrow_mut().enable_mixed_mode(false);
-                    val
-                } else {
-                    0
-                }
+                let val = self.read_floating_bus();
+                self.video.borrow_mut().enable_mixed_mode(false);
+                val
             }
             0x53 => {
-                if let Some(display) = &self.video {
-                    let val = self.read_floating_bus();
-                    display.borrow_mut().enable_mixed_mode(true);
-                    val
-                } else {
-                    0
-                }
+                let val = self.read_floating_bus();
+                self.video.borrow_mut().enable_mixed_mode(true);
+                val
             }
 
             0x54 => {
                 let mut mmu = self.mem.borrow_mut();
                 mmu.video_page2 = false;
-                if let Some(display) = &self.video {
-                    let val = self.read_floating_bus();
-                    let mut disp = display.borrow_mut();
-                    disp.enable_video_page2(false);
-                    disp.update_video();
-                    val
-                } else {
-                    0
-                }
+                let val = self.read_floating_bus();
+                let mut disp = self.video.borrow_mut();
+                disp.enable_video_page2(false);
+                disp.update_video();
+                val
             }
 
             0x55 => {
                 let mut mmu = self.mem.borrow_mut();
                 mmu.video_page2 = true;
-                if let Some(display) = &self.video {
-                    let val = self.read_floating_bus();
-                    let mut disp = display.borrow_mut();
-                    disp.enable_video_page2(true);
-                    disp.update_video();
-                    val
-                } else {
-                    0
-                }
+                let val = self.read_floating_bus();
+                let mut disp = self.video.borrow_mut();
+                disp.enable_video_page2(true);
+                disp.update_video();
+                val
             }
 
             0x56 => {
                 let mut mmu = self.mem.borrow_mut();
                 mmu.video_hires = false;
-                if let Some(display) = &self.video {
-                    let val = self.read_floating_bus();
-                    let mut disp = display.borrow_mut();
-                    disp.enable_lores(true);
-                    disp.update_video();
-                    val
-                } else {
-                    0
-                }
+                let val = self.read_floating_bus();
+                let mut disp = self.video.borrow_mut();
+                disp.enable_lores(true);
+                disp.update_video();
+                val
             }
 
             0x57 => {
                 let mut mmu = self.mem.borrow_mut();
                 mmu.video_hires = true;
-                if let Some(display) = &self.video {
-                    let val = self.read_floating_bus();
-                    let mut disp = display.borrow_mut();
-                    disp.enable_lores(false);
-                    disp.update_video();
-                    val
-                } else {
-                    0
-                }
+                let val = self.read_floating_bus();
+                let mut disp = self.video.borrow_mut();
+                disp.enable_lores(false);
+                disp.update_video();
+                val
             }
             0x58..=0x5d => 0,
 
             0x5e => {
-                if let Some(display) = &self.video {
-                    let val = self.read_floating_bus();
-                    let mut disp = display.borrow_mut();
-                    disp.enable_dhires(true);
-                    disp.update_video();
-                    val
-                } else {
-                    0
-                }
-            }
+                let val = self.read_floating_bus();
+                let mut disp = self.video.borrow_mut();
+                disp.enable_dhires(true);
+                disp.update_video();
+                val
+            } 
 
             0x5f => {
-                if let Some(display) = &self.video {
-                    let val = self.read_floating_bus();
-                    let mut disp = display.borrow_mut();
-                    disp.enable_dhires(false);
-                    disp.update_video();
-                    val
-                } else {
-                    0
-                }
-            }
+                let val = self.read_floating_bus();
+                let mut disp = self.video.borrow_mut();
+                disp.enable_dhires(false);
+                disp.update_video();
+                val
+            } 
 
             // 0x60 PB3 should only works in real Apple 2GS
             0x60 => self.pushbutton_latch[3],
@@ -937,16 +811,11 @@ impl Bus {
                 if write_flag {
                     *self.iou.borrow_mut() = true;
                     val
-                } else if let Some(display) = &self.video {
-                    let disp = display.borrow();
-                    if disp.is_dhires_mode() {
-                        val | 0x80
-                    } else {
-                        val
-                    }
+                } else if self.video.borrow().is_dhires_mode() {
+                    val | 0x80
                 } else {
                     val
-                }
+                } 
             }
 
             0x80..=0x8f => {
@@ -1022,9 +891,7 @@ impl Bus {
     }
 
     fn audio_io_access(&self) -> u8 {
-        if let Some(sound) = &self.audio {
-            sound.borrow_mut().click();
-        }
+        self.audio.borrow_mut().click();
         self.read_floating_bus()
     }
 }
@@ -1063,12 +930,8 @@ impl Mem for Bus {
                 }
                 if *self.slotc3rom.borrow() {
                     self.read_floating_bus()
-                } else if let Some(display) = &self.video {
-                    if display.borrow().is_apple2e() {
-                        self.mem_read(addr)
-                    } else {
-                        self.read_floating_bus()
-                    }
+                } else if self.video.borrow().is_apple2e() {
+                    self.mem_read(addr)
                 } else {
                     self.read_floating_bus()
                 }
@@ -1099,12 +962,8 @@ impl Mem for Bus {
                 mmu.unclocked_addr_write(addr, data);
 
                 // Shadow it to the video ram
-                if let Some(display) = &self.video {
-                    let aux_memory = mmu.is_aux_memory(addr, true);
-                    display
-                        .borrow_mut()
-                        .update_shadow_memory(aux_memory, addr, data);
-                }
+                let aux_memory = mmu.is_aux_memory(addr, true);
+                self.video.borrow_mut().update_shadow_memory(aux_memory, addr, data);
             }
 
             ROM_START..=ROM_END => {

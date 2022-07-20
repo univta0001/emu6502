@@ -1,7 +1,6 @@
 pub mod audio;
 pub mod bus;
 pub mod cpu;
-pub mod cpu_stats;
 pub mod disk;
 pub mod harddisk;
 pub mod mmu;
