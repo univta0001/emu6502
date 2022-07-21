@@ -53,7 +53,7 @@ pub struct Bus {
     pub video: RefCell<Video>,
     pub audio: RefCell<Audio>,
     pub parallel: RefCell<ParallelCard>,
-    pub harddisk: RefCell<HardDisk>,
+
     pub keyboard_latch: RefCell<u8>,
     pub pushbutton_latch: [u8; 4],
     pub paddle_latch: [u8; 4],
@@ -70,6 +70,9 @@ pub struct Bus {
     pub intcxrom: RefCell<bool>,
     pub slotc3rom: RefCell<bool>,
     pub intc8rom: RefCell<bool>,
+
+    #[serde(default)]
+    pub harddisk: RefCell<HardDisk>,
 
     #[serde(default)]
     pub mouse: RefCell<Mouse>,

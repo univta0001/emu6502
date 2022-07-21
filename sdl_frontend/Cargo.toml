@@ -13,13 +13,13 @@ nfd2 = "0.3.1"
 emu6502 = { path = "../emulator" }
 sdl2 = "0.35.2"
 vswhom-sys = "0.1.1"
-serde_yaml = "0.8.24"
-image = "0.24.2"
+serde_yaml = "0.8.26"
+image = "0.24.3"
 spin_sleep = "1.1.1"
 #sdl2 = { version = "0.35.2", features = ['bundled', 'static-link'] }
 
 [build-dependencies]
-embed-resource = "1.7.2"
+embed-resource = "1.7.3"
 cc = "1.0.73"
 
 [[bin]]
