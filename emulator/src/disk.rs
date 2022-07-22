@@ -1208,6 +1208,12 @@ impl DiskDrive {
 
     fn set_phase(&mut self, phase: usize, flag: bool) {
         let mut disk = &mut self.drive[self.drive_select];
+
+        // Do nothing if motor is not on
+        if !disk.motor_status {
+            return
+        }
+
         if flag {
             disk.phase |= 1 << phase;
         } else {
