@@ -6,9 +6,6 @@ use std::error::Error;
 use std::io::{self, BufWriter, Write};
 
 #[cfg(target_os = "linux")]
-use pprof::protos::Message;
-
-#[cfg(target_os = "linux")]
 use std::fs::File;
 
 #[rustfmt::skip]
@@ -67,12 +64,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         if let Ok(report) = guard.report().build() {
             let flame_file = File::create("flamegraph.svg").unwrap();
             report.flamegraph(flame_file).unwrap();
-
-            let mut file = File::create("profile.pb").unwrap();
-            let profile = report.pprof().unwrap();
-            let mut content = Vec::new();
-            profile.encode(&mut content).unwrap();
-            file.write_all(&content).unwrap();
         }
     }
 
