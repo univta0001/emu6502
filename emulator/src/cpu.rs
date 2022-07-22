@@ -1985,17 +1985,6 @@ impl CpuStats {
             op.code,
             0xd0 | 0x70 | 0x50 | 0x10 | 0x30 | 0xf0 | 0xb0 | 0x90 | 0x80
         )
-        /*
-        op.code == 0xd0
-            || op.code == 0x70
-            || op.code == 0x50
-            || op.code == 0x10
-            || op.code == 0x30
-            || op.code == 0xf0
-            || op.code == 0xb0
-            || op.code == 0x90
-            || op.code == 0x80
-        */
     }
 
     fn update_branch_stats(&mut self, cpu: &CPU, opcode: &OpCode) {
@@ -2040,7 +2029,7 @@ impl CpuStats {
         addr1 & 0xFF00 != addr2 & 0xFF00
     }
 
-    fn update_absolute_x_stats(&mut self, cpu: &mut CPU, opcode: &OpCode) {
+    fn update_cross_page(&mut self, cpu: &mut CPU, opcode: &OpCode) {
         if opcode.mode == AddressingMode::Absolute_X && !self.absolute_x_force_tick(opcode) {
             let base = self.next_word(cpu);
             let addr = base.wrapping_add(cpu.register_x as u16);
@@ -2048,22 +2037,14 @@ impl CpuStats {
             if page_crossed {
                 self.absolute_x_cross_page += 1;
             }
-        }
-    }
-
-    fn update_absolute_y_stats(&mut self, cpu: &mut CPU, opcode: &OpCode) {
-        if opcode.mode == AddressingMode::Absolute_Y && !self.absolute_y_force_tick(opcode) {
+        } else if opcode.mode == AddressingMode::Absolute_Y && !self.absolute_y_force_tick(opcode) {
             let base = self.next_word(cpu);
             let addr = base.wrapping_add(cpu.register_y as u16);
             let page_crossed = self.page_cross(base, addr);
             if page_crossed {
                 self.absolute_y_cross_page += 1;
             }
-        }
-    }
-
-    fn update_indirect_y_stats(&mut self, cpu: &mut CPU, opcode: &OpCode) {
-        if opcode.mode == AddressingMode::Indirect_Y && !self.indirect_y_force_tick(opcode) {
+        } else if opcode.mode == AddressingMode::Indirect_Y && !self.indirect_y_force_tick(opcode) {
             let base = self.next_word(cpu);
             let addr = base.wrapping_add(cpu.register_y as u16);
             let page_crossed = self.page_cross(base, addr);
@@ -2078,9 +2059,7 @@ impl CpuStats {
         let opcode = &OPCODES[code as usize];
 
         self.update_branch_stats(cpu, opcode);
-        self.update_absolute_x_stats(cpu, opcode);
-        self.update_absolute_y_stats(cpu, opcode);
-        self.update_indirect_y_stats(cpu, opcode);
+        self.update_cross_page(cpu, opcode);
     }
 }
 
