@@ -1058,8 +1058,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         }
 
         cpu.run_with_callback(|_cpu| {
-            dcyc += _cpu.bus.get_cycles() - previous_cycles;
-            previous_cycles = _cpu.bus.get_cycles();
+            let current_cycles = _cpu.bus.get_cycles();
+            dcyc += current_cycles - previous_cycles;
+            previous_cycles = current_cycles;
 
             let mut cpu_cycles = CPU_CYCLES_PER_FRAME_60HZ;
             let mut cpu_period = 16_667;

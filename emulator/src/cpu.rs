@@ -570,14 +570,10 @@ impl CPU {
     pub fn get_indirect_zeropage_addr(&mut self, _: &OpCode, prog_addr: u16) -> u16 {
         if !self.callback {
             let ptr: u8 = self.next_byte() as u8;
-            let lo = self.bus.addr_read(ptr as u16);
-            let hi = self.bus.addr_read(ptr.wrapping_add(1) as u16);
-            (hi as u16) << 8 | (lo as u16)
+            self.bus.addr_read_u16(ptr as u16)
         } else {
             let ptr: u8 = self.bus.unclocked_addr_read(prog_addr.wrapping_add(1)) as u8;
-            let lo = self.bus.unclocked_addr_read(ptr as u16);
-            let hi = self.bus.unclocked_addr_read(ptr.wrapping_add(1) as u16);
-            (hi as u16) << 8 | (lo as u16)
+            self.bus.unclocked_addr_read_u16(ptr as u16)
         }
     }
 
@@ -586,24 +582,18 @@ impl CPU {
             let base = self.next_byte();
             let ptr: u8 = (base as u8).wrapping_add(self.register_x);
             self.tick();
-            let lo = self.bus.addr_read(ptr as u16);
-            let hi = self.bus.addr_read(ptr.wrapping_add(1) as u16);
-            (hi as u16) << 8 | (lo as u16)
+            self.bus.addr_read_u16(ptr as u16)
         } else {
             let base = self.bus.unclocked_addr_read(prog_addr.wrapping_add(1));
             let ptr: u8 = (base as u8).wrapping_add(self.register_x);
-            let lo = self.bus.unclocked_addr_read(ptr as u16);
-            let hi = self.bus.unclocked_addr_read(ptr.wrapping_add(1) as u16);
-            (hi as u16) << 8 | (lo as u16)
+            self.bus.unclocked_addr_read_u16(ptr as u16)
         }
     }
 
     pub fn get_indirect_y_addr(&mut self, op: &OpCode, prog_addr: u16) -> u16 {
         if !self.callback {
             let base = self.next_byte();
-            let lo = self.bus.addr_read(base as u16);
-            let hi = self.bus.addr_read((base as u8).wrapping_add(1) as u16);
-            let deref_base = (hi as u16) << 8 | (lo as u16);
+            let deref_base = self.bus.addr_read_u16(base as u16);
             let deref = deref_base.wrapping_add(self.register_y as u16);
             let page_crossed = self.page_cross(deref, deref_base);
 
@@ -620,11 +610,7 @@ impl CPU {
             deref
         } else {
             let base = self.bus.unclocked_addr_read(prog_addr.wrapping_add(1));
-            let lo = self.bus.unclocked_addr_read(base as u16);
-            let hi = self
-                .bus
-                .unclocked_addr_read((base as u8).wrapping_add(1) as u16);
-            let deref_base = (hi as u16) << 8 | (lo as u16);
+            let deref_base = self.bus.unclocked_addr_read_u16(base as u16);
             deref_base.wrapping_add(self.register_y as u16)
         }
     }
@@ -633,15 +619,11 @@ impl CPU {
         if !self.callback {
             let base = self.next_word();
             let ptr = base.wrapping_add(self.register_x as u16);
-            let lo = self.bus.addr_read(ptr as u16);
-            let hi = self.bus.addr_read(ptr.wrapping_add(1) as u16);
-            (hi as u16) << 8 | (lo as u16)
+            self.bus.addr_read_u16(ptr as u16)
         } else {
             let base = self.bus.unclocked_addr_read_u16(prog_add.wrapping_add(1));
             let ptr = base.wrapping_add(self.register_x as u16);
-            let lo = self.bus.unclocked_addr_read(ptr as u16);
-            let hi = self.bus.unclocked_addr_read(ptr.wrapping_add(1) as u16);
-            (hi as u16) << 8 | (lo as u16)
+            self.bus.unclocked_addr_read_u16(ptr as u16)
         }
     }
 
