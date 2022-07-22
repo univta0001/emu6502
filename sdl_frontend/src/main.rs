@@ -730,23 +730,19 @@ fn eject_disk(cpu: &mut CPU, drive: usize) {
 }
 
 fn is_disk_loaded(cpu: &CPU, drive: usize) -> bool {
-    let is_loaded = cpu.bus.disk.borrow().is_loaded(drive);
-    return is_loaded;
+    cpu.bus.disk.borrow().is_loaded(drive)
 }
 
 fn is_harddisk_loaded(cpu: &CPU, drive: usize) -> bool {
-    let is_loaded = cpu.bus.harddisk.borrow().is_loaded(drive);
-    return is_loaded;
+    cpu.bus.harddisk.borrow().is_loaded(drive)
 }
 
 fn get_disk_filename(cpu: &CPU, drive: usize) -> Option<String> {
-    let filename = cpu.bus.disk.borrow().get_disk_filename(drive);
-    return Some(filename);
+    Some(cpu.bus.disk.borrow().get_disk_filename(drive))
 }
 
 fn get_harddisk_filename(cpu: &CPU, drive: usize) -> Option<String> {
-    let filename = cpu.bus.harddisk.borrow().get_disk_filename(drive);
-    return Some(filename);
+    Some(cpu.bus.harddisk.borrow().get_disk_filename(drive))
 }
 
 fn draw_circle<T: RenderTarget>(
