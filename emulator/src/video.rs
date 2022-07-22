@@ -706,6 +706,11 @@ impl Video {
 
     pub fn tick(&mut self) {
         self.cycles += 1;
+
+        if self.cycles >= self.cycle_field {
+            self.cycles %= self.cycle_field;
+        }
+        
         self.update_video();
     }
 
@@ -719,7 +724,7 @@ impl Video {
     }
 
     pub fn update_video(&mut self) {
-        let val = self.cycles % self.cycle_field;
+        let val = self.cycles;
         let row = val / CYCLES_PER_ROW;
         let col = val % CYCLES_PER_ROW;
 
@@ -858,7 +863,7 @@ impl Video {
             }
 
             0xc019 => {
-                let val = self.cycles % self.cycle_field;
+                let val = self.cycles;
                 let row = val / CYCLES_PER_ROW;
                 if row < 192 {
                     return 0x80;
@@ -1214,7 +1219,7 @@ impl Video {
     }
 
     pub fn is_vbl(&self) -> bool {
-        let val = self.cycles % self.cycle_field;
+        let val = self.cycles;
         let row = val / CYCLES_PER_ROW;
         row >= 192
     }
