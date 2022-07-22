@@ -364,15 +364,17 @@ impl AY8910 {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
 struct W65C22 {
     _name: String,
     orb: u8,
     ora: u8,
     ddrb: u8,
     ddra: u8,
-    t1c: u32,
+    t1c: u16,
     t1l: u16,
     t1_loaded: bool,
+    t1_overflow: bool,
     t2c: u16,
     t2ll: u8,
     t2_loaded: bool,
@@ -398,6 +400,7 @@ impl W65C22 {
             t1c: 0,
             t1l: 0xffff,
             t1_loaded: false,
+            t1_overflow: false,
             t2c: 0xffff,
             t2ll: 0xff,
             t2_loaded: false,
@@ -416,9 +419,14 @@ impl W65C22 {
     fn tick(&mut self) {
         self.cycles += 1;
 
-        self.t1c = self.t1c.wrapping_sub(1);
+        let result = self.t1c.overflowing_sub(1);
+        self.t1c = result.0;
 
-        if self.t1c == 0xffffffff {
+        if !self.t1_overflow {
+            self.t1_overflow = result.1;
+        }
+
+        if self.t1_overflow && self.t1c == 0xffff {
             if self.t1_loaded {
                 self.ifr |= 0x40;
                 self.irq_happen = self.cycles;
@@ -429,8 +437,9 @@ impl W65C22 {
             }
         }
 
-        if self.t1c == 0xfffffffe {
-            self.t1c = self.t1l as u32;
+        if self.t1_overflow && self.t1c == 0xfffe {
+            self.t1c = self.t1l;
+            self.t1_overflow = false;
         }
 
         self.t2c = self.t2c.wrapping_sub(1);
@@ -571,7 +580,7 @@ impl W65C22 {
                 if write_flag {
                     self.ifr &= !0x40;
                     self.t1l = ((value as u16) << 8) | self.t1l & 0x00ff;
-                    self.t1c = ((self.t1l & 0xff00) | (self.t1l & 0xff)) as u32;
+                    self.t1c = (self.t1l & 0xff00) | (self.t1l & 0xff);
                     self.t1c = self.t1c.wrapping_add(1);
                     self.t1_loaded = true;
                 } else {
