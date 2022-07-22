@@ -1249,6 +1249,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                                 let luma_bandwidth = disp.luma_bandwidth;
                                 let chroma_bandwidth = disp.chroma_bandwidth;
                                 disp.update_ntsc_matrix(luma_bandwidth, chroma_bandwidth);
+
+                                // Invalidate video cache
+                                disp.invalidate_video_cache()
                             }
 
                             // Load the loaded disk into the new cpu
