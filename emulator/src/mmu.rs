@@ -34,7 +34,6 @@ pub struct Mmu {
     pub altzp: bool,
     pub video_page2: bool,
     pub video_hires: bool,
-    pub video_graphics: bool,
 }
 
 impl Mmu {
@@ -58,7 +57,6 @@ impl Mmu {
             altzp: false,
             video_page2: false,
             video_hires: false,
-            video_graphics: false,
         }
     }
 

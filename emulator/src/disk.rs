@@ -1176,6 +1176,7 @@ impl DiskDrive {
             }
         } else if self.pending_ticks == 0 {
             self.pending_ticks = PENDING_WAIT;
+            self.fast_disk_timer = 0;
         }
     }
 

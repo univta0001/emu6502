@@ -640,16 +640,12 @@ impl Bus {
             0x30..=0x3f => self.audio_io_access(),
 
             0x50 => {
-                let mut mmu = self.mem.borrow_mut();
-                mmu.video_graphics = true;
                 let val = self.read_floating_bus();
                 self.video.borrow_mut().enable_graphics(true);
                 val
             }
 
             0x51 => {
-                let mut mmu = self.mem.borrow_mut();
-                mmu.video_graphics = false;
                 let val = self.read_floating_bus();
                 self.video.borrow_mut().enable_graphics(false);
                 val
@@ -660,6 +656,7 @@ impl Bus {
                 self.video.borrow_mut().enable_mixed_mode(false);
                 val
             }
+
             0x53 => {
                 let val = self.read_floating_bus();
                 self.video.borrow_mut().enable_mixed_mode(true);
