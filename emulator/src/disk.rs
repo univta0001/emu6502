@@ -196,8 +196,8 @@ const DSK_PO: [u8; 16] = [
     0x0, 0x2, 0x4, 0x6, 0x8, 0xa, 0xc, 0xe, 0x1, 0x3, 0x5, 0x7, 0x9, 0xb, 0xd, 0xf,
 ];
 
-// Fast disk for 16667 cycles (~ 16ms) between io access
-const FAST_DISK_INTERVAL: usize = 16_667;
+// Fast disk for 256 cycles between io access
+const FAST_DISK_INTERVAL: usize = 256;
 
 // Wait for motor to stop after 1 sec * 1.2
 const PENDING_WAIT: usize = 1_227_600;
@@ -1258,6 +1258,10 @@ impl DiskDrive {
     }
 
     fn request_fast_disk(&mut self) {
+        if !self.is_motor_on() {
+            return
+        }
+
         self.fast_disk_timer = FAST_DISK_INTERVAL;
     }
 
