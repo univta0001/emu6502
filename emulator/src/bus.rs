@@ -890,9 +890,9 @@ impl Mem for Bus {
 
     fn unclocked_addr_read(&self, addr: u16) -> u8 {
         match addr {
-            0x0..=0xbfff => self.mem.borrow_mut().unclocked_addr_read(addr),
+            0x0..=0xbfff => self.mem.borrow().unclocked_addr_read(addr),
 
-            ROM_START..=ROM_END => self.mem.borrow_mut().unclocked_addr_read(addr),
+            ROM_START..=ROM_END => self.mem.borrow().unclocked_addr_read(addr),
 
             // Unused slots should be random values
             0xc100..=0xc2ff | 0xc400..=0xc7ff => self.iodevice_rom_access(addr, 0, false),
