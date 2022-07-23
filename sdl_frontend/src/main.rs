@@ -5,7 +5,7 @@ use emu6502::bus::IODevice;
 use emu6502::video::DisplayMode;
 //use emu6502::bus::Mem;
 //use emu6502::trace::trace;
-use emu6502::cpu::{CPU,CpuStats};
+use emu6502::cpu::{CpuStats, CPU};
 use emu6502::mockingboard::Mockingboard;
 use emu6502::trace::{adjust_disassemble_addr, disassemble_addr};
 use image::codecs::png::PngEncoder;
@@ -450,7 +450,10 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         } => {
             let display_mode = *event_param.display_mode;
             *event_param.display_index = (*event_param.display_index + 1) % display_mode.len();
-            cpu.bus.video.borrow_mut().set_display_mode(display_mode[*event_param.display_index]);
+            cpu.bus
+                .video
+                .borrow_mut()
+                .set_display_mode(display_mode[*event_param.display_index]);
         }
         Event::KeyDown {
             keycode: Some(Keycode::F5),
@@ -843,7 +846,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     canvas.clear();
     canvas.set_scale(2.0, 2.0).unwrap();
 
-    texture.update(None, &bus.video.borrow().frame, 560 * 4).unwrap();
+    texture
+        .update(None, &bus.video.borrow().frame, 560 * 4)
+        .unwrap();
     canvas.copy(&texture, None, None).unwrap();
     canvas.present();
 
@@ -901,11 +906,17 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
 
     if pargs.contains("--norgb") {
-        cpu.bus.video.borrow_mut().set_display_mode(DisplayMode::DEFAULT);
+        cpu.bus
+            .video
+            .borrow_mut()
+            .set_display_mode(DisplayMode::DEFAULT);
     }
 
     if pargs.contains("--rgb") {
-        cpu.bus.video.borrow_mut().set_display_mode(DisplayMode::RGB);
+        cpu.bus
+            .video
+            .borrow_mut()
+            .set_display_mode(DisplayMode::RGB);
     }
 
     if let Some(model) = pargs.opt_value_from_str::<_, String>(["-m", "--model"])? {
@@ -922,7 +933,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
 
     if let Some(input_rate) = pargs.opt_value_from_str::<_, u8>("--opt_timing")? {
-        cpu.bus.disk.borrow_mut().set_override_optimal_timing(input_rate);
+        cpu.bus
+            .disk
+            .borrow_mut()
+            .set_override_optimal_timing(input_rate);
     }
 
     if let Some(input_file) = pargs.opt_value_from_str::<_, String>("--d1")? {
@@ -987,7 +1001,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 .push(RefCell::new(Mockingboard::new()));
         }
         for i in 0..mboard {
-            cpu.bus.register_device(IODevice::Mockingboard(i as usize), (4 + i) as usize);
+            cpu.bus
+                .register_device(IODevice::Mockingboard(i as usize), (4 + i) as usize);
         }
     }
 
@@ -1006,7 +1021,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
 
     if ntsc_luma != NTSC_LUMA_BANDWIDTH || ntsc_chroma != NTSC_CHROMA_BANDWIDTH {
-        cpu.bus.video.borrow_mut().update_ntsc_matrix(ntsc_luma, ntsc_chroma);
+        cpu.bus
+            .video
+            .borrow_mut()
+            .update_ntsc_matrix(ntsc_luma, ntsc_chroma);
     }
 
     // Load dsk image
@@ -1221,7 +1239,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                             previous_cycles = new_cpu.bus.get_cycles();
 
                             // Initialize new cpu video memory
-                            //if let Some(video) = &mut new_cpu.bus.video 
+                            //if let Some(video) = &mut new_cpu.bus.video
                             {
                                 let mmu = new_cpu.bus.mem.borrow();
                                 let mut disp = new_cpu.bus.video.borrow_mut();
@@ -1254,11 +1272,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                             // Load the loaded disk into the new cpu
                             for drive in 0..2 {
                                 if is_disk_loaded(&new_cpu, drive) {
-                                    if let Some(disk_filename) =
-                                        get_disk_filename(&new_cpu, drive)
+                                    if let Some(disk_filename) = get_disk_filename(&new_cpu, drive)
                                     {
-                                        let result =
-                                            load_disk(&mut new_cpu, &disk_filename, drive);
+                                        let result = load_disk(&mut new_cpu, &disk_filename, drive);
                                         if let Err(e) = result {
                                             eprintln!(
                                                 "Unable to load disk {} : {}",

@@ -1211,7 +1211,7 @@ impl DiskDrive {
 
         // Do nothing if motor is not on
         if !disk.motor_status {
-            return
+            return;
         }
 
         if flag {

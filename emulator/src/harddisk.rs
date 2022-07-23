@@ -346,11 +346,9 @@ impl Card for HardDisk {
                                         || (0x2000..=0x5fff).contains(&addr)
                                     {
                                         if mmu.is_aux_memory(addr, true) {
-                                            video.borrow_mut().video_aux[addr as usize] =
-                                                *data;
+                                            video.borrow_mut().video_aux[addr as usize] = *data;
                                         } else {
-                                            video.borrow_mut().video_main[addr as usize] =
-                                                *data;
+                                            video.borrow_mut().video_main[addr as usize] = *data;
                                         }
                                     }
                                 }

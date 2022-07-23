@@ -279,18 +279,10 @@ impl Bus {
             let mut slot_value = self.io_slot[slot].borrow_mut();
             //eprintln!("IOAccess - {:04x} {} {}",addr,slot,io_addr);
             let return_value: Option<RefMut<'_, dyn Card>> = match &mut *slot_value {
-                IODevice::Printer => {
-                    Some(self.parallel.borrow_mut())
-                }
-                IODevice::Mouse => {
-                    Some(self.mouse.borrow_mut())
-                }
-                IODevice::Disk => {
-                    Some(self.disk.borrow_mut())
-                }
-                IODevice::HardDisk => {
-                    Some(self.harddisk.borrow_mut())
-                }
+                IODevice::Printer => Some(self.parallel.borrow_mut()),
+                IODevice::Mouse => Some(self.mouse.borrow_mut()),
+                IODevice::Disk => Some(self.disk.borrow_mut()),
+                IODevice::HardDisk => Some(self.harddisk.borrow_mut()),
                 IODevice::Mockingboard(_) => None,
                 IODevice::Z80 => None,
                 _ => None,
@@ -324,18 +316,10 @@ impl Bus {
                 let audio = self.audio.borrow_mut();
 
                 let return_value: Option<RefMut<'_, dyn Card>> = match &mut *slot_value {
-                    IODevice::Printer => {
-                        Some(self.parallel.borrow_mut())
-                    }
-                    IODevice::Mouse => {
-                        Some(self.mouse.borrow_mut())
-                    }
-                    IODevice::Disk => {
-                        Some(self.disk.borrow_mut())
-                    }
-                    IODevice::HardDisk => {
-                        Some(self.harddisk.borrow_mut())
-                    }
+                    IODevice::Printer => Some(self.parallel.borrow_mut()),
+                    IODevice::Mouse => Some(self.mouse.borrow_mut()),
+                    IODevice::Disk => Some(self.disk.borrow_mut()),
+                    IODevice::HardDisk => Some(self.harddisk.borrow_mut()),
                     IODevice::Z80 => {
                         if write_flag {
                             *self.halt_cpu.borrow_mut() = true;
@@ -568,9 +552,7 @@ impl Bus {
                 *self.keyboard_latch.borrow()
             }
 
-            0x0c..=0x0f => {
-                self.video.borrow_mut().io_access(addr, value, write_flag)
-            }
+            0x0c..=0x0f => self.video.borrow_mut().io_access(addr, value, write_flag),
 
             0x10 => {
                 let mut keyboard_latch = self.keyboard_latch.borrow_mut();
@@ -651,13 +633,9 @@ impl Bus {
 
             0x20 => self.read_floating_bus(),
 
-            0x21 => {
-                self.video.borrow_mut().io_access(addr, value, write_flag)
-            }
+            0x21 => self.video.borrow_mut().io_access(addr, value, write_flag),
 
-            0x29 => {
-                self.video.borrow_mut().io_access(addr, value, write_flag)
-            }
+            0x29 => self.video.borrow_mut().io_access(addr, value, write_flag),
 
             0x30..=0x3f => self.audio_io_access(),
 
@@ -735,7 +713,7 @@ impl Bus {
                 disp.enable_dhires(true);
                 disp.update_video();
                 val
-            } 
+            }
 
             0x5f => {
                 let val = self.read_floating_bus();
@@ -743,7 +721,7 @@ impl Bus {
                 disp.enable_dhires(false);
                 disp.update_video();
                 val
-            } 
+            }
 
             // 0x60 PB3 should only works in real Apple 2GS
             0x60 => self.pushbutton_latch[3],
@@ -818,7 +796,7 @@ impl Bus {
                     val | 0x80
                 } else {
                     val
-                } 
+                }
             }
 
             0x80..=0x8f => {
@@ -966,7 +944,9 @@ impl Mem for Bus {
 
                 // Shadow it to the video ram
                 let aux_memory = mmu.is_aux_memory(addr, true);
-                self.video.borrow_mut().update_shadow_memory(aux_memory, addr, data);
+                self.video
+                    .borrow_mut()
+                    .update_shadow_memory(aux_memory, addr, data);
             }
 
             ROM_START..=ROM_END => {

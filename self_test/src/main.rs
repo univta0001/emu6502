@@ -1,12 +1,15 @@
 //#![windows_subsystem = "windows"]
 
 use emu6502::bus::Bus;
-use emu6502::cpu::{CPU,CpuStats};
+use emu6502::cpu::{CpuStats, CPU};
 use std::error::Error;
 use std::io::{self, BufWriter, Write};
 
 #[cfg(target_os = "linux")]
 use std::fs::File;
+
+#[cfg(target_os = "linux")]
+use pprof::protos::Message;
 
 #[rustfmt::skip]
 fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
@@ -64,6 +67,13 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         if let Ok(report) = guard.report().build() {
             let flame_file = File::create("flamegraph.svg").unwrap();
             report.flamegraph(flame_file).unwrap();
+
+            let mut file = File::create("profile.pb").unwrap();
+            let profile = report.pprof().unwrap();
+
+            let mut content = Vec::new();
+            profile.write_to_vec(&mut content).unwrap();
+            file.write_all(&content).unwrap();
         }
     }
 

@@ -17,24 +17,20 @@ pub struct Emulator {
 impl Emulator {
     pub fn load_disk(&mut self, name: &str, array: &[u8], drive: usize) -> bool {
         if name.ends_with(".2mg") || name.ends_with(".hdv") {
-            if let Some(harddrive) = &mut self.cpu.bus.harddisk {
-                let hdv_mode = name.ends_with(".hdv");
-                let mut drv = harddrive.borrow_mut();
-                let drive_selected = drv.drive_selected();
-                drv.drive_select(drive);
-                let result = drv.load_hdv_2mg_array(array,hdv_mode);
-                if result.is_err() {
-                    return false
-                }
-                drv.set_disk_filename(name);
-                drv.set_loaded(true);
-                drv.drive_select(drive_selected);
-                true
-            } else {
-                false
+            let hdv_mode = name.ends_with(".hdv");
+            let mut drv = self.cpu.bus.harddisk.borrow_mut();
+            let drive_selected = drv.drive_selected();
+            drv.drive_select(drive);
+            let result = drv.load_hdv_2mg_array(array,hdv_mode);
+            if result.is_err() {
+                return false
             }
-        } else if let Some(disk_drive) = &mut self.cpu.bus.disk {
-            let mut drv = disk_drive.borrow_mut();
+            drv.set_disk_filename(name);
+            drv.set_loaded(true);
+            drv.drive_select(drive_selected);
+            true
+        } else {
+            let mut drv = self.cpu.bus.disk.borrow_mut();
             let drive_selected = drv.drive_selected();
             drv.drive_select(drive);
             let dsk: Vec<u8> = array.to_vec();
@@ -72,63 +68,40 @@ impl Emulator {
             drv.set_loaded(true);
             drv.drive_select(drive_selected);
             true
-        } else {
-            false
-        }
+        } 
     }
 
     pub fn frame_buffer(&self) -> js_sys::Uint8ClampedArray {
-        if let Some(display) = &self.cpu.bus.video {
-            let array = &display.borrow().frame[..];
-            js_sys::Uint8ClampedArray::from(array)
-        } else {
-            let array = [0u8; 560 * 384 * 4];
-            js_sys::Uint8ClampedArray::from(&array[..])
-        }
+        let array = &self.cpu.bus.video.borrow().frame[..];
+        js_sys::Uint8ClampedArray::from(array)
     }
 
     pub fn video_50hz(&mut self, state: bool) {
-        if let Some(display) = &self.cpu.bus.video {
-            display.borrow_mut().set_video_50hz(state);
-        }
+        self.cpu.bus.video.borrow_mut().set_video_50hz(state);
     }
 
     pub fn clear_dirty_page_frame_buffer(&mut self) {
-        if let Some(display) = &self.cpu.bus.video {
-            display.borrow_mut().clear_video_dirty();
-        }
+        self.cpu.bus.video.borrow_mut().clear_video_dirty();
     }
 
     pub fn get_dirty_region_frame_buffer(&self) -> js_sys::Uint8ClampedArray {
-        if let Some(display) = &self.cpu.bus.video {
-            let mut lower_array = Vec::new();
-            let mut upper_array = Vec::new();
-            let dirty_region = display.borrow().get_dirty_region();
-            for item in dirty_region {
-                lower_array.push(item.0 as u8);
-                upper_array.push(item.1 as u8);
-            }
-            lower_array.extend(upper_array.iter());
-            js_sys::Uint8ClampedArray::from(&lower_array[..])
-        } else {
-            let array: Vec<u8> = Vec::new();
-            js_sys::Uint8ClampedArray::from(&array[..])
+        let mut lower_array = Vec::new();
+        let mut upper_array = Vec::new();
+        let dirty_region = self.cpu.bus.video.borrow().get_dirty_region();
+        for item in dirty_region {
+            lower_array.push(item.0 as u8);
+            upper_array.push(item.1 as u8);
         }
+        lower_array.extend(upper_array.iter());
+        js_sys::Uint8ClampedArray::from(&lower_array[..])
     }
 
     pub fn sound_buffer(&self) -> js_sys::Int16Array {
-        if let Some(sound) = &self.cpu.bus.audio {
-            js_sys::Int16Array::from(&sound.borrow().data.sample[..])
-        } else {
-            let array = [0i16; 4096 * 2];
-            js_sys::Int16Array::from(&array[..])
-        }
+        js_sys::Int16Array::from(&self.cpu.bus.audio.borrow().data.sample[..])
     }
 
     pub fn clear_sound_buffer(&mut self) {
-        if let Some(sound) = &self.cpu.bus.audio {
-            sound.borrow_mut().clear_buffer();
-        }
+        self.cpu.bus.audio.borrow_mut().clear_buffer();
     }
 
     pub fn step_cpu(&mut self) {
@@ -140,12 +113,7 @@ impl Emulator {
     }
 
     pub fn is_video_50hz(&self) -> bool {
-        if let Some(display) = &self.cpu.bus.video {
-            if display.borrow().is_video_50hz() {
-                return true;
-            }
-        }
-        false
+        self.cpu.bus.video.borrow().is_video_50hz()
     }
 
     pub fn interrupt_reset(&mut self) {
@@ -187,18 +155,8 @@ impl Emulator {
     }
 
     pub fn is_disk_motor_on(&self) -> bool {
-        let disk_on = if let Some(drive) = &self.cpu.bus.disk {
-            drive.borrow().is_motor_on()
-        } else {
-            false
-        };
-
-        let harddisk_on = if let Some(drive) = &self.cpu.bus.harddisk {
-            drive.borrow().is_busy()
-        } else {
-            false
-        };
-
+        let disk_on = self.cpu.bus.disk.borrow().is_motor_on();
+        let harddisk_on = self.cpu.bus.harddisk.borrow().is_busy();
         disk_on || harddisk_on
     }
 }
@@ -212,12 +170,9 @@ pub async fn init_emul() -> Emulator {
 
     cpu.load(&apple2ee_rom, 0xc000);
 
-    if let Some(sound) = &cpu.bus.audio {
-        let mut snd = sound.borrow_mut();
-        snd.mboard.clear();
-        for _ in 0..2 {
-            snd.mboard.push(RefCell::new(Mockingboard::new()));
-        }
+    cpu.bus.audio.borrow_mut().mboard.clear();
+    for _ in 0..2 {
+        cpu.bus.audio.borrow_mut().mboard.push(RefCell::new(Mockingboard::new()));
     }
 
     for i in 0..2 {

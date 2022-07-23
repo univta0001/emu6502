@@ -710,7 +710,7 @@ impl Video {
         if self.cycles >= self.cycle_field {
             self.cycles %= self.cycle_field;
         }
-        
+
         self.update_video();
     }
 
