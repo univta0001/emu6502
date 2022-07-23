@@ -916,7 +916,7 @@ impl CPU {
 
     fn sbc(&mut self, op: &OpCode) {
         let data = self.read_operand(op);
-        self.add_to_register_a(((data as i8).wrapping_neg().wrapping_sub(1)) as u8, true);
+        self.add_to_register_a(data.wrapping_neg().wrapping_sub(1), true);
 
         if self.m65c02 && self.status.contains(CpuFlags::DECIMAL_MODE) {
             self.tick();
@@ -934,13 +934,11 @@ impl CPU {
 
     fn stack_pop(&mut self) -> u8 {
         self.stack_pointer = self.stack_pointer.wrapping_add(1);
-        self.bus
-            .addr_read((STACK as u16) + self.stack_pointer as u16)
+        self.bus.addr_read(STACK + self.stack_pointer as u16)
     }
 
     fn stack_push(&mut self, data: u8) {
-        self.bus
-            .addr_write((STACK as u16) + self.stack_pointer as u16, data);
+        self.bus.addr_write(STACK + self.stack_pointer as u16, data);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1)
     }
 
