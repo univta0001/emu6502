@@ -40,7 +40,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     #[cfg(target_os = "linux")] 
     let guard = pprof::ProfilerGuard::new(100).unwrap();
 
-    cpu.run_with_callback(|_cpu| {
+    cpu.run_with_callback(&mut |_cpu| {
         instr_count += 1;
         _cpu_stats.update(_cpu);
     });

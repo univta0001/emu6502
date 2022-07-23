@@ -1075,7 +1075,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             reload_cpu = false;
         }
 
-        cpu.run_with_callback(|_cpu| {
+        cpu.run_with_callback(&mut |_cpu| {
             let current_cycles = _cpu.bus.get_cycles();
             dcyc += current_cycles - previous_cycles;
             previous_cycles = current_cycles;

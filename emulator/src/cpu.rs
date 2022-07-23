@@ -1282,7 +1282,7 @@ impl CPU {
     }
 
     pub fn run(&mut self) {
-        self.run_with_callback(|_| {});
+        self.run_with_callback(&mut |_| {});
     }
 
     pub fn setup_emulator(&mut self) {
@@ -1297,18 +1297,18 @@ impl CPU {
         }
     }
 
-    pub fn run_with_callback<F>(&mut self, mut callback: F)
+    pub fn run_with_callback<F>(&mut self, callback: &mut F)
     where
         F: FnMut(&mut CPU),
     {
         loop {
-            if !self.step_cpu_with_callback(&mut callback) {
+            if !self.step_cpu_with_callback(callback) {
                 break;
             }
         }
     }
 
-    pub fn step_cpu_with_callback<F>(&mut self, mut callback: F) -> bool
+    pub fn step_cpu_with_callback<F>(&mut self, callback: &mut F) -> bool
     where
         F: FnMut(&mut CPU),
     {
