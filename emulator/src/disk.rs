@@ -196,8 +196,8 @@ const DSK_PO: [u8; 16] = [
     0x0, 0x2, 0x4, 0x6, 0x8, 0xa, 0xc, 0xe, 0x1, 0x3, 0x5, 0x7, 0x9, 0xb, 0xd, 0xf,
 ];
 
-// Fast disk for 256 cycles between io access
-const FAST_DISK_INTERVAL: usize = 256;
+// Fast disk for 32 * 342 cycles between io access (Roughly 1 sector time)
+const FAST_DISK_INTERVAL: usize = 32 * 342;
 
 // Wait for motor to stop after 1 sec * 1.2
 const PENDING_WAIT: usize = 1_227_600;
@@ -1142,6 +1142,7 @@ impl DiskDrive {
             if self.pending_ticks == 0 {
                 let mut disk = &mut self.drive[self.drive_select];
                 disk.motor_status = false;
+                self.fast_disk_timer = 0;
 
                 // Check for modified flag, if it is modified needs to save back the file
                 if disk.modified {
@@ -1176,7 +1177,6 @@ impl DiskDrive {
             }
         } else if self.pending_ticks == 0 {
             self.pending_ticks = PENDING_WAIT;
-            self.fast_disk_timer = 0;
         }
     }
 
