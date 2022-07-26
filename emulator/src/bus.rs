@@ -448,6 +448,14 @@ impl Bus {
         self.video.borrow().read_latch()
     }
 
+    fn get_io_status(&self, flag: bool) -> u8 {
+        if flag {
+            0x80 | (*self.keyboard_latch.borrow() & 0x7f)
+        } else {
+            *self.keyboard_latch.borrow() & 0x7f
+        }
+    }
+
     pub fn io_access(&self, addr: u16, value: u8, write_flag: bool) -> u8 {
         let io_addr = (addr & 0xff) as u8;
 
@@ -563,67 +571,35 @@ impl Bus {
             }
 
             0x11 => {
-                if !self.mem.borrow().bank1 {
-                    0x80 | (*self.keyboard_latch.borrow() & 0x7f)
-                } else {
-                    *self.keyboard_latch.borrow() & 0x7f
-                }
+                self.get_io_status(!self.mem.borrow().bank1)
             }
 
             0x12 => {
-                if self.mem.borrow().readbsr {
-                    0x80 | (*self.keyboard_latch.borrow() & 0x7f)
-                } else {
-                    *self.keyboard_latch.borrow() & 0x7f
-                }
+                self.get_io_status(self.mem.borrow().readbsr)
             }
 
             0x13 => {
-                if self.mem.borrow().rdcardram {
-                    0x80 | (*self.keyboard_latch.borrow() & 0x7f)
-                } else {
-                    *self.keyboard_latch.borrow() & 0x7f
-                }
+                self.get_io_status(self.mem.borrow().rdcardram)
             }
 
             0x14 => {
-                if self.mem.borrow().wrcardram {
-                    0x80 | (*self.keyboard_latch.borrow() & 0x7f)
-                } else {
-                    *self.keyboard_latch.borrow() & 0x7f
-                }
+                self.get_io_status(self.mem.borrow().wrcardram)
             }
 
             0x15 => {
-                if *self.intcxrom.borrow() {
-                    0x80 | (*self.keyboard_latch.borrow() & 0x7f)
-                } else {
-                    *self.keyboard_latch.borrow() & 0x7f
-                }
+                self.get_io_status(*self.intcxrom.borrow())
             }
 
             0x16 => {
-                if self.mem.borrow().altzp {
-                    0x80 | (*self.keyboard_latch.borrow() & 0x7f)
-                } else {
-                    *self.keyboard_latch.borrow() & 0x7f
-                }
+                self.get_io_status(self.mem.borrow().altzp)
             }
 
             0x17 => {
-                if *self.slotc3rom.borrow() {
-                    0x80 | (*self.keyboard_latch.borrow() & 0x7f)
-                } else {
-                    *self.keyboard_latch.borrow() & 0x7f
-                }
+                self.get_io_status(*self.slotc3rom.borrow())
             }
 
             0x18 => {
-                if self.mem.borrow()._80storeon {
-                    0x80 | (*self.keyboard_latch.borrow() & 0x7f)
-                } else {
-                    *self.keyboard_latch.borrow() & 0x7f
-                }
+                self.get_io_status(self.mem.borrow()._80storeon)
             }
 
             0x19..=0x1f => {
