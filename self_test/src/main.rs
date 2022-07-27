@@ -35,7 +35,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut _handle = BufWriter::new(stdout.lock());
     let mut _output = String::new();
 
-    let now = instant::Instant::now();
+    let now = std::time::Instant::now();
 
     #[cfg(target_os = "linux")] 
     let guard = pprof::ProfilerGuard::new(100).unwrap();
