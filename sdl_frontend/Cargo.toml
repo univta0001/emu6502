@@ -12,7 +12,6 @@ pico-args = "0.5.0"
 nfd2 = "0.3.1"
 emu6502 = { path = "../emulator" }
 sdl2 = "0.35.2"
-vswhom-sys = "0.1.1"
 serde_yaml = "0.8.26"
 image = "0.24.3"
 spin_sleep = "1.1.1"
