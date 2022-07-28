@@ -254,6 +254,14 @@ impl Bus {
         *self.cycles.borrow_mut() = cycles;
     }
 
+    fn get_paddle_trigger(&self) -> usize {
+        *self.paddle_trigger.borrow()
+    }
+
+    fn set_paddle_trigger(&self, value: usize) {
+        *self.paddle_trigger.borrow_mut() = value;
+    }
+
     pub fn register_device(&mut self, device: IODevice, slot: usize) {
         if slot < self.io_slot.len() {
             if device == IODevice::Disk {
@@ -395,7 +403,7 @@ impl Bus {
 
     pub fn set_mouse_state(&mut self, x: i32, y: i32, buttons: &[bool; 2]) {
         let mut mouse_interface = self.mouse.borrow_mut();
-        mouse_interface.tick(*self.cycles.borrow());
+        mouse_interface.tick(self.get_cycles());
         mouse_interface.set_state(x, y, buttons);
     }
 
@@ -448,11 +456,15 @@ impl Bus {
         self.video.borrow().read_latch()
     }
 
+    fn get_keyboard_latch(&self) -> u8 {
+        *self.keyboard_latch.borrow()
+    }
+
     fn get_io_status(&self, flag: bool) -> u8 {
         if flag {
-            0x80 | (*self.keyboard_latch.borrow() & 0x7f)
+            0x80 | (self.get_keyboard_latch() & 0x7f)
         } else {
-            *self.keyboard_latch.borrow() & 0x7f
+            self.get_keyboard_latch() & 0x7f
         }
     }
 
@@ -466,7 +478,7 @@ impl Bus {
                     mmu._80storeon = false;
                     self.video.borrow_mut()._80storeon = false;
                 }
-                let value = *self.keyboard_latch.borrow();
+                let value = self.get_keyboard_latch();
                 mmu.mem_write(0xc000, value);
                 value
             }
@@ -477,7 +489,7 @@ impl Bus {
                     mmu._80storeon = true;
                     self.video.borrow_mut()._80storeon = true;
                 }
-                *self.keyboard_latch.borrow()
+                self.get_keyboard_latch()
             }
 
             0x02 => {
@@ -485,7 +497,7 @@ impl Bus {
                     let mut mmu = self.mem.borrow_mut();
                     mmu.rdcardram = false;
                 }
-                *self.keyboard_latch.borrow()
+                self.get_keyboard_latch()
             }
 
             0x03 => {
@@ -493,7 +505,7 @@ impl Bus {
                     let mut mmu = self.mem.borrow_mut();
                     mmu.rdcardram = true;
                 }
-                *self.keyboard_latch.borrow()
+                self.get_keyboard_latch()
             }
 
             0x04 => {
@@ -501,7 +513,7 @@ impl Bus {
                     let mut mmu = self.mem.borrow_mut();
                     mmu.wrcardram = false;
                 }
-                *self.keyboard_latch.borrow()
+                self.get_keyboard_latch()
             }
 
             0x05 => {
@@ -509,7 +521,7 @@ impl Bus {
                     let mut mmu = self.mem.borrow_mut();
                     mmu.wrcardram = true;
                 }
-                *self.keyboard_latch.borrow()
+                self.get_keyboard_latch()
             }
 
             0x06 => {
@@ -527,7 +539,7 @@ impl Bus {
                     *self.intcxrom.borrow_mut() = true;
                     *self.slotc3rom.borrow_mut() = false;
                 }
-                *self.keyboard_latch.borrow()
+                self.get_keyboard_latch()
             }
 
             0x08 => {
@@ -535,7 +547,7 @@ impl Bus {
                     let mut mmu = self.mem.borrow_mut();
                     mmu.altzp = false;
                 }
-                *self.keyboard_latch.borrow()
+                self.get_keyboard_latch()
             }
 
             0x09 => {
@@ -543,21 +555,21 @@ impl Bus {
                     let mut mmu = self.mem.borrow_mut();
                     mmu.altzp = true;
                 }
-                *self.keyboard_latch.borrow()
+                self.get_keyboard_latch()
             }
 
             0x0a => {
                 if write_flag {
                     *self.slotc3rom.borrow_mut() = false;
                 }
-                *self.keyboard_latch.borrow()
+                self.get_keyboard_latch()
             }
 
             0x0b => {
                 if write_flag {
                     *self.slotc3rom.borrow_mut() = true;
                 }
-                *self.keyboard_latch.borrow()
+                self.get_keyboard_latch()
             }
 
             0x0c..=0x0f => self.video.borrow_mut().io_access(addr, value, write_flag),
@@ -604,7 +616,7 @@ impl Bus {
 
             0x19..=0x1f => {
                 self.video.borrow_mut().io_access(addr, value, write_flag)
-                    | (*self.keyboard_latch.borrow() & 0x7f)
+                    | (self.get_keyboard_latch() & 0x7f)
             }
 
             0x20 => self.read_floating_bus(),
@@ -705,7 +717,7 @@ impl Bus {
 
             0x64 => {
                 // Apple PADDLE need to read value every 11 clock cycles to update counter
-                let delta = *self.cycles.borrow() - *self.paddle_trigger.borrow();
+                let delta = self.get_cycles() - self.get_paddle_trigger();
                 let value = self.get_joystick_value(self.paddle_latch[0]);
                 if delta < (value as usize * 11) {
                     0x80
@@ -715,7 +727,7 @@ impl Bus {
             }
 
             0x65 => {
-                let delta = *self.cycles.borrow() - *self.paddle_trigger.borrow();
+                let delta = self.get_cycles() - self.get_paddle_trigger();
                 let value = self.get_joystick_value(self.paddle_latch[1]);
                 if delta < (value as usize * 11) {
                     0x80
@@ -725,7 +737,7 @@ impl Bus {
             }
             0x66 => {
                 // Apple PADDLE need to read value every 11 clock cycles to update counter
-                let delta = *self.cycles.borrow() - *self.paddle_trigger.borrow();
+                let delta = self.get_cycles() - self.get_paddle_trigger();
                 let value = self.get_joystick_value(self.paddle_latch[2]);
                 if delta < (value as usize * 11) {
                     0x80
@@ -734,7 +746,7 @@ impl Bus {
                 }
             }
             0x67 => {
-                let delta = *self.cycles.borrow() - *self.paddle_trigger.borrow();
+                let delta = self.get_cycles() - self.get_paddle_trigger();
                 let value = self.get_joystick_value(self.paddle_latch[3]);
                 if delta < (value as usize * 11) {
                     0x80
@@ -744,7 +756,7 @@ impl Bus {
             }
 
             0x70 => {
-                *self.paddle_trigger.borrow_mut() = *self.cycles.borrow();
+                self.set_paddle_trigger(self.get_cycles());
                 0
             }
 
