@@ -535,6 +535,7 @@ pub struct RamFactor {
     addr: usize,
 
     #[serde(serialize_with = "as_hex", deserialize_with = "from_hex_mem")]
+    #[serde(default = "default_mem")]
     mem: Vec<u8>,
 }
 
@@ -556,6 +557,18 @@ fn as_hex<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
     let mut addr = 0;
     let mut count = 0;
     let mut s = String::new();
+    let mut all_zeroes = true;
+
+    for value in v {
+        if *value != 0 {
+            all_zeroes = false;
+            break;
+        }
+    }
+
+    if all_zeroes {
+        return BTreeMap::serialize(&map, serializer);
+    }
 
     let mut gz_vector = Vec::new();
     {
@@ -564,7 +577,6 @@ fn as_hex<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
         if status.is_err() {
             return Err(ser::Error::custom("Unable to encode data"));
         }
-
     }
 
     for value in gz_vector {
@@ -589,6 +601,11 @@ fn as_hex<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
 
 fn from_hex<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
     let map = BTreeMap::<String, String>::deserialize(deserializer)?;
+
+    if map.is_empty() {
+        return Ok(default_mem())
+    }
+
     let mut gz_vector: Vec<u8> = Vec::new();
     let mut addr = 0;
     for key in map.keys() {
@@ -634,6 +651,10 @@ fn from_hex_mem<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D
         }
     }
     result
+}
+
+fn default_mem() -> Vec<u8> {
+    vec![0; RAMSIZE]
 }
 
 impl RamFactor {
