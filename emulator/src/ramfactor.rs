@@ -551,7 +551,7 @@ fn hex_to_u8(c: u8) -> std::io::Result<u8> {
     }
 }
 
-fn as_hex<S: Serializer>(v: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error> {
+fn as_hex<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
     let mut map = BTreeMap::new();
     let mut addr = 0;
     let mut count = 0;
@@ -702,7 +702,7 @@ impl Card for RamFactor {
                 if self.mem.len() <= SIZE_1MB {
                     (((self.addr & 0xff0000) >> 16) | 0xf0) as u8
                 } else {
-                    (((self.addr & 0xff0000) >> 16)) as u8
+                    ((self.addr & 0xff0000) >> 16) as u8
                 }
             }
 
