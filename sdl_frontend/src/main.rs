@@ -594,7 +594,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             let (status, value) =
                 translate_key_to_apple_key(cpu.is_apple2e(), event_param.key_caps, value, keymod);
             if status {
-                *cpu.bus.keyboard_latch.borrow_mut() = (value + 128) as u8;
+                cpu.bus.set_keyboard_latch((value + 128) as u8);
             }
         }
 
@@ -627,15 +627,22 @@ FLAGS:
     --d2 PATH          Set the file path for disk 2 drive at Slot 6 Drive 2
     --h1 PATH          Set the file path for hard disk 1
     --h2 PATH          Set the file path for hard disk 2
-    --s1 device        Device slot 1 (none,harddisk,mboard,z80,mouse,parallel)
-    --s2 device        Device slot 2 (none,harddisk,mboard,z80,mouse,parallel)
-    --s3 device        Device slot 3 (none,harddisk,mboard,z80,mouse,parallel)
-    --s4 device        Device slot 4 (none,harddisk,mboard,z80,mouse,parallel)
-    --s5 device        Device slot 5 (none,harddisk,mboard,z80,mouse,parallel)
-    --s6 device        Device slot 6 (none,harddisk,mboard,z80,mouse,parallel)
-    --s7 device        Device slot 7 (none,harddisk,mboard,z80,mouse,parallel)
+    --s1 device        Device slot 1 
+                       Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor
+    --s2 device        Device slot 2
+                       Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor
+    --s3 device        Device slot 3
+                       Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor
+    --s4 device        Device slot 4
+                       Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor
+    --s5 device        Device slot 5
+                       Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor
+    --s6 device        Device slot 6
+                       Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor
+    --s7 device        Device slot 7
+                       Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor
     --weakbit rate     Set the random weakbit error rate (Default is 0.3)
-    --opt_timing rate  Override the optimal timing (Default is 0)
+    --opt_timing rate  Override the optimal timing (Default is 32)
     --rgb              Enable RGB mode (Default: RGB mode disabled)
     --mboard 0|1|2     Number of mockingboards in Slot 4 and/or Slot 5
     --luma bandwidth   NTSC Luma B/W (Valid value: 0-7159090, Default: 2300000)
@@ -789,6 +796,7 @@ fn register_device(cpu: &mut CPU, device: &str, slot: usize) {
         "mboard" => cpu.bus.register_device(IODevice::Mockingboard(0), slot),
         "mouse" => cpu.bus.register_device(IODevice::Mouse, slot),
         "parallel" => cpu.bus.register_device(IODevice::Printer, slot),
+        "ramfactor" => cpu.bus.register_device(IODevice::RamFactor, slot),
         "z80" => cpu.bus.register_device(IODevice::Z80, slot),
         _ => {}
     }
@@ -1085,12 +1093,12 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
             // Handle clipboard text if any
             if !clipboard_text.is_empty() {
-                let mut latch = _cpu.bus.keyboard_latch.borrow_mut();
+                let latch = _cpu.bus.get_keyboard_latch();
 
                 // Only put into keyboard latch when it is ready
-                if *latch < 0x80 {
+                if latch < 0x80 {
                     if let Some(ch) = clipboard_text.chars().next() {
-                        *latch = (ch as u8) + 0x80;
+                        _cpu.bus.set_keyboard_latch((ch as u8) + 0x80);
                         clipboard_text = clipboard_text[1..].to_string();
                     }
                 }

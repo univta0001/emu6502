@@ -5,6 +5,7 @@ use crate::mmu::Mmu;
 use crate::mouse::Mouse;
 use crate::noslotclock::NoSlotClock;
 use crate::parallel::ParallelCard;
+use crate::ramfactor::RamFactor;
 use crate::video::Video;
 use derivative::*;
 use rand::Rng;
@@ -40,6 +41,7 @@ pub enum IODevice {
     None,
     Disk,
     Printer,
+    RamFactor,
     Mockingboard(usize),
     Z80,
     HardDisk,
@@ -53,6 +55,7 @@ pub struct Bus {
     pub video: RefCell<Video>,
     pub audio: RefCell<Audio>,
     pub parallel: RefCell<ParallelCard>,
+    pub ramfactor: RefCell<RamFactor>,
 
     pub keyboard_latch: RefCell<u8>,
     pub pushbutton_latch: [u8; 4],
@@ -89,6 +92,9 @@ pub struct Bus {
     #[serde(default = "default_io_slot")]
     #[derivative(Debug = "ignore")]
     pub io_slot: Vec<RefCell<IODevice>>,
+
+    #[serde(default)]
+    pub extended_rom: RefCell<u8>,
 }
 
 pub trait Mem {
@@ -164,6 +170,7 @@ impl Bus {
             video: RefCell::new(Video::new()),
             audio: RefCell::new(Audio::new()),
             parallel: RefCell::new(ParallelCard::new()),
+            ramfactor: RefCell::new(RamFactor::new()),
             harddisk: RefCell::new(HardDisk::new()),
             mouse: RefCell::new(Mouse::new()),
             intcxrom: RefCell::new(false),
@@ -178,6 +185,7 @@ impl Bus {
             iou: RefCell::new(false),
             halt_cpu: RefCell::new(false),
             io_slot: default_io_slot(),
+            extended_rom: RefCell::new(0),
         };
 
         // Memory initialization is based on the implementation of AppleWin
@@ -212,6 +220,7 @@ impl Bus {
         *self.intcxrom.borrow_mut() = false;
         *self.slotc3rom.borrow_mut() = false;
         *self.intc8rom.borrow_mut() = false;
+        *self.extended_rom.borrow_mut() = 0;
 
         self.mem.borrow_mut().reset();
         self.video.borrow_mut().reset();
@@ -288,6 +297,7 @@ impl Bus {
             //eprintln!("IOAccess - {:04x} {} {}",addr,slot,io_addr);
             let return_value: Option<RefMut<'_, dyn Card>> = match &mut *slot_value {
                 IODevice::Printer => Some(self.parallel.borrow_mut()),
+                IODevice::RamFactor => Some(self.ramfactor.borrow_mut()),
                 IODevice::Mouse => Some(self.mouse.borrow_mut()),
                 IODevice::Disk => Some(self.disk.borrow_mut()),
                 IODevice::HardDisk => Some(self.harddisk.borrow_mut()),
@@ -308,6 +318,28 @@ impl Bus {
 
     fn iodevice_rom_access(&self, addr: u16, value: u8, write_flag: bool) -> u8 {
         if !*self.intcxrom.borrow() {
+            if addr >= 0xc800 {
+                if !*self.intc8rom.borrow() {
+                    // Handle the extended rom separately
+                    let slot = *self.extended_rom.borrow() as usize;
+                    let mut slot_value = self.io_slot[slot].borrow_mut();
+                    let return_value: Option<RefMut<'_, dyn Card>> = match &mut *slot_value {
+                        IODevice::RamFactor => {
+                            Some(self.ramfactor.borrow_mut())
+                        }
+                        _ => None,
+                    };
+
+                    if let Some(mut device) = return_value {
+                        return device.rom_access(&self.mem, &self.video, addr, value, write_flag)
+                    } else {
+                        return self.read_floating_bus()
+                    }
+                } else {
+                    return self.mem_read(addr)
+                }
+            }
+
             let slot = ((addr >> 8) & 0x0f) as usize;
             if slot < self.io_slot.len() {
                 let mut slot_value = self.io_slot[slot].borrow_mut();
@@ -325,6 +357,10 @@ impl Bus {
 
                 let return_value: Option<RefMut<'_, dyn Card>> = match &mut *slot_value {
                     IODevice::Printer => Some(self.parallel.borrow_mut()),
+                    IODevice::RamFactor => {
+                        *self.extended_rom.borrow_mut() = slot as u8;
+                        Some(self.ramfactor.borrow_mut())
+                    }
                     IODevice::Mouse => Some(self.mouse.borrow_mut()),
                     IODevice::Disk => Some(self.disk.borrow_mut()),
                     IODevice::HardDisk => Some(self.harddisk.borrow_mut()),
@@ -456,8 +492,12 @@ impl Bus {
         self.video.borrow().read_latch()
     }
 
-    fn get_keyboard_latch(&self) -> u8 {
+    pub fn get_keyboard_latch(&self) -> u8 {
         *self.keyboard_latch.borrow()
+    }
+
+    pub fn set_keyboard_latch(&self, value: u8) {
+        *self.keyboard_latch.borrow_mut() = value
     }
 
     fn get_io_status(&self, flag: bool) -> u8 {
@@ -531,13 +571,14 @@ impl Bus {
                         *self.intc8rom.borrow_mut() = false;
                     }
                 }
-                *self.keyboard_latch.borrow()
+                self.get_keyboard_latch()
             }
 
             0x07 => {
                 if write_flag {
                     *self.intcxrom.borrow_mut() = true;
                     *self.slotc3rom.borrow_mut() = false;
+                    *self.extended_rom.borrow_mut() = 0;
                 }
                 self.get_keyboard_latch()
             }
@@ -575,44 +616,28 @@ impl Bus {
             0x0c..=0x0f => self.video.borrow_mut().io_access(addr, value, write_flag),
 
             0x10 => {
-                let mut keyboard_latch = self.keyboard_latch.borrow_mut();
-                *keyboard_latch &= 0x7f;
+                let keyboard_latch = self.get_keyboard_latch();
+                self.set_keyboard_latch(keyboard_latch & 0x7f);
                 let mut mmu = self.mem.borrow_mut();
-                mmu.mem_write(0xc000, *keyboard_latch);
-                *keyboard_latch
+                mmu.mem_write(0xc000, keyboard_latch);
+                keyboard_latch
             }
 
-            0x11 => {
-                self.get_io_status(!self.mem.borrow().bank1)
-            }
+            0x11 => self.get_io_status(!self.mem.borrow().bank1),
 
-            0x12 => {
-                self.get_io_status(self.mem.borrow().readbsr)
-            }
+            0x12 => self.get_io_status(self.mem.borrow().readbsr),
 
-            0x13 => {
-                self.get_io_status(self.mem.borrow().rdcardram)
-            }
+            0x13 => self.get_io_status(self.mem.borrow().rdcardram),
 
-            0x14 => {
-                self.get_io_status(self.mem.borrow().wrcardram)
-            }
+            0x14 => self.get_io_status(self.mem.borrow().wrcardram),
 
-            0x15 => {
-                self.get_io_status(*self.intcxrom.borrow())
-            }
+            0x15 => self.get_io_status(*self.intcxrom.borrow()),
 
-            0x16 => {
-                self.get_io_status(self.mem.borrow().altzp)
-            }
+            0x16 => self.get_io_status(self.mem.borrow().altzp),
 
-            0x17 => {
-                self.get_io_status(*self.slotc3rom.borrow())
-            }
+            0x17 => self.get_io_status(*self.slotc3rom.borrow()),
 
-            0x18 => {
-                self.get_io_status(self.mem.borrow()._80storeon)
-            }
+            0x18 => self.get_io_status(self.mem.borrow()._80storeon),
 
             0x19..=0x1f => {
                 self.video.borrow_mut().io_access(addr, value, write_flag)
@@ -911,7 +936,7 @@ impl Mem for Bus {
                 if *self.intcxrom.borrow() || *self.intc8rom.borrow() {
                     self.mem_read(addr)
                 } else {
-                    self.read_floating_bus()
+                    self.iodevice_rom_access(addr, 0, false)
                 }
             }
         }
@@ -983,6 +1008,7 @@ impl Default for Bus {
         let mut this = Self::new();
 
         this.io_slot[1] = RefCell::new(IODevice::Printer);
+        this.io_slot[2] = RefCell::new(IODevice::RamFactor);
         this.io_slot[4] = RefCell::new(IODevice::Mockingboard(0));
         this.io_slot[5] = RefCell::new(IODevice::Mouse);
         this.io_slot[6] = RefCell::new(IODevice::Disk);
