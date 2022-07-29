@@ -519,7 +519,8 @@ const ROM: [u8; 8192] = [
     0xf1, 0xc8, 0xd0, 0xd7, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 ];
 
-const RAMSIZE:usize = 0x800000;
+const RAMSIZE:usize = 0x100000;
+const SIZE_1MB:usize = 0x100000;
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct RamFactor {
@@ -538,7 +539,7 @@ impl Default for RamFactor {
     fn default() -> Self {
         RamFactor {
             firmware_bank: 0,
-            addr: 0x0ffffff,
+            addr: 0,
             mem: vec![0; RAMSIZE],
         }
     }
@@ -591,7 +592,11 @@ impl Card for RamFactor {
                 if write_flag {
                     self.addr = (self.addr & 0x00ffff) | (value as usize) << 16;
                 } 
-                (((self.addr & 0xff0000) >> 16) | 0xf0) as u8
+                if self.mem.len() <= SIZE_1MB {
+                    (((self.addr & 0xff0000) >> 16) | 0xf0) as u8
+                } else {
+                    (((self.addr & 0xff0000) >> 16)) as u8
+                }
             }
 
             // Data Value
