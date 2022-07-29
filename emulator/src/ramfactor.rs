@@ -526,7 +526,14 @@ const SIZE_1MB:usize = 0x100000;
 pub struct RamFactor {
     firmware_bank: u8,
     addr: usize,
+
+    #[serde(skip_serializing)]
+    #[serde(default = "default_mem")]
     mem: Vec<u8>,
+}
+
+fn default_mem() -> Vec<u8> {
+    vec![0u8; RAMSIZE]
 }
 
 impl RamFactor {
