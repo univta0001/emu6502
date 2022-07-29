@@ -519,6 +519,8 @@ const ROM: [u8; 8192] = [
     0xf1, 0xc8, 0xd0, 0xd7, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 ];
 
+const RAMSIZE:usize = 0x800000;
+
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct RamFactor {
     firmware_bank: u8,
@@ -537,7 +539,7 @@ impl Default for RamFactor {
         RamFactor {
             firmware_bank: 0,
             addr: 0,
-            mem: vec![0; 0x100000],
+            mem: vec![0; RAMSIZE],
         }
     }
 }
