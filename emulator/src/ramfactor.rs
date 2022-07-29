@@ -1,8 +1,15 @@
 use crate::bus::Card;
 use crate::mmu::Mmu;
 use crate::video::Video;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Deserializer, Serializer};
 use std::cell::RefCell;
+use serde::de::{Error, Unexpected};
+use serde::ser;
+use std::collections::BTreeMap;
+use flate2::read::GzDecoder;
+use flate2::write::GzEncoder;
+use flate2::Compression;
+use std::io::{Read,Write};
 
 const ROM: [u8; 8192] = [
     0x43, 0x4f, 0x50, 0x59, 0x52, 0x49, 0x47, 0x48, 0x54, 0x20, 0x28, 0x43, 0x29, 0x20, 0x31, 0x39,
@@ -527,13 +534,106 @@ pub struct RamFactor {
     firmware_bank: u8,
     addr: usize,
 
-    #[serde(skip_serializing)]
-    #[serde(default = "default_mem")]
+    #[serde(serialize_with = "as_hex", deserialize_with = "from_hex_mem")]
     mem: Vec<u8>,
 }
 
-fn default_mem() -> Vec<u8> {
-    vec![0u8; RAMSIZE]
+// Serialization / Deserialization functions
+fn hex_to_u8(c: u8) -> std::io::Result<u8> {
+    match c {
+        b'A'..=b'F' => Ok(c - b'A' + 10),
+        b'a'..=b'f' => Ok(c - b'a' + 10),
+        b'0'..=b'9' => Ok(c - b'0'),
+        _ => Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Invalid hex char",
+        )),
+    }
+}
+
+fn as_hex<S: Serializer>(v: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error> {
+    let mut map = BTreeMap::new();
+    let mut addr = 0;
+    let mut count = 0;
+    let mut s = String::new();
+
+    let mut gz_vector = Vec::new();
+    {
+        let mut gz = GzEncoder::new(&mut gz_vector, Compression::fast());
+        let status = gz.write_all(v);
+        if status.is_err() {
+            return Err(ser::Error::custom("Unable to encode data"));
+        }
+
+    }
+
+    for value in gz_vector {
+        if count >= 0x40 {
+            let addr_key = format!("{:06X}", addr);
+            map.insert(addr_key, s);
+            s = String::new();
+            count = 0;
+            addr += 0x40;
+        }
+        let hex = format!("{:02X}", value);
+        s.push_str(&hex);
+        count += 1;
+    }
+
+    if !s.is_empty() {
+        let addr_key = format!("{:06X}", addr);
+        map.insert(addr_key, s);
+    }
+    BTreeMap::serialize(&map, serializer)
+}
+
+fn from_hex<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
+    let map = BTreeMap::<String, String>::deserialize(deserializer)?;
+    let mut gz_vector: Vec<u8> = Vec::new();
+    let mut addr = 0;
+    for key in map.keys() {
+        let addr_value = format!("{:06X}", addr);
+        if *key != addr_value {
+            return Err(Error::invalid_value(
+                Unexpected::Seq,
+                &"Invalid key. Addr not in sequence",
+            ));
+        }
+
+        let value = &map[key];
+        if value.len() % 2 != 0 {
+            return Err(Error::invalid_value(Unexpected::Seq, &"Invalid hex length"));
+        }
+        for pair in value.chars().collect::<Vec<_>>().chunks(2) {
+            let result = hex_to_u8(pair[0] as u8).map_err(Error::custom)? << 4
+                | hex_to_u8(pair[1] as u8).map_err(Error::custom)?;
+            gz_vector.push(result);
+        }
+        addr += 0x40;
+    }
+
+    let mut v:Vec<u8> = Vec::new();
+    {
+        let mut decoder = GzDecoder::new(&gz_vector[..]);
+        let status = decoder.read_to_end(&mut v);
+        if status.is_err() {
+            return Err(Error::invalid_value(Unexpected::Seq, &"Unable to decode data"));
+        }
+    }
+    Ok(v)
+}
+
+fn from_hex_mem<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
+    let result = from_hex(deserializer);
+    if let Ok(ref value) = result {
+        if value.len() != RAMSIZE {
+            return Err(Error::invalid_value(
+                Unexpected::Seq,
+                &"Array should be 1 megabyte",
+            ));
+        }
+    }
+    result
 }
 
 impl RamFactor {
