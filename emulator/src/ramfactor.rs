@@ -538,7 +538,7 @@ impl Default for RamFactor {
     fn default() -> Self {
         RamFactor {
             firmware_bank: 0,
-            addr: 0,
+            addr: 0x0ffffff,
             mem: vec![0; RAMSIZE],
         }
     }
@@ -566,46 +566,54 @@ impl Card for RamFactor {
         value: u8,
         write_flag: bool,
     ) -> u8 {
-        if addr & 0xf == 0xf {
-            if write_flag {
-                self.firmware_bank = value & 1;
-            } 
-            
-            return self.firmware_bank
-        }
+        let slot = (((addr & 0x00ff) - 0x0080) >> 4) as u16;
+        let map_addr = ((addr & 0x00ff) - (slot << 4)) as u8;
 
-        match addr & 0x3 {
-            0x00 => {
+        match map_addr & 0x0f {
+            // Low RAM
+            0x00 | 0x04 => {
                 if write_flag {
                     self.addr = (self.addr & 0xffff00) | (value as usize);
                 } 
                 (self.addr & 0xff) as u8
             }
 
-            0x01 => {
+            // Med RAM
+            0x01 | 0x05 => {
                 if write_flag {
                     self.addr = (self.addr & 0xff00ff) | (value as usize) << 8;
                 } 
                 ((self.addr & 0xff00) >> 8) as u8
             }
 
-            0x02 => {
+            // High RAM
+            0x02 | 0x06 => {
                 if write_flag {
                     self.addr = (self.addr & 0x00ffff) | (value as usize) << 16;
                 } 
                 (((self.addr & 0xff0000) >> 16) | 0xf0) as u8
             }
 
-            0x03 => {
+            // Data Value
+            0x03 | 0x07 => {
                 if write_flag {
-                    self.mem[self.addr & 0x0fffff] = value;
+                    self.mem[self.addr] = value;
                 } 
-                let val = self.mem[self.addr & 0x0fffff];
+                let val = self.mem[self.addr];
                 self.addr += 1;
-                self.addr &= 0x0fffff;
+                self.addr &= 0x0ffffff;
                 val
             }
-            _ => { unimplemented!("Should not reached here") }
+
+            // Bank
+            0x0f => {
+                if write_flag {
+                    self.firmware_bank = value & 1;
+                }
+                self.firmware_bank
+            }
+
+            _ => 0xff
         }
     }
 }

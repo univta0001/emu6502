@@ -354,7 +354,6 @@ impl Bus {
                 }
 
                 let audio = self.audio.borrow_mut();
-
                 let return_value: Option<RefMut<'_, dyn Card>> = match &mut *slot_value {
                     IODevice::Printer => Some(self.parallel.borrow_mut()),
                     IODevice::RamFactor => {
