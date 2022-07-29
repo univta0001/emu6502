@@ -596,10 +596,11 @@ impl Card for RamFactor {
 
             // Data Value
             0x03 | 0x07 => {
+                let len = self.mem.len();
                 if write_flag {
-                    self.mem[self.addr] = value;
+                    self.mem[self.addr % len] = value;
                 } 
-                let val = self.mem[self.addr];
+                let val = self.mem[self.addr % len];
                 self.addr += 1;
                 self.addr &= 0x0ffffff;
                 val

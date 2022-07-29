@@ -55,7 +55,6 @@ pub struct Bus {
     pub video: RefCell<Video>,
     pub audio: RefCell<Audio>,
     pub parallel: RefCell<ParallelCard>,
-    pub ramfactor: RefCell<RamFactor>,
 
     pub keyboard_latch: RefCell<u8>,
     pub pushbutton_latch: [u8; 4],
@@ -92,6 +91,9 @@ pub struct Bus {
     #[serde(default = "default_io_slot")]
     #[derivative(Debug = "ignore")]
     pub io_slot: Vec<RefCell<IODevice>>,
+
+    #[serde(default)]
+    pub ramfactor: RefCell<RamFactor>,
 
     #[serde(default)]
     pub extended_rom: RefCell<u8>,
@@ -319,22 +321,18 @@ impl Bus {
     fn iodevice_rom_access(&self, addr: u16, value: u8, write_flag: bool) -> u8 {
         if !*self.intcxrom.borrow() {
             if addr >= 0xc800 {
-                if !*self.intc8rom.borrow() {
-                    // Handle the extended rom separately
-                    let slot = *self.extended_rom.borrow() as usize;
-                    let mut slot_value = self.io_slot[slot].borrow_mut();
-                    let return_value: Option<RefMut<'_, dyn Card>> = match &mut *slot_value {
-                        IODevice::RamFactor => {
-                            Some(self.ramfactor.borrow_mut())
-                        }
-                        _ => None,
-                    };
-
-                    if let Some(mut device) = return_value {
-                        return device.rom_access(&self.mem, &self.video, addr, value, write_flag)
-                    } else {
-                        return self.read_floating_bus()
+                // Handle the extended rom separately
+                let slot = *self.extended_rom.borrow() as usize;
+                let mut slot_value = self.io_slot[slot].borrow_mut();
+                let return_value: Option<RefMut<'_, dyn Card>> = match &mut *slot_value {
+                    IODevice::RamFactor => {
+                        Some(self.ramfactor.borrow_mut())
                     }
+                    _ => None,
+                };
+
+                if let Some(mut device) = return_value {
+                    return device.rom_access(&self.mem, &self.video, addr, value, write_flag)
                 } else {
                     return self.mem_read(addr)
                 }
@@ -354,12 +352,10 @@ impl Bus {
                 }
 
                 let audio = self.audio.borrow_mut();
+                *self.extended_rom.borrow_mut() = slot as u8;
                 let return_value: Option<RefMut<'_, dyn Card>> = match &mut *slot_value {
                     IODevice::Printer => Some(self.parallel.borrow_mut()),
-                    IODevice::RamFactor => {
-                        *self.extended_rom.borrow_mut() = slot as u8;
-                        Some(self.ramfactor.borrow_mut())
-                    }
+                    IODevice::RamFactor => Some(self.ramfactor.borrow_mut()),
                     IODevice::Mouse => Some(self.mouse.borrow_mut()),
                     IODevice::Disk => Some(self.disk.borrow_mut()),
                     IODevice::HardDisk => Some(self.harddisk.borrow_mut()),
@@ -577,7 +573,6 @@ impl Bus {
                 if write_flag {
                     *self.intcxrom.borrow_mut() = true;
                     *self.slotc3rom.borrow_mut() = false;
-                    *self.extended_rom.borrow_mut() = 0;
                 }
                 self.get_keyboard_latch()
             }
