@@ -1,15 +1,15 @@
 use crate::bus::Card;
 use crate::mmu::Mmu;
 use crate::video::Video;
-use serde::{Deserialize, Serialize, Deserializer, Serializer};
-use std::cell::RefCell;
-use serde::de::{Error, Unexpected};
-use serde::ser;
-use std::collections::BTreeMap;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
-use std::io::{Read,Write};
+use serde::de::{Error, Unexpected};
+use serde::ser;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::cell::RefCell;
+use std::collections::BTreeMap;
+use std::io::{Read, Write};
 
 const ROM: [u8; 8192] = [
     0x43, 0x4f, 0x50, 0x59, 0x52, 0x49, 0x47, 0x48, 0x54, 0x20, 0x28, 0x43, 0x29, 0x20, 0x31, 0x39,
@@ -526,8 +526,8 @@ const ROM: [u8; 8192] = [
     0xf1, 0xc8, 0xd0, 0xd7, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 ];
 
-const RAMSIZE:usize = 0x100000;
-const SIZE_1MB:usize = 0x100000;
+const RAMSIZE: usize = 0x100000;
+const SIZE_1MB: usize = 0x100000;
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct RamFactor {
@@ -603,7 +603,7 @@ fn from_hex<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Er
     let map = BTreeMap::<String, String>::deserialize(deserializer)?;
 
     if map.is_empty() {
-        return Ok(default_mem())
+        return Ok(default_mem());
     }
 
     let mut gz_vector: Vec<u8> = Vec::new();
@@ -629,12 +629,15 @@ fn from_hex<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Er
         addr += 0x40;
     }
 
-    let mut v:Vec<u8> = Vec::new();
+    let mut v: Vec<u8> = Vec::new();
     {
         let mut decoder = GzDecoder::new(&gz_vector[..]);
         let status = decoder.read_to_end(&mut v);
         if status.is_err() {
-            return Err(Error::invalid_value(Unexpected::Seq, &"Unable to decode data"));
+            return Err(Error::invalid_value(
+                Unexpected::Seq,
+                &"Unable to decode data",
+            ));
         }
     }
     Ok(v)
@@ -703,7 +706,7 @@ impl Card for RamFactor {
             0x00 | 0x04 => {
                 if write_flag {
                     self.addr = (self.addr & 0xffff00) | (value as usize);
-                } 
+                }
                 (self.addr & 0xff) as u8
             }
 
@@ -711,7 +714,7 @@ impl Card for RamFactor {
             0x01 | 0x05 => {
                 if write_flag {
                     self.addr = (self.addr & 0xff00ff) | (value as usize) << 8;
-                } 
+                }
                 ((self.addr & 0xff00) >> 8) as u8
             }
 
@@ -719,7 +722,7 @@ impl Card for RamFactor {
             0x02 | 0x06 => {
                 if write_flag {
                     self.addr = (self.addr & 0x00ffff) | (value as usize) << 16;
-                } 
+                }
                 if self.mem.len() <= SIZE_1MB {
                     (((self.addr & 0xff0000) >> 16) | 0xf0) as u8
                 } else {
@@ -732,7 +735,7 @@ impl Card for RamFactor {
                 let len = self.mem.len();
                 if write_flag {
                     self.mem[self.addr % len] = value;
-                } 
+                }
                 let val = self.mem[self.addr % len];
                 self.addr += 1;
                 self.addr &= 0x0ffffff;
@@ -747,7 +750,7 @@ impl Card for RamFactor {
                 self.firmware_bank
             }
 
-            _ => 0xff
+            _ => 0xff,
         }
     }
 }

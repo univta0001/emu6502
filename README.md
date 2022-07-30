@@ -13,12 +13,13 @@ Features in the emulator
 - Mockingboard support at Slot 4 and Slot 5
 - Parallel printer card
 - Apple IIe Extended 80-Column Text Card
-- RGB cards: Apple's Extended 80-Column Text/AppleColor Adaptor Card, 'Le Chat Mauve' Féline and Eve.
+- RGB cards: Apple's Extended 80-Column Text/AppleColor Adaptor Card
 - 60 Hz / 50Hz display mode support
 - Support for Vapor-lock cycle counting demos e.g. megademo, mad2
 - NTSC emulation supported
 - Z80 Emulation at Slot 2
 - Hard Disk support 
+- Support for RamFactor 1 MiB and RamWorks III up to 8 MiB
 
 ## Tested Platform
 

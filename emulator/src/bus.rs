@@ -325,14 +325,12 @@ impl Bus {
                 let slot = *self.extended_rom.borrow() as usize;
                 let mut slot_value = self.io_slot[slot].borrow_mut();
                 let return_value: Option<RefMut<'_, dyn Card>> = match &mut *slot_value {
-                    IODevice::RamFactor => {
-                        Some(self.ramfactor.borrow_mut())
-                    }
+                    IODevice::RamFactor => Some(self.ramfactor.borrow_mut()),
                     _ => None,
                 };
 
                 if let Some(mut device) = return_value {
-                    return device.rom_access(&self.mem, &self.video, addr, value, write_flag)
+                    return device.rom_access(&self.mem, &self.video, addr, value, write_flag);
                 } else {
                     return self.read_floating_bus();
                 }

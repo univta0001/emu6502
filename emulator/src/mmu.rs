@@ -1,9 +1,15 @@
 use crate::bus::{ROM_END, ROM_START};
 use serde::de::{Error, Unexpected};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::ser;
 use std::collections::BTreeMap;
+use flate2::read::GzDecoder;
+use flate2::write::GzEncoder;
+use flate2::Compression;
+use std::io::{Read, Write};
 
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
 pub struct Mmu {
     #[serde(serialize_with = "as_hex", deserialize_with = "from_hex_64k")]
     pub cpu_memory: Vec<u8>,
@@ -35,8 +41,10 @@ pub struct Mmu {
     pub video_page2: bool,
     pub video_hires: bool,
 
-    #[serde(default)]
     pub aux_bank: u8,
+
+    #[serde(serialize_with = "as_opt_hex", deserialize_with = "from_hex_opt")]
+    pub ext_aux_mem: Option<Vec<u8>>,
 }
 
 impl Mmu {
@@ -62,6 +70,7 @@ impl Mmu {
             video_hires: false,
 
             aux_bank: 0,
+            ext_aux_mem: None,
         }
     }
 
@@ -74,6 +83,7 @@ impl Mmu {
         self.readbsr = false;
         self.writebsr = false;
         self.prewrite = false;
+        self.aux_bank = 0;
     }
 
     pub fn is_aux_memory(&self, addr: u16, write_flag: bool) -> bool {
@@ -86,7 +96,7 @@ impl Mmu {
             aux_flag = true
         }
 
-        if self._80storeon {
+        if self._80storeon && self.aux_bank == 0 {
             if (0x400..0x800).contains(&addr) {
                 if self.video_page2 {
                     aux_flag = true
@@ -111,7 +121,19 @@ impl Mmu {
     }
 
     pub fn set_aux_bank(&mut self, value: u8) {
-        self.aux_bank = value
+        if let Some(aux_mem) = &self.ext_aux_mem {
+            if (value as usize) * 0x10000 <= aux_mem.len() {
+                self.aux_bank = value
+            }
+        }
+    }
+
+    pub fn set_aux_size(&mut self, value: u8) {
+        if value > 1 {
+            self.ext_aux_mem = Some(vec![0u8; 0x10000 * (value - 1) as usize])
+        } else {
+            self.ext_aux_mem = None
+        }
     }
 
     pub fn mem_read(&self, addr: u16) -> u8 {
@@ -139,27 +161,69 @@ impl Mmu {
     }
 
     pub fn mem_aux_read(&self, addr: u16) -> u8 {
-        self.aux_memory[addr as usize]
+        if self.aux_bank == 0 {
+            self.aux_memory[addr as usize]
+        } else if let Some(aux_mem) = &self.ext_aux_mem {
+            let aux_bank = (self.aux_bank - 1) as usize;
+            aux_mem[addr as usize + (0x10000 * aux_bank)]
+        } else {
+            self.aux_memory[addr as usize]
+        }
     }
 
     pub fn mem_aux_write(&mut self, addr: u16, data: u8) {
-        self.aux_memory[addr as usize] = data
+        if self.aux_bank == 0 {
+            self.aux_memory[addr as usize] = data;
+        } else if let Some(aux_mem) = &mut self.ext_aux_mem {
+            let aux_bank = (self.aux_bank - 1) as usize;
+            aux_mem[addr as usize + (0x10000 * aux_bank)] = data;
+        } else {
+            self.aux_memory[addr as usize] = data;
+        }
     }
 
     pub fn mem_aux_bank1_read(&self, addr: u16) -> u8 {
-        self.aux_bank1_memory[addr as usize]
+        if self.aux_bank == 0 {
+            self.aux_bank1_memory[addr as usize]
+        } else if let Some(aux_mem) = &self.ext_aux_mem {
+            let aux_bank = (self.aux_bank - 1) as usize;
+            aux_mem[(addr + 0xd000) as usize + (0x10000 * aux_bank)]
+        } else {
+            self.aux_bank1_memory[addr as usize]
+        }
     }
 
     pub fn mem_aux_bank1_write(&mut self, addr: u16, data: u8) {
-        self.aux_bank1_memory[addr as usize] = data
+        if self.aux_bank == 0 {
+            self.aux_bank1_memory[addr as usize] = data;
+        } else if let Some(aux_mem) = &mut self.ext_aux_mem {
+            let aux_bank = (self.aux_bank - 1) as usize;
+            aux_mem[(addr + 0xd000) as usize + (0x10000 * aux_bank)] = data;
+        } else {
+            self.aux_bank1_memory[addr as usize] = data;
+        }
     }
 
     pub fn mem_aux_bank2_read(&self, addr: u16) -> u8 {
-        self.aux_bank2_memory[addr as usize]
+        if self.aux_bank == 0 {
+            self.aux_bank2_memory[addr as usize]
+        } else if let Some(aux_mem) = &self.ext_aux_mem {
+            let aux_bank = (self.aux_bank - 1) as usize;
+            aux_mem[(addr + 0xc000) as usize + (0x10000 * aux_bank)]
+        } else {
+            self.aux_bank2_memory[addr as usize]
+        }
     }
 
     pub fn mem_aux_bank2_write(&mut self, addr: u16, data: u8) {
-        self.aux_bank2_memory[addr as usize] = data
+        if self.aux_bank == 0 {
+            self.aux_bank2_memory[addr as usize] = data;
+        } else if let Some(aux_mem) = &mut self.ext_aux_mem {
+            let aux_bank = (self.aux_bank - 1) as usize;
+            aux_mem[(addr + 0xc000) as usize + (0x10000 * aux_bank)] = data;
+        } else {
+            self.aux_bank2_memory[addr as usize] = data;
+        }
     }
 
     pub fn unclocked_addr_read(&self, addr: u16) -> u8 {
@@ -261,7 +325,48 @@ fn hex_to_u8(c: u8) -> std::io::Result<u8> {
     }
 }
 
-fn as_hex<S: Serializer>(v: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error> {
+fn as_opt_hex<S: Serializer>(value: &Option<Vec<u8>>, serializer: S) -> Result<S::Ok, S::Error> {
+    if let Some(ref v) = *value {
+        return as_hex_6bytes(v, serializer)
+    }
+    serializer.serialize_none()
+}
+
+fn as_hex_6bytes<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
+    let mut map = BTreeMap::new();
+    let mut addr = 0;
+    let mut count = 0;
+    let mut s = String::new();
+    let mut gz_vector = Vec::new();
+    {
+        let mut gz = GzEncoder::new(&mut gz_vector, Compression::fast());
+        let status = gz.write_all(v);
+        if status.is_err() {
+            return Err(ser::Error::custom("Unable to encode data"));
+        }
+    }
+
+    for value in gz_vector {
+        if count >= 0x40 {
+            let addr_key = format!("{:06X}", addr);
+            map.insert(addr_key, s);
+            s = String::new();
+            count = 0;
+            addr += 0x40;
+        }
+        let hex = format!("{:02X}", value);
+        s.push_str(&hex);
+        count += 1;
+    }
+
+    if !s.is_empty() {
+        let addr_key = format!("{:06X}", addr);
+        map.insert(addr_key, s);
+    }
+    BTreeMap::serialize(&map, serializer)
+}
+
+fn as_hex<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
     let mut map = BTreeMap::new();
     let mut addr = 0;
     let mut count = 0;
@@ -286,13 +391,61 @@ fn as_hex<S: Serializer>(v: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error> 
     BTreeMap::serialize(&map, serializer)
 }
 
+fn from_hex_opt<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<Vec<u8>>, D::Error> {
+    let map: Option<BTreeMap::<String, String>> = Option::deserialize(deserializer)?;
+
+    if let Some(map) = map {
+        if map.is_empty() {
+            return Ok(None)
+        }
+
+        let mut gz_vector = Vec::new();
+        let mut addr = 0;
+        for key in map.keys() {
+            let addr_value_6bytes = format!("{:06X}", addr);
+            if *key != addr_value_6bytes {
+                return Err(Error::invalid_value(
+                    Unexpected::Seq,
+                    &"Invalid key. Addr not in sequence",
+                ));
+            }
+
+            let value = &map[key];
+            if value.len() % 2 != 0 {
+                return Err(Error::invalid_value(Unexpected::Seq, &"Invalid hex length"));
+            }
+            for pair in value.chars().collect::<Vec<_>>().chunks(2) {
+                let result = hex_to_u8(pair[0] as u8).map_err(Error::custom)? << 4
+                    | hex_to_u8(pair[1] as u8).map_err(Error::custom)?;
+                gz_vector.push(result);
+            }
+            addr += 0x40;
+        }
+
+        let mut v: Vec<u8> = Vec::new();
+        {
+            let mut decoder = GzDecoder::new(&gz_vector[..]);
+            let status = decoder.read_to_end(&mut v);
+            if status.is_err() {
+                return Err(Error::invalid_value(
+                    Unexpected::Seq,
+                    &"Unable to decode data",
+                ));
+            }
+        }
+        Ok(Some(v))
+    } else {
+        Ok(None)
+    }
+}
+
 fn from_hex<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
     let map = BTreeMap::<String, String>::deserialize(deserializer)?;
     let mut v = Vec::new();
     let mut addr = 0;
     for key in map.keys() {
         let addr_value_4bytes = format!("{:04X}", addr);
-        let addr_value_6bytes = format!("{:04X}", addr);
+        let addr_value_6bytes = format!("{:06X}", addr);
         if *key != addr_value_4bytes && *key != addr_value_6bytes {
             return Err(Error::invalid_value(
                 Unexpected::Seq,

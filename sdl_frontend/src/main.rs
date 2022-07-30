@@ -622,6 +622,7 @@ FLAGS:
     --nojoystick       Disable joystick
     --xtrim            Set joystick x-trim value
     --ytrim            Set joystick y-trim value
+    -r no of pages     Emulate RAMworks III card with 1 to 127 pages
     -m, --model MODEL  Set apple 2 model. Valid value: apple2p,apple2e,apple2ee
     --d1 PATH          Set the file path for disk 1 drive at Slot 6 Drive 1
     --d2 PATH          Set the file path for disk 2 drive at Slot 6 Drive 2
@@ -934,6 +935,14 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             "apple2ee" => cpu.load(&apple2ee_rom, 0xc000),
             _ => {}
         }
+    }
+
+    if let Some(bank) = pargs.opt_value_from_str::<_, u8>("-r")? {
+        if bank == 0 || bank >= 128 {
+            panic!("RAMWorks III accepts value from 1 to 127");
+        }
+        let mut mmu = cpu.bus.mem.borrow_mut();
+        mmu.set_aux_size(bank);
     }
 
     if let Some(input_rate) = pargs.opt_value_from_str::<_, f32>("--weakbit")? {
