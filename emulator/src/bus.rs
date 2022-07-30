@@ -334,7 +334,7 @@ impl Bus {
                 if let Some(mut device) = return_value {
                     return device.rom_access(&self.mem, &self.video, addr, value, write_flag)
                 } else {
-                    return self.mem_read(addr)
+                    return self.read_floating_bus();
                 }
             }
 
