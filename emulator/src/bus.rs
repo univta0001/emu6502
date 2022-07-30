@@ -779,6 +779,15 @@ impl Bus {
                 0
             }
 
+            0x73 => {
+                if write_flag {
+                    self.set_paddle_trigger(self.get_cycles());
+                    let mut mmu = self.mem.borrow_mut();
+                    mmu.set_aux_bank(value);
+                }
+                self.read_floating_bus()
+            }
+
             0x7e => {
                 let val = self.read_floating_bus() & 0x7f;
                 if write_flag {
@@ -948,9 +957,12 @@ impl Mem for Bus {
 
                 // Shadow it to the video ram
                 let aux_memory = mmu.is_aux_memory(addr, true);
-                self.video
-                    .borrow_mut()
-                    .update_shadow_memory(aux_memory, addr, data);
+                let aux_bank = mmu.aux_bank();
+                if aux_bank == 0 {
+                    self.video
+                        .borrow_mut()
+                        .update_shadow_memory(aux_memory, addr, data);
+                }
             }
 
             ROM_START..=ROM_END => {

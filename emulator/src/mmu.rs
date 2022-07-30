@@ -34,6 +34,9 @@ pub struct Mmu {
     pub altzp: bool,
     pub video_page2: bool,
     pub video_hires: bool,
+
+    #[serde(default)]
+    pub aux_bank: u8,
 }
 
 impl Mmu {
@@ -57,6 +60,8 @@ impl Mmu {
             altzp: false,
             video_page2: false,
             video_hires: false,
+
+            aux_bank: 0,
         }
     }
 
@@ -101,12 +106,36 @@ impl Mmu {
         aux_flag
     }
 
+    pub fn aux_bank(&self) -> u8 {
+        self.aux_bank
+    }
+
+    pub fn set_aux_bank(&mut self, value: u8) {
+        self.aux_bank = value
+    }
+
     pub fn mem_read(&self, addr: u16) -> u8 {
         self.cpu_memory[addr as usize]
     }
 
     pub fn mem_write(&mut self, addr: u16, data: u8) {
         self.cpu_memory[addr as usize] = data
+    }
+
+    pub fn mem_bank1_read(&self, addr: u16) -> u8 {
+        self.bank1_memory[addr as usize]
+    }
+
+    pub fn mem_bank1_write(&mut self, addr: u16, data: u8) {
+        self.bank1_memory[addr as usize] = data
+    }
+
+    pub fn mem_bank2_read(&self, addr: u16) -> u8 {
+        self.bank2_memory[addr as usize]
+    }
+
+    pub fn mem_bank2_write(&mut self, addr: u16, data: u8) {
+        self.bank2_memory[addr as usize] = data
     }
 
     pub fn mem_aux_read(&self, addr: u16) -> u8 {
@@ -117,20 +146,36 @@ impl Mmu {
         self.aux_memory[addr as usize] = data
     }
 
+    pub fn mem_aux_bank1_read(&self, addr: u16) -> u8 {
+        self.aux_bank1_memory[addr as usize]
+    }
+
+    pub fn mem_aux_bank1_write(&mut self, addr: u16, data: u8) {
+        self.aux_bank1_memory[addr as usize] = data
+    }
+
+    pub fn mem_aux_bank2_read(&self, addr: u16) -> u8 {
+        self.aux_bank2_memory[addr as usize]
+    }
+
+    pub fn mem_aux_bank2_write(&mut self, addr: u16, data: u8) {
+        self.aux_bank2_memory[addr as usize] = data
+    }
+
     pub fn unclocked_addr_read(&self, addr: u16) -> u8 {
         match addr {
             0x0..=0x1ff => {
                 if self.altzp {
-                    self.aux_memory[addr as usize]
+                    self.mem_aux_read(addr)
                 } else {
-                    self.cpu_memory[addr as usize]
+                    self.mem_read(addr)
                 }
             }
             0x200..=0xbfff => {
                 if self.is_aux_memory(addr, false) {
-                    self.aux_memory[addr as usize]
+                    self.mem_aux_read(addr)
                 } else {
-                    self.cpu_memory[addr as usize]
+                    self.mem_read(addr)
                 }
             }
             ROM_START..=ROM_END => {
@@ -139,14 +184,14 @@ impl Mmu {
                     self.mem_read(addr)
                 } else if self.bank1 || (0xe000..=0xffff).contains(&addr) {
                     if !self.altzp {
-                        self.bank1_memory[bank_addr as usize]
+                        self.mem_bank1_read(bank_addr)
                     } else {
-                        self.aux_bank1_memory[bank_addr as usize]
+                        self.mem_aux_bank1_read(bank_addr)
                     }
                 } else if !self.altzp {
-                    self.bank2_memory[bank_addr as usize]
+                    self.mem_bank2_read(bank_addr)
                 } else {
-                    self.aux_bank2_memory[bank_addr as usize]
+                    self.mem_aux_bank2_read(bank_addr)
                 }
             }
             _ => {
@@ -159,17 +204,17 @@ impl Mmu {
         match addr {
             0x0..=0x1ff => {
                 if !self.altzp {
-                    self.cpu_memory[addr as usize] = data;
+                    self.mem_write(addr, data)
                 } else {
-                    self.aux_memory[addr as usize] = data;
+                    self.mem_aux_write(addr, data)
                 }
             }
 
             0x200..=0xbfff => {
                 if self.is_aux_memory(addr, true) {
-                    self.aux_memory[addr as usize] = data;
+                    self.mem_aux_write(addr, data)
                 } else {
-                    self.cpu_memory[addr as usize] = data;
+                    self.mem_write(addr, data)
                 }
             }
 
@@ -178,14 +223,14 @@ impl Mmu {
                 if self.writebsr {
                     if self.bank1 || (0xe000..=0xffff).contains(&addr) {
                         if !self.altzp {
-                            self.bank1_memory[bank_addr as usize] = data;
+                            self.mem_bank1_write(bank_addr, data)
                         } else {
-                            self.aux_bank1_memory[bank_addr as usize] = data;
+                            self.mem_aux_bank1_write(bank_addr, data)
                         }
                     } else if !self.altzp {
-                        self.bank2_memory[bank_addr as usize] = data;
+                        self.mem_bank2_write(bank_addr, data)
                     } else {
-                        self.aux_bank2_memory[bank_addr as usize] = data;
+                        self.mem_aux_bank2_write(bank_addr, data)
                     }
                 }
             }
@@ -246,8 +291,9 @@ fn from_hex<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Er
     let mut v = Vec::new();
     let mut addr = 0;
     for key in map.keys() {
-        let addr_value = format!("{:04X}", addr);
-        if *key != addr_value {
+        let addr_value_4bytes = format!("{:04X}", addr);
+        let addr_value_6bytes = format!("{:04X}", addr);
+        if *key != addr_value_4bytes && *key != addr_value_6bytes {
             return Err(Error::invalid_value(
                 Unexpected::Seq,
                 &"Invalid key. Addr not in sequence",
