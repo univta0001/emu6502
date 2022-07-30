@@ -504,17 +504,17 @@ where
 
 fn save_dsk_woz_to_disk(disk: &mut Disk) -> io::Result<()> {
     let path = Path::new(&disk.filename);
-    let file_stem = path.file_stem().unwrap();
-    let stem_path = Path::new(file_stem);
-
-    let path_ext = path.extension().unwrap();
-
-    if check_file_extension(path_ext, stem_path, "dsk")
-        || check_file_extension(path_ext, stem_path, "po")
-    {
-        convert_woz_to_dsk(disk)?;
-    } else if check_file_extension(path_ext, stem_path, "woz") {
-        save_woz_file(disk)?;
+    if let Some(file_stem) = path.file_stem() {
+        let stem_path = Path::new(file_stem);
+        if let Some(path_ext) = path.extension() {
+            if check_file_extension(path_ext, stem_path, "dsk")
+                || check_file_extension(path_ext, stem_path, "po")
+            {
+                convert_woz_to_dsk(disk)?;
+            } else if check_file_extension(path_ext, stem_path, "woz") {
+                save_woz_file(disk)?;
+            }
+        }
     }
 
     Ok(())
