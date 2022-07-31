@@ -664,6 +664,10 @@ impl RamFactor {
     pub fn new() -> Self {
         RamFactor::default()
     }
+
+    pub fn reset(&mut self) {
+        self.firmware_bank = 0;
+    }
 }
 
 impl Default for RamFactor {

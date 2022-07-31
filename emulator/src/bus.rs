@@ -226,6 +226,7 @@ impl Bus {
 
         self.mem.borrow_mut().reset();
         self.video.borrow_mut().reset();
+        self.ramfactor.borrow_mut().reset();
 
         if !self.disable_audio {
             self.audio
