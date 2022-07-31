@@ -644,16 +644,7 @@ fn from_hex<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Er
 }
 
 fn from_hex_mem<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
-    let result = from_hex(deserializer);
-    if let Ok(ref value) = result {
-        if value.len() != RAMSIZE {
-            return Err(Error::invalid_value(
-                Unexpected::Seq,
-                &"Array should be 1 megabyte",
-            ));
-        }
-    }
-    result
+    from_hex(deserializer)
 }
 
 fn default_mem() -> Vec<u8> {
@@ -667,6 +658,11 @@ impl RamFactor {
 
     pub fn reset(&mut self) {
         self.firmware_bank = 0;
+    }
+
+    pub fn set_size(&mut self, value: usize) {
+        self.firmware_bank = 0;
+        self.mem = vec![0; value];
     }
 }
 

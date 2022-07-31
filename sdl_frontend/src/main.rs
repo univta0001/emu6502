@@ -623,6 +623,7 @@ FLAGS:
     --xtrim            Set joystick x-trim value
     --ytrim            Set joystick y-trim value
     -r no of pages     Emulate RAMworks III card with 1 to 127 pages
+    -rf size           Ramfactor memory size in KB
     -m, --model MODEL  Set apple 2 model. Valid value: apple2p,apple2e,apple2ee
     --d1 PATH          Set the file path for disk 1 drive at Slot 6 Drive 1
     --d2 PATH          Set the file path for disk 2 drive at Slot 6 Drive 2
@@ -943,6 +944,13 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         }
         let mut mmu = cpu.bus.mem.borrow_mut();
         mmu.set_aux_size(bank);
+    }
+
+    if let Some(value) = pargs.opt_value_from_str::<_, usize>("--rf")? {
+        if value * 1024 > 0x1000000 {
+            panic!("RAMFactor can accept up to 16 MiB");
+        }
+        cpu.bus.ramfactor.borrow_mut().set_size(value*1024);
     }
 
     if let Some(input_rate) = pargs.opt_value_from_str::<_, f32>("--weakbit")? {
