@@ -1676,8 +1676,6 @@ impl DiskDrive {
         P: AsRef<Path>,
     {
         let filename = file_path.as_ref();
-        let file_stem = filename.file_stem().unwrap();
-        let stem_path = Path::new(file_stem);
 
         if filename.extension().is_none() {
             return Err(std::io::Error::new(
@@ -1686,14 +1684,17 @@ impl DiskDrive {
             ));
         }
 
-        let filename_ext = filename.extension().unwrap();
+        if let Some(file_stem) = filename.file_stem() {
+            let stem_path = Path::new(file_stem);
+            let filename_ext = filename.extension().unwrap();
 
-        if check_file_extension(filename_ext, stem_path, "dsk") {
-            return self.convert_dsk_po_to_woz(filename, false);
-        } else if check_file_extension(filename_ext, stem_path, "po") {
-            return self.convert_dsk_po_to_woz(filename, true);
-        } else if check_file_extension(filename_ext, stem_path, "woz") {
-            return self.load_woz_file(filename);
+            if check_file_extension(filename_ext, stem_path, "dsk") {
+                return self.convert_dsk_po_to_woz(filename, false);
+            } else if check_file_extension(filename_ext, stem_path, "po") {
+                return self.convert_dsk_po_to_woz(filename, true);
+            } else if check_file_extension(filename_ext, stem_path, "woz") {
+                return self.load_woz_file(filename);
+            }
         }
 
         Err(std::io::Error::new(
