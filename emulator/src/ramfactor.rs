@@ -664,6 +664,48 @@ impl RamFactor {
         self.firmware_bank = 0;
         self.mem = vec![0; value];
     }
+
+    fn update_low_addr(&mut self, value: u8, write_flag: bool) -> u8 {
+        if write_flag {
+            if self.addr & 0x80 != 0 && value & 0x80 == 0 {
+                self.addr += 0x0100;
+            }
+            self.addr = (self.addr & 0xffff00) | (value as usize);
+        }
+        (self.addr & 0xff) as u8
+    }
+
+    fn update_medium_addr(&mut self, value: u8, write_flag: bool) -> u8 {
+        if write_flag {
+            if self.addr & 0x8000 != 0 && value & 0x80 == 0 {
+                self.addr += 0x010000;
+            }
+            self.addr = (self.addr & 0xff00ff) | (value as usize) << 8;
+        }
+        ((self.addr & 0xff00) >> 8) as u8
+    }
+
+    fn update_high_addr(&mut self, value: u8, write_flag: bool) -> u8 {
+        if write_flag {
+            self.addr = (self.addr & 0x00ffff) | (value as usize) << 16;
+        }
+        if self.mem.len() <= SIZE_1MB {
+            (((self.addr & 0xff0000) >> 16) | 0xf0) as u8
+        } else {
+            ((self.addr & 0xff0000) >> 16) as u8
+        }
+    }
+
+    fn update_data(&mut self, value: u8, write_flag: bool) -> u8 {
+        let len = self.mem.len();
+        if write_flag {
+            self.mem[self.addr % len] = value;
+        }
+        let val = self.mem[self.addr % len];
+        self.addr += 1;
+        self.addr &= 0x0ffffff;
+        val
+    }
 }
 
 impl Default for RamFactor {
@@ -704,42 +746,22 @@ impl Card for RamFactor {
         match map_addr & 0x0f {
             // Low RAM
             0x00 | 0x04 => {
-                if write_flag {
-                    self.addr = (self.addr & 0xffff00) | (value as usize);
-                }
-                (self.addr & 0xff) as u8
+                self.update_low_addr(value, write_flag)
             }
 
             // Med RAM
             0x01 | 0x05 => {
-                if write_flag {
-                    self.addr = (self.addr & 0xff00ff) | (value as usize) << 8;
-                }
-                ((self.addr & 0xff00) >> 8) as u8
+                self.update_medium_addr(value, write_flag)
             }
 
             // High RAM
             0x02 | 0x06 => {
-                if write_flag {
-                    self.addr = (self.addr & 0x00ffff) | (value as usize) << 16;
-                }
-                if self.mem.len() <= SIZE_1MB {
-                    (((self.addr & 0xff0000) >> 16) | 0xf0) as u8
-                } else {
-                    ((self.addr & 0xff0000) >> 16) as u8
-                }
+                self.update_high_addr(value, write_flag)
             }
 
             // Data Value
             0x03 | 0x07 => {
-                let len = self.mem.len();
-                if write_flag {
-                    self.mem[self.addr % len] = value;
-                }
-                let val = self.mem[self.addr % len];
-                self.addr += 1;
-                self.addr &= 0x0ffffff;
-                val
+                self.update_data(value, write_flag)
             }
 
             // Bank
@@ -752,5 +774,67 @@ impl Card for RamFactor {
 
             _ => 0xff,
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_ramfactor_auto_increment() {
+        let mut rf = RamFactor::new();
+        rf.update_data(0, false);
+        assert_eq!(rf.addr, 0x1, "Addr should be incremented to 1");
+    }
+
+    #[test]
+    fn test_ramfactor_addr_larger_than_memory() {
+        let status = std::panic::catch_unwind(|| {
+            let mut rf = RamFactor::new();
+            rf.addr = 0xffffff;
+            rf.update_data(0, false);
+        });
+        assert_eq!(status.is_ok(), true, "Addr larger than memory should not panic");
+    }
+
+    #[test]
+    fn test_ramfactor_addr_wraparound() {
+        let mut rf = RamFactor::new();
+        rf.addr = 0xffffff;
+        rf.update_data(0, false);
+        assert_eq!(rf.addr, 0, "Addr should wrap around to zero");
+    }
+
+    #[test]
+    fn test_ramfactor_hi_nibble_f0() {
+        let mut rf = RamFactor::new();
+        let mut value = rf.update_high_addr(0, false);
+        assert_eq!(value, 0xf0, "High value should be OR with 0xf0 for memory less than 1 MiB");
+
+        rf = RamFactor::new();
+        rf.mem=vec![0;0x200000];
+        value = rf.update_high_addr(0, false);
+        assert_eq!(value, 0x00, "High value should be 0 for memory greater than 1 MiB");
+    }
+
+    #[test]
+    fn test_ramfactor_low_increment() {
+        let mut rf = RamFactor::new();
+        rf.addr = 0x01ff00;
+        rf.update_low_addr(0, true);
+        assert_eq!((rf.addr >> 8) & 0xff, 0xff, "Medium value should be incremented when low bit 7 is high and value bit 7 is low");
+        rf.addr = 0x01ffff;
+        rf.update_low_addr(0, true);
+        assert_eq!((rf.addr >> 8) & 0xff, 0x00, "Medium value should be incremented when low bit 7 is high and value bit 7 is low");
+        assert_eq!((rf.addr >> 16) & 0xff, 0x02, "High value should be incremented when low bit 7 is high and value bit 7 is low");
+    }
+
+    #[test]
+    fn test_ramfactor_medium_increment() {
+        let mut rf = RamFactor::new();
+        rf.addr = 0x01ff00;
+        rf.update_medium_addr(0, true);
+        assert_eq!((rf.addr >> 16) & 0xff, 0x02, "High value should be incremented when medium bit 7 is high and value bit 7 is low");
     }
 }
