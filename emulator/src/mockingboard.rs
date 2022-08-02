@@ -830,6 +830,8 @@ impl Card for Mockingboard {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::bus::Bus;
+    use crate::cpu::CPU;
 
     fn setup(w65c22: &mut W65C22) {
         // Write to T1C-L and T1C-H
@@ -920,4 +922,35 @@ mod test {
             "T1 IFR should not be set as T1 is not loaded"
         );
     }
+
+
+    #[test]
+    fn test_detect_mockingboard() {
+        let mut bus = Bus::new();
+        bus.io_slot[4] = RefCell::new(crate::bus::IODevice::Mockingboard(0));
+        let mut cpu = CPU::new(bus);
+        cpu.reset();
+        let detect_code = [
+            0xa9, 0x00,        // LDA #$00
+            0x85, 0xfa,        // STA $FA
+            0xa9, 0x04,        // Check on slot 4
+            0x09, 0xc0,        // -> $Cx
+            0x85, 0xfb,        // STA $FB
+            0xa0, 0x04,        // LDY #$04 ; $Cx04
+            0xa2, 0x02,        // LDX #$02 ; 2 verify
+            0xb1, 0xfa,        // LDA ($FA),Y
+            0x85, 0xff,        // STA $ff ; 3 cycles
+            0xb1, 0xfa,        // LDA ($FA),Y ; 5 cycles
+            0x38,              // SEC
+            0xe5, 0xff,        // SBC $FF ; Expected value = 0xf8
+            0x00,              // END
+        ];
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&detect_code);
+        assert_eq!(cpu.register_a, 0xf8, "Detect Mockingboard value should be 0xf8");
+    }
 }
+
+
+
+
