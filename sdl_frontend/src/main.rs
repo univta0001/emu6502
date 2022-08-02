@@ -950,7 +950,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         if value * 1024 > 0x1000000 {
             panic!("RAMFactor can accept up to 16 MiB");
         }
-        cpu.bus.ramfactor.borrow_mut().set_size(value*1024);
+        cpu.bus.ramfactor.borrow_mut().set_size(value * 1024);
     }
 
     if let Some(input_rate) = pargs.opt_value_from_str::<_, f32>("--weakbit")? {

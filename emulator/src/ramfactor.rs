@@ -745,24 +745,16 @@ impl Card for RamFactor {
 
         match map_addr & 0x0f {
             // Low RAM
-            0x00 | 0x04 => {
-                self.update_low_addr(value, write_flag)
-            }
+            0x00 | 0x04 => self.update_low_addr(value, write_flag),
 
             // Med RAM
-            0x01 | 0x05 => {
-                self.update_medium_addr(value, write_flag)
-            }
+            0x01 | 0x05 => self.update_medium_addr(value, write_flag),
 
             // High RAM
-            0x02 | 0x06 => {
-                self.update_high_addr(value, write_flag)
-            }
+            0x02 | 0x06 => self.update_high_addr(value, write_flag),
 
             // Data Value
-            0x03 | 0x07 => {
-                self.update_data(value, write_flag)
-            }
+            0x03 | 0x07 => self.update_data(value, write_flag),
 
             // Bank
             0x0f => {
@@ -795,7 +787,11 @@ mod test {
             rf.addr = 0xffffff;
             rf.update_data(0, false);
         });
-        assert_eq!(status.is_ok(), true, "Addr larger than memory should not panic");
+        assert_eq!(
+            status.is_ok(),
+            true,
+            "Addr larger than memory should not panic"
+        );
     }
 
     #[test]
@@ -810,12 +806,18 @@ mod test {
     fn test_ramfactor_hi_nibble_f0() {
         let mut rf = RamFactor::new();
         let mut value = rf.update_high_addr(0, false);
-        assert_eq!(value, 0xf0, "High value should be OR with 0xf0 for memory less than 1 MiB");
+        assert_eq!(
+            value, 0xf0,
+            "High value should be OR with 0xf0 for memory less than 1 MiB"
+        );
 
         rf = RamFactor::new();
-        rf.mem=vec![0;0x200000];
+        rf.mem = vec![0; 0x200000];
         value = rf.update_high_addr(0, false);
-        assert_eq!(value, 0x00, "High value should be 0 for memory greater than 1 MiB");
+        assert_eq!(
+            value, 0x00,
+            "High value should be 0 for memory greater than 1 MiB"
+        );
     }
 
     #[test]
@@ -823,11 +825,23 @@ mod test {
         let mut rf = RamFactor::new();
         rf.addr = 0x01ff00;
         rf.update_low_addr(0, true);
-        assert_eq!((rf.addr >> 8) & 0xff, 0xff, "Medium value should be incremented when low bit 7 is high and value bit 7 is low");
+        assert_eq!(
+            (rf.addr >> 8) & 0xff,
+            0xff,
+            "Medium value should be incremented when low bit 7 is high and value bit 7 is low"
+        );
         rf.addr = 0x01ffff;
         rf.update_low_addr(0, true);
-        assert_eq!((rf.addr >> 8) & 0xff, 0x00, "Medium value should be incremented when low bit 7 is high and value bit 7 is low");
-        assert_eq!((rf.addr >> 16) & 0xff, 0x02, "High value should be incremented when low bit 7 is high and value bit 7 is low");
+        assert_eq!(
+            (rf.addr >> 8) & 0xff,
+            0x00,
+            "Medium value should be incremented when low bit 7 is high and value bit 7 is low"
+        );
+        assert_eq!(
+            (rf.addr >> 16) & 0xff,
+            0x02,
+            "High value should be incremented when low bit 7 is high and value bit 7 is low"
+        );
     }
 
     #[test]
@@ -835,6 +849,10 @@ mod test {
         let mut rf = RamFactor::new();
         rf.addr = 0x01ff00;
         rf.update_medium_addr(0, true);
-        assert_eq!((rf.addr >> 16) & 0xff, 0x02, "High value should be incremented when medium bit 7 is high and value bit 7 is low");
+        assert_eq!(
+            (rf.addr >> 16) & 0xff,
+            0x02,
+            "High value should be incremented when medium bit 7 is high and value bit 7 is low"
+        );
     }
 }

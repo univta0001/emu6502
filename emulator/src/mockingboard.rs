@@ -398,7 +398,7 @@ impl W65C22 {
             ora: 0,
             ddrb: 0,
             ddra: 0,
-            t1c: 0,
+            t1c: 0xffff,
             t1l: 0xffff,
             t1_loaded: false,
             t1_overflow: false,
@@ -421,12 +421,12 @@ impl W65C22 {
     fn tick(&mut self) {
         self.cycles += 1;
 
+        if !self.enabled {
+            return;
+        }
+
         let result = self.t1c.overflowing_sub(1);
         self.t1c = result.0;
-
-        if !self.enabled {
-            return
-        }
 
         if !self.t1_overflow {
             self.t1_overflow = result.1;

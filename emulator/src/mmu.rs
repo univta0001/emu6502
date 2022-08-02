@@ -1,11 +1,11 @@
 use crate::bus::{ROM_END, ROM_START};
-use serde::de::{Error, Unexpected};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde::ser;
-use std::collections::BTreeMap;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
+use serde::de::{Error, Unexpected};
+use serde::ser;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::collections::BTreeMap;
 use std::io::{Read, Write};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -327,7 +327,7 @@ fn hex_to_u8(c: u8) -> std::io::Result<u8> {
 
 fn as_opt_hex<S: Serializer>(value: &Option<Vec<u8>>, serializer: S) -> Result<S::Ok, S::Error> {
     if let Some(ref v) = *value {
-        return as_hex_6bytes(v, serializer)
+        return as_hex_6bytes(v, serializer);
     }
     serializer.serialize_none()
 }
@@ -392,11 +392,11 @@ fn as_hex<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
 }
 
 fn from_hex_opt<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<Vec<u8>>, D::Error> {
-    let map: Option<BTreeMap::<String, String>> = Option::deserialize(deserializer)?;
+    let map: Option<BTreeMap<String, String>> = Option::deserialize(deserializer)?;
 
     if let Some(map) = map {
         if map.is_empty() {
-            return Ok(None)
+            return Ok(None);
         }
 
         let mut gz_vector = Vec::new();
