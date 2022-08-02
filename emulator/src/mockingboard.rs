@@ -387,6 +387,7 @@ struct W65C22 {
     cycles: usize,
     ay8910: AY8910,
     irq_happen: usize,
+    enabled: bool,
 }
 
 impl W65C22 {
@@ -413,6 +414,7 @@ impl W65C22 {
             cycles: 0,
             ay8910: AY8910::new(name),
             irq_happen: 0,
+            enabled: false,
         }
     }
 
@@ -421,6 +423,10 @@ impl W65C22 {
 
         let result = self.t1c.overflowing_sub(1);
         self.t1c = result.0;
+
+        if !self.enabled {
+            return
+        }
 
         if !self.t1_overflow {
             self.t1_overflow = result.1;
@@ -475,6 +481,7 @@ impl W65C22 {
 
         self.ay8910.reset();
         self.state = AY_INACTIVE;
+        self.enabled = false;
     }
 
     fn poll_irq(&mut self) -> Option<usize> {
@@ -517,6 +524,8 @@ impl W65C22 {
 
     fn io_access(&mut self, addr: u8, value: u8, write_flag: bool) -> u8 {
         let mut return_addr: u8 = 0;
+        self.enabled = true;
+
         match addr {
             // ORB
             0x10 | 0x00 => {
