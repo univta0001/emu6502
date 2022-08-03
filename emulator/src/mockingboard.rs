@@ -384,7 +384,6 @@ struct W65C22 {
     ifr: u8,
     ier: u8,
     state: u8,
-    cycles: usize,
     ay8910: AY8910,
     irq_happen: usize,
     enabled: bool,
@@ -411,16 +410,13 @@ impl W65C22 {
             ifr: 0x0,
             ier: 0x0,
             state: 0,
-            cycles: 0,
             ay8910: AY8910::new(name),
             irq_happen: 0,
             enabled: false,
         }
     }
 
-    fn tick(&mut self) {
-        self.cycles += 1;
-
+    fn tick(&mut self, cycles: usize) {
         if !self.enabled {
             return;
         }
@@ -435,7 +431,7 @@ impl W65C22 {
         if self.t1_overflow && self.t1c == 0xffff {
             if self.t1_loaded {
                 self.ifr |= 0x40;
-                self.irq_happen = self.cycles;
+                self.irq_happen = cycles;
             }
 
             if self.acr & 0x40 == 0 {
@@ -453,7 +449,7 @@ impl W65C22 {
         if self.t2c == 0xffff {
             if self.t2_loaded {
                 self.ifr |= 0x20;
-                self.irq_happen = self.cycles;
+                self.irq_happen = cycles;
             }
 
             if self.acr & 0x20 == 0 {
@@ -461,7 +457,7 @@ impl W65C22 {
             }
         }
 
-        if self.cycles % 8 == 0 {
+        if cycles % 8 == 0 {
             self.ay8910.tick();
         }
     }
@@ -708,9 +704,11 @@ impl Default for W65C22 {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
 pub struct Mockingboard {
     w65c22: [W65C22; 2],
     rng: usize,
+    cycles: usize,
 }
 
 impl Mockingboard {
@@ -718,12 +716,14 @@ impl Mockingboard {
         Mockingboard {
             w65c22: [W65C22::new("#1"), W65C22::new("#2")],
             rng: 1,
+            cycles: 0,
         }
     }
 
     pub fn tick(&mut self) {
-        self.w65c22[0].tick();
-        self.w65c22[1].tick();
+        self.cycles += 1;
+        self.w65c22[0].tick(self.cycles);
+        self.w65c22[1].tick(self.cycles);
     }
 
     pub fn reset(&mut self) {
@@ -862,7 +862,7 @@ mod test {
         let mut w65c22 = W65C22::new("#1");
         setup(&mut w65c22);
         assert_eq!(w65c22.ifr & 0x40 == 0, true, "T1 IFR should be cleared");
-        w65c22.tick();
+        w65c22.tick(0);
         assert_eq!(w65c22.t1c, 0x05, "T1 counter should be 5");
     }
 
@@ -878,7 +878,7 @@ mod test {
         let mut w65c22 = W65C22::new("#1");
         setup(&mut w65c22);
         for _ in 0..6 {
-            w65c22.tick();
+            w65c22.tick(0);
         }
         assert_eq!(w65c22.t1c, 0x00, "T1 counter after tick should be 0");
         assert_eq!(w65c22.ifr & 0x40 == 0, true, "T1 IFR should not be set");
@@ -889,10 +889,10 @@ mod test {
         let mut w65c22 = W65C22::new("#1");
         setup(&mut w65c22);
         for _ in 0..7 {
-            w65c22.tick();
+            w65c22.tick(0);
         }
         assert_eq!(w65c22.ifr & 0x40 > 0, true, "T1 IFR is should be set");
-        w65c22.tick();
+        w65c22.tick(0);
         assert_eq!(
             w65c22.t1c, 0x05,
             "T1 counter should be reset after underflow"
@@ -904,17 +904,17 @@ mod test {
         let mut w65c22 = W65C22::new("#1");
         setup(&mut w65c22);
         for _ in 0..8 {
-            w65c22.tick();
+            w65c22.tick(0);
         }
         w65c22.io_access(0x04, 0x00, false);
         assert_eq!(w65c22.ifr & 0x40 == 0, true, "T1 IFR should be cleared");
         assert_eq!(w65c22.t1c, 0x05, "T1 counter should be reset to 5");
         assert_eq!(w65c22.t2c, 0xfffe, "T2 counter should be 0xfffe");
 
-        w65c22.tick();
+        w65c22.tick(0);
         assert_eq!(w65c22.t1c, 0x04, "T1 counter after IRQ load should be 4");
         for _ in 0..5 {
-            w65c22.tick();
+            w65c22.tick(0);
         }
         assert_eq!(
             w65c22.ifr & 0x40 == 0,
@@ -922,7 +922,6 @@ mod test {
             "T1 IFR should not be set as T1 is not loaded"
         );
     }
-
 
     #[test]
     fn test_detect_mockingboard() {
