@@ -112,11 +112,9 @@ impl Audio {
                 // Note that this means that if both tone and noise are disabled, the output
                 // is 1, not 0, and can be modulated changing the volume.
 
-                let mix = 2
-                    * (((mboard.get_tone_level(channel, tone) | !tone_enabled)
-                        & (mboard.get_noise_level(channel) | !noise_enabled))
-                        as i8)
-                    - 1;
+                let tone_value = mboard.get_tone_level(channel, tone) | !tone_enabled;
+                let noise_value = mboard.get_noise_level(channel) | !noise_enabled;
+                let mix = 2 * (( tone_value & noise_value ) as i8) - 1;
                 *phase += volume * (mix.signum() as HigherChannel);
             }
         }

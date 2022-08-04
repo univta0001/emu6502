@@ -44,7 +44,7 @@ impl Noise {
         Noise {
             period: 0,
             count: 0,
-            level: true,
+            level: false,
         }
     }
 
@@ -177,23 +177,27 @@ impl AY8910 {
 
     fn update_tone(&mut self) {
         for i in 0..3 {
-            if self.tone[i].period > 0 {
-                let env_period = self.tone[i].period as usize;
-                self.tone[i].count += 1;
-                if self.tone[i].count >= env_period {
-                    self.tone[i].count -= env_period;
-                    self.tone[i].level = !self.tone[i].level
-                }
+            let env_period;
+            if self.tone[i].period == 0 {
+                env_period = 1;
+            } else {
+                env_period = self.tone[i].period as usize;
+            }
+            self.tone[i].count += 1;
+            if self.tone[i].count >= env_period {
+                self.tone[i].count -= env_period;
+                self.tone[i].level = !self.tone[i].level
             }
         }
     }
 
     fn update_noise(&mut self) {
+        let env_period;
         if self.noise.period == 0 {
-            return;
+            env_period = 1;
+        } else {
+            env_period = self.noise.period as usize;
         }
-
-        let env_period = self.noise.period as usize;
         self.noise.count += 1;
         if self.noise.count >= env_period {
             self.noise.count -= env_period;
@@ -204,31 +208,34 @@ impl AY8910 {
 
     fn update_envelope(&mut self) {
         let mut item = &mut self.envelope;
-        if item.period > 0 {
-            let env_period = item.period as usize * 2;
-            if !item.holding {
-                item.count += 1;
-                if item.count >= env_period {
-                    item.count -= env_period;
-                    item.step -= 1;
-                    if item.step < 0 {
-                        if item.hold {
-                            if item.alternate {
-                                item.attack ^= 0xf;
-                            }
-                            item.holding = true;
-                            item.step = 0;
-                        } else {
-                            if item.alternate && ((item.step & 0x10) > 0) {
-                                item.attack ^= 0xf;
-                            }
-                            item.step &= 0xf;
+        let env_period;
+        if item.period == 0 {
+            env_period = item.period as usize;
+        } else {
+            env_period = item.period as usize * 2;
+        }
+        if !item.holding {
+            item.count += 1;
+            if item.count >= env_period {
+                item.count -= env_period;
+                item.step -= 1;
+                if item.step < 0 {
+                    if item.hold {
+                        if item.alternate {
+                            item.attack ^= 0xf;
                         }
+                        item.holding = true;
+                        item.step = 0;
+                    } else {
+                        if item.alternate && ((item.step & 0x10) > 0) {
+                            item.attack ^= 0xf;
+                        }
+                        item.step &= 0xf;
                     }
                 }
             }
-            item.volume = (item.step ^ item.attack as i8) as u8;
         }
+        item.volume = (item.step ^ item.attack as i8) as u8;
     }
 
     fn get_noise_value(&mut self) -> usize {
