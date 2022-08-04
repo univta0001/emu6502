@@ -44,7 +44,7 @@ impl Noise {
         Noise {
             period: 0,
             count: 0,
-            level: false,
+            level: true,
         }
     }
 
