@@ -1236,9 +1236,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 let adj_ms = dcyc * 1_000_000 / CPU_6502_MHZ;
                 let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
 
-                let disk_normal_speed = _cpu.bus.disk.borrow().is_normal_disk();
+                let normal_speed = _cpu.bus.is_normal_speed();
 
-                if adj_time > 0 && disk_normal_speed && !_cpu.full_speed {
+                if adj_time > 0 && normal_speed && !_cpu.full_speed {
                     spin_sleep::sleep(std::time::Duration::from_micros(adj_time as u64));
                 }
 

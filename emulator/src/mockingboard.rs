@@ -177,12 +177,11 @@ impl AY8910 {
 
     fn update_tone(&mut self) {
         for i in 0..3 {
-            let env_period;
-            if self.tone[i].period == 0 {
-                env_period = 1;
+            let env_period = if self.tone[i].period == 0 {
+                1
             } else {
-                env_period = self.tone[i].period as usize;
-            }
+                self.tone[i].period as usize
+            };
             self.tone[i].count += 1;
             if self.tone[i].count >= env_period {
                 self.tone[i].count -= env_period;
@@ -192,12 +191,11 @@ impl AY8910 {
     }
 
     fn update_noise(&mut self) {
-        let env_period;
-        if self.noise.period == 0 {
-            env_period = 1;
+        let env_period = if self.noise.period == 0 {
+            1
         } else {
-            env_period = self.noise.period as usize;
-        }
+            self.noise.period as usize
+        };
         self.noise.count += 1;
         if self.noise.count >= env_period {
             self.noise.count -= env_period;
@@ -208,12 +206,11 @@ impl AY8910 {
 
     fn update_envelope(&mut self) {
         let mut item = &mut self.envelope;
-        let env_period;
-        if item.period == 0 {
-            env_period = 1;
+        let env_period = if item.period == 0 {
+            1
         } else {
-            env_period = item.period as usize * 2;
-        }
+            item.period as usize * 2
+        };
         if !item.holding {
             item.count += 1;
             if item.count >= env_period {

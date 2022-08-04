@@ -16,12 +16,14 @@ const AY_LEVEL: [u16; 16] = [
 ];
 
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
 pub struct Audio {
     pub data: AudioData,
     pub mboard: Vec<RefCell<Mockingboard>>,
     fcycles: f32,
     fcycles_per_sample: f32,
     dc_filter: usize,
+    audio_active: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -43,6 +45,7 @@ impl Audio {
             fcycles_per_sample: CPU_6502_MHZ as f32 / DEFAULT_RATE as f32,
             dc_filter: 32768 + 12000,
             mboard: vec![RefCell::new(Mockingboard::default())],
+            audio_active: false,
         }
     }
 
@@ -54,6 +57,8 @@ impl Audio {
             self.fcycles -= self.fcycles_per_sample;
             //if self.data.sample.len() < AUDIO_SAMPLE_SIZE*2
             {
+                self.audio_active = false;
+
                 let beep = self.dc_filter(self.data.phase);
                 let mut left_phase: HigherChannel = 0;
                 let mut right_phase: HigherChannel = 0;
@@ -78,6 +83,10 @@ impl Audio {
         }
     }
 
+    pub fn is_audio_active(&self) -> bool {
+        self.audio_active
+    }
+
     fn update_phase(&mut self, phase: &mut HigherChannel, channel: usize) {
         for mb in &self.mboard {
             let mboard = mb.borrow_mut();
@@ -88,6 +97,8 @@ impl Audio {
                 if volume == 0 {
                     continue;
                 }
+
+                self.audio_active = true;
 
                 let channel_flag = mboard.get_channel_enable(channel);
 
@@ -124,6 +135,8 @@ impl Audio {
         if self.dc_filter == 0 {
             return 0;
         }
+
+        self.audio_active = true;
 
         if self.dc_filter >= 32768 {
             self.dc_filter -= 1;

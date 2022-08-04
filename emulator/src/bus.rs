@@ -266,6 +266,10 @@ impl Bus {
         *self.cycles.borrow_mut() = cycles;
     }
 
+    pub fn is_normal_speed(&self) -> bool {
+        self.disk.borrow().is_normal_disk() || self.audio.borrow().is_audio_active()
+    }
+
     fn get_paddle_trigger(&self) -> usize {
         *self.paddle_trigger.borrow()
     }
