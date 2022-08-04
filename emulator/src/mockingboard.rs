@@ -210,7 +210,7 @@ impl AY8910 {
         let mut item = &mut self.envelope;
         let env_period;
         if item.period == 0 {
-            env_period = item.period as usize;
+            env_period = 1;
         } else {
             env_period = item.period as usize * 2;
         }
