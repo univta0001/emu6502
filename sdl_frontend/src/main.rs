@@ -805,6 +805,16 @@ fn register_device(cpu: &mut CPU, device: &str, slot: usize) {
 }
 
 fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
+    /*
+    #[cfg(target_os = "windows")]
+    {
+        use winapi::um::wincon::{AttachConsole, ATTACH_PARENT_PROCESS};
+        unsafe {
+            AttachConsole(ATTACH_PARENT_PROCESS);
+        }
+    }
+    */
+
     let mut pargs = pico_args::Arguments::from_env();
 
     if pargs.contains(["-h", "--help"]) {
@@ -1340,6 +1350,16 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             }
         }
     }
+
+    /*
+    #[cfg(target_os = "windows")]
+    {
+        use winapi::um::wincon::{FreeConsole};
+        unsafe {
+            FreeConsole();
+        }
+    }
+    */
 
     Ok(())
 }
