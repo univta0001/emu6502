@@ -1967,6 +1967,7 @@ impl Video {
             return;
         }
 
+        /*
         if row < 192 && col < 40 {
             let x = col * 14;
             let odd = col % 2;
@@ -2030,7 +2031,10 @@ impl Video {
                     offset += 4;
                 }
             }
-            /* Old Hires handling routine
+            */
+
+            {
+            // Old Hires handling routine
             let x = col * 7;
             let b0 = if col > 0 {
                 self.read_hires_memory(col - 1, row)
@@ -2081,7 +2085,7 @@ impl Video {
                 next = val & 0x2 > 0;
                 odd = !odd;
             }
-            */
+            //*/
         }
     }
 
