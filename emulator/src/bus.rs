@@ -650,66 +650,86 @@ impl Bus {
             0x30..=0x3f => self.audio_io_access(),
 
             0x50 => {
+                {
+                    let mut disp = self.video.borrow_mut();
+                    disp.enable_graphics(true);
+                }                
                 let val = self.read_floating_bus();
-                self.video.borrow_mut().enable_graphics(true);
                 val
             }
 
             0x51 => {
+                {
+                    let mut disp = self.video.borrow_mut();
+                    disp.enable_graphics(false);
+                }                
                 let val = self.read_floating_bus();
-                self.video.borrow_mut().enable_graphics(false);
                 val
             }
 
             0x52 => {
+                {
+                    let mut disp = self.video.borrow_mut();
+                    disp.enable_mixed_mode(false);
+                }                
                 let val = self.read_floating_bus();
-                self.video.borrow_mut().enable_mixed_mode(false);
                 val
             }
 
             0x53 => {
+                {
+                    let mut disp = self.video.borrow_mut();
+                    disp.enable_mixed_mode(true);
+                }
                 let val = self.read_floating_bus();
-                self.video.borrow_mut().enable_mixed_mode(true);
                 val
             }
 
             0x54 => {
-                let mut mmu = self.mem.borrow_mut();
-                mmu.video_page2 = false;
+                {
+                    let mut mmu = self.mem.borrow_mut();
+                    mmu.video_page2 = false;
+                    let mut disp = self.video.borrow_mut();
+                    disp.enable_video_page2(false);
+                    disp.update_video();
+                }
                 let val = self.read_floating_bus();
-                let mut disp = self.video.borrow_mut();
-                disp.enable_video_page2(false);
-                disp.update_video();
                 val
             }
 
             0x55 => {
-                let mut mmu = self.mem.borrow_mut();
-                mmu.video_page2 = true;
+                {
+                    let mut mmu = self.mem.borrow_mut();
+                    mmu.video_page2 = true;
+                    let mut disp = self.video.borrow_mut();
+                    disp.enable_video_page2(true);
+                    disp.update_video();
+                }                
                 let val = self.read_floating_bus();
-                let mut disp = self.video.borrow_mut();
-                disp.enable_video_page2(true);
-                disp.update_video();
                 val
             }
 
             0x56 => {
-                let mut mmu = self.mem.borrow_mut();
-                mmu.video_hires = false;
+                {
+                    let mut mmu = self.mem.borrow_mut();
+                    mmu.video_hires = false;
+                    let mut disp = self.video.borrow_mut();
+                    disp.enable_lores(true);
+                    disp.update_video();
+                }
                 let val = self.read_floating_bus();
-                let mut disp = self.video.borrow_mut();
-                disp.enable_lores(true);
-                disp.update_video();
                 val
             }
 
             0x57 => {
-                let mut mmu = self.mem.borrow_mut();
-                mmu.video_hires = true;
+                {
+                    let mut mmu = self.mem.borrow_mut();
+                    mmu.video_hires = true;
+                    let mut disp = self.video.borrow_mut();
+                    disp.enable_lores(false);
+                    disp.update_video();
+                }
                 let val = self.read_floating_bus();
-                let mut disp = self.video.borrow_mut();
-                disp.enable_lores(false);
-                disp.update_video();
                 val
             }
             0x58..=0x5d => 0,

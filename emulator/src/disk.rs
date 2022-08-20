@@ -1259,7 +1259,6 @@ impl DiskDrive {
 
     fn request_fast_disk(&mut self) {
         if !self.is_motor_on() {
-            self.fast_disk_timer = 0;
             return;
         }
 

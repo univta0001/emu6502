@@ -197,7 +197,7 @@ const LORES_COLORS: [Rgb; 16] = [
     COLOR_WHITE,
 ];
 
-const HIRES_COLORS: [Rgb; 16] = [
+const _HIRES_COLORS: [Rgb; 16] = [
     COLOR_BLACK,
     COLOR_VIOLET,
     COLOR_GREEN,
@@ -1967,8 +1967,8 @@ impl Video {
             return;
         }
 
-        /*
         if row < 192 && col < 40 {
+            /*
             let x = col * 14;
             let odd = col % 2;
             let mut value = self.read_hires_memory(col, row);
@@ -2033,7 +2033,6 @@ impl Video {
             }
             */
 
-            {
             // Old Hires handling routine
             let x = col * 7;
             let b0 = if col > 0 {
@@ -2085,11 +2084,10 @@ impl Video {
                 next = val & 0x2 > 0;
                 odd = !odd;
             }
-            //*/
         }
     }
 
-    fn fix_hires_a2_row_col(
+    fn _fix_hires_a2_row_col(
         &mut self,
         row: usize,
         col: usize,
