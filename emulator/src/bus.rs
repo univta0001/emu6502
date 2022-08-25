@@ -653,7 +653,7 @@ impl Bus {
                 {
                     let mut disp = self.video.borrow_mut();
                     disp.enable_graphics(true);
-                }                
+                }
                 let val = self.read_floating_bus();
                 val
             }
@@ -662,7 +662,7 @@ impl Bus {
                 {
                     let mut disp = self.video.borrow_mut();
                     disp.enable_graphics(false);
-                }                
+                }
                 let val = self.read_floating_bus();
                 val
             }
@@ -671,7 +671,7 @@ impl Bus {
                 {
                     let mut disp = self.video.borrow_mut();
                     disp.enable_mixed_mode(false);
-                }                
+                }
                 let val = self.read_floating_bus();
                 val
             }
@@ -704,7 +704,7 @@ impl Bus {
                     let mut disp = self.video.borrow_mut();
                     disp.enable_video_page2(true);
                     disp.update_video();
-                }                
+                }
                 let val = self.read_floating_bus();
                 val
             }
