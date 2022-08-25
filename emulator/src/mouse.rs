@@ -438,7 +438,7 @@ impl Card for Mouse {
         _video: &RefCell<Video>,
         addr: u16,
         value: u8,
-        write_flag: bool,
+        _write_flag: bool,
     ) -> u8 {
         let slot = (((addr & 0x00ff) - 0x0080) >> 4) as u16;
         let map_addr = ((addr & 0x00ff) - (slot << 4)) as u8;
@@ -468,7 +468,7 @@ impl Card for Mouse {
             },
 
             _ => {
-                eprintln!("addr={:02x} value={:02x} write={}", addr, value, write_flag);
+                //eprintln!("addr={:02x} value={:02x} write={}", addr, value, write_flag);
             }
         };
         0
