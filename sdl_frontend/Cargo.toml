@@ -13,7 +13,7 @@ nfd2 = "0.3.1"
 emu6502 = { path = "../emulator" }
 sdl2 = "0.35.2"
 #sdl2 = { version = "0.35.2", features = ['bundled', 'static-link'] }
-serde_yaml = "0.9.9"
+serde_yaml = "0.9.10"
 image = "0.24.3"
 spin_sleep = "1.1.1"
 winapi = "0.3.9"
