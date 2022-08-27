@@ -36,7 +36,7 @@ pub trait Card {
     ) -> u8;
 }
 
-#[derive(Serialize, Deserialize, PartialEq)]
+#[derive(Serialize, Deserialize, Eq, PartialEq)]
 pub enum IODevice {
     None,
     Disk,
@@ -654,8 +654,7 @@ impl Bus {
                     let mut disp = self.video.borrow_mut();
                     disp.enable_graphics(true);
                 }
-                let val = self.read_floating_bus();
-                val
+                self.read_floating_bus()
             }
 
             0x51 => {
@@ -663,8 +662,7 @@ impl Bus {
                     let mut disp = self.video.borrow_mut();
                     disp.enable_graphics(false);
                 }
-                let val = self.read_floating_bus();
-                val
+                self.read_floating_bus()
             }
 
             0x52 => {
@@ -672,8 +670,7 @@ impl Bus {
                     let mut disp = self.video.borrow_mut();
                     disp.enable_mixed_mode(false);
                 }
-                let val = self.read_floating_bus();
-                val
+                self.read_floating_bus()
             }
 
             0x53 => {
@@ -681,8 +678,7 @@ impl Bus {
                     let mut disp = self.video.borrow_mut();
                     disp.enable_mixed_mode(true);
                 }
-                let val = self.read_floating_bus();
-                val
+                self.read_floating_bus()
             }
 
             0x54 => {
@@ -693,8 +689,7 @@ impl Bus {
                     disp.enable_video_page2(false);
                     disp.update_video();
                 }
-                let val = self.read_floating_bus();
-                val
+                self.read_floating_bus()
             }
 
             0x55 => {
@@ -705,8 +700,7 @@ impl Bus {
                     disp.enable_video_page2(true);
                     disp.update_video();
                 }
-                let val = self.read_floating_bus();
-                val
+                self.read_floating_bus()
             }
 
             0x56 => {
@@ -717,8 +711,7 @@ impl Bus {
                     disp.enable_lores(true);
                     disp.update_video();
                 }
-                let val = self.read_floating_bus();
-                val
+                self.read_floating_bus()
             }
 
             0x57 => {
@@ -729,8 +722,7 @@ impl Bus {
                     disp.enable_lores(false);
                     disp.update_video();
                 }
-                let val = self.read_floating_bus();
-                val
+                self.read_floating_bus()
             }
             0x58..=0x5d => 0,
 

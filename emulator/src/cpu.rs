@@ -342,7 +342,7 @@ pub struct CPU {
     pub z80cpu: RefCell<Cpu>,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 #[allow(non_camel_case_types)]
 pub enum AddressingMode {
     Immediate,

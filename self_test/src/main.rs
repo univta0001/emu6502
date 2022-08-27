@@ -5,10 +5,10 @@ use emu6502::cpu::{CpuStats, CPU};
 use std::error::Error;
 use std::io::{self, BufWriter, Write};
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_arch = "x86_64", target_os = "linux"))]
 use std::fs::File;
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_arch = "x86_64", target_os = "linux"))]
 use pprof::protos::Message;
 
 #[rustfmt::skip]
@@ -37,7 +37,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     let now = std::time::Instant::now();
 
-    #[cfg(target_os = "linux")] 
+    #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
     let guard = pprof::ProfilerGuard::new(100).unwrap();
 
     cpu.run_with_callback(&mut |_cpu| {
@@ -62,7 +62,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     writeln!(output, "Indirect Y cross-page:{:>12}", _cpu_stats.indirect_y_cross_page)?;
 
     // Save the pprof output
-    #[cfg(target_os = "linux")] 
+    #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
     {
         if let Ok(report) = guard.report().build() {
             let flame_file = File::create("flamegraph.svg").unwrap();

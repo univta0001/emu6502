@@ -4,7 +4,7 @@ use crate::video::Video;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Debug)]
 pub struct ParallelCard {}
 
 const ROM: [u8; 256] = [

@@ -10,12 +10,12 @@ edition = "2021"
 
 [dependencies]
 emu6502 = { path = "../emulator" }
-wasm-bindgen = "0.2.82"
-wasm-bindgen-futures = "0.4.32"
-js-sys = "0.3.59"
+wasm-bindgen = "0.2.79"
+wasm-bindgen-futures = "0.4.29"
+js-sys = "0.3.56"
 instant = { version = "0.1.12", features = ["wasm-bindgen"] }
 console_error_panic_hook = "0.1.7"
-once_cell = "1.13.0"
+once_cell = "1.10.0"
 wee_alloc = "0.4.5"
 autocfg = "1.1.0"
 

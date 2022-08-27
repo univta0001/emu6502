@@ -4,7 +4,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 pub type Rgb = [u8; 3];
 pub type Yuv = [f32; 3];
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum DisplayMode {
     DEFAULT,
     NTSC,

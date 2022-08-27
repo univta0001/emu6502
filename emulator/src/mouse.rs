@@ -12,7 +12,7 @@ Memory map for mouse
     C083    (r/w) COMMAND
 */
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Debug)]
 pub struct Mouse {
     x: i32,
     y: i32,

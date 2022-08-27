@@ -529,7 +529,7 @@ const ROM: [u8; 8192] = [
 const RAMSIZE: usize = 0x100000;
 const SIZE_1MB: usize = 0x100000;
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Debug)]
 pub struct RamFactor {
     firmware_bank: u8,
     addr: usize,
