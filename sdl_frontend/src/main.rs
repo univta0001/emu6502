@@ -664,8 +664,8 @@ Function Keys:
     Ctrl-F10           Eject Hard Disk 1
     Ctrl-F11           Eject Hard Disk 2
     Ctrl-PrintScreen   Save screenshot as screenshot.png
-    F1:                Load Disk 1 file
-    F2:                Load Disk 2 file
+    F1                 Load Disk 1 file
+    F2                 Load Disk 2 file
     F3                 Swap Disk 1 and Disk 2
     F4                 Disable / Enable Joystick
     F5                 Disable / Enable Fask Disk emulation
