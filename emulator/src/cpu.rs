@@ -1323,7 +1323,7 @@ impl CPU {
             self.interrupt(interrupt::NMI);
         } else if self.bus.irq().is_some() && !self.status.contains(CpuFlags::INTERRUPT_DISABLE) {
             let irq_happen = self.bus.irq().unwrap();
-            let cycles_elapsed = self.bus.cycles.borrow().saturating_sub(irq_happen);
+            let cycles_elapsed = self.bus.cycles.get().saturating_sub(irq_happen);
 
             // If the interrupt happens on the last cycle of the opcode, execute the opcode and
             // then the interrupt handling routine

@@ -11,6 +11,7 @@ use derivative::*;
 use rand::Rng;
 //use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::cell::Cell;
 use std::cell::RefCell;
 use std::cell::RefMut;
 
@@ -56,7 +57,7 @@ pub struct Bus {
     pub audio: RefCell<Audio>,
     pub parallel: RefCell<ParallelCard>,
 
-    pub keyboard_latch: RefCell<u8>,
+    pub keyboard_latch: Cell<u8>,
     pub pushbutton_latch: [u8; 4],
     pub paddle_latch: [u8; 4],
     pub paddle_x_trim: i8,
@@ -66,12 +67,12 @@ pub struct Bus {
     pub disable_audio: bool,
     pub joystick_flag: bool,
     pub joystick_jitter: bool,
-    pub paddle_trigger: RefCell<usize>,
+    pub paddle_trigger: Cell<usize>,
     pub mem: RefCell<Mmu>,
-    pub cycles: RefCell<usize>,
-    pub intcxrom: RefCell<bool>,
-    pub slotc3rom: RefCell<bool>,
-    pub intc8rom: RefCell<bool>,
+    pub cycles: Cell<usize>,
+    pub intcxrom: Cell<bool>,
+    pub slotc3rom: Cell<bool>,
+    pub intc8rom:Cell<bool>,
 
     #[serde(default)]
     pub harddisk: RefCell<HardDisk>,
@@ -83,10 +84,10 @@ pub struct Bus {
     pub noslotclock: RefCell<NoSlotClock>,
 
     #[serde(default)]
-    pub iou: RefCell<bool>,
+    pub iou: Cell<bool>,
 
     #[serde(default)]
-    pub halt_cpu: RefCell<bool>,
+    pub halt_cpu: Cell<bool>,
     //bad_softswitch_addr: HashMap<u16, bool>,
     #[serde(default = "default_io_slot")]
     #[derivative(Debug = "ignore")]
@@ -96,7 +97,7 @@ pub struct Bus {
     pub ramfactor: RefCell<RamFactor>,
 
     #[serde(default)]
-    pub extended_rom: RefCell<u8>,
+    pub extended_rom: Cell<u8>,
 }
 
 pub trait Mem {
@@ -159,15 +160,15 @@ impl Bus {
     pub fn new() -> Self {
         let mem = RefCell::new(Mmu::default());
         let mut bus = Bus {
-            keyboard_latch: RefCell::new(0),
+            keyboard_latch: Cell::new(0),
             pushbutton_latch: [0x0, 0x0, 0x0, 0x0],
             paddle_latch: [0x80, 0x80, 0x80, 0x80],
             paddle_x_trim: 0,
             paddle_y_trim: 0,
-            paddle_trigger: RefCell::new(0),
+            paddle_trigger: Cell::new(0),
             joystick_flag: true,
             joystick_jitter: false,
-            cycles: RefCell::new(0),
+            cycles: Cell::new(0),
             disk: RefCell::new(DiskDrive::default()),
             video: RefCell::new(Video::new()),
             audio: RefCell::new(Audio::new()),
@@ -175,19 +176,19 @@ impl Bus {
             ramfactor: RefCell::new(RamFactor::new()),
             harddisk: RefCell::new(HardDisk::new()),
             mouse: RefCell::new(Mouse::new()),
-            intcxrom: RefCell::new(false),
-            slotc3rom: RefCell::new(false),
-            intc8rom: RefCell::new(false),
+            intcxrom: Cell::new(false),
+            slotc3rom: Cell::new(false),
+            intc8rom: Cell::new(false),
             noslotclock: RefCell::new(NoSlotClock::new()),
             disable_video: false,
             disable_disk: false,
             disable_audio: false,
             //bad_softswitch_addr: HashMap::new(),
             mem,
-            iou: RefCell::new(false),
-            halt_cpu: RefCell::new(false),
+            iou: Cell::new(false),
+            halt_cpu: Cell::new(false),
             io_slot: default_io_slot(),
-            extended_rom: RefCell::new(0),
+            extended_rom: Cell::new(0),
         };
 
         // Memory initialization is based on the implementation of AppleWin
@@ -219,10 +220,10 @@ impl Bus {
     }
 
     pub fn reset(&mut self) {
-        *self.intcxrom.borrow_mut() = false;
-        *self.slotc3rom.borrow_mut() = false;
-        *self.intc8rom.borrow_mut() = false;
-        *self.extended_rom.borrow_mut() = 0;
+        self.intcxrom.set(false);
+        self.slotc3rom.set(false);
+        self.intc8rom.set(false);
+        self.extended_rom.set(0);
 
         self.mem.borrow_mut().reset();
         self.video.borrow_mut().reset();
@@ -242,7 +243,7 @@ impl Bus {
     }
 
     pub fn tick(&self) {
-        *self.cycles.borrow_mut() += 1;
+        self.cycles.set(self.cycles.get() + 1);
 
         if !self.disable_video {
             self.video.borrow_mut().tick();
@@ -259,11 +260,11 @@ impl Bus {
     }
 
     pub fn get_cycles(&self) -> usize {
-        *self.cycles.borrow()
+        self.cycles.get()
     }
 
     pub fn set_cycles(&mut self, cycles: usize) {
-        *self.cycles.borrow_mut() = cycles;
+        self.cycles.set(cycles);
     }
 
     pub fn is_normal_speed(&self) -> bool {
@@ -271,11 +272,11 @@ impl Bus {
     }
 
     fn get_paddle_trigger(&self) -> usize {
-        *self.paddle_trigger.borrow()
+        self.paddle_trigger.get()
     }
 
     fn set_paddle_trigger(&self, value: usize) {
-        *self.paddle_trigger.borrow_mut() = value;
+        self.paddle_trigger.set(value);
     }
 
     pub fn register_device(&mut self, device: IODevice, slot: usize) {
@@ -324,10 +325,10 @@ impl Bus {
     }
 
     fn iodevice_rom_access(&self, addr: u16, value: u8, write_flag: bool) -> u8 {
-        if !*self.intcxrom.borrow() {
+        if !self.intcxrom.get() {
             if addr >= 0xc800 {
                 // Handle the extended rom separately
-                let slot = *self.extended_rom.borrow() as usize;
+                let slot = self.extended_rom.get() as usize;
                 let mut slot_value = self.io_slot[slot].borrow_mut();
                 let return_value: Option<RefMut<'_, dyn Card>> = match &mut *slot_value {
                     IODevice::RamFactor => Some(self.ramfactor.borrow_mut()),
@@ -355,7 +356,7 @@ impl Bus {
                 }
 
                 let audio = self.audio.borrow_mut();
-                *self.extended_rom.borrow_mut() = slot as u8;
+                self.extended_rom.set(slot as u8);
                 let return_value: Option<RefMut<'_, dyn Card>> = match &mut *slot_value {
                     IODevice::Printer => Some(self.parallel.borrow_mut()),
                     IODevice::RamFactor => Some(self.ramfactor.borrow_mut()),
@@ -364,7 +365,7 @@ impl Bus {
                     IODevice::HardDisk => Some(self.harddisk.borrow_mut()),
                     IODevice::Z80 => {
                         if write_flag {
-                            *self.halt_cpu.borrow_mut() = true;
+                            self.halt_cpu.set(true);
                         }
                         None
                     }
@@ -458,9 +459,9 @@ impl Bus {
     }
 
     pub fn poll_halt_status(&mut self) -> Option<()> {
-        let mut halt_status = self.halt_cpu.borrow_mut();
-        if *halt_status {
-            *halt_status = false;
+        let halt_status = self.halt_cpu.get();
+        if halt_status {
+            self.halt_cpu.set(false);
             Some(())
         } else {
             None
@@ -491,11 +492,11 @@ impl Bus {
     }
 
     pub fn get_keyboard_latch(&self) -> u8 {
-        *self.keyboard_latch.borrow()
+        self.keyboard_latch.get()
     }
 
     pub fn set_keyboard_latch(&self, value: u8) {
-        *self.keyboard_latch.borrow_mut() = value
+        self.keyboard_latch.set(value)
     }
 
     fn get_io_status(&self, flag: bool) -> u8 {
@@ -564,9 +565,9 @@ impl Bus {
 
             0x06 => {
                 if write_flag {
-                    *self.intcxrom.borrow_mut() = false;
-                    if *self.slotc3rom.borrow() {
-                        *self.intc8rom.borrow_mut() = false;
+                    self.intcxrom.set(false);
+                    if self.slotc3rom.get() {
+                        self.intc8rom.set(false);
                     }
                 }
                 self.get_keyboard_latch()
@@ -574,8 +575,8 @@ impl Bus {
 
             0x07 => {
                 if write_flag {
-                    *self.intcxrom.borrow_mut() = true;
-                    *self.slotc3rom.borrow_mut() = false;
+                    self.intcxrom.set(true);
+                    self.slotc3rom.set(false);
                 }
                 self.get_keyboard_latch()
             }
@@ -598,14 +599,14 @@ impl Bus {
 
             0x0a => {
                 if write_flag {
-                    *self.slotc3rom.borrow_mut() = false;
+                    self.slotc3rom.set(false);
                 }
                 self.get_keyboard_latch()
             }
 
             0x0b => {
                 if write_flag {
-                    *self.slotc3rom.borrow_mut() = true;
+                    self.slotc3rom.set(true);
                 }
                 self.get_keyboard_latch()
             }
@@ -628,11 +629,11 @@ impl Bus {
 
             0x14 => self.get_io_status(self.mem.borrow().wrcardram),
 
-            0x15 => self.get_io_status(*self.intcxrom.borrow()),
+            0x15 => self.get_io_status(self.intcxrom.get()),
 
             0x16 => self.get_io_status(self.mem.borrow().altzp),
 
-            0x17 => self.get_io_status(*self.slotc3rom.borrow()),
+            0x17 => self.get_io_status(self.slotc3rom.get()),
 
             0x18 => self.get_io_status(self.mem.borrow()._80storeon),
 
@@ -806,9 +807,9 @@ impl Bus {
             0x7e => {
                 let val = self.read_floating_bus() & 0x7f;
                 if write_flag {
-                    *self.iou.borrow_mut() = false;
+                    self.iou.set(false);
                     val
-                } else if !*self.iou.borrow() {
+                } else if !self.iou.get() {
                     val | 0x80
                 } else {
                     val
@@ -818,7 +819,7 @@ impl Bus {
             0x7f => {
                 let val = self.read_floating_bus() & 0x7f;
                 if write_flag {
-                    *self.iou.borrow_mut() = true;
+                    self.iou.set(true);
                     val
                 } else if self.video.borrow().is_dhires_mode() {
                     val | 0x80
@@ -934,10 +935,10 @@ impl Mem for Bus {
                     clock.io_access(addr, 0, false);
                 }
 
-                if !*self.slotc3rom.borrow() {
-                    *self.intc8rom.borrow_mut() = true;
+                if !self.slotc3rom.get() {
+                    self.intc8rom.set(true);
                 }
-                if *self.slotc3rom.borrow() {
+                if self.slotc3rom.get() {
                     self.read_floating_bus()
                 } else if self.video.borrow().is_apple2e() {
                     self.mem_read(addr)
@@ -949,9 +950,9 @@ impl Mem for Bus {
             0xc000..=0xc0ff => self.io_access(addr, 0, false),
             0xc800..=0xcfff => {
                 if addr == 0xcfff {
-                    *self.intc8rom.borrow_mut() = false;
+                    self.intc8rom.set(false);
                 }
-                if *self.intcxrom.borrow() || *self.intc8rom.borrow() {
+                if self.intcxrom.get() || self.intc8rom.get() {
                     self.mem_read(addr)
                 } else {
                     self.iodevice_rom_access(addr, 0, false)
@@ -1002,7 +1003,7 @@ impl Mem for Bus {
             }
 
             0xcfff => {
-                *self.intc8rom.borrow_mut() = false;
+                self.intc8rom.set(false);
             }
         }
     }
