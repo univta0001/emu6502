@@ -17,8 +17,8 @@ serde_yaml = "0.9.10"
 image = "0.24.3"
 spin_sleep = "1.1.1"
 
-[target.x86_64-pc-windows-msvc.dependencies]
-winapi = "0.3.9"
+#[target.x86_64-pc-windows-msvc.dependencies]
+#winapi = "0.3.9"
 
 [build-dependencies]
 embed-resource = "1.7.3"
