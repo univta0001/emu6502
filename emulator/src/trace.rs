@@ -469,7 +469,7 @@ mod test {
         cpu.register_x = 2;
         cpu.register_y = 3;
         let mut result: Vec<String> = vec![];
-        cpu.run_with_callback(&mut |cpu| {
+        cpu.run_with_callback(|cpu| {
             let mut s = String::new();
             trace(&mut s, cpu);
             result.push(s);
@@ -506,7 +506,7 @@ mod test {
         cpu.program_counter = 0x64;
         cpu.register_y = 0;
         let mut result: Vec<String> = vec![];
-        cpu.run_with_callback(&mut |cpu| {
+        cpu.run_with_callback(|cpu| {
             let mut s = String::new();
             trace(&mut s, cpu);
             result.push(s);
@@ -535,7 +535,7 @@ mod test {
         let mut cpu = CPU::new(bus);
         cpu.program_counter = 0x1000;
         let mut result: Vec<String> = vec![];
-        cpu.run_with_callback(&mut |cpu| {
+        cpu.run_with_callback(|cpu| {
             let mut s = String::new();
             trace(&mut s, cpu);
             result.push(s);
