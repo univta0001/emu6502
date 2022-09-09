@@ -91,7 +91,7 @@ pub struct Bus {
     //bad_softswitch_addr: HashMap<u16, bool>,
     #[serde(default = "default_io_slot")]
     #[derivative(Debug = "ignore")]
-    pub io_slot: Vec<Cell<IODevice>>,
+    pub io_slot: Vec<IODevice>,
 
     #[serde(default)]
     pub ramfactor: RefCell<RamFactor>,
@@ -283,27 +283,27 @@ impl Bus {
         if slot < self.io_slot.len() {
             if device == IODevice::Disk {
                 for i in 1..8 {
-                    if i != slot && self.io_slot[i].get() == IODevice::Disk {
-                        self.io_slot[i] = Cell::new(IODevice::None)
+                    if i != slot && self.io_slot[i] == IODevice::Disk {
+                        self.io_slot[i] = IODevice::None
                     }
                 }
             }
-            self.io_slot[slot] = Cell::new(device);
+            self.io_slot[slot] = device;
         }
     }
 
     pub fn unregister_device(&mut self, slot: usize) {
         if slot < self.io_slot.len() {
-            self.io_slot[slot] = Cell::new(IODevice::None);
+            self.io_slot[slot] = IODevice::None;
         }
     }
 
     fn iodevice_io_access(&self, addr: u16, value: u8, write_flag: bool) -> u8 {
         let slot = (((addr & 0x00ff) - 0x0080) >> 4) as usize;
         if slot < self.io_slot.len() {
-            let mut slot_value = self.io_slot[slot].get();
+            let slot_value = self.io_slot[slot];
             //eprintln!("IOAccess - {:04x} {} {}",addr,slot,io_addr);
-            let return_value: Option<RefMut<'_, dyn Card>> = match &mut slot_value {
+            let return_value: Option<RefMut<'_, dyn Card>> = match slot_value {
                 IODevice::Printer => Some(self.parallel.borrow_mut()),
                 IODevice::RamFactor => Some(self.ramfactor.borrow_mut()),
                 IODevice::Mouse => Some(self.mouse.borrow_mut()),
@@ -329,7 +329,7 @@ impl Bus {
             if addr >= 0xc800 {
                 // Handle the extended rom separately
                 let slot = self.extended_rom.get() as usize;
-                let mut slot_value = self.io_slot[slot].get();
+                let mut slot_value = self.io_slot[slot];
                 let return_value: Option<RefMut<'_, dyn Card>> = match &mut slot_value {
                     IODevice::RamFactor => Some(self.ramfactor.borrow_mut()),
                     _ => None,
@@ -344,7 +344,7 @@ impl Bus {
 
             let slot = ((addr >> 8) & 0x0f) as usize;
             if slot < self.io_slot.len() {
-                let mut slot_value = self.io_slot[slot].get();
+                let slot_value = self.io_slot[slot];
                 //eprintln!("ROMAccess - {:04x} {} {}",addr,slot,ioaddr);
 
                 // Implement no slot clock
@@ -357,7 +357,7 @@ impl Bus {
 
                 let audio = self.audio.borrow_mut();
                 self.extended_rom.set(slot as u8);
-                let return_value: Option<RefMut<'_, dyn Card>> = match &mut slot_value {
+                let return_value: Option<RefMut<'_, dyn Card>> = match slot_value {
                     IODevice::Printer => Some(self.parallel.borrow_mut()),
                     IODevice::RamFactor => Some(self.ramfactor.borrow_mut()),
                     IODevice::Mouse => Some(self.mouse.borrow_mut()),
@@ -370,10 +370,10 @@ impl Bus {
                         None
                     }
                     IODevice::Mockingboard(device_no) => {
-                        if audio.mboard.is_empty() || *device_no >= audio.mboard.len() {
+                        if audio.mboard.is_empty() || device_no >= audio.mboard.len() {
                             None
                         } else {
-                            Some(audio.mboard[*device_no].borrow_mut())
+                            Some(audio.mboard[device_no].borrow_mut())
                         }
                     }
                     _ => None,
@@ -1029,21 +1029,21 @@ impl Default for Bus {
     fn default() -> Self {
         let mut this = Self::new();
 
-        this.io_slot[1] = Cell::new(IODevice::Printer);
-        this.io_slot[2] = Cell::new(IODevice::RamFactor);
-        this.io_slot[4] = Cell::new(IODevice::Mockingboard(0));
-        this.io_slot[5] = Cell::new(IODevice::Mouse);
-        this.io_slot[6] = Cell::new(IODevice::Disk);
-        this.io_slot[7] = Cell::new(IODevice::HardDisk);
+        this.io_slot[1] = IODevice::Printer;
+        this.io_slot[2] = IODevice::RamFactor;
+        this.io_slot[4] = IODevice::Mockingboard(0);
+        this.io_slot[5] = IODevice::Mouse;
+        this.io_slot[6] = IODevice::Disk;
+        this.io_slot[7] = IODevice::HardDisk;
 
         this
     }
 }
 
-fn default_io_slot() -> Vec<Cell<IODevice>> {
+fn default_io_slot() -> Vec<IODevice> {
     let mut io_slot = Vec::new();
     for _ in 0..8 {
-        io_slot.push(Cell::new(IODevice::None))
+        io_slot.push(IODevice::None)
     }
     io_slot
 }
