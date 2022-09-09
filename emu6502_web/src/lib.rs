@@ -105,7 +105,7 @@ impl Emulator {
     }
 
     pub fn step_cpu(&mut self) {
-        self.cpu.step_cpu_with_callback(&mut |_| {});
+        self.cpu.step_cpu_with_callback(|_| {});
     }
 
     pub fn cpu_cycles(&self) -> u32 {
@@ -139,7 +139,7 @@ impl Emulator {
     }
 
     pub fn keyboard_latch(&mut self, value: u8) {
-        *self.cpu.bus.keyboard_latch.borrow_mut() = (value + 128) as u8;
+        self.cpu.bus.keyboard_latch.set((value + 128) as u8);
     }
 
     pub fn is_apple2e(&self) -> bool {
