@@ -826,7 +826,7 @@ impl Card for Mockingboard {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::bus::Bus;
+    use crate::bus::{Bus, IODevice};
     use crate::cpu::CPU;
 
     fn setup(w65c22: &mut W65C22) {
@@ -922,7 +922,7 @@ mod test {
     #[test]
     fn test_detect_mockingboard() {
         let mut bus = Bus::new();
-        bus.io_slot[4] = RefCell::new(crate::bus::IODevice::Mockingboard(0));
+        bus.io_slot[4] = IODevice::Mockingboard(0);
         let mut cpu = CPU::new(bus);
         cpu.reset();
         let detect_code = [

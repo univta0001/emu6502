@@ -12,8 +12,7 @@ use rand::Rng;
 //use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use std::cell::Cell;
-use std::cell::RefCell;
-use std::cell::RefMut;
+use std::cell::{RefMut, RefCell};
 
 pub const ROM_START: u16 = 0xd000;
 pub const ROM_END: u16 = 0xffff;
@@ -329,8 +328,8 @@ impl Bus {
             if addr >= 0xc800 {
                 // Handle the extended rom separately
                 let slot = self.extended_rom.get() as usize;
-                let mut slot_value = self.io_slot[slot];
-                let return_value: Option<RefMut<'_, dyn Card>> = match &mut slot_value {
+                let slot_value = self.io_slot[slot];
+                let return_value: Option<RefMut<'_, dyn Card>> = match slot_value {
                     IODevice::RamFactor => Some(self.ramfactor.borrow_mut()),
                     _ => None,
                 };
