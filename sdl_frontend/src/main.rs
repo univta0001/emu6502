@@ -630,6 +630,7 @@ FLAGS:
     --nojoystick       Disable joystick
     --xtrim            Set joystick x-trim value
     --ytrim            Set joystick y-trim value
+    --swapbuttons      Swap the paddle 0 and paddle 1 buttons
     -r no of pages     Emulate RAMworks III card with 1 to 127 pages
     -rf size           Ramfactor memory size in KB
     -m, --model MODEL  Set apple 2 model. Valid value: apple2p,apple2e,apple2ee
@@ -924,6 +925,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     if pargs.contains("--nojoystick") {
         cpu.bus.set_joystick(false);
     }
+
+    if pargs.contains("--swapbuttons") {
+        cpu.bus.swap_buttons(true);
+    }    
 
     if let Some(xtrim) = pargs.opt_value_from_str::<_, i8>("--xtrim")? {
         cpu.bus.set_joystick_xtrim(xtrim);

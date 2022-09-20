@@ -64,6 +64,7 @@ pub struct Bus {
     pub disable_video: bool,
     pub disable_disk: bool,
     pub disable_audio: bool,
+    pub swap_button: bool,
     pub joystick_flag: bool,
     pub joystick_jitter: bool,
     pub paddle_trigger: Cell<usize>,
@@ -165,6 +166,7 @@ impl Bus {
             paddle_x_trim: 0,
             paddle_y_trim: 0,
             paddle_trigger: Cell::new(0),
+            swap_button: false,
             joystick_flag: true,
             joystick_jitter: false,
             cycles: Cell::new(0),
@@ -403,6 +405,10 @@ impl Bus {
     pub fn set_joystick(&mut self, flag: bool) {
         self.joystick_flag = flag;
         self.update_joystick();
+    }
+
+    pub fn swap_buttons(&mut self, flag: bool) {
+        self.swap_button = flag;
     }
 
     pub fn set_joystick_xtrim(&mut self, xtrim: i8) {
@@ -745,8 +751,20 @@ impl Bus {
             // 0x60 PB3 should only works in real Apple 2GS
             0x60 => self.pushbutton_latch[3],
 
-            0x61 => self.pushbutton_latch[0],
-            0x62 => self.pushbutton_latch[1],
+            0x61 => {
+                if !self.swap_button { 
+                    self.pushbutton_latch[0] 
+                } else { 
+                    self.pushbutton_latch[1]
+                }
+            }
+            0x62 => {
+                if !self.swap_button {
+                    self.pushbutton_latch[1]
+                } else {
+                    self.pushbutton_latch[0]
+                }
+            }
             0x63 => self.pushbutton_latch[2],
 
             0x64 => {
