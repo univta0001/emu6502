@@ -58,7 +58,7 @@ pub struct Bus {
 
     pub keyboard_latch: Cell<u8>,
     pub pushbutton_latch: [u8; 4],
-    pub paddle_latch: [u8; 4],
+    pub paddle_latch: [u16; 4],
     pub paddle_x_trim: i8,
     pub paddle_y_trim: i8,
     pub disable_video: bool,
@@ -419,9 +419,9 @@ impl Bus {
         if self.joystick_flag {
             for i in 0..4 {
                 if i % 2 == 0 {
-                    self.paddle_latch[i] = (0x80_i16 + self.paddle_x_trim as i16) as u8;
+                    self.paddle_latch[i] = (0x80_i16 + self.paddle_x_trim as i16) as u16;
                 } else {
-                    self.paddle_latch[i] = (0x80_i16 + self.paddle_y_trim as i16) as u8;
+                    self.paddle_latch[i] = (0x80_i16 + self.paddle_y_trim as i16) as u16;
                 }
             }
         } else {
@@ -444,9 +444,9 @@ impl Bus {
     pub fn reset_paddle_latch(&mut self, paddle: usize) {
         if self.joystick_flag {
             if paddle % 2 == 0 {
-                self.paddle_latch[paddle] = (0x80_i16 + self.paddle_x_trim as i16) as u8;
+                self.paddle_latch[paddle] = (0x80_i16 + self.paddle_x_trim as i16) as u16;
             } else {
-                self.paddle_latch[paddle] = (0x80_i16 + self.paddle_y_trim as i16) as u8;
+                self.paddle_latch[paddle] = (0x80_i16 + self.paddle_y_trim as i16) as u16;
             }
         } else {
             self.paddle_latch[paddle] = 0xff;
@@ -885,16 +885,16 @@ impl Bus {
         }
     }
 
-    fn get_joystick_value(&self, value: u8) -> u8 {
+    fn get_joystick_value(&self, value: u16) -> u16 {
         if !self.joystick_jitter {
             value
         } else {
             let mut rng = rand::thread_rng();
             let jitter: i8 = rng.gen_range(-4..5);
             if jitter < 0 {
-                value.saturating_sub((-jitter) as u8)
+                value.saturating_sub((-jitter) as u16)
             } else {
-                value.saturating_add(jitter as u8)
+                value.saturating_add(jitter as u16)
             }
         }
     }

@@ -179,6 +179,8 @@ fn translate_key_to_apple_key(
 }
 
 fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
+    const PADDLE_MAX_VALUE: u16 = 287;
+
     match event {
         Event::Quit { .. } => cpu.halt_cpu(),
 
@@ -196,12 +198,18 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                 if joystick_id < 2 {
                     match axis {
                         Axis::LeftX | Axis::RightX => {
-                            cpu.bus.paddle_latch[2 * joystick_id as usize] =
-                                (val / 256 + 128) as u8;
+                            let mut value = (val / 256 + 128) as u16;
+                            if value >= 255 {
+                                value = PADDLE_MAX_VALUE;
+                            }
+                            cpu.bus.paddle_latch[2 * joystick_id as usize] = value;
                         }
                         Axis::LeftY | Axis::RightY => {
-                            cpu.bus.paddle_latch[2 * joystick_id as usize + 1] =
-                                (val / 256 + 128) as u8;
+                            let mut value = (val / 256 + 128) as u16;
+                            if value >= 255 {
+                                value = PADDLE_MAX_VALUE;
+                            }
+                            cpu.bus.paddle_latch[2 * joystick_id as usize + 1] = value;
                         }
                         _ => {}
                     }
@@ -224,13 +232,13 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                             cpu.bus.paddle_latch[2 * joystick_id as usize + 1] = 0x0;
                         }
                         Button::DPadDown => {
-                            cpu.bus.paddle_latch[2 * joystick_id as usize + 1] = 0xff;
+                            cpu.bus.paddle_latch[2 * joystick_id as usize + 1] = PADDLE_MAX_VALUE;
                         }
                         Button::DPadLeft => {
                             cpu.bus.paddle_latch[2 * joystick_id as usize] = 0x0;
                         }
                         Button::DPadRight => {
-                            cpu.bus.paddle_latch[2 * joystick_id as usize] = 0xff;
+                            cpu.bus.paddle_latch[2 * joystick_id as usize] = PADDLE_MAX_VALUE;
                         }
                         _ => {}
                     }
