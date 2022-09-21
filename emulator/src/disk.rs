@@ -1810,7 +1810,7 @@ impl DiskDrive {
         disk.write_protect
     }
 
-    fn write_track(&mut self, track_to_write: i32, write_value: bool) {
+    fn write_track(&mut self, track_to_write: i32, write_value: bool, write_protected: bool) {
         let disk = &mut self.drive[self.drive_select];
         let mut tmap_track = disk.tmap_data[track_to_write as usize];
 
@@ -1820,14 +1820,6 @@ impl DiskDrive {
         }
 
         if tmap_track != 0xff {
-            if track_to_write > 0 {
-                disk.tmap_data[(track_to_write - 1) as usize] = tmap_track;
-            }
-
-            if track_to_write + 1 < 160 {
-                disk.tmap_data[(track_to_write + 1) as usize] = tmap_track;
-            }
-
             let track = &mut disk.raw_track_data[tmap_track as usize];
             let track_bits = disk.raw_track_bits[tmap_track as usize];
 
@@ -1837,17 +1829,27 @@ impl DiskDrive {
                 disk.head_bit = 0;
             }
 
-            let mut value = track[disk.head];
-            let _oldvalue = track[disk.head];
+            if !write_protected {
+                if track_to_write > 0 {
+                    disk.tmap_data[(track_to_write - 1) as usize] = tmap_track;
+                }
 
-            if write_value {
-                value |= disk.head_mask as u8;
-            } else {
-                value &= !disk.head_mask as u8;
+                if track_to_write + 1 < 160 {
+                    disk.tmap_data[(track_to_write + 1) as usize] = tmap_track;
+                }
+
+                let mut value = track[disk.head];
+                let _oldvalue = track[disk.head];
+
+                if write_value {
+                    value |= disk.head_mask as u8;
+                } else {
+                    value &= !disk.head_mask as u8;
+                }
+
+                track[disk.head] = value;
+                disk.modified = true;
             }
-
-            track[disk.head] = value;
-            disk.modified = true;
 
             /*
             if (self.cycles + 1) % 1000 == 0 {
@@ -1874,22 +1876,9 @@ impl DiskDrive {
         if command & 8 > 0 && command & 3 > 0 && self.q7 {
             let write_value = self.lss_state & 0x80 != self.prev_lss_state & 0x80;
             self.prev_lss_state = self.lss_state;
-            if !self.is_write_protected() {
-                let disk = &mut self.drive[self.drive_select];
-                let track_to_write = disk.track;
-                self.write_track(track_to_write, write_value);
-
-                /*
-
-                if track_to_write > 0 {
-                    self.write_track(track_to_write - 1, write_value);
-                }
-
-                if track_to_write + 1 < 160 {
-                    self.write_track(track_to_write + 1, write_value);
-                }
-                */
-            }
+            let disk = &mut self.drive[self.drive_select];
+            let track_to_write = disk.track;
+            self.write_track(track_to_write, write_value, self.is_write_protected());
         }
 
         // Logic State Sequencer Command (Understanding Apple ][ pg 9-15)
