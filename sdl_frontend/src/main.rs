@@ -187,7 +187,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         Event::ControllerAxisMotion {
             which,
             axis,
-            value: val,
+            value,
             ..
         } => {
             if let Some(entry) = event_param.gamepads.get(&which) {
@@ -198,20 +198,26 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                 if joystick_id < 2 {
                     match axis {
                         Axis::LeftX | Axis::RightX => {
-                            let mut value = (((val as i32 + 32768) / 257) +
-                                cpu.bus.paddle_x_trim as i32) as u16;
-                            if value >= 255 {
-                                value = PADDLE_MAX_VALUE;
+                            if value == 128 {
+                                cpu.bus.reset_paddle_latch(2 * joystick_id as usize);
+                            } else {
+                                let mut pvalue = ((value as i32 + 32768) / 257) as u16;
+                                if pvalue >= 255 {
+                                    pvalue = PADDLE_MAX_VALUE;
+                                }
+                                cpu.bus.paddle_latch[2 * joystick_id as usize] = pvalue 
                             }
-                            cpu.bus.paddle_latch[2 * joystick_id as usize] = value 
                         }
                         Axis::LeftY | Axis::RightY => {
-                            let mut value = (((val as i32 + 32768) / 257) +
-                                cpu.bus.paddle_y_trim as i32) as u16;
-                            if value >= 255 {
-                                value = PADDLE_MAX_VALUE;
+                            if value == 128 {
+                                cpu.bus.reset_paddle_latch(2 * joystick_id as usize + 1);
+                            } else {
+                                let mut pvalue = ((value as i32 + 32768) / 257) as u16;
+                                if pvalue >= 255 {
+                                    pvalue = PADDLE_MAX_VALUE;
+                                }
+                                cpu.bus.paddle_latch[2 * joystick_id as usize + 1] = pvalue 
                             }
-                            cpu.bus.paddle_latch[2 * joystick_id as usize + 1] = value;
                         }
                         _ => { }
                     }

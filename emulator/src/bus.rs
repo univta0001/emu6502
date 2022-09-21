@@ -422,18 +422,8 @@ impl Bus {
     }
 
     fn update_joystick(&mut self) {
-        if self.joystick_flag {
-            for i in 0..4 {
-                if i % 2 == 0 {
-                    self.paddle_latch[i] = (0x7f_i16 + self.paddle_x_trim as i16) as u16;
-                } else {
-                    self.paddle_latch[i] = (0x7f_i16 + self.paddle_y_trim as i16) as u16;
-                }
-            }
-        } else {
-            for i in 0..4 {
-                self.paddle_latch[i] = 0xff;
-            }
+        for i in 0..4 {
+            self.reset_paddle_latch(i);
         }
     }
 
