@@ -322,7 +322,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             keycode: Some(Keycode::Kp6),
             ..
         } => {
-            cpu.bus.paddle_latch[0] = 0xff;
+            cpu.bus.paddle_latch[0] = PADDLE_MAX_VALUE;
         }
 
         Event::KeyUp {
@@ -350,7 +350,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             keycode: Some(Keycode::Kp2),
             ..
         } => {
-            cpu.bus.paddle_latch[1] = 0xff;
+            cpu.bus.paddle_latch[1] = PADDLE_MAX_VALUE;
         }
 
         Event::KeyUp {
