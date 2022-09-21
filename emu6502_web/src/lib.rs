@@ -120,14 +120,14 @@ impl Emulator {
         self.cpu.interrupt_reset();
     }
 
-    pub fn set_paddle(&mut self, index: u8, value: u8) {
-        if index < self.cpu.bus.paddle_latch.len() as u8 {
+    pub fn set_paddle(&mut self, index: u16, value: u16) {
+        if index < self.cpu.bus.paddle_latch.len() as u16 {
             self.cpu.bus.paddle_latch[index as usize] = value;
         }
     }
 
-    pub fn reset_paddle(&mut self, index: u8) {
-        if index < self.cpu.bus.paddle_latch.len() as u8 {
+    pub fn reset_paddle(&mut self, index: u16) {
+        if index < self.cpu.bus.paddle_latch.len() as u16 {
             self.cpu.bus.reset_paddle_latch(index as usize);
         }
     }
