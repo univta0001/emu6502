@@ -162,7 +162,7 @@ impl Bus {
         let mut bus = Bus {
             keyboard_latch: Cell::new(0),
             pushbutton_latch: [0x0, 0x0, 0x0, 0x0],
-            paddle_latch: [0x80, 0x80, 0x80, 0x80],
+            paddle_latch: [0x7f, 0x7f, 0x7f, 0x7f],
             paddle_x_trim: 0,
             paddle_y_trim: 0,
             paddle_trigger: Cell::new(0),
@@ -425,9 +425,9 @@ impl Bus {
         if self.joystick_flag {
             for i in 0..4 {
                 if i % 2 == 0 {
-                    self.paddle_latch[i] = (0x80_i16 + self.paddle_x_trim as i16) as u16;
+                    self.paddle_latch[i] = (0x7f_i16 + self.paddle_x_trim as i16) as u16;
                 } else {
-                    self.paddle_latch[i] = (0x80_i16 + self.paddle_y_trim as i16) as u16;
+                    self.paddle_latch[i] = (0x7f_i16 + self.paddle_y_trim as i16) as u16;
                 }
             }
         } else {
@@ -450,9 +450,9 @@ impl Bus {
     pub fn reset_paddle_latch(&mut self, paddle: usize) {
         if self.joystick_flag {
             if paddle % 2 == 0 {
-                self.paddle_latch[paddle] = (0x80_i16 + self.paddle_x_trim as i16) as u16;
+                self.paddle_latch[paddle] = (0x7f_i16 + self.paddle_x_trim as i16) as u16;
             } else {
-                self.paddle_latch[paddle] = (0x80_i16 + self.paddle_y_trim as i16) as u16;
+                self.paddle_latch[paddle] = (0x7f_i16 + self.paddle_y_trim as i16) as u16;
             }
         } else {
             self.paddle_latch[paddle] = 0xff;
