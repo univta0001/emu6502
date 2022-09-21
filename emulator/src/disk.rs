@@ -1815,6 +1815,10 @@ impl DiskDrive {
         let mut tmap_track = disk.tmap_data[track_to_write as usize];
 
         if tmap_track == 0xff {
+            if write_protected {
+                return
+            }
+
             expand_unused_disk_track(disk, track_to_write as usize);
             tmap_track = disk.tmap_data[track_to_write as usize];
         }
