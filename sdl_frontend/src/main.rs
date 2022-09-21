@@ -198,20 +198,22 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                 if joystick_id < 2 {
                     match axis {
                         Axis::LeftX | Axis::RightX => {
-                            let mut value = ((val as i32 + 32768) / 257) as u16;
+                            let mut value = (((val as i32 + 32768) / 257) +
+                                cpu.bus.paddle_x_trim as i32) as u16;
                             if value >= 255 {
                                 value = PADDLE_MAX_VALUE;
                             }
-                            cpu.bus.paddle_latch[2 * joystick_id as usize] = value;
+                            cpu.bus.paddle_latch[2 * joystick_id as usize] = value 
                         }
                         Axis::LeftY | Axis::RightY => {
-                            let mut value = ((val as u32 + 32768) / 257) as u16;
+                            let mut value = (((val as i32 + 32768) / 257) +
+                                cpu.bus.paddle_y_trim as i32) as u16;
                             if value >= 255 {
                                 value = PADDLE_MAX_VALUE;
                             }
                             cpu.bus.paddle_latch[2 * joystick_id as usize + 1] = value;
                         }
-                        _ => {}
+                        _ => { }
                     }
                 }
             }
