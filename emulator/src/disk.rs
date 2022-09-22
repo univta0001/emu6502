@@ -1906,13 +1906,13 @@ impl DiskDrive {
         // 0f  1111   LD
 
         match command & 0xf {
-            0x08 => {}
+            0x08 | 0x0c => {}
             0x09 => self.latch <<= 1,
-            0x0a => {
+            0x0a | 0x0e => {
                 self.latch >>= 1;
                 self.latch |= (self.is_write_protected() as u8 & 0x1) << 7;
             }
-            0x0b => self.latch = self.bus,
+            0x0b | 0x0f => self.latch = self.bus,
             0x0d => self.latch = self.latch << 1 | 0x1,
             _ => self.latch = 0,
         }
