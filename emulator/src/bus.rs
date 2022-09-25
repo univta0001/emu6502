@@ -64,7 +64,6 @@ pub struct Bus {
     pub disable_video: bool,
     pub disable_disk: bool,
     pub disable_audio: bool,
-    pub swap_button: bool,
     pub joystick_flag: bool,
     pub joystick_jitter: bool,
     pub paddle_trigger: Cell<usize>,
@@ -73,6 +72,9 @@ pub struct Bus {
     pub intcxrom: Cell<bool>,
     pub slotc3rom: Cell<bool>,
     pub intc8rom:Cell<bool>,
+
+    #[serde(default)]
+    pub swap_button: bool,
 
     #[serde(default)]
     pub harddisk: RefCell<HardDisk>,
