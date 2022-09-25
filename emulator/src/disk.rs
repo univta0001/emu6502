@@ -1755,9 +1755,10 @@ impl DiskDrive {
                 let track_bits = disk.raw_track_bits[tmap_track as usize];
 
                 if disk.head * 8 + disk.head_bit >= track_bits {
-                    disk.head = 0;
-                    disk.head_mask = 0x80;
-                    disk.head_bit = 0;
+                    let wrapped = (disk.head * 8 + disk.head_bit) % track_bits;
+                    disk.head = wrapped / 8;
+                    disk.head_mask = 1 << (7 - wrapped % 8);
+                    disk.head_bit = wrapped % 8;
                 }
 
                 self.bit_buffer |= (track[disk.head] & disk.head_mask as u8 != 0) as u8;
@@ -1828,9 +1829,10 @@ impl DiskDrive {
             let track_bits = disk.raw_track_bits[tmap_track as usize];
 
             if disk.head * 8 + disk.head_bit >= track_bits {
-                disk.head = 0;
-                disk.head_mask = 0x80;
-                disk.head_bit = 0;
+                let wrapped = (disk.head * 8 + disk.head_bit) % track_bits;
+                disk.head = wrapped / 8;
+                disk.head_mask = 1 << (7 - wrapped % 8);
+                disk.head_bit = wrapped % 8;
             }
 
             if !write_protected {
