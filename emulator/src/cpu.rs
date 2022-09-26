@@ -834,6 +834,10 @@ impl CPU {
         self.status = CpuFlags::from_bits_truncate(0b00100100);
         self.bus.reset();
 
+        if self.is_apple2c() {
+            self.bus.intcxrom.set(true);
+        }
+
         // RESET CPU takes 7 cycles;
         self.program_counter = self.bus.mem_read_u16(0xfffc);
         for _ in 0..7 {
@@ -1279,6 +1283,10 @@ impl CPU {
         self.bus.mem_read(0xfbb3) == 0x06 && self.bus.mem_read(0xfbc0) == 0xe0
     }
 
+    pub fn is_apple2c(&self) -> bool {
+        self.bus.mem_read(0xfbb3) == 0x06 && self.bus.mem_read(0xfbc0) == 0x00
+    }
+
     pub fn run(&mut self) {
         self.run_with_callback(|_| {});
     }
@@ -1288,7 +1296,7 @@ impl CPU {
             self.bus.video.borrow_mut().set_apple2e(true);
         }
 
-        if self.is_apple2e_enh() {
+        if self.is_apple2e_enh() || self.is_apple2c() {
             self.m65c02 = true;
         } else {
             self.m65c02 = false;

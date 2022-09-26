@@ -20,6 +20,7 @@ Features in the emulator
 - Z80 Emulation at Slot 2
 - Hard Disk support 
 - Support for RamFactor 1 MiB and RamWorks III up to 8 MiB
+- Preliminary support for Apple //c (Rom FF)
 
 ## Tested Platform
 
