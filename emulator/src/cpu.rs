@@ -832,12 +832,13 @@ impl CPU {
         self.register_y = 0;
         self.stack_pointer = STACK_RESET;
         self.status = CpuFlags::from_bits_truncate(0b00100100);
-        self.bus.reset();
 
         if self.is_apple2c() {
-            self.bus.intcxrom.set(true);
+            self.bus.is_apple2c.set(true);
         }
 
+        self.bus.reset();
+        
         // RESET CPU takes 7 cycles;
         self.program_counter = self.bus.mem_read_u16(0xfffc);
         for _ in 0..7 {

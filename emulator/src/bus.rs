@@ -100,6 +100,9 @@ pub struct Bus {
 
     #[serde(default)]
     pub extended_rom: Cell<u8>,
+
+    #[serde(default)]
+    pub is_apple2c: Cell<bool>,
 }
 
 pub trait Mem {
@@ -182,6 +185,7 @@ impl Bus {
             intcxrom: Cell::new(false),
             slotc3rom: Cell::new(false),
             intc8rom: Cell::new(false),
+            is_apple2c: Cell::new(false),
             noslotclock: RefCell::new(NoSlotClock::new()),
             disable_video: false,
             disable_disk: false,
@@ -231,6 +235,10 @@ impl Bus {
         self.mem.borrow_mut().reset();
         self.video.borrow_mut().reset();
         self.ramfactor.borrow_mut().reset();
+
+        if self.is_apple2c.get() {
+            self.intcxrom.set(true);
+        }
 
         if !self.disable_audio {
             self.audio
@@ -562,9 +570,11 @@ impl Bus {
 
             0x06 => {
                 if write_flag {
-                    self.intcxrom.set(false);
-                    if self.slotc3rom.get() {
-                        self.intc8rom.set(false);
+                    if !self.is_apple2c.get() {
+                        self.intcxrom.set(false);
+                        if self.slotc3rom.get() {
+                            self.intc8rom.set(false);
+                        }
                     }
                 }
                 self.get_keyboard_latch()
@@ -961,7 +971,7 @@ impl Mem for Bus {
                 if addr == 0xcfff {
                     self.intc8rom.set(false);
                 }
-                if self.intcxrom.get() || self.intc8rom.get() {
+                if self.intcxrom.get() || self.intc8rom.get() || self.is_apple2c.get() {
                     self.mem_read(addr)
                 } else {
                     self.iodevice_rom_access(addr, 0, false)
