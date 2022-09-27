@@ -526,7 +526,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                     let mut output = String::new();
                     let addr = adjust_disassemble_addr(cpu, cpu.program_counter, -10);
                     disassemble_addr(&mut output, cpu, addr, 20);
-                    eprintln!("{}", output);
+                    eprintln!("PC={:04X}\n\n{}", cpu.program_counter, output);
                 } else {
                     eject_disk(cpu, 1);
                 }
