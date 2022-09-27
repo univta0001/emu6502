@@ -569,12 +569,10 @@ impl Bus {
             }
 
             0x06 => {
-                if write_flag {
-                    if !self.is_apple2c.get() {
-                        self.intcxrom.set(false);
-                        if self.slotc3rom.get() {
-                            self.intc8rom.set(false);
-                        }
+                if write_flag && !self.is_apple2c.get() {
+                    self.intcxrom.set(false);
+                    if self.slotc3rom.get() {
+                        self.intc8rom.set(false);
                     }
                 }
                 self.get_keyboard_latch()
