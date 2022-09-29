@@ -12,10 +12,6 @@ flate2 = "1.0.24"
 instant = { version = "0.1.12", features = ["wasm-bindgen"] }
 getrandom = { version = "0.2.7", features = ["js"] }
 serde = { version = "1.0.145", features = ["derive"] }
-wasm-bindgen = "0.2.83"
-js-sys = "0.3.60"
-crc32fast = "1.3.2"
-web-sys = "0.3.60"
 iz80 = "0.3.5"
 derivative = "2.2.0"
 chrono = { version = "0.4.22", default-features = false, features = ["clock", "wasmbind"] }
