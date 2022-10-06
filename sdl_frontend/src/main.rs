@@ -185,10 +185,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         Event::Quit { .. } => cpu.halt_cpu(),
 
         Event::ControllerAxisMotion {
-            which,
-            axis,
-            value,
-            ..
+            which, axis, value, ..
         } => {
             if let Some(entry) = event_param.gamepads.get(&which) {
                 let joystick_id = entry.0;
@@ -205,7 +202,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                                 if pvalue >= 255 {
                                     pvalue = PADDLE_MAX_VALUE;
                                 }
-                                cpu.bus.paddle_latch[2 * joystick_id as usize] = pvalue 
+                                cpu.bus.paddle_latch[2 * joystick_id as usize] = pvalue
                             }
                         }
                         Axis::LeftY | Axis::RightY => {
@@ -216,10 +213,10 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                                 if pvalue >= 255 {
                                     pvalue = PADDLE_MAX_VALUE;
                                 }
-                                cpu.bus.paddle_latch[2 * joystick_id as usize + 1] = pvalue 
+                                cpu.bus.paddle_latch[2 * joystick_id as usize + 1] = pvalue
                             }
                         }
-                        _ => { }
+                        _ => {}
                     }
                 }
             }
@@ -526,9 +523,16 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                     let mut output = String::new();
                     let addr = adjust_disassemble_addr(cpu, cpu.program_counter, -10);
                     disassemble_addr(&mut output, cpu, addr, 20);
-                    eprintln!("PC:{:04X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} S:{:02X}\n\n{}", 
-                        cpu.program_counter,cpu.register_a, cpu.register_x,
-                        cpu.register_y, cpu.status, cpu.stack_pointer,output);
+                    eprintln!(
+                        "PC:{:04X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} S:{:02X}\n\n{}",
+                        cpu.program_counter,
+                        cpu.register_a,
+                        cpu.register_x,
+                        cpu.register_y,
+                        cpu.status,
+                        cpu.stack_pointer,
+                        output
+                    );
                 } else {
                     eject_disk(cpu, 1);
                 }
@@ -650,19 +654,26 @@ FLAGS:
     --h1 PATH          Set the file path for hard disk 1
     --h2 PATH          Set the file path for hard disk 2
     --s1 device        Device slot 1 
-                       Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor
+                       Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
+                              diskii
     --s2 device        Device slot 2
-                       Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor
+                       Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
+                              diskii
     --s3 device        Device slot 3
-                       Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor
+                       Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
+                              diskii
     --s4 device        Device slot 4
-                       Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor
+                       Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
+                              diskii
     --s5 device        Device slot 5
-                       Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor
+                       Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
+                              diskii
     --s6 device        Device slot 6
-                       Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor
+                       Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
+                              diskii
     --s7 device        Device slot 7
-                       Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor
+                       Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
+                              diskii
     --weakbit rate     Set the random weakbit error rate (Default is 0.3)
     --opt_timing rate  Override the optimal timing (Default is 32)
     --rgb              Enable RGB mode (Default: RGB mode disabled)
@@ -820,6 +831,7 @@ fn register_device(cpu: &mut CPU, device: &str, slot: usize) {
         "parallel" => cpu.bus.register_device(IODevice::Printer, slot),
         "ramfactor" => cpu.bus.register_device(IODevice::RamFactor, slot),
         "z80" => cpu.bus.register_device(IODevice::Z80, slot),
+        "diskii" => cpu.bus.register_device(IODevice::Disk, slot),
         _ => {}
     }
 }
@@ -940,7 +952,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     if pargs.contains("--swapbuttons") {
         cpu.bus.swap_buttons(true);
-    }    
+    }
 
     if let Some(xtrim) = pargs.opt_value_from_str::<_, i8>("--xtrim")? {
         cpu.bus.set_joystick_xtrim(xtrim);

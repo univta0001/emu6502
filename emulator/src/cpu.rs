@@ -838,7 +838,7 @@ impl CPU {
         }
 
         self.bus.reset();
-        
+
         // RESET CPU takes 7 cycles;
         self.program_counter = self.bus.mem_read_u16(0xfffc);
         for _ in 0..7 {

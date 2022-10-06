@@ -1817,7 +1817,7 @@ impl DiskDrive {
 
         if tmap_track == 0xff {
             if write_protected {
-                return
+                return;
             }
 
             expand_unused_disk_track(disk, track_to_write as usize);

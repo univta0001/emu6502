@@ -12,7 +12,7 @@ use rand::Rng;
 //use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use std::cell::Cell;
-use std::cell::{RefMut, RefCell};
+use std::cell::{RefCell, RefMut};
 
 pub const ROM_START: u16 = 0xd000;
 pub const ROM_END: u16 = 0xffff;
@@ -40,6 +40,7 @@ pub trait Card {
 pub enum IODevice {
     None,
     Disk,
+    Disk13,
     Printer,
     RamFactor,
     Mockingboard(usize),
@@ -71,7 +72,7 @@ pub struct Bus {
     pub cycles: Cell<usize>,
     pub intcxrom: Cell<bool>,
     pub slotc3rom: Cell<bool>,
-    pub intc8rom:Cell<bool>,
+    pub intc8rom: Cell<bool>,
 
     #[serde(default)]
     pub swap_button: bool,
@@ -579,7 +580,7 @@ impl Bus {
             }
 
             0x07 => {
-                if write_flag {
+                if write_flag && !self.is_apple2c.get() {
                     self.intcxrom.set(true);
                     self.slotc3rom.set(false);
                 }
@@ -603,14 +604,14 @@ impl Bus {
             }
 
             0x0a => {
-                if write_flag {
+                if write_flag && !self.is_apple2c.get() {
                     self.slotc3rom.set(false);
                 }
                 self.get_keyboard_latch()
             }
 
             0x0b => {
-                if write_flag {
+                if write_flag && !self.is_apple2c.get() {
                     self.slotc3rom.set(true);
                 }
                 self.get_keyboard_latch()
@@ -752,9 +753,9 @@ impl Bus {
             0x60 => self.pushbutton_latch[3],
 
             0x61 => {
-                if !self.swap_button { 
-                    self.pushbutton_latch[0] 
-                } else { 
+                if !self.swap_button {
+                    self.pushbutton_latch[0]
+                } else {
                     self.pushbutton_latch[1]
                 }
             }
