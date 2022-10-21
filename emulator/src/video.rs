@@ -3,6 +3,12 @@ use crate::ntsc::*;
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+#[cfg(feature = "instant_time")]
+use instant::SystemTime;
+
+#[cfg(not(feature = "instant_time"))]
+use std::time::SystemTime;
+
 pub type Rgb = [u8; 3];
 pub type Yuv = [f32; 3];
 
@@ -672,8 +678,8 @@ impl Video {
             cycles: 0,
             cycle_field,
             blink: false,
-            blink_time: instant::SystemTime::now()
-                .duration_since(instant::SystemTime::UNIX_EPOCH)
+            blink_time: SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
                 .as_millis(),
             graphics_mode: false,
@@ -723,8 +729,8 @@ impl Video {
         let col = val % CYCLES_PER_ROW;
 
         if val == 0 {
-            let elapsed = instant::SystemTime::now()
-                .duration_since(instant::SystemTime::UNIX_EPOCH)
+            let elapsed = SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
                 .as_millis()
                 .saturating_sub(self.blink_time);
@@ -732,8 +738,8 @@ impl Video {
                 if !self.vid80_mode {
                     self.blink = !self.blink;
                 }
-                self.blink_time = instant::SystemTime::now()
-                    .duration_since(instant::SystemTime::UNIX_EPOCH)
+                self.blink_time = SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
                     .unwrap()
                     .as_millis();
             }
