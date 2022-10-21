@@ -7,12 +7,12 @@ use crate::opcodes::OpCode;
 use iz80::*;
 use std::cell::RefCell;
 
-#[cfg(feature = "serde_support")] 
-use serde::de::Error;
-#[cfg(feature = "serde_support")] 
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 #[cfg(feature = "serde_support")]
 use derivative::*;
+#[cfg(feature = "serde_support")]
+use serde::de::Error;
+#[cfg(feature = "serde_support")]
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 bitflags! {
     /// # Status Register (P) http://wiki.nesdev.com/w/index.php/Status_flags
@@ -322,26 +322,29 @@ pub struct CPU {
     pub callback: bool,
     pub full_speed: bool,
 
-    #[cfg_attr(feature = "serde_support",serde(default))]
+    #[cfg_attr(feature = "serde_support", serde(default))]
     pub m65c02_rockwell_disable: bool,
 
-    #[cfg_attr(feature = "serde_support",serde(skip_serializing))]
-    #[cfg_attr(feature = "serde_support",serde(default))]
+    #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
+    #[cfg_attr(feature = "serde_support", serde(default))]
     pub self_test: bool,
 
-    #[cfg_attr(feature = "serde_support",serde(skip_serializing))]
-    #[cfg_attr(feature = "serde_support",serde(default))]
+    #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
+    #[cfg_attr(feature = "serde_support", serde(default))]
     pub bench_test: bool,
 
-    #[cfg_attr(feature = "serde_support",serde(default))]
+    #[cfg_attr(feature = "serde_support", serde(default))]
     pub alt_cpu: bool,
 
-    #[cfg_attr(feature = "serde_support",serde(default))]
+    #[cfg_attr(feature = "serde_support", serde(default))]
     pub halt_cpu: bool,
 
-    #[cfg_attr(feature = "serde_support",serde(default = "default_z80cpu"))]
-    #[cfg_attr(feature = "serde_support",derivative(Debug = "ignore"))]
-    #[cfg_attr(feature = "serde_support",serde(serialize_with = "serialize_cpu", deserialize_with = "deserialize_cpu"))]
+    #[cfg_attr(feature = "serde_support", serde(default = "default_z80cpu"))]
+    #[cfg_attr(feature = "serde_support", derivative(Debug = "ignore"))]
+    #[cfg_attr(
+        feature = "serde_support",
+        serde(serialize_with = "serialize_cpu", deserialize_with = "deserialize_cpu")
+    )]
     pub z80cpu: RefCell<Cpu>,
 }
 

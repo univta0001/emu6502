@@ -9,9 +9,9 @@ use std::path::Path;
 use std::path::PathBuf;
 
 #[cfg(feature = "serde_support")]
-use serde::{Deserialize, Serialize};
-#[cfg(feature = "serde_support")]
 use derivative::*;
+#[cfg(feature = "serde_support")]
+use serde::{Deserialize, Serialize};
 
 const ROM: [u8; 256] = [
     0xa9, 0x20, 0xa9, 0x00, 0xa9, 0x03, 0xa9, 0x3c, 0xd0, 0x3f, 0x38, 0xb0, 0x01, 0x18, 0xb0, 0x7d,
@@ -52,9 +52,9 @@ https://github.com/AppleWin/AppleWin/blob/master/source/Harddisk.cpp
 #[derive(Debug)]
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize, Derivative))]
 struct Disk {
-    #[cfg_attr(feature = "serde_support",serde(skip))]
-    #[cfg_attr(feature = "serde_support",serde(default))]
-    #[cfg_attr(feature = "serde_support",derivative(Debug = "ignore"))]
+    #[cfg_attr(feature = "serde_support", serde(skip))]
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    #[cfg_attr(feature = "serde_support", derivative(Debug = "ignore"))]
     raw_data: Vec<u8>,
 
     write_protect: bool,

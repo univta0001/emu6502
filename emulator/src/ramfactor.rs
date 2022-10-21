@@ -4,10 +4,6 @@ use crate::video::Video;
 use std::cell::RefCell;
 
 #[cfg(feature = "serde_support")]
-use std::collections::BTreeMap;
-#[cfg(feature = "serde_support")]
-use std::io::{Read, Write};
-#[cfg(feature = "serde_support")]
 use flate2::read::GzDecoder;
 #[cfg(feature = "serde_support")]
 use flate2::write::GzEncoder;
@@ -19,6 +15,10 @@ use serde::de::{Error, Unexpected};
 use serde::ser;
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+#[cfg(feature = "serde_support")]
+use std::collections::BTreeMap;
+#[cfg(feature = "serde_support")]
+use std::io::{Read, Write};
 
 const ROM: [u8; 8192] = [
     0x43, 0x4f, 0x50, 0x59, 0x52, 0x49, 0x47, 0x48, 0x54, 0x20, 0x28, 0x43, 0x29, 0x20, 0x31, 0x39,
@@ -538,14 +538,17 @@ const ROM: [u8; 8192] = [
 const RAMSIZE: usize = 0x100000;
 const SIZE_1MB: usize = 0x100000;
 
-#[derive(Debug,Eq,PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub struct RamFactor {
     firmware_bank: u8,
     addr: usize,
 
-    #[cfg_attr(feature = "serde_support",serde(serialize_with = "as_hex", deserialize_with = "from_hex_mem"))]
-    #[cfg_attr(feature = "serde_support",serde(default = "default_mem"))]
+    #[cfg_attr(
+        feature = "serde_support",
+        serde(serialize_with = "as_hex", deserialize_with = "from_hex_mem")
+    )]
+    #[cfg_attr(feature = "serde_support", serde(default = "default_mem"))]
     mem: Vec<u8>,
 }
 

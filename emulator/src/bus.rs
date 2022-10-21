@@ -79,35 +79,38 @@ pub struct Bus {
     pub slotc3rom: Cell<bool>,
     pub intc8rom: Cell<bool>,
 
-    #[cfg_attr(feature = "serde_support",serde(default))]
+    #[cfg_attr(feature = "serde_support", serde(default))]
     pub swap_button: bool,
 
-    #[cfg_attr(feature = "serde_support",serde(default))]
+    #[cfg_attr(feature = "serde_support", serde(default))]
     pub harddisk: RefCell<HardDisk>,
 
-    #[cfg_attr(feature = "serde_support",serde(default))]
+    #[cfg_attr(feature = "serde_support", serde(default))]
     pub mouse: RefCell<Mouse>,
 
-    #[cfg_attr(feature = "serde_support",serde(default))]
+    #[cfg_attr(feature = "serde_support", serde(default))]
     pub noslotclock: RefCell<NoSlotClock>,
 
-    #[cfg_attr(feature = "serde_support",serde(default))]
+    #[cfg_attr(feature = "serde_support", serde(default))]
     pub iou: Cell<bool>,
 
-    #[cfg_attr(feature = "serde_support",serde(default))]
+    #[cfg_attr(feature = "serde_support", serde(default))]
     pub halt_cpu: Cell<bool>,
     //bad_softswitch_addr: HashMap<u16, bool>,
-
-    #[cfg_attr(feature = "serde_support",serde(default),derivative(Debug="ignore"))]
+    #[cfg_attr(
+        feature = "serde_support",
+        serde(default),
+        derivative(Debug = "ignore")
+    )]
     pub io_slot: Vec<IODevice>,
 
-    #[cfg_attr(feature = "serde_support",serde(default))]
+    #[cfg_attr(feature = "serde_support", serde(default))]
     pub ramfactor: RefCell<RamFactor>,
 
-    #[cfg_attr(feature = "serde_support",serde(default))]
+    #[cfg_attr(feature = "serde_support", serde(default))]
     pub extended_rom: Cell<u8>,
 
-    #[cfg_attr(feature = "serde_support",serde(default))]
+    #[cfg_attr(feature = "serde_support", serde(default))]
     pub is_apple2c: Cell<bool>,
 }
 

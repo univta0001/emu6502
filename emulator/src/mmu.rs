@@ -1,10 +1,6 @@
 use crate::bus::{ROM_END, ROM_START};
 
 #[cfg(feature = "serde_support")]
-use std::collections::BTreeMap;
-#[cfg(feature = "serde_support")]
-use std::io::{Read, Write};
-#[cfg(feature = "serde_support")]
 use flate2::read::GzDecoder;
 #[cfg(feature = "serde_support")]
 use flate2::write::GzEncoder;
@@ -16,27 +12,49 @@ use serde::de::{Error, Unexpected};
 use serde::ser;
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+#[cfg(feature = "serde_support")]
+use std::collections::BTreeMap;
+#[cfg(feature = "serde_support")]
+use std::io::{Read, Write};
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde_support", serde(default))]
 pub struct Mmu {
-    #[cfg_attr(feature = "serde_support",serde(serialize_with = "as_hex", deserialize_with = "from_hex_64k"))]
+    #[cfg_attr(
+        feature = "serde_support",
+        serde(serialize_with = "as_hex", deserialize_with = "from_hex_64k")
+    )]
     pub cpu_memory: Vec<u8>,
 
-    #[cfg_attr(feature = "serde_support",serde(serialize_with = "as_hex", deserialize_with = "from_hex_64k"))]
+    #[cfg_attr(
+        feature = "serde_support",
+        serde(serialize_with = "as_hex", deserialize_with = "from_hex_64k")
+    )]
     pub aux_memory: Vec<u8>,
 
-    #[cfg_attr(feature = "serde_support",serde(serialize_with = "as_hex", deserialize_with = "from_hex_12k"))]
+    #[cfg_attr(
+        feature = "serde_support",
+        serde(serialize_with = "as_hex", deserialize_with = "from_hex_12k")
+    )]
     pub bank1_memory: Vec<u8>,
 
-    #[cfg_attr(feature = "serde_support",serde(serialize_with = "as_hex", deserialize_with = "from_hex_12k"))]
+    #[cfg_attr(
+        feature = "serde_support",
+        serde(serialize_with = "as_hex", deserialize_with = "from_hex_12k")
+    )]
     pub aux_bank1_memory: Vec<u8>,
 
-    #[cfg_attr(feature = "serde_support",serde(serialize_with = "as_hex", deserialize_with = "from_hex_12k"))]
+    #[cfg_attr(
+        feature = "serde_support",
+        serde(serialize_with = "as_hex", deserialize_with = "from_hex_12k")
+    )]
     pub bank2_memory: Vec<u8>,
 
-    #[cfg_attr(feature = "serde_support",serde(serialize_with = "as_hex", deserialize_with = "from_hex_12k"))]
+    #[cfg_attr(
+        feature = "serde_support",
+        serde(serialize_with = "as_hex", deserialize_with = "from_hex_12k")
+    )]
     pub aux_bank2_memory: Vec<u8>,
 
     pub bank1: bool,
@@ -53,7 +71,10 @@ pub struct Mmu {
 
     pub aux_bank: u8,
 
-    #[cfg_attr(feature = "serde_support",serde(serialize_with = "as_opt_hex", deserialize_with = "from_hex_opt"))]
+    #[cfg_attr(
+        feature = "serde_support",
+        serde(serialize_with = "as_opt_hex", deserialize_with = "from_hex_opt")
+    )]
     pub ext_aux_mem: Option<Vec<u8>>,
 }
 

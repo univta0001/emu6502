@@ -33,7 +33,10 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsStr;
+
+#[cfg(feature = "serde_support")]
 use std::fs;
+
 use std::fs::File;
 use std::path::Path;
 use std::time::Instant;
@@ -495,7 +498,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                #[cfg(feature = "serde_support")] 
+                #[cfg(feature = "serde_support")]
                 {
                     let output = serde_yaml::to_string(&cpu).unwrap();
                     let yaml_output = output.replace("\"\"", "''").replace('"', "");
@@ -504,7 +507,11 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                         if let Ok(Response::Okay(file_path)) = result {
                             let write_result = fs::write(&file_path, yaml_output);
                             if let Err(e) = write_result {
-                                eprintln!("Unable to write to file {} : {}", file_path.display(), e);
+                                eprintln!(
+                                    "Unable to write to file {} : {}",
+                                    file_path.display(),
+                                    e
+                                );
                             }
                         }
                     } else {
@@ -775,18 +782,22 @@ fn eject_disk(cpu: &mut CPU, drive: usize) {
     cpu.bus.disk.borrow_mut().eject(drive);
 }
 
+#[cfg(feature = "serde_support")]
 fn is_disk_loaded(cpu: &CPU, drive: usize) -> bool {
     cpu.bus.disk.borrow().is_loaded(drive)
 }
 
+#[cfg(feature = "serde_support")]
 fn is_harddisk_loaded(cpu: &CPU, drive: usize) -> bool {
     cpu.bus.harddisk.borrow().is_loaded(drive)
 }
 
+#[cfg(feature = "serde_support")]
 fn get_disk_filename(cpu: &CPU, drive: usize) -> Option<String> {
     Some(cpu.bus.disk.borrow().get_disk_filename(drive))
 }
 
+#[cfg(feature = "serde_support")]
 fn get_harddisk_filename(cpu: &CPU, drive: usize) -> Option<String> {
     Some(cpu.bus.harddisk.borrow().get_disk_filename(drive))
 }
@@ -1304,7 +1315,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         if !reload_cpu {
             break;
         } else {
-            #[cfg(feature = "serde_support")] 
+            #[cfg(feature = "serde_support")]
             {
                 let result = nfd2::open_file_dialog(Some("yaml"), None);
                 if result.is_ok() {
@@ -1350,9 +1361,11 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                                 // Load the loaded disk into the new cpu
                                 for drive in 0..2 {
                                     if is_disk_loaded(&new_cpu, drive) {
-                                        if let Some(disk_filename) = get_disk_filename(&new_cpu, drive)
+                                        if let Some(disk_filename) =
+                                            get_disk_filename(&new_cpu, drive)
                                         {
-                                            let result = load_disk(&mut new_cpu, &disk_filename, drive);
+                                            let result =
+                                                load_disk(&mut new_cpu, &disk_filename, drive);
                                             if let Err(e) = result {
                                                 eprintln!(
                                                     "Unable to load disk {} : {}",
@@ -1382,7 +1395,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                                 // Replace the old cpu with the new cpu
                                 cpu = new_cpu;
                             } else {
-                                eprintln!("Unable to restore the image : {:?}", deserialized_result);
+                                eprintln!(
+                                    "Unable to restore the image : {:?}",
+                                    deserialized_result
+                                );
                             }
                         } else {
                             eprintln!("Unable to restore the image : {:?}", result);

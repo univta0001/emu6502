@@ -73,16 +73,16 @@ const DETRANS62: [u8; 128] = [
 #[derive(Debug)]
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 struct Disk {
-    #[cfg_attr(feature = "serde_support",serde(skip_serializing))]
-    #[cfg_attr(feature = "serde_support",serde(default = "default_raw_track_data"))]
+    #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
+    #[cfg_attr(feature = "serde_support", serde(default = "default_raw_track_data"))]
     raw_track_data: Vec<Vec<u8>>,
 
-    #[cfg_attr(feature = "serde_support",serde(skip_serializing))]
-    #[cfg_attr(feature = "serde_support",serde(default = "default_raw_track_bits"))]
+    #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
+    #[cfg_attr(feature = "serde_support", serde(default = "default_raw_track_bits"))]
     raw_track_bits: Vec<usize>,
 
-    #[cfg_attr(feature = "serde_support",serde(skip_serializing))]
-    #[cfg_attr(feature = "serde_support",serde(default = "default_tmap_data"))]
+    #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
+    #[cfg_attr(feature = "serde_support", serde(default = "default_tmap_data"))]
     tmap_data: Vec<u8>,
 
     optimal_timing: u8,
@@ -99,10 +99,10 @@ struct Disk {
     filename: String,
     loaded: bool,
 
-    #[cfg_attr(feature = "serde_support",serde(default))]
+    #[cfg_attr(feature = "serde_support", serde(default))]
     track_40: bool,
 
-    #[cfg_attr(feature = "serde_support",serde(default))]
+    #[cfg_attr(feature = "serde_support", serde(default))]
     disk_rom13: bool,
 }
 
@@ -127,11 +127,11 @@ pub struct DiskDrive {
     disable_fast_disk: bool,
     enable_save: bool,
 
-    #[cfg_attr(feature = "serde_support",serde(default))]
+    #[cfg_attr(feature = "serde_support", serde(default))]
     fast_disk_timer: usize,
 
-    #[cfg_attr(feature = "serde_support",serde(skip))]
-    #[cfg_attr(feature = "serde_support",serde(default = "default_rng"))]
+    #[cfg_attr(feature = "serde_support", serde(skip))]
+    #[cfg_attr(feature = "serde_support", serde(default = "default_rng"))]
     rng: ThreadRng,
 }
 
