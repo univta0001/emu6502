@@ -1,4 +1,6 @@
 use crate::ntsc::*;
+
+#[cfg(feature = "serde_support")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 pub type Rgb = [u8; 3];
@@ -18,95 +20,84 @@ impl Default for DisplayMode {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub struct Video {
-    #[serde(
-        serialize_with = "serialize_display_mode",
-        deserialize_with = "deserialize_display_mode"
-    )]
-    #[serde(default)]
+    #[cfg_attr(feature = "serde_support",serde(serialize_with = "serialize_display_mode",deserialize_with = "deserialize_display_mode"))]
+    #[cfg_attr(feature = "serde_support",serde(default))]
     pub display_mode: DisplayMode,
 
-    #[serde(skip_serializing)]
-    #[serde(default = "default_frame")]
+    #[cfg_attr(feature = "serde_support",serde(skip_serializing))]
+    #[cfg_attr(feature = "serde_support",serde(default = "default_frame"))]
     pub frame: Vec<u8>,
 
-    #[serde(skip_serializing)]
-    #[serde(default = "default_video_main")]
+    #[cfg_attr(feature = "serde_support",serde(skip_serializing))]
+    #[cfg_attr(feature = "serde_support",serde(default = "default_video_main"))]
     pub video_main: Vec<u8>,
 
-    #[serde(skip_serializing)]
-    #[serde(default = "default_video_aux")]
+    #[cfg_attr(feature = "serde_support",serde(skip_serializing))]
+    #[cfg_attr(feature = "serde_support",serde(default = "default_video_aux"))]
     pub video_aux: Vec<u8>,
 
-    #[serde(default)]
+    #[cfg_attr(feature = "serde_support",serde(default))]
     pub _80storeon: bool,
 
-    #[serde(skip_serializing)]
-    #[serde(default = "default_lut_text")]
+    #[cfg_attr(feature = "serde_support",serde(skip_serializing))]
+    #[cfg_attr(feature = "serde_support",serde(default = "default_lut_text"))]
     lut_text: Vec<usize>,
 
-    #[serde(skip_serializing)]
-    #[serde(default = "default_lut_text_2e")]
+    #[cfg_attr(feature = "serde_support",serde(skip_serializing))]
+    #[cfg_attr(feature = "serde_support",serde(default = "default_lut_text_2e"))]
     lut_text_2e: Vec<usize>,
 
-    #[serde(skip_serializing)]
-    #[serde(default = "default_lut_hires")]
+    #[cfg_attr(feature = "serde_support",serde(skip_serializing))]
+    #[cfg_attr(feature = "serde_support",serde(default = "default_lut_hires"))]
     lut_hires: Vec<usize>,
 
-    #[serde(skip_serializing)]
-    #[serde(default = "default_lut_text_pal")]
+    #[cfg_attr(feature = "serde_support",serde(skip_serializing))]
+    #[cfg_attr(feature = "serde_support",serde(default = "default_lut_text_pal"))]
     lut_text_pal: Vec<usize>,
 
-    #[serde(skip_serializing)]
-    #[serde(default = "default_lut_text_2e_pal")]
+    #[cfg_attr(feature = "serde_support",serde(skip_serializing))]
+    #[cfg_attr(feature = "serde_support",serde(default = "default_lut_text_2e_pal"))]
     lut_text_2e_pal: Vec<usize>,
-
-    #[serde(skip_serializing)]
-    #[serde(default = "default_lut_hires_pal")]
+    
+    #[cfg_attr(feature = "serde_support",serde(skip_serializing))]
+    #[cfg_attr(feature = "serde_support",serde(default = "default_lut_hires_pal"))]
     lut_hires_pal: Vec<usize>,
 
-    #[serde(skip_serializing)]
-    #[serde(default = "default_video_cache")]
+    #[cfg_attr(feature = "serde_support",serde(skip_serializing))]
+    #[cfg_attr(feature = "serde_support",serde(default = "default_video_cache"))]
     video_cache: Vec<u32>,
 
-    #[serde(skip_serializing)]
-    #[serde(default = "default_video_reparse")]
+    #[cfg_attr(feature = "serde_support",serde(skip_serializing))]
+    #[cfg_attr(feature = "serde_support",serde(default = "default_video_reparse"))]
     video_reparse: Vec<usize>,
 
-    #[serde(skip_serializing)]
-    #[serde(default = "default_video_dirty")]
+    #[cfg_attr(feature = "serde_support",serde(skip_serializing))]
+    #[cfg_attr(feature = "serde_support",serde(default = "default_video_dirty"))]
     video_dirty: Vec<u8>,
 
-    #[serde(skip_serializing)]
-    #[serde(default = "default_ntsc_decoder")]
+    #[cfg_attr(feature = "serde_support",serde(skip_serializing))]
+    #[cfg_attr(feature = "serde_support",serde(default = "default_ntsc_decoder"))]
     ntsc_decoder: Vec<Yuv>,
 
-    #[serde(skip_serializing)]
-    #[serde(default = "default_chroma_dhgr")]
+    #[cfg_attr(feature = "serde_support",serde(skip_serializing))]
+    #[cfg_attr(feature = "serde_support",serde(default = "default_chroma_dhgr"))]
     chroma_dhgr: Vec<Vec<Rgb>>,
 
-    #[serde(skip_serializing)]
-    #[serde(default = "default_chroma_hgr")]
+    #[cfg_attr(feature = "serde_support",serde(skip_serializing))]
+    #[cfg_attr(feature = "serde_support",serde(default = "default_chroma_hgr"))]
     chroma_hgr: Vec<Vec<Rgb>>,
 
-    #[serde(default = "default_luma_bandwidth")]
+    #[cfg_attr(feature = "serde_support",serde(default = "default_luma_bandwidth"))]
     pub luma_bandwidth: f32,
 
-    #[serde(default = "default_chroma_bandwidth")]
+    #[cfg_attr(feature = "serde_support",serde(default = "default_chroma_bandwidth"))]
     pub chroma_bandwidth: f32,
 
-    #[serde(default = "default_cycle_field")]
+    #[cfg_attr(feature = "serde_support",serde(default = "default_cycle_field"))]
     cycle_field: usize,
-
-    #[serde(default)]
-    request_mouse: bool,
-
-    #[serde(default)]
-    request_mouse_x: i32,
-
-    #[serde(default)]
-    request_mouse_y: i32,
 
     graphics_mode: bool,
     mixed_mode: bool,
@@ -698,9 +689,6 @@ impl Video {
             chroma_bandwidth,
             chroma_hgr,
             chroma_dhgr,
-            request_mouse: false,
-            request_mouse_x: 0,
-            request_mouse_y: 0,
         }
     }
 
@@ -2755,42 +2743,52 @@ fn build_lut(text_mode: bool, apple2e: bool, ntsc: bool) -> Vec<usize> {
     output
 }
 
+#[cfg(feature = "serde_support")]
 fn default_lut_text() -> Vec<usize> {
     build_lut(true, false, true)
 }
 
+#[cfg(feature = "serde_support")]
 fn default_lut_text_2e() -> Vec<usize> {
     build_lut(true, true, true)
 }
 
+#[cfg(feature = "serde_support")]
 fn default_lut_hires() -> Vec<usize> {
     build_lut(false, true, true)
 }
 
+#[cfg(feature = "serde_support")]
 fn default_lut_text_pal() -> Vec<usize> {
     build_lut(true, false, false)
 }
 
+#[cfg(feature = "serde_support")]
 fn default_lut_text_2e_pal() -> Vec<usize> {
     build_lut(true, true, false)
 }
 
+#[cfg(feature = "serde_support")]
 fn default_lut_hires_pal() -> Vec<usize> {
     build_lut(false, true, false)
 }
 
+#[cfg(feature = "serde_support")]
 fn default_video_cache() -> Vec<u32> {
     vec![0x00; 40 * 192]
 }
 
+#[cfg(feature = "serde_support")]
 fn default_video_reparse() -> Vec<usize> {
     vec![0x00; 192]
 }
 
+#[cfg(feature = "serde_support")]
 fn default_video_dirty() -> Vec<u8> {
     vec![0x00; 24]
 }
 
+#[cfg(feature = "serde_support")]
 fn default_frame() -> Vec<u8> {
     vec![0xff; Video::WIDTH * Video::HEIGHT * 4]
 }
@@ -2799,22 +2797,27 @@ fn default_ntsc_decoder() -> Vec<Yuv> {
     decoder_matrix(NTSC_LUMA_BANDWIDTH, NTSC_CHROMA_BANDWIDTH)
 }
 
+#[cfg(feature = "serde_support")]
 fn default_luma_bandwidth() -> f32 {
     NTSC_LUMA_BANDWIDTH
 }
 
+#[cfg(feature = "serde_support")]
 fn default_chroma_bandwidth() -> f32 {
     NTSC_CHROMA_BANDWIDTH
 }
 
+#[cfg(feature = "serde_support")]
 fn default_cycle_field() -> usize {
     CYCLES_PER_FIELD_60HZ
 }
 
+#[cfg(feature = "serde_support")]
 fn default_video_main() -> Vec<u8> {
     vec![0u8; 0x10000]
 }
 
+#[cfg(feature = "serde_support")]
 fn default_video_aux() -> Vec<u8> {
     vec![0u8; 0x10000]
 }
@@ -2921,6 +2924,7 @@ fn chroma_ntsc_color(
     convert_yuv_to_rgb(c)
 }
 
+#[cfg(feature = "serde_support")]
 fn serialize_display_mode<S: Serializer>(
     v: &DisplayMode,
     serializer: S,
@@ -2934,6 +2938,7 @@ fn serialize_display_mode<S: Serializer>(
     usize::serialize(&value, serializer)
 }
 
+#[cfg(feature = "serde_support")]
 fn deserialize_display_mode<'de, D: Deserializer<'de>>(
     deserializer: D,
 ) -> Result<DisplayMode, D::Error> {

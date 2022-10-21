@@ -1,9 +1,12 @@
 use chrono::prelude::*;
+
+#[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
 
 const CLOCK_INIT_SEQUENCE: u64 = 0x5ca33ac55ca33ac5;
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[derive(PartialEq,Debug)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub struct NoSlotClock {
     clock_register: RingRegister64,
     cmp_register: RingRegister64,
@@ -11,7 +14,8 @@ pub struct NoSlotClock {
     write_enabled: bool,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[derive(PartialEq,Debug)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 struct RingRegister64 {
     mask: u64,
     register: u64,

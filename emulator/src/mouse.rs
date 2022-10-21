@@ -1,9 +1,10 @@
 use crate::bus::Card;
 use crate::mmu::Mmu;
 use crate::video::Video;
-use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 
+#[cfg(feature = "serde_support")]
+use serde::{Deserialize, Serialize};
 /*
 Memory map for mouse
     C080	(r/w) Enable Mouse (0 or 1)
@@ -12,7 +13,8 @@ Memory map for mouse
     C083    (r/w) COMMAND
 */
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Debug)]
+#[derive(Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub struct Mouse {
     x: i32,
     y: i32,

@@ -1,8 +1,10 @@
 use crate::bus::Card;
 use crate::mmu::Mmu;
 use crate::video::Video;
-use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
+
+#[cfg(feature = "serde_support")]
+use serde::{Deserialize, Serialize};
 
 const AY_RESET: u8 = 0;
 const AY_INACTIVE: u8 = 4;
@@ -32,7 +34,8 @@ const AY_ENV_ATTACK: u8 = 4;
 const AY_ENV_ALT: u8 = 2;
 const AY_ENV_HOLD: u8 = 1;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 struct Noise {
     period: u8,
     count: usize,
@@ -54,7 +57,8 @@ impl Noise {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 struct Envelope {
     period: u16,
     count: usize,
@@ -113,7 +117,8 @@ impl Envelope {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 struct Tone {
     period: u16,
     volume: u8,
@@ -145,7 +150,8 @@ impl Tone {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 struct AY8910 {
     _name: String,
     current_reg: u8,
@@ -367,8 +373,9 @@ impl AY8910 {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(default)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_support", serde(default))]
 struct W65C22 {
     _name: String,
     orb: u8,
@@ -699,8 +706,9 @@ impl Default for W65C22 {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(default)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_support", serde(default))]
 pub struct Mockingboard {
     w65c22: [W65C22; 2],
     rng: usize,

@@ -495,18 +495,21 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                let output = serde_yaml::to_string(&cpu).unwrap();
-                let yaml_output = output.replace("\"\"", "''").replace('"', "");
-                let result = nfd2::open_save_dialog(Some("yaml"), None);
-                if result.is_ok() {
-                    if let Ok(Response::Okay(file_path)) = result {
-                        let write_result = fs::write(&file_path, yaml_output);
-                        if let Err(e) = write_result {
-                            eprintln!("Unable to write to file {} : {}", file_path.display(), e);
+                #[cfg(feature = "serde_support")] 
+                {
+                    let output = serde_yaml::to_string(&cpu).unwrap();
+                    let yaml_output = output.replace("\"\"", "''").replace('"', "");
+                    let result = nfd2::open_save_dialog(Some("yaml"), None);
+                    if result.is_ok() {
+                        if let Ok(Response::Okay(file_path)) = result {
+                            let write_result = fs::write(&file_path, yaml_output);
+                            if let Err(e) = write_result {
+                                eprintln!("Unable to write to file {} : {}", file_path.display(), e);
+                            }
                         }
+                    } else {
+                        eprintln!("Unable to open save file dialog");
                     }
-                } else {
-                    eprintln!("Unable to open save file dialog");
                 }
             } else {
                 cpu.bus.disk.borrow_mut().swap_drive();
@@ -1301,90 +1304,93 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         if !reload_cpu {
             break;
         } else {
-            let result = nfd2::open_file_dialog(Some("yaml"), None);
-            if result.is_ok() {
-                if let Ok(Response::Okay(file_path)) = result {
-                    let result = fs::read_to_string(&file_path);
-                    if let Ok(input) = result {
-                        let deserialized_result = serde_yaml::from_str::<CPU>(&input);
-                        if let Ok(mut new_cpu) = deserialized_result {
-                            // Initialize the previous cycles
-                            previous_cycles = new_cpu.bus.get_cycles();
+            #[cfg(feature = "serde_support")] 
+            {
+                let result = nfd2::open_file_dialog(Some("yaml"), None);
+                if result.is_ok() {
+                    if let Ok(Response::Okay(file_path)) = result {
+                        let result = fs::read_to_string(&file_path);
+                        if let Ok(input) = result {
+                            let deserialized_result = serde_yaml::from_str::<CPU>(&input);
+                            if let Ok(mut new_cpu) = deserialized_result {
+                                // Initialize the previous cycles
+                                previous_cycles = new_cpu.bus.get_cycles();
 
-                            // Initialize new cpu video memory
-                            //if let Some(video) = &mut new_cpu.bus.video
-                            {
-                                let mmu = new_cpu.bus.mem.borrow();
-                                let mut disp = new_cpu.bus.video.borrow_mut();
-                                disp.video_main[0x400..0xc00]
-                                    .clone_from_slice(&mmu.cpu_memory[0x400..0xc00]);
-                                disp.video_aux[0x400..0xc00]
-                                    .clone_from_slice(&mmu.aux_memory[0x400..0xc00]);
-                                disp.video_main[0x2000..0x6000]
-                                    .clone_from_slice(&mmu.cpu_memory[0x2000..0x6000]);
-                                disp.video_aux[0x2000..0x6000]
-                                    .clone_from_slice(&mmu.aux_memory[0x2000..0x6000]);
+                                // Initialize new cpu video memory
+                                //if let Some(video) = &mut new_cpu.bus.video
+                                {
+                                    let mmu = new_cpu.bus.mem.borrow();
+                                    let mut disp = new_cpu.bus.video.borrow_mut();
+                                    disp.video_main[0x400..0xc00]
+                                        .clone_from_slice(&mmu.cpu_memory[0x400..0xc00]);
+                                    disp.video_aux[0x400..0xc00]
+                                        .clone_from_slice(&mmu.aux_memory[0x400..0xc00]);
+                                    disp.video_main[0x2000..0x6000]
+                                        .clone_from_slice(&mmu.cpu_memory[0x2000..0x6000]);
+                                    disp.video_aux[0x2000..0x6000]
+                                        .clone_from_slice(&mmu.aux_memory[0x2000..0x6000]);
 
-                                // Restore the display mode
-                                match disp.get_display_mode() {
-                                    DisplayMode::NTSC => display_index = 1,
-                                    DisplayMode::MONO => display_index = 2,
-                                    DisplayMode::RGB => display_index = 3,
-                                    _ => display_index = 0,
+                                    // Restore the display mode
+                                    match disp.get_display_mode() {
+                                        DisplayMode::NTSC => display_index = 1,
+                                        DisplayMode::MONO => display_index = 2,
+                                        DisplayMode::RGB => display_index = 3,
+                                        _ => display_index = 0,
+                                    }
+
+                                    // Update NTSC details
+                                    let luma_bandwidth = disp.luma_bandwidth;
+                                    let chroma_bandwidth = disp.chroma_bandwidth;
+                                    disp.update_ntsc_matrix(luma_bandwidth, chroma_bandwidth);
+
+                                    // Invalidate video cache
+                                    disp.invalidate_video_cache()
                                 }
 
-                                // Update NTSC details
-                                let luma_bandwidth = disp.luma_bandwidth;
-                                let chroma_bandwidth = disp.chroma_bandwidth;
-                                disp.update_ntsc_matrix(luma_bandwidth, chroma_bandwidth);
-
-                                // Invalidate video cache
-                                disp.invalidate_video_cache()
-                            }
-
-                            // Load the loaded disk into the new cpu
-                            for drive in 0..2 {
-                                if is_disk_loaded(&new_cpu, drive) {
-                                    if let Some(disk_filename) = get_disk_filename(&new_cpu, drive)
-                                    {
-                                        let result = load_disk(&mut new_cpu, &disk_filename, drive);
-                                        if let Err(e) = result {
-                                            eprintln!(
-                                                "Unable to load disk {} : {}",
-                                                file_path.display(),
-                                                e
-                                            );
+                                // Load the loaded disk into the new cpu
+                                for drive in 0..2 {
+                                    if is_disk_loaded(&new_cpu, drive) {
+                                        if let Some(disk_filename) = get_disk_filename(&new_cpu, drive)
+                                        {
+                                            let result = load_disk(&mut new_cpu, &disk_filename, drive);
+                                            if let Err(e) = result {
+                                                eprintln!(
+                                                    "Unable to load disk {} : {}",
+                                                    file_path.display(),
+                                                    e
+                                                );
+                                            }
+                                        }
+                                    }
+                                    if is_harddisk_loaded(&new_cpu, drive) {
+                                        if let Some(disk_filename) =
+                                            get_harddisk_filename(&new_cpu, drive)
+                                        {
+                                            let result =
+                                                load_harddisk(&mut new_cpu, &disk_filename, drive);
+                                            if let Err(e) = result {
+                                                eprintln!(
+                                                    "Unable to load disk {} : {}",
+                                                    file_path.display(),
+                                                    e
+                                                );
+                                            }
                                         }
                                     }
                                 }
-                                if is_harddisk_loaded(&new_cpu, drive) {
-                                    if let Some(disk_filename) =
-                                        get_harddisk_filename(&new_cpu, drive)
-                                    {
-                                        let result =
-                                            load_harddisk(&mut new_cpu, &disk_filename, drive);
-                                        if let Err(e) = result {
-                                            eprintln!(
-                                                "Unable to load disk {} : {}",
-                                                file_path.display(),
-                                                e
-                                            );
-                                        }
-                                    }
-                                }
-                            }
 
-                            // Replace the old cpu with the new cpu
-                            cpu = new_cpu;
+                                // Replace the old cpu with the new cpu
+                                cpu = new_cpu;
+                            } else {
+                                eprintln!("Unable to restore the image : {:?}", deserialized_result);
+                            }
                         } else {
-                            eprintln!("Unable to restore the image : {:?}", deserialized_result);
+                            eprintln!("Unable to restore the image : {:?}", result);
                         }
-                    } else {
-                        eprintln!("Unable to restore the image : {:?}", result);
                     }
+                } else {
+                    eprintln!("Unable to open file dialog");
                 }
-            } else {
-                eprintln!("Unable to open file dialog");
             }
         }
     }

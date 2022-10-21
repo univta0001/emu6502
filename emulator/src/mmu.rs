@@ -1,32 +1,42 @@
 use crate::bus::{ROM_END, ROM_START};
-use flate2::read::GzDecoder;
-use flate2::write::GzEncoder;
-use flate2::Compression;
-use serde::de::{Error, Unexpected};
-use serde::ser;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::collections::BTreeMap;
-use std::io::{Read, Write};
 
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(default)]
+#[cfg(feature = "serde_support")]
+use std::collections::BTreeMap;
+#[cfg(feature = "serde_support")]
+use std::io::{Read, Write};
+#[cfg(feature = "serde_support")]
+use flate2::read::GzDecoder;
+#[cfg(feature = "serde_support")]
+use flate2::write::GzEncoder;
+#[cfg(feature = "serde_support")]
+use flate2::Compression;
+#[cfg(feature = "serde_support")]
+use serde::de::{Error, Unexpected};
+#[cfg(feature = "serde_support")]
+use serde::ser;
+#[cfg(feature = "serde_support")]
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+#[derive(Debug)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_support", serde(default))]
 pub struct Mmu {
-    #[serde(serialize_with = "as_hex", deserialize_with = "from_hex_64k")]
+    #[cfg_attr(feature = "serde_support",serde(serialize_with = "as_hex", deserialize_with = "from_hex_64k"))]
     pub cpu_memory: Vec<u8>,
 
-    #[serde(serialize_with = "as_hex", deserialize_with = "from_hex_64k")]
+    #[cfg_attr(feature = "serde_support",serde(serialize_with = "as_hex", deserialize_with = "from_hex_64k"))]
     pub aux_memory: Vec<u8>,
 
-    #[serde(serialize_with = "as_hex", deserialize_with = "from_hex_12k")]
+    #[cfg_attr(feature = "serde_support",serde(serialize_with = "as_hex", deserialize_with = "from_hex_12k"))]
     pub bank1_memory: Vec<u8>,
 
-    #[serde(serialize_with = "as_hex", deserialize_with = "from_hex_12k")]
+    #[cfg_attr(feature = "serde_support",serde(serialize_with = "as_hex", deserialize_with = "from_hex_12k"))]
     pub aux_bank1_memory: Vec<u8>,
 
-    #[serde(serialize_with = "as_hex", deserialize_with = "from_hex_12k")]
+    #[cfg_attr(feature = "serde_support",serde(serialize_with = "as_hex", deserialize_with = "from_hex_12k"))]
     pub bank2_memory: Vec<u8>,
 
-    #[serde(serialize_with = "as_hex", deserialize_with = "from_hex_12k")]
+    #[cfg_attr(feature = "serde_support",serde(serialize_with = "as_hex", deserialize_with = "from_hex_12k"))]
     pub aux_bank2_memory: Vec<u8>,
 
     pub bank1: bool,
@@ -43,7 +53,7 @@ pub struct Mmu {
 
     pub aux_bank: u8,
 
-    #[serde(serialize_with = "as_opt_hex", deserialize_with = "from_hex_opt")]
+    #[cfg_attr(feature = "serde_support",serde(serialize_with = "as_opt_hex", deserialize_with = "from_hex_opt"))]
     pub ext_aux_mem: Option<Vec<u8>>,
 }
 
@@ -313,6 +323,7 @@ impl Default for Mmu {
 }
 
 // Serialization / Deserialization functions
+#[cfg(feature = "serde_support")]
 fn hex_to_u8(c: u8) -> std::io::Result<u8> {
     match c {
         b'A'..=b'F' => Ok(c - b'A' + 10),
@@ -325,6 +336,7 @@ fn hex_to_u8(c: u8) -> std::io::Result<u8> {
     }
 }
 
+#[cfg(feature = "serde_support")]
 fn as_opt_hex<S: Serializer>(value: &Option<Vec<u8>>, serializer: S) -> Result<S::Ok, S::Error> {
     if let Some(ref v) = *value {
         return as_hex_6bytes(v, serializer);
@@ -332,6 +344,7 @@ fn as_opt_hex<S: Serializer>(value: &Option<Vec<u8>>, serializer: S) -> Result<S
     serializer.serialize_none()
 }
 
+#[cfg(feature = "serde_support")]
 fn as_hex_6bytes<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
     let mut map = BTreeMap::new();
     let mut addr = 0;
@@ -366,6 +379,7 @@ fn as_hex_6bytes<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Err
     BTreeMap::serialize(&map, serializer)
 }
 
+#[cfg(feature = "serde_support")]
 fn as_hex<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
     let mut map = BTreeMap::new();
     let mut addr = 0;
@@ -391,6 +405,7 @@ fn as_hex<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
     BTreeMap::serialize(&map, serializer)
 }
 
+#[cfg(feature = "serde_support")]
 fn from_hex_opt<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<Vec<u8>>, D::Error> {
     let map: Option<BTreeMap<String, String>> = Option::deserialize(deserializer)?;
 
@@ -439,6 +454,7 @@ fn from_hex_opt<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<Vec
     }
 }
 
+#[cfg(feature = "serde_support")]
 fn from_hex<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
     let map = BTreeMap::<String, String>::deserialize(deserializer)?;
     let mut v = Vec::new();
@@ -467,6 +483,7 @@ fn from_hex<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Er
     Ok(v)
 }
 
+#[cfg(feature = "serde_support")]
 fn from_hex_64k<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
     let result = from_hex(deserializer);
     if let Ok(ref value) = result {
@@ -480,6 +497,7 @@ fn from_hex_64k<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D
     result
 }
 
+#[cfg(feature = "serde_support")]
 fn from_hex_12k<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
     let result = from_hex(deserializer);
     if let Ok(ref value) = result {

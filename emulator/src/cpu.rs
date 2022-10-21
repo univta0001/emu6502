@@ -4,12 +4,15 @@ use crate::opcodes::OpCode;
 //use std::collections::HashMap;
 //use crate::trace::disassemble;
 //use crate::trace::trace;
-use derivative::*;
 use iz80::*;
-use serde::de::Error;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::cell::RefCell;
-use std::collections::BTreeMap;
+
+#[cfg(feature = "serde_support")] 
+use serde::de::Error;
+#[cfg(feature = "serde_support")] 
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+#[cfg(feature = "serde_support")]
+use derivative::*;
 
 bitflags! {
     /// # Status Register (P) http://wiki.nesdev.com/w/index.php/Status_flags
@@ -24,7 +27,7 @@ bitflags! {
     ///  | +--------------- Overflow Flag
     ///  +----------------- Negative Flag
     ///
-    #[derive(Serialize, Deserialize)]
+    #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
     pub struct CpuFlags: u8 {
         const CARRY             = 0b00000001;
         const ZERO              = 0b00000010;
@@ -305,8 +308,8 @@ pub const OPCODES: [OpCode; 256] = [
     OpCode::new(0xff, "BBS7", 3, 5, AddressingMode::ZeroPage_Relative, true),
 ];
 
-#[derive(Serialize, Deserialize, Derivative)]
-#[derivative(Debug)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize, Derivative))]
+#[cfg_attr(feature = "serde_support", derivative(Debug))]
 pub struct CPU {
     pub register_a: u8,
     pub register_x: u8,
@@ -319,26 +322,26 @@ pub struct CPU {
     pub callback: bool,
     pub full_speed: bool,
 
-    #[serde(default)]
+    #[cfg_attr(feature = "serde_support",serde(default))]
     pub m65c02_rockwell_disable: bool,
 
-    #[serde(skip_serializing)]
-    #[serde(default)]
+    #[cfg_attr(feature = "serde_support",serde(skip_serializing))]
+    #[cfg_attr(feature = "serde_support",serde(default))]
     pub self_test: bool,
 
-    #[serde(skip_serializing)]
-    #[serde(default)]
+    #[cfg_attr(feature = "serde_support",serde(skip_serializing))]
+    #[cfg_attr(feature = "serde_support",serde(default))]
     pub bench_test: bool,
 
-    #[serde(default)]
+    #[cfg_attr(feature = "serde_support",serde(default))]
     pub alt_cpu: bool,
 
-    #[serde(default)]
+    #[cfg_attr(feature = "serde_support",serde(default))]
     pub halt_cpu: bool,
 
-    #[serde(default = "default_z80cpu")]
-    #[derivative(Debug = "ignore")]
-    #[serde(serialize_with = "serialize_cpu", deserialize_with = "deserialize_cpu")]
+    #[cfg_attr(feature = "serde_support",serde(default = "default_z80cpu"))]
+    #[cfg_attr(feature = "serde_support",derivative(Debug = "ignore"))]
+    #[cfg_attr(feature = "serde_support",serde(serialize_with = "serialize_cpu", deserialize_with = "deserialize_cpu"))]
     pub z80cpu: RefCell<Cpu>,
 }
 
@@ -1896,6 +1899,7 @@ fn translate_z80address(address: u16) -> u16 {
     }
 }
 
+#[cfg(feature = "serde_support")]
 fn hex_to_u8(c: u8) -> std::io::Result<u8> {
     match c {
         b'A'..=b'F' => Ok(c - b'A' + 10),
@@ -1908,6 +1912,9 @@ fn hex_to_u8(c: u8) -> std::io::Result<u8> {
     }
 }
 
+#[cfg(feature = "serde_support")]
+use std::collections::BTreeMap;
+#[cfg(feature = "serde_support")]
 fn hex_get16(map: &BTreeMap<String, String>, key: &str) -> std::io::Result<u16> {
     let value = &map[key];
 
@@ -1926,6 +1933,7 @@ fn hex_get16(map: &BTreeMap<String, String>, key: &str) -> std::io::Result<u16> 
     Ok(v)
 }
 
+#[cfg(feature = "serde_support")]
 fn serialize_cpu<S: Serializer>(v: &RefCell<Cpu>, serializer: S) -> Result<S::Ok, S::Error> {
     let mut map = BTreeMap::new();
     let mut value = v.borrow_mut();
@@ -1943,6 +1951,7 @@ fn serialize_cpu<S: Serializer>(v: &RefCell<Cpu>, serializer: S) -> Result<S::Ok
     BTreeMap::serialize(&map, serializer)
 }
 
+#[cfg(feature = "serde_support")]
 fn deserialize_cpu<'de, D: Deserializer<'de>>(deserializer: D) -> Result<RefCell<Cpu>, D::Error> {
     let map = BTreeMap::<String, String>::deserialize(deserializer)?;
     let v = default_z80cpu();

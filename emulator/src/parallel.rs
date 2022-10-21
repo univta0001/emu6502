@@ -1,10 +1,13 @@
 use crate::bus::Card;
 use crate::mmu::Mmu;
 use crate::video::Video;
-use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Debug)]
+#[cfg(feature = "serde_support")]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug,Eq,PartialEq)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub struct ParallelCard {}
 
 const ROM: [u8; 256] = [

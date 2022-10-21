@@ -5,7 +5,6 @@ use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use rand::prelude::*;
-use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::ffi::OsStr;
 use std::fs::File;
@@ -14,6 +13,9 @@ use std::io::Read;
 use std::io::{self};
 use std::path::Path;
 use std::path::PathBuf;
+
+#[cfg(feature = "serde_support")]
+use serde::{Deserialize, Serialize};
 
 const DSK_IMAGE_SIZE: usize = 143360;
 const DSK40_IMAGE_SIZE: usize = 163840;
@@ -68,18 +70,19 @@ const DETRANS62: [u8; 128] = [
     0x00, 0x00, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x00, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f,
 ];
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 struct Disk {
-    #[serde(skip_serializing)]
-    #[serde(default = "default_raw_track_data")]
+    #[cfg_attr(feature = "serde_support",serde(skip_serializing))]
+    #[cfg_attr(feature = "serde_support",serde(default = "default_raw_track_data"))]
     raw_track_data: Vec<Vec<u8>>,
 
-    #[serde(skip_serializing)]
-    #[serde(default = "default_raw_track_bits")]
+    #[cfg_attr(feature = "serde_support",serde(skip_serializing))]
+    #[cfg_attr(feature = "serde_support",serde(default = "default_raw_track_bits"))]
     raw_track_bits: Vec<usize>,
 
-    #[serde(skip_serializing)]
-    #[serde(default = "default_tmap_data")]
+    #[cfg_attr(feature = "serde_support",serde(skip_serializing))]
+    #[cfg_attr(feature = "serde_support",serde(default = "default_tmap_data"))]
     tmap_data: Vec<u8>,
 
     optimal_timing: u8,
@@ -96,14 +99,15 @@ struct Disk {
     filename: String,
     loaded: bool,
 
-    #[serde(default)]
+    #[cfg_attr(feature = "serde_support",serde(default))]
     track_40: bool,
 
-    #[serde(default)]
+    #[cfg_attr(feature = "serde_support",serde(default))]
     disk_rom13: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub struct DiskDrive {
     drive: Vec<Disk>,
     drive_select: usize,
@@ -123,11 +127,11 @@ pub struct DiskDrive {
     disable_fast_disk: bool,
     enable_save: bool,
 
-    #[serde(default)]
+    #[cfg_attr(feature = "serde_support",serde(default))]
     fast_disk_timer: usize,
 
-    #[serde(skip)]
-    #[serde(default = "default_rng")]
+    #[cfg_attr(feature = "serde_support",serde(skip))]
+    #[cfg_attr(feature = "serde_support",serde(default = "default_rng"))]
     rng: ThreadRng,
 }
 
@@ -2049,18 +2053,22 @@ impl Card for DiskDrive {
     }
 }
 
+#[cfg(feature = "serde_support")]
 fn default_raw_track_data() -> Vec<Vec<u8>> {
     vec![vec![0u8; 0]; DSK_TRACK_SIZE]
 }
 
+#[cfg(feature = "serde_support")]
 fn default_raw_track_bits() -> Vec<usize> {
     vec![0; DSK_TRACK_SIZE]
 }
 
+#[cfg(feature = "serde_support")]
 fn default_tmap_data() -> Vec<u8> {
     vec![0xffu8; WOZ_TMAP_SIZE]
 }
 
+#[cfg(feature = "serde_support")]
 fn default_rng() -> ThreadRng {
     rand::thread_rng()
 }

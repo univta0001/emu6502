@@ -1,15 +1,24 @@
 use crate::bus::Card;
 use crate::mmu::Mmu;
 use crate::video::Video;
-use flate2::read::GzDecoder;
-use flate2::write::GzEncoder;
-use flate2::Compression;
-use serde::de::{Error, Unexpected};
-use serde::ser;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::cell::RefCell;
+
+#[cfg(feature = "serde_support")]
 use std::collections::BTreeMap;
+#[cfg(feature = "serde_support")]
 use std::io::{Read, Write};
+#[cfg(feature = "serde_support")]
+use flate2::read::GzDecoder;
+#[cfg(feature = "serde_support")]
+use flate2::write::GzEncoder;
+#[cfg(feature = "serde_support")]
+use flate2::Compression;
+#[cfg(feature = "serde_support")]
+use serde::de::{Error, Unexpected};
+#[cfg(feature = "serde_support")]
+use serde::ser;
+#[cfg(feature = "serde_support")]
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 const ROM: [u8; 8192] = [
     0x43, 0x4f, 0x50, 0x59, 0x52, 0x49, 0x47, 0x48, 0x54, 0x20, 0x28, 0x43, 0x29, 0x20, 0x31, 0x39,
@@ -529,17 +538,19 @@ const ROM: [u8; 8192] = [
 const RAMSIZE: usize = 0x100000;
 const SIZE_1MB: usize = 0x100000;
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Debug)]
+#[derive(Debug,Eq,PartialEq)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub struct RamFactor {
     firmware_bank: u8,
     addr: usize,
 
-    #[serde(serialize_with = "as_hex", deserialize_with = "from_hex_mem")]
-    #[serde(default = "default_mem")]
+    #[cfg_attr(feature = "serde_support",serde(serialize_with = "as_hex", deserialize_with = "from_hex_mem"))]
+    #[cfg_attr(feature = "serde_support",serde(default = "default_mem"))]
     mem: Vec<u8>,
 }
 
 // Serialization / Deserialization functions
+#[cfg(feature = "serde_support")]
 fn hex_to_u8(c: u8) -> std::io::Result<u8> {
     match c {
         b'A'..=b'F' => Ok(c - b'A' + 10),
@@ -552,6 +563,7 @@ fn hex_to_u8(c: u8) -> std::io::Result<u8> {
     }
 }
 
+#[cfg(feature = "serde_support")]
 fn as_hex<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
     let mut map = BTreeMap::new();
     let mut addr = 0;
@@ -599,6 +611,7 @@ fn as_hex<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
     BTreeMap::serialize(&map, serializer)
 }
 
+#[cfg(feature = "serde_support")]
 fn from_hex<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
     let map = BTreeMap::<String, String>::deserialize(deserializer)?;
 
@@ -643,10 +656,12 @@ fn from_hex<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Er
     Ok(v)
 }
 
+#[cfg(feature = "serde_support")]
 fn from_hex_mem<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
     from_hex(deserializer)
 }
 
+#[cfg(feature = "serde_support")]
 fn default_mem() -> Vec<u8> {
     vec![0; RAMSIZE]
 }

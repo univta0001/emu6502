@@ -1,6 +1,8 @@
 use crate::mockingboard::Mockingboard;
-use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
+
+#[cfg(feature = "serde_support")]
+use serde::{Deserialize, Serialize};
 
 type Channel = i16;
 type HigherChannel = i32;
@@ -15,8 +17,9 @@ const AY_LEVEL: [u16; 16] = [
     0x9204, 0xaff1, 0xd921, 0xffff,
 ];
 
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(default)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_support", serde(default))]
 pub struct Audio {
     pub data: AudioData,
     pub mboard: Vec<RefCell<Mockingboard>>,
@@ -26,7 +29,8 @@ pub struct Audio {
     audio_active: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub struct AudioData {
     pub sample: Vec<Channel>,
     phase: Channel,

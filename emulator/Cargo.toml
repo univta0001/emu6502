@@ -11,9 +11,9 @@ rand = "0.8.5"
 flate2 = "1.0.24"
 instant = { version = "0.1.12", features = ["wasm-bindgen"] }
 getrandom = { version = "0.2.7", features = ["js"] }
-serde = { version = "1.0.145", features = ["derive"] }
+serde = { version = "1.0.145", features = ["derive"],  optional = true }
 iz80 = "0.3.5"
-derivative = "2.2.0"
+derivative = { version = "2.2.0", optional = true }
 chrono = { version = "0.4.22", default-features = false, features = ["clock", "wasmbind"] }
 
 [dev-dependencies]
@@ -26,6 +26,11 @@ ryu = "1.0.11"
 autocfg = "1.1.0"
 crossbeam-channel = "0.5.6"
 num_cpus = "1.13.1"
+
+[features]
+default = [ ]
+#default = [ "serde_support" ]
+serde_support = ["dep:serde","dep:derivative"]
 
 [[bench]]
 name = "cpu_bench"

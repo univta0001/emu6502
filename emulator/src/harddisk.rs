@@ -1,14 +1,17 @@
 use crate::bus::Card;
 use crate::mmu::Mmu;
 use crate::video::Video;
-use derivative::*;
-use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::ffi::OsStr;
 use std::fs::OpenOptions;
 use std::io::{self, Seek, SeekFrom, Write};
 use std::path::Path;
 use std::path::PathBuf;
+
+#[cfg(feature = "serde_support")]
+use serde::{Deserialize, Serialize};
+#[cfg(feature = "serde_support")]
+use derivative::*;
 
 const ROM: [u8; 256] = [
     0xa9, 0x20, 0xa9, 0x00, 0xa9, 0x03, 0xa9, 0x3c, 0xd0, 0x3f, 0x38, 0xb0, 0x01, 0x18, 0xb0, 0x7d,
@@ -46,12 +49,12 @@ https://github.com/AppleWin/AppleWin/blob/master/source/Harddisk.cpp
     C087	(r/w) HIGH BYTE OF BLOCK NUMBER
 */
 
-#[derive(Serialize, Deserialize, Derivative)]
-#[derivative(Debug)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize, Derivative))]
 struct Disk {
-    #[serde(skip)]
-    #[serde(default)]
-    #[derivative(Debug = "ignore")]
+    #[cfg_attr(feature = "serde_support",serde(skip))]
+    #[cfg_attr(feature = "serde_support",serde(default))]
+    #[cfg_attr(feature = "serde_support",derivative(Debug = "ignore"))]
     raw_data: Vec<u8>,
 
     write_protect: bool,
@@ -88,7 +91,8 @@ impl Default for Disk {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub struct HardDisk {
     drive: Vec<Disk>,
     drive_select: usize,
