@@ -26,8 +26,9 @@ cc = "1.0.73"
 
 [features]
 #default = [ ]
-default = ["serde_support"]
+default = ["serde_support", "z80"]
 serde_support = ["dep:serde_yaml","emu6502/serde_support"]
+z80 = ["emu6502/z80"]
 
 [[bin]]
 name = "emu6502"

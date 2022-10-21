@@ -49,6 +49,7 @@ pub enum IODevice {
     Printer,
     RamFactor,
     Mockingboard(usize),
+    #[cfg(feature="z80")]
     Z80,
     HardDisk,
     Mouse,
@@ -330,6 +331,7 @@ impl Bus {
                 IODevice::Disk => Some(self.disk.borrow_mut()),
                 IODevice::HardDisk => Some(self.harddisk.borrow_mut()),
                 IODevice::Mockingboard(_) => None,
+                #[cfg(feature="z80")]
                 IODevice::Z80 => None,
                 _ => None,
             };
@@ -383,6 +385,7 @@ impl Bus {
                     IODevice::Mouse => Some(self.mouse.borrow_mut()),
                     IODevice::Disk => Some(self.disk.borrow_mut()),
                     IODevice::HardDisk => Some(self.harddisk.borrow_mut()),
+                    #[cfg(feature="z80")]
                     IODevice::Z80 => {
                         if write_flag {
                             self.halt_cpu.set(true);

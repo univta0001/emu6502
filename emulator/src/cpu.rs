@@ -4,15 +4,29 @@ use crate::opcodes::OpCode;
 //use std::collections::HashMap;
 //use crate::trace::disassemble;
 //use crate::trace::trace;
-use iz80::*;
+
+#[cfg(feature="z80")]
 use std::cell::RefCell;
+
+#[cfg(feature = "z80")]
+use iz80::*;
+
+#[cfg(feature = "z80")]
+#[cfg(feature = "serde_support")]
+use std::collections::BTreeMap;
 
 #[cfg(feature = "serde_support")]
 use derivative::*;
 #[cfg(feature = "serde_support")]
-use serde::de::Error;
+use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "z80")]
 #[cfg(feature = "serde_support")]
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::de::Error;
+
+#[cfg(feature = "z80")]
+#[cfg(feature = "serde_support")]
+use serde::{Deserializer, Serializer};
 
 bitflags! {
     /// # Status Register (P) http://wiki.nesdev.com/w/index.php/Status_flags
@@ -339,6 +353,8 @@ pub struct CPU {
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub halt_cpu: bool,
 
+
+    #[cfg(feature = "z80")]
     #[cfg_attr(feature = "serde_support", serde(default = "default_z80cpu"))]
     #[cfg_attr(feature = "serde_support", derivative(Debug = "ignore"))]
     #[cfg_attr(
@@ -457,6 +473,7 @@ impl CPU {
             self_test: false,
             bench_test: false,
             full_speed: false,
+            #[cfg(feature="z80")] 
             z80cpu: default_z80cpu(),
         }
     }
@@ -1348,6 +1365,7 @@ impl CPU {
         }
 
         if self.alt_cpu {
+            #[cfg(feature="z80")]
             self.z80cpu.borrow_mut().execute_instruction(&mut self.bus);
             return true;
         }
@@ -1861,6 +1879,7 @@ impl CPU {
     }
 }
 
+#[cfg(feature="z80")]
 impl Machine for Bus {
     fn peek(&self, address: u16) -> u8 {
         //eprintln!("Peek addr = {:04x} {:04X}", address, translate_address(address));
@@ -1889,10 +1908,12 @@ impl Machine for Bus {
     }
 }
 
+#[cfg(feature="z80")]
 fn default_z80cpu() -> RefCell<Cpu> {
     RefCell::new(Cpu::new())
 }
 
+#[cfg(feature="z80")]
 fn translate_z80address(address: u16) -> u16 {
     match address {
         0x0000..=0xafff => address + 0x1000,
@@ -1902,6 +1923,7 @@ fn translate_z80address(address: u16) -> u16 {
     }
 }
 
+#[cfg(feature="z80")]
 #[cfg(feature = "serde_support")]
 fn hex_to_u8(c: u8) -> std::io::Result<u8> {
     match c {
@@ -1915,8 +1937,8 @@ fn hex_to_u8(c: u8) -> std::io::Result<u8> {
     }
 }
 
+#[cfg(feature="z80")]
 #[cfg(feature = "serde_support")]
-use std::collections::BTreeMap;
 #[cfg(feature = "serde_support")]
 fn hex_get16(map: &BTreeMap<String, String>, key: &str) -> std::io::Result<u16> {
     let value = &map[key];
@@ -1936,6 +1958,7 @@ fn hex_get16(map: &BTreeMap<String, String>, key: &str) -> std::io::Result<u16> 
     Ok(v)
 }
 
+#[cfg(feature = "z80")]
 #[cfg(feature = "serde_support")]
 fn serialize_cpu<S: Serializer>(v: &RefCell<Cpu>, serializer: S) -> Result<S::Ok, S::Error> {
     let mut map = BTreeMap::new();
@@ -1950,10 +1973,11 @@ fn serialize_cpu<S: Serializer>(v: &RefCell<Cpu>, serializer: S) -> Result<S::Ok
     map.insert("IX", format!("{:04X}", r.get16(Reg16::IX)));
     map.insert("IY", format!("{:04X}", r.get16(Reg16::IY)));
     map.insert("PC", format!("{:04X}", r.pc()));
-
+    
     BTreeMap::serialize(&map, serializer)
 }
 
+#[cfg(feature = "z80")]
 #[cfg(feature = "serde_support")]
 fn deserialize_cpu<'de, D: Deserializer<'de>>(deserializer: D) -> Result<RefCell<Cpu>, D::Error> {
     let map = BTreeMap::<String, String>::deserialize(deserializer)?;

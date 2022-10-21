@@ -844,6 +844,7 @@ fn register_device(cpu: &mut CPU, device: &str, slot: usize) {
         "mouse" => cpu.bus.register_device(IODevice::Mouse, slot),
         "parallel" => cpu.bus.register_device(IODevice::Printer, slot),
         "ramfactor" => cpu.bus.register_device(IODevice::RamFactor, slot),
+        #[cfg(feature="z80")]
         "z80" => cpu.bus.register_device(IODevice::Z80, slot),
         "diskii" => cpu.bus.register_device(IODevice::Disk, slot),
         _ => {}
