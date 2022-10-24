@@ -15,7 +15,6 @@ wasm-bindgen-futures = "0.4.33"
 js-sys = "0.3.60"
 instant = { version = "0.1.12", features = ["wasm-bindgen"] }
 console_error_panic_hook = "0.1.7"
-once_cell = "1.14.0"
 wee_alloc = "0.4.5"
 autocfg = "1.1.0"
 

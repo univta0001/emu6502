@@ -821,7 +821,7 @@ impl Bus {
 
             0x70 => {
                 self.set_paddle_trigger(self.get_cycles());
-                0
+                self.read_floating_bus()
             }
 
             0x73 => {
