@@ -1510,7 +1510,7 @@ impl DiskDrive {
         }
 
         // Check if FLUX block is there, for now do not support woz 2.1 with FLUX block
-        if dsk[offset] == 3 && dsk[offset + 46] != 0 {
+        if dsk[offset] == 3 && dsk[offset + 46] != 0 && dsk[offset + 48] != 0 {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
                 "Unsupported WOZ 2.1 image with FLUX chunk",
