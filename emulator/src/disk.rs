@@ -85,6 +85,10 @@ struct Disk {
     #[cfg_attr(feature = "serde_support", serde(default = "default_tmap_data"))]
     tmap_data: Vec<u8>,
 
+    #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
+    #[cfg_attr(feature = "serde_support", serde(default = "default_fluxmap_data"))]
+    fluxmap_data: Vec<u8>,
+
     optimal_timing: u8,
     track: i32,
     last_track: i32,
@@ -221,6 +225,7 @@ const WOZ_TMAP_SIZE: usize = 160;
 const WOZ_INFO_CHUNK: u32 = 0x4F464E49;
 const WOZ_TMAP_CHUNK: u32 = 0x50414D54;
 const WOZ_TRKS_CHUNK: u32 = 0x534B5254;
+const WOZ_FLUX_CHUNK: u32 = 0x58554C46;
 
 // motor position from the magnet state
 // -1 means invalid, not supported
@@ -1437,6 +1442,7 @@ impl DiskDrive {
         let mut woz_offset = 12;
         let mut info = false;
         let mut tmap = false;
+        let mut flux = false;
         let mut trks = false;
 
         let disk = &mut self.drive[self.drive_select];
@@ -1473,18 +1479,29 @@ impl DiskDrive {
                     woz_offset += chunk_size as usize;
                 }
 
+                // FLUX
+                WOZ_FLUX_CHUNK => {
+                    self.handle_woz_fluxmap(dsk, woz_offset);
+                    flux = true;
+                    woz_offset += chunk_size as usize;
+                }
+
                 _ => {
+                    //eprintln!("Unsupported chunk {:?}", String::from_utf8(chunk_id.to_le_bytes().to_vec()));
                     woz_offset += chunk_size as usize;
                 }
             }
         }
 
-        if !info || !trks || !tmap {
+        if !info || !trks || (!tmap && !flux) {
             return Err(std::io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Invalid woz2 file - INFO, TMAP and TRKS are required",
             ));
         }
+
+        //eprintln!("Tmap = {:02X?}", disk.tmap_data);
+        //eprintln!("Fluxmap = {:02X?}", disk.fluxmap_data);
 
         //let disk = &mut self.drive[self.drive_select];
         //expand_unused_disk_tracks(disk);
@@ -1552,6 +1569,13 @@ impl DiskDrive {
         disk.tmap_data
             .copy_from_slice(&dsk[offset..offset + WOZ_TMAP_SIZE]);
     }
+
+    fn handle_woz_fluxmap(&mut self, dsk: &[u8], offset: usize) {
+        // Extract FLUX with 160 tracks
+        let disk = &mut self.drive[self.drive_select];
+        disk.fluxmap_data
+            .copy_from_slice(&dsk[offset..offset + WOZ_TMAP_SIZE]);
+    }    
 
     fn handle_woz_trks(
         &mut self,
@@ -1681,6 +1705,7 @@ impl DiskDrive {
         disk.raw_track_data = vec![vec![0u8; MAX_USABLE_BITS_TRACK_SIZE]; DSK_TRACK_SIZE];
         disk.raw_track_bits = vec![0; DSK_TRACK_SIZE];
         disk.tmap_data = vec![0xffu8; WOZ_TMAP_SIZE];
+        disk.fluxmap_data = vec![0xffu8; WOZ_TMAP_SIZE];
     }
 
     pub fn load_disk_image<P>(&mut self, file_path: P) -> io::Result<()>
@@ -1939,6 +1964,7 @@ impl Disk {
             raw_track_data: vec![vec![0u8; 0]; DSK_TRACK_SIZE],
             raw_track_bits: vec![0; DSK_TRACK_SIZE],
             tmap_data: vec![0xffu8; WOZ_TMAP_SIZE],
+            fluxmap_data: vec![0xffu8; WOZ_TMAP_SIZE],
             optimal_timing: 32,
             track: 0,
             last_track: 0,
@@ -2073,6 +2099,11 @@ fn default_raw_track_bits() -> Vec<usize> {
 
 #[cfg(feature = "serde_support")]
 fn default_tmap_data() -> Vec<u8> {
+    vec![0xffu8; WOZ_TMAP_SIZE]
+}
+
+#[cfg(feature = "serde_support")]
+fn default_fluxmap_data() -> Vec<u8> {
     vec![0xffu8; WOZ_TMAP_SIZE]
 }
 
