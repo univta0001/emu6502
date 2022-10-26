@@ -1494,10 +1494,10 @@ impl DiskDrive {
 
     fn handle_woz_info(&mut self, dsk: &[u8], offset: usize, woz1: bool) -> io::Result<()> {
         // Check on the info version
-        if dsk[offset] != 1 && dsk[offset] != 2 {
+        if dsk[offset] != 1 && dsk[offset] != 2 && dsk[offset] != 3 {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
-                "Only Info version 1 or version 2 supported for WOZ",
+                "Only Info version 1 or version 2 or version 2.1 supported for WOZ",
             ));
         }
 
