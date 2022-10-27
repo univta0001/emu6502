@@ -1627,8 +1627,11 @@ impl DiskDrive {
 
                 // FLUX
                 WOZ_FLUX_CHUNK => {
-                    self.handle_woz_fluxmap(dsk, woz_offset);
-                    flux = true;
+                    // Only handle FLUX Chunk is the version is greater than 2
+                    if dsk[20] > 2 {
+                        self.handle_woz_fluxmap(dsk, woz_offset);
+                        flux = true;
+                    }
                     woz_offset += chunk_size as usize;
                 }
 
@@ -1728,8 +1731,8 @@ impl DiskDrive {
             // Fill in Flux track only on the tmap_data
             let index = offset + i;
             if dsk[index] != 255 {
-                disk.tmap_data[index] = dsk[index];
-                disk.trackmap[index] = TrackType::Flux;
+                disk.tmap_data[i] = dsk[index];
+                disk.trackmap[i] = TrackType::Flux;
             }
         }
     }
