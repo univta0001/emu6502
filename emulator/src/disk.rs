@@ -70,6 +70,14 @@ const DETRANS62: [u8; 128] = [
     0x00, 0x00, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x00, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f,
 ];
 
+#[derive(Copy, Clone, Eq, PartialEq,Debug)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
+pub enum TrackType {
+    None,
+    Track,
+    Flux
+}
+
 #[derive(Debug)]
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 struct Disk {
@@ -86,8 +94,8 @@ struct Disk {
     tmap_data: Vec<u8>,
 
     #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
-    #[cfg_attr(feature = "serde_support", serde(default = "default_fluxmap_data"))]
-    fluxmap_data: Vec<u8>,
+    #[cfg_attr(feature = "serde_support", serde(default = "default_trackmap"))]
+    trackmap: Vec<TrackType>,
 
     optimal_timing: u8,
     track: i32,
@@ -1451,6 +1459,10 @@ impl DiskDrive {
             disk.raw_track_bits[track] = 0;
         }
 
+        for i in 0..WOZ_TMAP_SIZE {
+            disk.trackmap[i]=TrackType::None
+        }
+
         while woz_offset < dsk.len() {
             let chunk_id = read_woz_u32(dsk, woz_offset);
             let chunk_size = read_woz_u32(dsk, woz_offset + 4);
@@ -1501,7 +1513,6 @@ impl DiskDrive {
         }
 
         //eprintln!("Tmap = {:02X?}", disk.tmap_data);
-        //eprintln!("Fluxmap = {:02X?}", disk.fluxmap_data);
 
         //let disk = &mut self.drive[self.drive_select];
         //expand_unused_disk_tracks(disk);
@@ -1568,13 +1579,24 @@ impl DiskDrive {
         let disk = &mut self.drive[self.drive_select];
         disk.tmap_data
             .copy_from_slice(&dsk[offset..offset + WOZ_TMAP_SIZE]);
+
+        for i in 0..WOZ_TMAP_SIZE {
+            if disk.tmap_data[i] != 255 {
+                disk.trackmap[i]=TrackType::Track
+            }
+        }
     }
 
     fn handle_woz_fluxmap(&mut self, dsk: &[u8], offset: usize) {
-        // Extract FLUX with 160 tracks
         let disk = &mut self.drive[self.drive_select];
-        disk.fluxmap_data
-            .copy_from_slice(&dsk[offset..offset + WOZ_TMAP_SIZE]);
+
+        for i in offset..offset+WOZ_TMAP_SIZE {
+            // Fill in Flux track only on the tmap_data
+            if dsk[i] != 255 {
+                disk.tmap_data[i] = dsk[i];
+                disk.trackmap[i]=TrackType::Flux;
+            }
+        }
     }    
 
     fn handle_woz_trks(
@@ -1705,7 +1727,6 @@ impl DiskDrive {
         disk.raw_track_data = vec![vec![0u8; MAX_USABLE_BITS_TRACK_SIZE]; DSK_TRACK_SIZE];
         disk.raw_track_bits = vec![0; DSK_TRACK_SIZE];
         disk.tmap_data = vec![0xffu8; WOZ_TMAP_SIZE];
-        disk.fluxmap_data = vec![0xffu8; WOZ_TMAP_SIZE];
     }
 
     pub fn load_disk_image<P>(&mut self, file_path: P) -> io::Result<()>
@@ -1965,7 +1986,7 @@ impl Disk {
             raw_track_data: vec![vec![0u8; 0]; DSK_TRACK_SIZE],
             raw_track_bits: vec![0; DSK_TRACK_SIZE],
             tmap_data: vec![0xffu8; WOZ_TMAP_SIZE],
-            fluxmap_data: vec![0xffu8; WOZ_TMAP_SIZE],
+            trackmap: vec![TrackType::None; WOZ_TMAP_SIZE],
             optimal_timing: 32,
             track: 0,
             last_track: 0,
@@ -2104,8 +2125,8 @@ fn default_tmap_data() -> Vec<u8> {
 }
 
 #[cfg(feature = "serde_support")]
-fn default_fluxmap_data() -> Vec<u8> {
-    vec![0xffu8; WOZ_TMAP_SIZE]
+fn default_trackmap() -> Vec<TrackType> {
+    vec![TrackType::None; WOZ_TMAP_SIZE]
 }
 
 #[cfg(feature = "serde_support")]
