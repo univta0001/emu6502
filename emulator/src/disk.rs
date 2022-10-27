@@ -1763,7 +1763,8 @@ impl DiskDrive {
             0.0
         };
 
-        if self.lss_cycle >= (disk.optimal_timing as f32 + disk_jitter) / 8.0 {
+        let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
+        if self.lss_cycle >= optimal_timing {
             disk.head_mask >>= 1;
             disk.head_bit += 1;
 
@@ -1814,7 +1815,7 @@ impl DiskDrive {
                 };
             }
 
-            self.lss_cycle -= (disk.optimal_timing as f32 + disk_jitter) / 8.0;
+            self.lss_cycle -= optimal_timing;
         }
     }
 
