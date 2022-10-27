@@ -5,7 +5,7 @@ use crate::opcodes::OpCode;
 //use crate::trace::disassemble;
 //use crate::trace::trace;
 
-#[cfg(feature="z80")]
+#[cfg(feature = "z80")]
 use std::cell::RefCell;
 
 #[cfg(feature = "z80")]
@@ -353,7 +353,6 @@ pub struct CPU {
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub halt_cpu: bool,
 
-
     #[cfg(feature = "z80")]
     #[cfg_attr(feature = "serde_support", serde(default = "default_z80cpu"))]
     #[cfg_attr(feature = "serde_support", derivative(Debug = "ignore"))]
@@ -473,7 +472,7 @@ impl CPU {
             self_test: false,
             bench_test: false,
             full_speed: false,
-            #[cfg(feature="z80")] 
+            #[cfg(feature = "z80")]
             z80cpu: default_z80cpu(),
         }
     }
@@ -1365,7 +1364,7 @@ impl CPU {
         }
 
         if self.alt_cpu {
-            #[cfg(feature="z80")]
+            #[cfg(feature = "z80")]
             self.z80cpu.borrow_mut().execute_instruction(&mut self.bus);
             return true;
         }
@@ -1879,7 +1878,7 @@ impl CPU {
     }
 }
 
-#[cfg(feature="z80")]
+#[cfg(feature = "z80")]
 impl Machine for Bus {
     fn peek(&self, address: u16) -> u8 {
         //eprintln!("Peek addr = {:04x} {:04X}", address, translate_address(address));
@@ -1908,12 +1907,12 @@ impl Machine for Bus {
     }
 }
 
-#[cfg(feature="z80")]
+#[cfg(feature = "z80")]
 fn default_z80cpu() -> RefCell<Cpu> {
     RefCell::new(Cpu::new())
 }
 
-#[cfg(feature="z80")]
+#[cfg(feature = "z80")]
 fn translate_z80address(address: u16) -> u16 {
     match address {
         0x0000..=0xafff => address + 0x1000,
@@ -1923,7 +1922,7 @@ fn translate_z80address(address: u16) -> u16 {
     }
 }
 
-#[cfg(feature="z80")]
+#[cfg(feature = "z80")]
 #[cfg(feature = "serde_support")]
 fn hex_to_u8(c: u8) -> std::io::Result<u8> {
     match c {
@@ -1937,7 +1936,7 @@ fn hex_to_u8(c: u8) -> std::io::Result<u8> {
     }
 }
 
-#[cfg(feature="z80")]
+#[cfg(feature = "z80")]
 #[cfg(feature = "serde_support")]
 #[cfg(feature = "serde_support")]
 fn hex_get16(map: &BTreeMap<String, String>, key: &str) -> std::io::Result<u16> {
@@ -1973,7 +1972,7 @@ fn serialize_cpu<S: Serializer>(v: &RefCell<Cpu>, serializer: S) -> Result<S::Ok
     map.insert("IX", format!("{:04X}", r.get16(Reg16::IX)));
     map.insert("IY", format!("{:04X}", r.get16(Reg16::IY)));
     map.insert("PC", format!("{:04X}", r.pc()));
-    
+
     BTreeMap::serialize(&map, serializer)
 }
 

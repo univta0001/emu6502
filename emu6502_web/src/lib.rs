@@ -51,6 +51,19 @@ impl Emulator {
                         return false;
                     }
                 }
+            } else if name.ends_with(".nib.gz")
+                || name.ends_with(".nib") {
+                if name.ends_with(".gz") {
+                    let result = drv.load_nib_gz_array_to_woz(&dsk);
+                    if result.is_err() {
+                        return false;
+                    }
+                } else {
+                    let result = drv.load_nib_array_to_woz(&dsk);
+                    if result.is_err() {
+                        return false;
+                    }
+                }
             } else {
                 if name.ends_with(".gz") {
                     let result = drv.load_woz_gz_array(&dsk);

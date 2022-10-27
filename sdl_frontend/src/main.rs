@@ -547,7 +547,8 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                     eject_disk(cpu, 1);
                 }
             } else {
-                let result = nfd2::open_file_dialog(Some("dsk,po,woz,dsk.gz,po.gz,woz.gz"), None);
+                let result =
+                    nfd2::open_file_dialog(Some("dsk,po,nib,woz,nib.gz,dsk.gz,po.gz,woz.gz"), None);
                 if result.is_ok() {
                     if let Ok(Response::Okay(file_path)) = result {
                         let result = load_disk(cpu, &file_path, 1);
@@ -577,7 +578,8 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                     eject_disk(cpu, 0);
                 }
             } else {
-                let result = nfd2::open_file_dialog(Some("dsk,po,woz,dsk.gz,po.gz,woz.gz"), None);
+                let result =
+                    nfd2::open_file_dialog(Some("dsk,po,nib,woz,nib.gz,dsk.gz,po.gz,woz.gz"), None);
                 if result.is_ok() {
                     if let Ok(Response::Okay(file_path)) = result {
                         let result = load_disk(cpu, &file_path, 0);
@@ -844,7 +846,7 @@ fn register_device(cpu: &mut CPU, device: &str, slot: usize) {
         "mouse" => cpu.bus.register_device(IODevice::Mouse, slot),
         "parallel" => cpu.bus.register_device(IODevice::Printer, slot),
         "ramfactor" => cpu.bus.register_device(IODevice::RamFactor, slot),
-        #[cfg(feature="z80")]
+        #[cfg(feature = "z80")]
         "z80" => cpu.bus.register_device(IODevice::Z80, slot),
         "diskii" => cpu.bus.register_device(IODevice::Disk, slot),
         _ => {}

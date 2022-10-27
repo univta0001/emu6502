@@ -8,7 +8,7 @@ Features in the emulator
 
 - 6502 / 65C02 cycle accurate emulation
 - Disk II interface for floppy disk drives
-- File Format supported (dsk, po, woz version 1 and version 2, hdv, 2mg)
+- File Format supported (dsk, po, nib, woz version 1 and version 2.x exclude Flux, hdv, 2mg)
 - Language Card for Apple ][+
 - Mockingboard support at Slot 4 and Slot 5
 - Parallel printer card

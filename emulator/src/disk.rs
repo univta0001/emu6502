@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 
 const DSK_IMAGE_SIZE: usize = 143360;
 const DSK40_IMAGE_SIZE: usize = 163840;
+const NIB_IMAGE_SIZE: usize = 232960;
 const DSK_TRACK_SIZE: usize = 160;
 
 const ROM: [u8; 256] = [
@@ -70,12 +71,12 @@ const DETRANS62: [u8; 128] = [
     0x00, 0x00, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x00, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f,
 ];
 
-#[derive(Copy, Clone, Eq, PartialEq,Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub enum TrackType {
     None,
     Track,
-    Flux
+    Flux,
 }
 
 #[derive(Debug)]
@@ -225,6 +226,7 @@ const TRACK_LEADER_SYNC_COUNT: usize = 64;
 const SECTORS_PER_TRACK: usize = 16;
 const BYTES_PER_SECTOR: usize = 256;
 const DOS_VOLUME_NUMBER: u8 = 254;
+const NIB_TRACK_SIZE: usize = 6656;
 
 const WOZ_WOZ1_HEADER: u32 = 0x315a4f57;
 const WOZ_WOZ2_HEADER: u32 = 0x325a4f57;
@@ -528,6 +530,8 @@ fn save_dsk_woz_to_disk(disk: &mut Disk) -> io::Result<()> {
                 || check_file_extension(path_ext, stem_path, "po")
             {
                 convert_woz_to_dsk(disk)?;
+            } else if check_file_extension(path_ext, stem_path, "nib") {
+                convert_woz_to_nib(disk)?;
             } else if check_file_extension(path_ext, stem_path, "woz") {
                 save_woz_file(disk)?;
             }
@@ -934,6 +938,40 @@ fn convert_woz_to_dsk(disk: &mut Disk) -> io::Result<()> {
     Ok(())
 }
 
+fn convert_woz_to_nib(disk: &mut Disk) -> io::Result<()> {
+    let mut data = vec![0u8; NIB_TRACK_SIZE * 35];
+
+    for t in 0..35 {
+        let track = &disk.raw_track_data[t];
+        let offset = t * NIB_TRACK_SIZE;
+        data[offset..offset + NIB_TRACK_SIZE].copy_from_slice(track);
+    }
+
+    // Write to new file
+    let path = Path::new(&disk.filename);
+    let mut gz_compress = false;
+    if path
+        .extension()
+        .unwrap()
+        .eq_ignore_ascii_case(OsStr::new("gz"))
+    {
+        gz_compress = true;
+    }
+
+    if !gz_compress {
+        let mut file = File::create(&disk.filename)?;
+        file.write_all(&data)?;
+    } else {
+        let mut file = GzEncoder::new(
+            io::BufWriter::new(File::create(&disk.filename)?),
+            Compression::best(),
+        );
+        file.write_all(&data)?;
+    }
+
+    Ok(())
+}
+
 fn write_woz_u16(dsk: &mut Vec<u8>, value: u16) {
     dsk.push((value & 0xff) as u8);
     dsk.push((value >> 8 & 0xff) as u8);
@@ -1310,6 +1348,37 @@ impl DiskDrive {
         self.load_dsk_po_array_to_woz(&dsk, po_mode)
     }
 
+    fn convert_nib_to_woz<P>(&mut self, filename_path: P) -> io::Result<()>
+    where
+        P: AsRef<Path>,
+    {
+        let filename = filename_path.as_ref();
+        let dsk: Vec<u8> = if filename
+            .extension()
+            .unwrap()
+            .eq_ignore_ascii_case(OsStr::new("gz"))
+        {
+            let data = std::fs::read(&filename)?;
+            decompress_array_gz(&data)?
+        } else {
+            std::fs::read(&filename)?
+        };
+
+        if dsk.len() != NIB_IMAGE_SIZE {
+            return Err(std::io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Invalid nib file",
+            ));
+        }
+
+        self.load_nib_array_to_woz(&dsk)
+    }
+
+    pub fn load_nib_gz_array_to_woz(&mut self, dsk: &[u8]) -> io::Result<()> {
+        let data = decompress_array_gz(dsk)?;
+        self.load_nib_array_to_woz(&data)
+    }
+
     pub fn load_dsk_po_gz_array_to_woz(&mut self, dsk: &[u8], po_mode: bool) -> io::Result<()> {
         let data = decompress_array_gz(dsk)?;
         self.load_dsk_po_array_to_woz(&data, po_mode)
@@ -1376,6 +1445,71 @@ impl DiskDrive {
         } else {
             disk.track_40 = false;
         }
+
+        if self.override_optimal_timing != 0 {
+            disk.optimal_timing = self.override_optimal_timing;
+        }
+
+        //expand_unused_disk_tracks(disk);
+
+        Ok(())
+    }
+
+    pub fn load_nib_array_to_woz(&mut self, dsk: &[u8]) -> io::Result<()> {
+        let disk = &mut self.drive[self.drive_select];
+        let no_of_tracks = dsk.len() / NIB_TRACK_SIZE;
+
+        // Create TMAP
+        let mut byte_index = 0;
+        for i in 0..WOZ_TMAP_SIZE {
+            if i < (no_of_tracks * 4) - 1 {
+                let nominal_track: u8 = (i / 4) as u8;
+                match i % 4 {
+                    0 | 1 => {
+                        disk.tmap_data[byte_index] = nominal_track;
+                        byte_index += 1;
+                    }
+                    2 => {
+                        disk.tmap_data[byte_index] = 0xff;
+                        byte_index += 1;
+                    }
+                    3 => {
+                        disk.tmap_data[byte_index] = nominal_track + 1;
+                        byte_index += 1;
+                    }
+                    _ => {}
+                }
+            } else {
+                disk.tmap_data[byte_index] = 0xff;
+                byte_index += 1;
+            }
+        }
+
+        for track in 0..DSK_TRACK_SIZE {
+            disk.raw_track_data[track].clear();
+            disk.raw_track_bits[track] = 0;
+        }
+
+        for track in 0..no_of_tracks {
+            // Convert NIB to WOZ
+            let track_offset = track * NIB_TRACK_SIZE;
+            let mut data = [0u8; NIB_TRACK_SIZE];
+            data[0..NIB_TRACK_SIZE]
+                .copy_from_slice(&dsk[track_offset..track_offset + NIB_TRACK_SIZE]);
+            disk.raw_track_data[track].clear();
+            disk.raw_track_bits[track] = data.len() * 8;
+
+            for item in data {
+                disk.raw_track_data[track].push(item);
+            }
+        }
+
+        disk.optimal_timing = 32;
+        disk.po_mode = false;
+        disk.write_protect = false;
+        disk.last_track = 0;
+        disk.disk_rom13 = false;
+        disk.track_40 = false;
 
         if self.override_optimal_timing != 0 {
             disk.optimal_timing = self.override_optimal_timing;
@@ -1460,7 +1594,7 @@ impl DiskDrive {
         }
 
         for i in 0..WOZ_TMAP_SIZE {
-            disk.trackmap[i]=TrackType::None
+            disk.trackmap[i] = TrackType::None
         }
 
         while woz_offset < dsk.len() {
@@ -1582,7 +1716,7 @@ impl DiskDrive {
 
         for i in 0..WOZ_TMAP_SIZE {
             if disk.tmap_data[i] != 255 {
-                disk.trackmap[i]=TrackType::Track
+                disk.trackmap[i] = TrackType::Track
             }
         }
     }
@@ -1590,14 +1724,15 @@ impl DiskDrive {
     fn handle_woz_fluxmap(&mut self, dsk: &[u8], offset: usize) {
         let disk = &mut self.drive[self.drive_select];
 
-        for i in offset..offset+WOZ_TMAP_SIZE {
+        for i in 0..WOZ_TMAP_SIZE {
             // Fill in Flux track only on the tmap_data
-            if dsk[i] != 255 {
-                disk.tmap_data[i] = dsk[i];
-                disk.trackmap[i]=TrackType::Flux;
+            let index = offset + i;
+            if dsk[index] != 255 {
+                disk.tmap_data[index] = dsk[index];
+                disk.trackmap[index] = TrackType::Flux;
             }
         }
-    }    
+    }
 
     fn handle_woz_trks(
         &mut self,
@@ -1642,7 +1777,7 @@ impl DiskDrive {
                 let bit_count =
                     dsk[block_offset + 6648] as u32 + dsk[block_offset + 6649] as u32 * 256;
                 self.handle_woz_process_trks(dsk, track, block_offset, bit_count as usize);
-                block_offset += 6656;
+                block_offset += NIB_TRACK_SIZE;
                 num_of_tracks -= 1;
                 track += 1;
             }
@@ -1738,7 +1873,7 @@ impl DiskDrive {
         if filename.extension().is_none() {
             return Err(std::io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "Invalid dsk/po/woz file",
+                "Invalid dsk/po/nib/woz file",
             ));
         }
 
@@ -1750,6 +1885,8 @@ impl DiskDrive {
                 return self.convert_dsk_po_to_woz(filename, false);
             } else if check_file_extension(filename_ext, stem_path, "po") {
                 return self.convert_dsk_po_to_woz(filename, true);
+            } else if check_file_extension(filename_ext, stem_path, "nib") {
+                return self.convert_nib_to_woz(filename);
             } else if check_file_extension(filename_ext, stem_path, "woz") {
                 return self.load_woz_file(filename);
             }
@@ -1757,7 +1894,7 @@ impl DiskDrive {
 
         Err(std::io::Error::new(
             io::ErrorKind::InvalidInput,
-            "Invalid dsk/po/woz file",
+            "Invalid dsk/po/nib/woz file",
         ))
     }
 
