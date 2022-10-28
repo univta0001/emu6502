@@ -121,8 +121,16 @@ def plot_mc3470(xlim, title):
     ax.legend(loc='lower right')
     return ax
 
+def data_read_pulse(mc3470_chunk):
+    if mc3470_chunk >= len(data):
+        mc3470_chunk = 0
+    value = data[mc3470_chunk]
+    while data[mc3470_chunk] >= 255:
+        mc3470_chunk += 1
+        value += data[mc3470_chunk]
+    return value, mc3470_chunk
 
-with open('minotaur.bin', 'rb') as fp:
+with open("ProDOS User's Disk - Disk 1, Side A.bin", 'rb') as fp:
 #with open('test.bin', 'rb') as fp:
     data = fp.read()
 
@@ -137,9 +145,10 @@ print("Number of ones = ",ones)
 
 bs = bitarray.bitarray(endian="big")
 count = 0
-READ_PULSE = "RP"
-NO_PULSE = "NO_SIG"
+READ_PULSE = "T"
+NO_PULSE   = "F"
 time_offset =0
+HOLD_PULSE = 8
 
 for b in data:
     if b < 255:
@@ -147,8 +156,8 @@ for b in data:
         bs.extend([0]*(count-1))
         bs.append(1)
 
-        signal_chunks.append((time_offset, READ_PULSE, 8))
-        signal_chunks.append((time_offset+8, NO_PULSE, count - 8))
+        signal_chunks.append((time_offset, READ_PULSE, HOLD_PULSE))
+        signal_chunks.append((time_offset+HOLD_PULSE, NO_PULSE, count - HOLD_PULSE))
         time_offset += count
         count = 0
     else:
@@ -156,56 +165,76 @@ for b in data:
 
 #print(bs)
 
-plot_mc3470([0,200],"minotaur")
-#plt.show()
-
 lss = Sequencer()
 mc3470_time = 0
 mc3470_chunk = 0
 lss_time = 0
+lss_counter = 0
 data_register = []
 read_pulses = []
+read_pulse = 0
+read_pulse_time = read_pulse + 8
+mc3470_chunk = 0
+next_read_pulse, mc3470_chunk = data_read_pulse(mc3470_chunk)
 
 while True:
-    lss_end_time = lss_time + 4 - 1 # 4*0.125=0.5 microsec
-    if lss_end_time > 1280:
+    if lss_time >= 200000:
         break
     
-    read_pulse = 0
-    start_time, type_, duration = signal_chunks[mc3470_chunk]   
-    chunk_end_time = start_time + duration - 1
-    while True:
-        if type_ == NO_PULSE:
-            pass
-        elif type_ == READ_PULSE:
-            read_pulse |= 1
-            
-        mc3470_time += 1 # Can be 0.95, 1.05, the real speed...
-        
-        if   mc3470_time <= chunk_end_time  and mc3470_time <= lss_end_time:
-            pass
-        elif mc3470_time <= chunk_end_time  and mc3470_time > lss_end_time:
-            break
-        elif mc3470_time > chunk_end_time and mc3470_time <= lss_end_time:
-            mc3470_chunk += 1
-            start_time, type_, duration = signal_chunks[mc3470_chunk]   
-            chunk_end_time = start_time + duration - 1
-        elif mc3470_time > chunk_end_time and mc3470_time > lss_end_time:
-            mc3470_chunk += 1
-            start_time, type_, duration = signal_chunks[mc3470_chunk]   
-            chunk_end_time = start_time + duration - 1
-            break
-            
-    read_pulses.append(read_pulse)
+    if mc3470_time < read_pulse_time:
+        read_pulse = 1
+    elif mc3470_time >= read_pulse_time and mc3470_time < next_read_pulse:
+        read_pulse = 0
+    elif mc3470_time >= next_read_pulse:
+        mc3470_chunk += 1
+        read_pulse_time, mc3470_chunk = data_read_pulse(mc3470_chunk)
+        next_read_pulse = mc3470_time + read_pulse_time
+        read_pulse_time = mc3470_time + 8
+        read_pulse = 1
 
-    print(read_pulse,end="")
+    if lss_counter == 0:
+        read_pulses.append(read_pulse)
+        lss.tick(0,0,read_pulse)
+        data_register.append(lss.data_register)
+        lss_counter = 4
 
-    lss.tick(0,0,read_pulse)
-    data_register.append(lss.data_register)
-    lss_time += 4
+    lss_counter -= 1
+    lss_time += 1
+    mc3470_time += 1
+
+#while True:
+#    lss_end_time = lss_time + 4 - 1 # 4*0.125=0.5 microsec
+#    if lss_end_time > 200000:
+#        break
+#   
+#    read_pulse = 0
+#    start_time, type_, duration = signal_chunks[mc3470_chunk]   
+#    chunk_end_time = start_time + duration - 1
+#    while True:
+#        if type_ == READ_PULSE:
+#            read_pulse |= 1
+#           
+#        mc3470_time += 1 # Increment by 0.125 us. Can be 0.95, 1.05, the real speed...
+#       
+#        if mc3470_time <= chunk_end_time  and mc3470_time > lss_end_time:
+#            break
+#
+#        if mc3470_time > chunk_end_time:
+#            mc3470_chunk += 1
+#            start_time, type_, duration = signal_chunks[mc3470_chunk]   
+#            chunk_end_time = start_time + duration - 1
+#            if mc3470_time > lss_end_time:
+#                break
+#           
+#    read_pulses.append(read_pulse)
+#    lss.tick(0,0,read_pulse)
+#    data_register.append(lss.data_register)
+#    lss_time += 4
 
 print()
 print(f"LSS time:{lss_time}, MC3470 time:{mc3470_time}, chunk:{mc3470_chunk}")    
+print(bs[0:1280:32])
+print(signal_chunks[0:10])
 
 filtered = [0]
 watch = False
@@ -217,5 +246,7 @@ for dr in data_register:
         watch = False
 print(",".join([f"0x{dr:02X}" for dr in filtered]))
 
+plot_mc3470([0,200],"ProDOS User's Disk - Disk 1, Side A")
+#plt.show()
 
 
