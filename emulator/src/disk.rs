@@ -1926,6 +1926,13 @@ impl DiskDrive {
             0.0
         };
 
+        /*
+        if disk.trackmap[track_to_read as usize] == TrackType::Flux {
+            println!("FLUX detected or track {track_to_read}!!");
+            std::process::exit(0)
+        }
+        */
+
         let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
         if self.lss_cycle >= optimal_timing {
             disk.head_mask >>= 1;
