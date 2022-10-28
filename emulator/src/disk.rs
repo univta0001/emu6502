@@ -1215,9 +1215,11 @@ impl DiskDrive {
 
         self.move_head_woz();
         self.step_lss();
-        self.pulse = 0;
         self.move_head_woz();
         self.step_lss();
+
+        // Read Pulse last for only 1 microsecond
+        self.pulse = 0;
     }
 
     pub fn reset(&mut self) {
