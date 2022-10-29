@@ -721,55 +721,12 @@ fn save_woz_file(disk: &mut Disk) -> io::Result<()> {
         ));
     }
 
-    /*
-    if woz1 {
-        let mut num_of_tracks = chunk_size / BITS_TRACK_SIZE as u32;
-        let mut block_offset = woz_offset;
-        let mut track = 0;
-        while num_of_tracks > 0 {
-            let track_data = &disk.raw_track_data[track];
-            dsk[block_offset..(track_data.len() + block_offset)].copy_from_slice(&track_data[..]);
-            block_offset += BITS_TRACK_SIZE;
-            num_of_tracks -= 1;
-            track += 1;
-        }
-    } else {
-        // Handling WOZ2 format. WOZ2 format track size is variable.
-        let mut track = 0;
-        loop {
-            let start_block = dsk[woz_offset] as u32 + dsk[woz_offset + 1] as u32 * 256;
-            if start_block == 0 {
-                break;
-            }
-            let block_offset = (start_block << 9) as usize;
-            let track_data = &disk.raw_track_data[track];
-            dsk[block_offset..(track_data.len() + block_offset)].copy_from_slice(&track_data[..]);
-            woz_offset += 8;
-            track += 1;
-            if track >= 160 {
-                return Err(std::io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "Invalid WOZ disk. Number of tracks >= 160",
-                ));
-            }
-        }
-    }
-    */
-
     // Calculate checksum for WOZ file
     let crc32_value = crc32(0, &newdsk[12..]);
     newdsk[8] = (crc32_value & 0xff) as u8;
     newdsk[9] = ((crc32_value >> 8) & 0xff) as u8;
     newdsk[10] = ((crc32_value >> 16) & 0xff) as u8;
     newdsk[11] = ((crc32_value >> 24) & 0xff) as u8;
-
-    /*
-    let crc32_value = crc32(0, &dsk[12..]);
-    dsk[8] = (crc32_value & 0xff) as u8;
-    dsk[9] = ((crc32_value >> 8) & 0xff) as u8;
-    dsk[10] = ((crc32_value >> 16) & 0xff) as u8;
-    dsk[11] = ((crc32_value >> 24) & 0xff) as u8;
-    */
 
     // Write to new file
     let path = Path::new(&disk.filename);
@@ -1951,7 +1908,7 @@ impl DiskDrive {
                         disk.head = 0
                     }
                     let mut value = track[disk.head] as usize;
-                    while track[disk.head] == 255 {
+                    while track[disk.head] == 255 && disk.head < track_bits - 1 {
                         disk.head += 1;
                         value += track[disk.head] as usize;
                     }
@@ -1991,7 +1948,7 @@ impl DiskDrive {
         };
 
         // Only add disk jitter for read operations
-        let disk_jitter = self.rng.gen::<f32>() < self.random_one_rate && !self.q7 {
+        let disk_jitter = if self.rng.gen::<f32>() < self.random_one_rate && !self.q7 {
             0.0125
         } else {
             0.0
