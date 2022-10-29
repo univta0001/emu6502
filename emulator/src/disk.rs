@@ -1991,7 +1991,7 @@ impl DiskDrive {
         };
 
         // Only add disk jitter for read operations
-        let disk_jitter = if track_type != TrackType::Flux && self.rng.gen::<f32>() < self.random_one_rate && !self.q7 {
+        let disk_jitter = self.rng.gen::<f32>() < self.random_one_rate && !self.q7 {
             0.0125
         } else {
             0.0
