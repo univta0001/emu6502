@@ -1561,7 +1561,6 @@ impl DiskDrive {
             disk.trackmap[i] = TrackType::None
         }
 
-        let flux = dsk[20] == 3 && dsk[66] != 0 && dsk[68] != 0;
         let mut trks_woz_offset = 0;
         let mut trks_chunk_size = 0;
 
@@ -1587,12 +1586,8 @@ impl DiskDrive {
 
                 // TRKS
                 WOZ_TRKS_CHUNK => {
-                    if !flux {
-                        self.handle_woz_trks(dsk, woz_offset, chunk_size as usize, woz1);
-                    } else {
-                        trks_woz_offset = woz_offset;
-                        trks_chunk_size = chunk_size as usize;
-                    }
+                    trks_woz_offset = woz_offset;
+                    trks_chunk_size = chunk_size as usize;
                     trks = true;
                     woz_offset += chunk_size as usize;
                 }
@@ -1600,11 +1595,7 @@ impl DiskDrive {
                 // FLUX
                 WOZ_FLUX_CHUNK => {
                     // Only handle FLUX Chunk if the version is greater than 2
-                    if flux {
-                        self.handle_woz_fluxmap(dsk, woz_offset);
-                        self.handle_woz_trks(dsk, trks_woz_offset, trks_chunk_size, woz1);
-                        trks = true;
-                    }
+                    self.handle_woz_fluxmap(dsk, woz_offset);
                     woz_offset += chunk_size as usize;
                 }
 
@@ -1621,6 +1612,9 @@ impl DiskDrive {
                 "Invalid woz2 file - INFO, TMAP and TRKS are required",
             ));
         }
+
+        // Process TRKS and FLUX chunk data in the woz file
+        self.handle_woz_trks(dsk, trks_woz_offset, trks_chunk_size, woz1);
 
         //eprintln!("Tmap = {:02X?}", disk.tmap_data);
 
@@ -1707,7 +1701,6 @@ impl DiskDrive {
             let index = offset + i;
             if dsk[index] != 255 {
                 disk.tmap_data[i] = dsk[index];
-                disk.trackmap[i] = TrackType::Tmap;
                 disk.trackmap[dsk[index] as usize] = TrackType::Flux;
             }
         }
