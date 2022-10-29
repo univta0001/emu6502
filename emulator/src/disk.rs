@@ -75,7 +75,7 @@ const DETRANS62: [u8; 128] = [
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub enum TrackType {
     None,
-    Track,
+    Tmap,
     Flux,
 }
 
@@ -117,6 +117,12 @@ struct Disk {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     disk_rom13: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    mc3470_counter: usize,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    mc3470_read_pulse: usize,
 }
 
 #[derive(Debug)]
@@ -1586,7 +1592,6 @@ impl DiskDrive {
         let mut woz_offset = 12;
         let mut info = false;
         let mut tmap = false;
-        let mut flux = false;
         let mut trks = false;
 
         let disk = &mut self.drive[self.drive_select];
@@ -1598,6 +1603,10 @@ impl DiskDrive {
         for i in 0..WOZ_TMAP_SIZE {
             disk.trackmap[i] = TrackType::None
         }
+
+        let flux = dsk[20] == 3 && dsk[66] != 0 && dsk[68] != 0;
+        let mut trks_woz_offset = 0;
+        let mut trks_chunk_size = 0;
 
         while woz_offset < dsk.len() {
             let chunk_id = read_woz_u32(dsk, woz_offset);
@@ -1621,18 +1630,23 @@ impl DiskDrive {
 
                 // TRKS
                 WOZ_TRKS_CHUNK => {
-                    if self.handle_woz_trks(dsk, woz_offset, chunk_size as usize, woz1) {
-                        trks = true;
+                    if !flux {
+                        self.handle_woz_trks(dsk, woz_offset, chunk_size as usize, woz1);
+                    } else {
+                        trks_woz_offset = woz_offset;
+                        trks_chunk_size = chunk_size as usize;
                     }
+                    trks = true;
                     woz_offset += chunk_size as usize;
                 }
 
                 // FLUX
                 WOZ_FLUX_CHUNK => {
-                    // Only handle FLUX Chunk is the version is greater than 2
-                    if dsk[20] > 2 {
+                    // Only handle FLUX Chunk if the version is greater than 2
+                    if flux {
                         self.handle_woz_fluxmap(dsk, woz_offset);
-                        flux = true;
+                        self.handle_woz_trks(dsk, trks_woz_offset, trks_chunk_size, woz1);
+                        trks = true;
                     }
                     woz_offset += chunk_size as usize;
                 }
@@ -1644,7 +1658,7 @@ impl DiskDrive {
             }
         }
 
-        if !info || !trks || (!tmap && !flux) {
+        if !info || !trks || !tmap {
             return Err(std::io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Invalid woz2 file - INFO, TMAP and TRKS are required",
@@ -1677,12 +1691,14 @@ impl DiskDrive {
         }
 
         // Check if FLUX block is there, for now do not support woz 2.1 with FLUX block
+        /*
         if dsk[offset] == 3 && dsk[offset + 46] != 0 && dsk[offset + 48] != 0 {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
                 "Unsupported WOZ 2.1 image with FLUX chunk",
             ));
         }
+        */
 
         // Check and set the write_protect status
         let disk = &mut self.drive[self.drive_select];
@@ -1721,7 +1737,7 @@ impl DiskDrive {
 
         for i in 0..WOZ_TMAP_SIZE {
             if disk.tmap_data[i] != 255 {
-                disk.trackmap[i] = TrackType::Track
+                disk.trackmap[disk.tmap_data[i] as usize] = TrackType::Tmap
             }
         }
     }
@@ -1734,7 +1750,8 @@ impl DiskDrive {
             let index = offset + i;
             if dsk[index] != 255 {
                 disk.tmap_data[i] = dsk[index];
-                disk.trackmap[i] = TrackType::Flux;
+                disk.trackmap[i] = TrackType::Tmap;
+                disk.trackmap[dsk[index] as usize] = TrackType::Flux;
             }
         }
     }
@@ -1801,10 +1818,21 @@ impl DiskDrive {
         disk.raw_track_data[track].clear();
         disk.raw_track_bits[track] = bit_count;
 
-        let mut byte_len = bit_count / 8;
-        if bit_count % 8 > 0 {
-            byte_len += 1;
-        }
+        let byte_len = if disk.trackmap[track] == TrackType::Flux {
+            bit_count
+        } else {
+            let mut value = bit_count / 8;
+            if bit_count % 8 > 0 {
+                value += 1;
+            }
+            value
+        };
+
+        /*
+        let tmap_track = disk.tmap_data[track];
+        let track_type = if tmap_track == 255 { TrackType::None } else { disk.trackmap[tmap_track as usize] };
+        eprintln!("TRK {} {} {:?} {}",track,disk.tmap_data[track],track_type,byte_len);
+        */
 
         for index in 0..byte_len {
             disk.raw_track_data[track].push(dsk[offset + index]);
@@ -1903,8 +1931,45 @@ impl DiskDrive {
         ))
     }
 
-    fn move_head_woz(&mut self) {
+    /// Read the flux data. The value in the flux data, is the next read pulse. The read pulse is
+    /// valid for 1 microsecond (8 cycles)
+    fn read_flux_data(&mut self, track_bits: usize) -> usize {
         let disk = &mut self.drive[self.drive_select];
+        let tmap_track = disk.tmap_data[disk.track as usize];
+        if tmap_track != 255 && disk.trackmap[tmap_track as usize] == TrackType::Flux {
+            let track = &disk.raw_track_data[tmap_track as usize];
+            let mut return_value = 0;
+
+            // Read the flux data for 4 times = 0.125 * 4 = 0.5 microsecond
+            for _ in 0..4 {
+                return_value = if disk.mc3470_counter < 8 {
+                    1
+                } else if disk.mc3470_counter >= disk.mc3470_read_pulse {
+                    disk.mc3470_counter = 0;
+                    disk.head += 1;
+                    if disk.head >= track_bits {
+                        disk.head = 0
+                    }
+                    let mut value = track[disk.head] as usize;
+                    while track[disk.head] == 255 {
+                        disk.head += 1;
+                        value += track[disk.head] as usize;
+                    }
+                    disk.mc3470_read_pulse = value;
+                    1
+                } else {
+                    0
+                };
+                disk.mc3470_counter += 1;
+            }
+            return_value
+        } else {
+            0
+        }
+    }
+
+    fn move_head_woz(&mut self) {
+        let disk = &self.drive[self.drive_select];
         let track_to_read = disk.track;
         //let track_to_read = 0;
         let tmap_track = disk.tmap_data[track_to_read as usize];
@@ -1919,29 +1984,32 @@ impl DiskDrive {
             disk.raw_track_bits[tmap_track as usize]
         };
 
+        let track_type = if tmap_track == 255 {
+            TrackType::None
+        } else {
+            disk.trackmap[tmap_track as usize]
+        };
+
         // Only add disk jitter for read operations
-        let disk_jitter = if self.rng.gen::<f32>() < self.random_one_rate && !self.q7 {
+        let disk_jitter = if track_type != TrackType::Flux && self.rng.gen::<f32>() < self.random_one_rate && !self.q7 {
             0.0125
         } else {
             0.0
         };
 
-        /*
-        if disk.trackmap[track_to_read as usize] == TrackType::Flux {
-            println!("FLUX detected or track {track_to_read}!!");
-            std::process::exit(0)
-        }
-        */
-
+        let read_pulse = self.read_flux_data(track_bits);
+        let disk = &mut self.drive[self.drive_select];
         let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
         if self.lss_cycle >= optimal_timing {
-            disk.head_mask >>= 1;
-            disk.head_bit += 1;
+            if track_type != TrackType::Flux {
+                disk.head_mask >>= 1;
+                disk.head_bit += 1;
 
-            if disk.head_mask == 0 {
-                disk.head_mask = 0x80;
-                disk.head_bit = 0;
-                disk.head += 1;
+                if disk.head_mask == 0 {
+                    disk.head_mask = 0x80;
+                    disk.head_bit = 0;
+                    disk.head += 1;
+                }
             }
 
             if tmap_track != 0xff && disk.last_track != track_to_read {
@@ -1950,10 +2018,12 @@ impl DiskDrive {
                 let old_track_bits = disk.raw_track_bits[last_track];
                 let new_bit = ((disk.head * 8 + disk.head_bit + 7) * track_bits) / old_track_bits;
 
-                disk.head = new_bit / 8;
-                disk.head_mask = 1 << (7 - new_bit % 8);
-                disk.head_bit = new_bit % 8;
-                disk.last_track = track_to_read;
+                if track_type != TrackType::Flux {
+                    disk.head = new_bit / 8;
+                    disk.head_mask = 1 << (7 - new_bit % 8);
+                    disk.head_bit = new_bit % 8;
+                    disk.last_track = track_to_read;
+                }
             }
 
             self.bit_buffer <<= 1;
@@ -1962,30 +2032,41 @@ impl DiskDrive {
                 let track = &disk.raw_track_data[tmap_track as usize];
                 let track_bits = disk.raw_track_bits[tmap_track as usize];
 
-                if disk.head * 8 + disk.head_bit >= track_bits {
+                if track_type != TrackType::Flux && disk.head * 8 + disk.head_bit >= track_bits {
                     let wrapped = (disk.head * 8 + disk.head_bit) % track_bits;
                     disk.head = wrapped / 8;
                     disk.head_mask = 1 << (7 - wrapped % 8);
                     disk.head_bit = wrapped % 8;
                 }
 
-                self.bit_buffer |= (track[disk.head] & disk.head_mask as u8 != 0) as u8;
-            }
-
-            if self.bit_buffer & 0x0f != 0 {
-                self.pulse = (self.bit_buffer & 0x2) >> 1;
-            } else {
-                // Based on WOZ2 (https://applesaucefdc.com/woz/reference2/)
-                // The random bit 1 is generated with probability 0.3 or 30%
-                let random_value: f32 = self.rng.gen();
-                if random_value < self.random_one_rate {
-                    self.pulse = 1
+                if track_type == TrackType::Flux {
+                    self.bit_buffer |= read_pulse as u8;
                 } else {
-                    self.pulse = 0
-                };
+                    self.bit_buffer |= (track[disk.head] & disk.head_mask as u8 != 0) as u8;
+                }
             }
 
+            self.update_disk_bit_buffer();
             self.lss_cycle -= optimal_timing;
+        }
+
+        if track_type == TrackType::Flux {
+            self.pulse = read_pulse as u8;
+        }
+    }
+
+    fn update_disk_bit_buffer(&mut self) {
+        if self.bit_buffer & 0x0f != 0 {
+            self.pulse = (self.bit_buffer & 0x2) >> 1;
+        } else {
+            // Based on WOZ2 (https://applesaucefdc.com/woz/reference2/)
+            // The random bit 1 is generated with probability 0.3 or 30%
+            let random_value: f32 = self.rng.gen();
+            if random_value < self.random_one_rate {
+                self.pulse = 1
+            } else {
+                self.pulse = 0
+            };
         }
     }
 
@@ -2151,6 +2232,8 @@ impl Disk {
             filename: "".to_owned(),
             loaded: false,
             disk_rom13: false,
+            mc3470_counter: 0,
+            mc3470_read_pulse: 0,
         }
     }
 }
