@@ -71,6 +71,13 @@ const DETRANS62: [u8; 128] = [
     0x00, 0x00, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x00, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f,
 ];
 
+#[derive(PartialEq,Eq)]
+pub enum DiskType {
+    Dsk,
+    Po,
+    Nib,
+}
+
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub enum TrackType {
@@ -81,7 +88,7 @@ pub enum TrackType {
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
-struct Disk {
+pub struct Disk {
     #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
     #[cfg_attr(feature = "serde_support", serde(default = "default_raw_track_data"))]
     raw_track_data: Vec<Vec<u8>>,
@@ -1310,7 +1317,9 @@ impl DiskDrive {
             ));
         }
 
-        self.load_dsk_po_array_to_woz(&dsk, po_mode)
+        let disk_type = if po_mode { DiskType::Po } else { DiskType::Dsk };
+
+        self.load_dsk_po_nib_array_to_woz(&dsk, disk_type, Self::convert_dsk_po_track_to_woz)
     }
 
     fn convert_nib_to_woz<P>(&mut self, filename_path: P) -> io::Result<()>
@@ -1336,22 +1345,35 @@ impl DiskDrive {
             ));
         }
 
-        self.load_nib_array_to_woz(&dsk)
+        self.load_dsk_po_nib_array_to_woz(&dsk, DiskType::Nib, Self::convert_nib_track_to_woz)
     }
 
     pub fn load_nib_gz_array_to_woz(&mut self, dsk: &[u8]) -> io::Result<()> {
         let data = decompress_array_gz(dsk)?;
-        self.load_nib_array_to_woz(&data)
+        self.load_dsk_po_nib_array_to_woz(&data, DiskType::Nib, Self::convert_nib_track_to_woz)
     }
 
     pub fn load_dsk_po_gz_array_to_woz(&mut self, dsk: &[u8], po_mode: bool) -> io::Result<()> {
         let data = decompress_array_gz(dsk)?;
-        self.load_dsk_po_array_to_woz(&data, po_mode)
+
+        let disk_type = if po_mode { DiskType::Po } else { DiskType::Dsk };
+        self.load_dsk_po_nib_array_to_woz(&data, disk_type, Self::convert_dsk_po_track_to_woz)
     }
 
-    pub fn load_dsk_po_array_to_woz(&mut self, dsk: &[u8], po_mode: bool) -> io::Result<()> {
+    pub fn load_dsk_po_nib_array_to_woz(
+        &mut self,
+        dsk: &[u8],
+        disk_type: DiskType,
+        convert_image: fn(&mut Disk, &[u8], usize, bool),
+    ) -> io::Result<()> {
         let disk = &mut self.drive[self.drive_select];
-        let no_of_tracks = dsk.len() / (16 * 256);
+        let no_of_tracks = if disk_type == DiskType::Nib {
+            dsk.len() / NIB_TRACK_SIZE
+        } else {
+            dsk.len() / (16 * 256)
+        };
+
+        let po_mode = disk_type == DiskType::Po;
 
         // Create TMAP
         let mut byte_index = 0;
@@ -1390,20 +1412,7 @@ impl DiskDrive {
             disk.raw_track_bits[track] = 0;
         }
 
-        for track in 0..no_of_tracks {
-            // Convert DSK/PO to WOZ
-            let track_offset = track * (16 * 256);
-            let mut data = [0u8; 16 * 256];
-            data[0..0x100 * 16].copy_from_slice(&dsk[track_offset..track_offset + 256 * 16]);
-            let (encoded_data, bit_length) = encode_bits_for_track(&data, track as u8, po_mode);
-
-            disk.raw_track_data[track].clear();
-            disk.raw_track_bits[track] = bit_length;
-
-            for item in encoded_data {
-                disk.raw_track_data[track].push(item);
-            }
-        }
+        convert_image(disk, dsk, no_of_tracks, po_mode);
 
         disk.optimal_timing = 32;
         disk.po_mode = po_mode;
@@ -1434,6 +1443,7 @@ impl DiskDrive {
         Ok(())
     }
 
+    /*
     pub fn load_nib_array_to_woz(&mut self, dsk: &[u8]) -> io::Result<()> {
         let disk = &mut self.drive[self.drive_select];
         let no_of_tracks = dsk.len() / NIB_TRACK_SIZE;
@@ -1503,6 +1513,45 @@ impl DiskDrive {
         //expand_unused_disk_tracks(disk);
 
         Ok(())
+    }
+    */
+
+    fn convert_dsk_po_track_to_woz(
+        disk: &mut Disk,
+        dsk: &[u8],
+        no_of_tracks: usize,
+        po_mode: bool,
+    ) {
+        for track in 0..no_of_tracks {
+            // Convert DSK/PO to WOZ
+            let track_offset = track * (16 * 256);
+            let mut data = [0u8; 16 * 256];
+            data[0..0x100 * 16].copy_from_slice(&dsk[track_offset..track_offset + 256 * 16]);
+            let (encoded_data, bit_length) = encode_bits_for_track(&data, track as u8, po_mode);
+
+            disk.raw_track_data[track].clear();
+            disk.raw_track_bits[track] = bit_length;
+
+            for item in encoded_data {
+                disk.raw_track_data[track].push(item);
+            }
+        }
+    }
+
+    fn convert_nib_track_to_woz(disk: &mut Disk, dsk: &[u8], no_of_tracks: usize, _: bool) {
+        for track in 0..no_of_tracks {
+            // Convert NIB to WOZ
+            let track_offset = track * NIB_TRACK_SIZE;
+            let mut data = [0u8; NIB_TRACK_SIZE];
+            data[0..NIB_TRACK_SIZE]
+                .copy_from_slice(&dsk[track_offset..track_offset + NIB_TRACK_SIZE]);
+            disk.raw_track_data[track].clear();
+            disk.raw_track_bits[track] = data.len() * 8;
+
+            for item in data {
+                disk.raw_track_data[track].push(item);
+            }
+        }
     }
 
     fn load_woz_file<P>(&mut self, filename_path: P) -> io::Result<()>
