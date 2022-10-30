@@ -1356,11 +1356,16 @@ impl DiskDrive {
         // Create TMAP
         let mut byte_index = 0;
         for i in 0..WOZ_TMAP_SIZE {
+            disk.trackmap[i] = TrackType::None;
+        }
+
+        for i in 0..WOZ_TMAP_SIZE {
             if i < (no_of_tracks * 4) - 1 {
                 let nominal_track: u8 = (i / 4) as u8;
                 match i % 4 {
                     0 | 1 => {
                         disk.tmap_data[byte_index] = nominal_track;
+                        disk.trackmap[nominal_track as usize] = TrackType::Tmap;
                         byte_index += 1;
                     }
                     2 => {
@@ -1369,6 +1374,7 @@ impl DiskDrive {
                     }
                     3 => {
                         disk.tmap_data[byte_index] = nominal_track + 1;
+                        disk.trackmap[(nominal_track + 1) as usize] = TrackType::Tmap;
                         byte_index += 1;
                     }
                     _ => {}
@@ -1415,6 +1421,14 @@ impl DiskDrive {
             disk.optimal_timing = self.override_optimal_timing;
         }
 
+        /*
+        for track in 0..no_of_tracks {
+            let tmap_track = disk.tmap_data[track];
+            let track_type = if tmap_track == 255 { TrackType::None } else { disk.trackmap[tmap_track as usize] };
+            eprintln!("TRK {} {} {:?}",track,disk.tmap_data[track],track_type);
+        }
+        */
+
         //expand_unused_disk_tracks(disk);
 
         Ok(())
@@ -1427,11 +1441,16 @@ impl DiskDrive {
         // Create TMAP
         let mut byte_index = 0;
         for i in 0..WOZ_TMAP_SIZE {
+            disk.trackmap[i] = TrackType::None;
+        }
+
+        for i in 0..WOZ_TMAP_SIZE {
             if i < (no_of_tracks * 4) - 1 {
                 let nominal_track: u8 = (i / 4) as u8;
                 match i % 4 {
                     0 | 1 => {
                         disk.tmap_data[byte_index] = nominal_track;
+                        disk.trackmap[nominal_track as usize] = TrackType::Tmap;
                         byte_index += 1;
                     }
                     2 => {
@@ -1440,6 +1459,7 @@ impl DiskDrive {
                     }
                     3 => {
                         disk.tmap_data[byte_index] = nominal_track + 1;
+                        disk.trackmap[(nominal_track + 1) as usize] = TrackType::Tmap;
                         byte_index += 1;
                     }
                     _ => {}
