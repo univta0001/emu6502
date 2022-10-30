@@ -1429,92 +1429,8 @@ impl DiskDrive {
         if self.override_optimal_timing != 0 {
             disk.optimal_timing = self.override_optimal_timing;
         }
-
-        /*
-        for track in 0..no_of_tracks {
-            let tmap_track = disk.tmap_data[track];
-            let track_type = if tmap_track == 255 { TrackType::None } else { disk.trackmap[tmap_track as usize] };
-            eprintln!("TRK {} {} {:?}",track,disk.tmap_data[track],track_type);
-        }
-        */
-
-        //expand_unused_disk_tracks(disk);
-
         Ok(())
     }
-
-    /*
-    pub fn load_nib_array_to_woz(&mut self, dsk: &[u8]) -> io::Result<()> {
-        let disk = &mut self.drive[self.drive_select];
-        let no_of_tracks = dsk.len() / NIB_TRACK_SIZE;
-
-        // Create TMAP
-        let mut byte_index = 0;
-        for i in 0..WOZ_TMAP_SIZE {
-            disk.trackmap[i] = TrackType::None;
-        }
-
-        for i in 0..WOZ_TMAP_SIZE {
-            if i < (no_of_tracks * 4) - 1 {
-                let nominal_track: u8 = (i / 4) as u8;
-                match i % 4 {
-                    0 | 1 => {
-                        disk.tmap_data[byte_index] = nominal_track;
-                        disk.trackmap[nominal_track as usize] = TrackType::Tmap;
-                        byte_index += 1;
-                    }
-                    2 => {
-                        disk.tmap_data[byte_index] = 0xff;
-                        byte_index += 1;
-                    }
-                    3 => {
-                        disk.tmap_data[byte_index] = nominal_track + 1;
-                        disk.trackmap[(nominal_track + 1) as usize] = TrackType::Tmap;
-                        byte_index += 1;
-                    }
-                    _ => {}
-                }
-            } else {
-                disk.tmap_data[byte_index] = 0xff;
-                byte_index += 1;
-            }
-        }
-
-        for track in 0..DSK_TRACK_SIZE {
-            disk.raw_track_data[track].clear();
-            disk.raw_track_bits[track] = 0;
-        }
-
-        for track in 0..no_of_tracks {
-            // Convert NIB to WOZ
-            let track_offset = track * NIB_TRACK_SIZE;
-            let mut data = [0u8; NIB_TRACK_SIZE];
-            data[0..NIB_TRACK_SIZE]
-                .copy_from_slice(&dsk[track_offset..track_offset + NIB_TRACK_SIZE]);
-            disk.raw_track_data[track].clear();
-            disk.raw_track_bits[track] = data.len() * 8;
-
-            for item in data {
-                disk.raw_track_data[track].push(item);
-            }
-        }
-
-        disk.optimal_timing = 32;
-        disk.po_mode = false;
-        disk.write_protect = false;
-        disk.last_track = 0;
-        disk.disk_rom13 = false;
-        disk.track_40 = false;
-
-        if self.override_optimal_timing != 0 {
-            disk.optimal_timing = self.override_optimal_timing;
-        }
-
-        //expand_unused_disk_tracks(disk);
-
-        Ok(())
-    }
-    */
 
     fn convert_dsk_po_track_to_woz(
         disk: &mut Disk,
@@ -1675,6 +1591,10 @@ impl DiskDrive {
             }
         }
 
+        if !self.handle_woz_trks(dsk, trks_woz_offset, trks_chunk_size, woz1) {
+            trks = false;
+        }
+        
         if !info || !trks || !tmap {
             return Err(std::io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -1683,7 +1603,6 @@ impl DiskDrive {
         }
 
         // Process TRKS and FLUX chunk data in the woz file
-        self.handle_woz_trks(dsk, trks_woz_offset, trks_chunk_size, woz1);
 
         //eprintln!("Tmap = {:02X?}", disk.tmap_data);
 
@@ -1793,7 +1712,7 @@ impl DiskDrive {
                     dsk[track_offset + 2] as u32 + dsk[track_offset + 3] as u32 * 256;
                 let bit_count = read_woz_u32(dsk, track_offset + 4);
                 if start_block == 0 {
-                    break;
+                   break;
                 }
                 let block_offset = (start_block << 9) as usize;
                 self.handle_woz_process_trks(dsk, track, block_offset, bit_count as usize);
@@ -1850,9 +1769,11 @@ impl DiskDrive {
         /*
         let tmap_track = disk.tmap_data[track];
         let track_type = if tmap_track == 255 { TrackType::None } else { disk.trackmap[tmap_track as usize] };
-        eprintln!("TRK {} {} {:?} {}",track,disk.tmap_data[track],track_type,byte_len);
+        if track_type != TrackType::None {
+            eprintln!("{:?}:  Track {:.2}\t\tTRKS {}",track_type, track as f32 / 4.0, disk.tmap_data[track]);
+        }
         */
-
+        
         for index in 0..byte_len {
             disk.raw_track_data[track].push(dsk[offset + index]);
         }
@@ -2020,6 +1941,8 @@ impl DiskDrive {
             let last_track = disk.tmap_data[disk.last_track as usize];
             let last_track_bits = disk.raw_track_bits[last_track as usize];
 
+            //eprintln!("TRK {} ({:?}) -> TRK {} ({:?})", disk.last_track as f32 / 4.0,disk.trackmap[last_track as usize], track_to_read as f32 / 4.0, track_type);
+
             if track_type != TrackType::Flux {
                 // Adjust the disk head as each track size is different
                 let new_bit = ((disk.head * 8 + disk.head_bit + 7) * track_bits) / last_track_bits;
@@ -2027,8 +1950,9 @@ impl DiskDrive {
                 disk.head = new_bit / 8;
                 disk.head_mask = 1 << (7 - new_bit % 8);
                 disk.head_bit = new_bit % 8;
-                disk.last_track = track_to_read;
             }
+            
+            disk.last_track = track_to_read;
         }
 
         let read_pulse = Self::read_flux_data(disk, track_bits);
