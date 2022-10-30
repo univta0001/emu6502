@@ -71,7 +71,7 @@ const DETRANS62: [u8; 128] = [
     0x00, 0x00, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x00, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f,
 ];
 
-#[derive(PartialEq,Eq)]
+#[derive(PartialEq, Eq)]
 pub enum DiskType {
     Dsk,
     Po,
@@ -1952,8 +1952,7 @@ impl DiskDrive {
 
     /// Read the flux data. The value in the flux data, is the next read pulse. The read pulse is
     /// valid for 1 microsecond (8 cycles)
-    fn read_flux_data(&mut self, track_bits: usize) -> usize {
-        let disk = &mut self.drive[self.drive_select];
+    fn read_flux_data(disk: &mut Disk, track_bits: usize) -> usize {
         let tmap_track = disk.tmap_data[disk.track as usize];
         if tmap_track != 255 && disk.trackmap[tmap_track as usize] == TrackType::Flux {
             let track = &disk.raw_track_data[tmap_track as usize];
@@ -1988,7 +1987,7 @@ impl DiskDrive {
     }
 
     fn move_head_woz(&mut self) {
-        let disk = &self.drive[self.drive_select];
+        let disk = &mut self.drive[self.drive_select];
         let track_to_read = disk.track;
         //let track_to_read = 0;
         let tmap_track = disk.tmap_data[track_to_read as usize];
@@ -2016,8 +2015,23 @@ impl DiskDrive {
             0.0
         };
 
-        let read_pulse = self.read_flux_data(track_bits);
-        let disk = &mut self.drive[self.drive_select];
+        // Update track information when track is changed
+        if tmap_track != 0xff && disk.last_track != track_to_read {
+            let last_track = disk.tmap_data[disk.last_track as usize];
+            let last_track_bits = disk.raw_track_bits[last_track as usize];
+
+            if track_type != TrackType::Flux {
+                // Adjust the disk head as each track size is different
+                let new_bit = ((disk.head * 8 + disk.head_bit + 7) * track_bits) / last_track_bits;
+
+                disk.head = new_bit / 8;
+                disk.head_mask = 1 << (7 - new_bit % 8);
+                disk.head_bit = new_bit % 8;
+                disk.last_track = track_to_read;
+            }
+        }
+
+        let read_pulse = Self::read_flux_data(disk, track_bits);
         let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
         if self.lss_cycle >= optimal_timing {
             if track_type != TrackType::Flux {
@@ -2028,20 +2042,6 @@ impl DiskDrive {
                     disk.head_mask = 0x80;
                     disk.head_bit = 0;
                     disk.head += 1;
-                }
-            }
-
-            if tmap_track != 0xff && disk.last_track != track_to_read {
-                // Adjust the disk head as each track size is different
-                let last_track = disk.tmap_data[disk.last_track as usize] as usize;
-                let old_track_bits = disk.raw_track_bits[last_track];
-                let new_bit = ((disk.head * 8 + disk.head_bit + 7) * track_bits) / old_track_bits;
-
-                if track_type != TrackType::Flux {
-                    disk.head = new_bit / 8;
-                    disk.head_mask = 1 << (7 - new_bit % 8);
-                    disk.head_bit = new_bit % 8;
-                    disk.last_track = track_to_read;
                 }
             }
 
@@ -2058,9 +2058,7 @@ impl DiskDrive {
                     disk.head_bit = wrapped % 8;
                 }
 
-                if track_type == TrackType::Flux {
-                    self.bit_buffer |= read_pulse as u8;
-                } else {
+                if track_type != TrackType::Flux {
                     self.bit_buffer |= (track[disk.head] & disk.head_mask as u8 != 0) as u8;
                 }
             }
