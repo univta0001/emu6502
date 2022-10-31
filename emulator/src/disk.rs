@@ -1706,22 +1706,16 @@ impl DiskDrive {
         let mut track = 0;
         if !woz1 {
             // Handling WOZ2 format. WOZ2 format track size is variable.
-            loop {
+            for track in 0..160 {
                 let start_block = dsk[track_offset] as u32 + dsk[track_offset + 1] as u32 * 256;
                 let _block_count =
                     dsk[track_offset + 2] as u32 + dsk[track_offset + 3] as u32 * 256;
                 let bit_count = read_woz_u32(dsk, track_offset + 4);
-                if start_block == 0 {
-                   break;
+                if start_block != 0 {
+                    let block_offset = (start_block << 9) as usize;
+                    self.handle_woz_process_trks(dsk, track, block_offset, bit_count as usize);
                 }
-                let block_offset = (start_block << 9) as usize;
-                self.handle_woz_process_trks(dsk, track, block_offset, bit_count as usize);
                 track_offset += 8;
-                track += 1;
-                if track >= 160 {
-                    eprintln!("Invalid WOZ disk. Number of tracks >= 160");
-                    return false;
-                }
             }
         } else {
             // Handling WOZ1 format. The bit count size is at offset +6648
