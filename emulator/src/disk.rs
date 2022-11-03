@@ -588,6 +588,7 @@ fn expand_unused_disk_track(disk: &mut Disk, qt: usize) {
                 disk.tmap_data[qt] = t as u8;
                 disk.raw_track_data[t] = vec![0u8; MAX_USABLE_BITS_TRACK_SIZE];
                 disk.raw_track_bits[t] = MAX_USABLE_BITS_TRACK_SIZE * 8;
+                disk.trackmap[qt] = TrackType::Tmap;
                 break;
             }
         }
@@ -604,6 +605,7 @@ fn _expand_unused_disk_tracks(disk: &mut Disk) {
                     disk.tmap_data[qt] = t as u8;
                     disk.raw_track_data[t] = vec![0u8; MAX_USABLE_BITS_TRACK_SIZE];
                     disk.raw_track_bits[t] = MAX_USABLE_BITS_TRACK_SIZE * 8;
+                    disk.trackmap[qt] = TrackType::Tmap;
                     break;
                 }
             }
@@ -2087,6 +2089,7 @@ impl DiskDrive {
         if tmap_track != 0xff {
             let track = &mut disk.raw_track_data[tmap_track as usize];
             let track_bits = disk.raw_track_bits[tmap_track as usize];
+            let track_type = disk.trackmap[tmap_track as usize];
 
             if disk.head * 8 + disk.head_bit >= track_bits {
                 let wrapped = (disk.head * 8 + disk.head_bit) % track_bits;
@@ -2095,7 +2098,7 @@ impl DiskDrive {
                 disk.head_bit = wrapped % 8;
             }
 
-            if !write_protected {
+            if !write_protected && track_type != TrackType::Flux {
                 if track_to_write > 0 {
                     disk.tmap_data[(track_to_write - 1) as usize] = tmap_track;
                 }
