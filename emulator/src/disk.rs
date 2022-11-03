@@ -1639,20 +1639,15 @@ impl DiskDrive {
             ));
         }
 
-        // Check if FLUX block is there, for now do not support woz 2.1 with FLUX block
-        /*
-        if dsk[offset] == 3 && dsk[offset + 46] != 0 && dsk[offset + 48] != 0 {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Unsupported WOZ 2.1 image with FLUX chunk",
-            ));
-        }
-        */
-
         // Check and set the write_protect status
         let disk = &mut self.drive[self.drive_select];
         disk.write_protect = false;
         if dsk[offset + 2] > 0 {
+            disk.write_protect = true;
+        }
+
+        // Check if FLUX block is there, write protect the image
+        if dsk[offset] == 3 && dsk[offset + 46] != 0 && dsk[offset + 48] != 0 {
             disk.write_protect = true;
         }
 
@@ -2103,7 +2098,6 @@ impl DiskDrive {
         if tmap_track != 0xff {
             let track = &mut disk.raw_track_data[tmap_track as usize];
             let track_bits = disk.raw_track_bits[tmap_track as usize];
-            let track_type = disk.trackmap[tmap_track as usize];
 
             if disk.head * 8 + disk.head_bit >= track_bits {
                 let wrapped = (disk.head * 8 + disk.head_bit) % track_bits;
@@ -2112,7 +2106,7 @@ impl DiskDrive {
                 disk.head_bit = wrapped % 8;
             }
 
-            if !write_protected && track_type != TrackType::Flux {
+            if !write_protected {
                 if track_to_write > 0 {
                     disk.tmap_data[(track_to_write - 1) as usize] = tmap_track;
                 }
