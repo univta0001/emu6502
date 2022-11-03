@@ -159,6 +159,9 @@ pub struct DiskDrive {
     #[cfg_attr(feature = "serde_support", serde(skip))]
     #[cfg_attr(feature = "serde_support", serde(default = "default_rng"))]
     rng: ThreadRng,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    old_latch: u8,
 }
 
 // Q0L: Phase 0 OFF
@@ -1133,6 +1136,7 @@ impl DiskDrive {
             drive_select: 0,
             bus: 0,
             latch: 0,
+            old_latch: 0,
             q6: false,
             q7: false,
             pulse: 0,
@@ -1272,7 +1276,11 @@ impl DiskDrive {
     }
 
     pub fn get_value(&self) -> u8 {
-        self.latch
+        if self.old_latch & 0x80 != 0 && self.latch == 0 {
+            self.old_latch
+        } else {
+            self.latch
+        }
     }
 
     pub fn read_rom(&self, offset: u8) -> u8 {
@@ -1594,7 +1602,7 @@ impl DiskDrive {
         if !self.handle_woz_trks(dsk, trks_woz_offset, trks_chunk_size, woz1) {
             trks = false;
         }
-        
+
         if !info || !trks || !tmap {
             return Err(std::io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -1767,7 +1775,7 @@ impl DiskDrive {
             eprintln!("{:?}:  Track {:.2}\t\tTRKS {}",track_type, track as f32 / 4.0, disk.tmap_data[track]);
         }
         */
-        
+
         for index in 0..byte_len {
             disk.raw_track_data[track].push(dsk[offset + index]);
         }
@@ -1945,7 +1953,7 @@ impl DiskDrive {
                 disk.head_mask = 1 << (7 - new_bit % 8);
                 disk.head_bit = new_bit % 8;
             }
-            
+
             disk.last_track = track_to_read;
         }
 
@@ -2094,6 +2102,8 @@ impl DiskDrive {
     }
 
     fn step_lss(&mut self) {
+        self.old_latch = self.latch;
+
         let idx = self.lss_state
             | (self.q7 as u8) << 3
             | (self.q6 as u8) << 2
@@ -2265,7 +2275,7 @@ impl Card for DiskDrive {
         let mut return_value = 0;
         if !write_mode {
             if addr & 0x1 == 0 {
-                return_value = self.latch
+                return_value = self.get_value();
             } else {
                 return_value = 0
             }
