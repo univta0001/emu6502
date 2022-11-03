@@ -1942,16 +1942,44 @@ impl DiskDrive {
         if tmap_track != 0xff && disk.last_track != track_to_read {
             let last_track = disk.tmap_data[disk.last_track as usize];
             let last_track_bits = disk.raw_track_bits[last_track as usize];
+            let last_track_type = disk.trackmap[last_track as usize];
 
             //eprintln!("TRK {} ({:?}) -> TRK {} ({:?})", disk.last_track as f32 / 4.0,disk.trackmap[last_track as usize], track_to_read as f32 / 4.0, track_type);
 
             if track_type != TrackType::Flux {
                 // Adjust the disk head as each track size is different
-                let new_bit = ((disk.head * 8 + disk.head_bit + 7) * track_bits) / last_track_bits;
+                let new_bit = if last_track_type == TrackType::Flux {
+                    (disk.head * track_bits) / last_track_bits
+                } else {
+                    ((disk.head * 8 + disk.head_bit + 7) * track_bits) / last_track_bits
+                };
 
                 disk.head = new_bit / 8;
                 disk.head_mask = 1 << (7 - new_bit % 8);
                 disk.head_bit = new_bit % 8;
+            } else {
+                /*
+                let ratio = if last_track_type != TrackType::Flux {
+                    let last_offset = (disk.head * 8 + disk.head_bit + 7) as f32;
+                    if last_offset > last_track_bits as f32 {
+                        (last_offset - last_track_bits as f32) / last_track_bits as f32
+                    } else {
+                        last_offset / last_track_bits as f32
+                    }
+                } else {
+                    if disk.head > last_track_bits {
+                        (disk.head - last_track_bits) as f32 / last_track_bits as f32
+                    } else {
+                        disk.head as f32 / last_track_bits as f32
+                    }
+                };
+                */
+
+                //let track = &disk.raw_track_data[tmap_track as usize];
+                //disk.head = (ratio * track_bits as f32) as usize;
+                //disk.mc3470_read_pulse = track[disk.head] as usize;
+                // disk.mc3470_counter
+                // disk.mc3470_read_pulse
             }
 
             disk.last_track = track_to_read;
