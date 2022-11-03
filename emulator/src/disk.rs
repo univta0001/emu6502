@@ -1911,35 +1911,13 @@ impl DiskDrive {
         }
     }
 
-    fn move_head_woz(&mut self) {
-        let disk = &mut self.drive[self.drive_select];
-        let track_to_read = disk.track;
-        //let track_to_read = 0;
-        let tmap_track = disk.tmap_data[track_to_read as usize];
-
-        // LSS is running at 2Mhz i.e. 0.5 us
-        self.lss_cycle += 0.5;
-
-        let random_bits = MAX_USABLE_BITS_TRACK_SIZE * 8;
-        let track_bits = if tmap_track == 255 {
-            random_bits
-        } else {
-            disk.raw_track_bits[tmap_track as usize]
-        };
-
-        let track_type = if tmap_track == 255 {
-            TrackType::None
-        } else {
-            disk.trackmap[tmap_track as usize]
-        };
-
-        // Only add disk jitter for read operations
-        let disk_jitter = if self.rng.gen::<f32>() < self.random_one_rate && !self.q7 {
-            0.0125
-        } else {
-            0.0
-        };
-
+    fn update_track_if_changed(
+        disk: &mut Disk,
+        tmap_track: u8,
+        track_bits: usize,
+        track_to_read: i32,
+        track_type: TrackType,
+    ) {
         // Update track information when track is changed
         if tmap_track != 0xff && disk.last_track != track_to_read {
             let last_track = disk.tmap_data[disk.last_track as usize];
@@ -1953,7 +1931,12 @@ impl DiskDrive {
                 let new_bit = if last_track_type == TrackType::Flux {
                     (disk.head * track_bits) / last_track_bits
                 } else {
-                    ((disk.head * 8 + disk.head_bit + 7) * track_bits) / last_track_bits
+                    let last_head = disk.head * 8 + disk.head_bit + 7;
+                    if last_head > last_track_bits {
+                        ((last_head - last_track_bits) * track_bits) / last_track_bits
+                    } else {
+                        (last_head * track_bits) / last_track_bits
+                    }
                 };
 
                 disk.head = new_bit / 8;
@@ -1986,7 +1969,38 @@ impl DiskDrive {
 
             disk.last_track = track_to_read;
         }
+    }
 
+    fn move_head_woz(&mut self) {
+        let disk = &mut self.drive[self.drive_select];
+        let track_to_read = disk.track;
+        //let track_to_read = 0;
+        let tmap_track = disk.tmap_data[track_to_read as usize];
+
+        // LSS is running at 2Mhz i.e. 0.5 us
+        self.lss_cycle += 0.5;
+
+        let random_bits = MAX_USABLE_BITS_TRACK_SIZE * 8;
+        let track_bits = if tmap_track == 255 {
+            random_bits
+        } else {
+            disk.raw_track_bits[tmap_track as usize]
+        };
+
+        let track_type = if tmap_track == 255 {
+            TrackType::None
+        } else {
+            disk.trackmap[tmap_track as usize]
+        };
+
+        // Only add disk jitter for read operations
+        let disk_jitter = if self.rng.gen::<f32>() < self.random_one_rate && !self.q7 {
+            0.0125
+        } else {
+            0.0
+        };
+
+        Self::update_track_if_changed(disk, tmap_track, track_bits, track_to_read, track_type);
         let read_pulse = Self::read_flux_data(disk, track_bits);
         let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
         if self.lss_cycle >= optimal_timing {
