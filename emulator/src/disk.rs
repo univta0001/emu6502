@@ -1942,18 +1942,11 @@ impl DiskDrive {
                         prev_head += disk.raw_track_data[last_track as usize][i] as usize;
                     }
                     prev_head += disk.mc3470_counter;
-
-                    let mut prev_duration = 0;
-                    for i in 0..last_track_bits {
-                        prev_duration += disk.raw_track_data[last_track as usize][i] as usize;
-                    }
-
                     let mut curr_duration = 0;
                     for item in track {
                         curr_duration += *item as usize;
                     }
-
-                    (prev_head + 1) * curr_duration / prev_duration
+                    prev_head % curr_duration
                 } else {
                     (disk.head * 8 + disk.head_bit + 7) * 8 % track.len()
                 };

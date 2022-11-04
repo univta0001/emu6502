@@ -40,3 +40,5 @@ Features in the emulator
 - [MB Audit](https://github.com/tomcw/mb-audit) A good test suite for testing mockingboard functionalities
 - W65C22 (W65C22N and W65C22S) Versatile Interface Adapter (VIA) Datasheet
 - [NTSC Emulation](https://observablehq.com/@zellyn/apple-ii-ntsc-emulation-openemulator-explainer) A good explanation on NTSC emulation by Openemulator by Zellyn Hunter
+- [Accurapple](https://gitlab.com/wiz21/accurapple/-/blob/main/additional/floppy.ipynb)
+A good analysis on the handling of Flux tracks in Woz 2.1
