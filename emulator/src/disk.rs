@@ -649,10 +649,10 @@ fn save_woz_file(disk: &mut Disk) -> io::Result<()> {
         .unwrap()
         .eq_ignore_ascii_case(OsStr::new("gz"))
     {
-        let data = std::fs::read(&path)?;
+        let data = std::fs::read(path)?;
         decompress_array_gz(&data)?
     } else {
-        std::fs::read(&path)?
+        std::fs::read(path)?
     };
 
     if dsk.len() <= 12 {
@@ -1039,18 +1039,13 @@ fn read_woz_sector(
     while rev < 4 {
         match state {
             0 => {
-                state = if read_woz_nibble(track, head, mask, bit, &mut rev, bit_count) == 0xd5 {
-                    1
-                } else {
-                    0
-                }
+                state =
+                    i32::from(read_woz_nibble(track, head, mask, bit, &mut rev, bit_count) == 0xd5);
             }
             1 => {
-                state = if read_woz_nibble(track, head, mask, bit, &mut rev, bit_count) == 0xaa {
-                    2
-                } else {
-                    0
-                }
+                state =
+                    i32::from(read_woz_nibble(track, head, mask, bit, &mut rev, bit_count) == 0xaa)
+                        * 2;
             }
             2 => {
                 let nibble = read_woz_nibble(track, head, mask, bit, &mut rev, bit_count);
@@ -1314,10 +1309,10 @@ impl DiskDrive {
             .unwrap()
             .eq_ignore_ascii_case(OsStr::new("gz"))
         {
-            let data = std::fs::read(&filename)?;
+            let data = std::fs::read(filename)?;
             decompress_array_gz(&data)?
         } else {
-            std::fs::read(&filename)?
+            std::fs::read(filename)?
         };
 
         if dsk.len() != DSK_IMAGE_SIZE && dsk.len() != DSK40_IMAGE_SIZE {
@@ -1342,10 +1337,10 @@ impl DiskDrive {
             .unwrap()
             .eq_ignore_ascii_case(OsStr::new("gz"))
         {
-            let data = std::fs::read(&filename)?;
+            let data = std::fs::read(filename)?;
             decompress_array_gz(&data)?
         } else {
-            std::fs::read(&filename)?
+            std::fs::read(filename)?
         };
 
         if dsk.len() != NIB_IMAGE_SIZE {
@@ -1490,10 +1485,10 @@ impl DiskDrive {
             .unwrap()
             .eq_ignore_ascii_case(OsStr::new("gz"))
         {
-            let data = std::fs::read(&filename)?;
+            let data = std::fs::read(filename)?;
             decompress_array_gz(&data)?
         } else {
-            std::fs::read(&filename)?
+            std::fs::read(filename)?
         };
 
         self.load_woz_array(&dsk)
@@ -1872,10 +1867,11 @@ impl DiskDrive {
 
     /// Read the flux data. The value in the flux data, is the next read pulse. The read pulse is
     /// valid for 1 microsecond (8 cycles)
-    fn read_flux_data(disk: &mut Disk, track_bits: usize) -> usize {
+    fn read_flux_data(disk: &mut Disk) -> usize {
         let tmap_track = disk.tmap_data[disk.track as usize];
         if tmap_track != 255 && disk.trackmap[tmap_track as usize] == TrackType::Flux {
             let track = &disk.raw_track_data[tmap_track as usize];
+            let track_bits = disk.raw_track_bits[tmap_track as usize];
             let mut return_value = 0;
 
             // Read the flux data for 4 times = 0.125 * 4 = 0.5 microsecond
@@ -1996,7 +1992,7 @@ impl DiskDrive {
         };
 
         Self::update_track_if_changed(disk, tmap_track, track_bits, track_to_read, track_type);
-        let read_pulse = Self::read_flux_data(disk, track_bits);
+        let read_pulse = Self::read_flux_data(disk);
         let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
         if self.lss_cycle >= optimal_timing {
             if track_type != TrackType::Flux {
@@ -2008,20 +2004,19 @@ impl DiskDrive {
                     disk.head_bit = 0;
                     disk.head += 1;
                 }
+
+                if disk.head * 8 + disk.head_bit >= track_bits {
+                    let wrapped = (disk.head * 8 + disk.head_bit) % track_bits;
+                    disk.head = wrapped / 8;
+                    disk.head_mask = 1 << (7 - wrapped % 8);
+                    disk.head_bit = wrapped % 8;
+                }
             }
 
             self.bit_buffer <<= 1;
 
             if disk.loaded && tmap_track != 0xff {
                 let track = &disk.raw_track_data[tmap_track as usize];
-                let track_bits = disk.raw_track_bits[tmap_track as usize];
-
-                if track_type != TrackType::Flux && disk.head * 8 + disk.head_bit >= track_bits {
-                    let wrapped = (disk.head * 8 + disk.head_bit) % track_bits;
-                    disk.head = wrapped / 8;
-                    disk.head_mask = 1 << (7 - wrapped % 8);
-                    disk.head_bit = wrapped % 8;
-                }
 
                 if track_type != TrackType::Flux {
                     self.bit_buffer |= (track[disk.head] & disk.head_mask as u8 != 0) as u8;

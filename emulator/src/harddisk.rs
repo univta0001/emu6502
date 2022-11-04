@@ -193,7 +193,7 @@ impl HardDisk {
             .extension()
             .unwrap()
             .eq_ignore_ascii_case(OsStr::new("2mg"));
-        let dsk = std::fs::read(&filename)?;
+        let dsk = std::fs::read(filename)?;
         self.load_hdv_2mg_array(&dsk, hdv_mode)
     }
 
