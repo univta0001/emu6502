@@ -1934,6 +1934,41 @@ impl DiskDrive {
                 disk.head = new_bit / 8;
                 disk.head_mask = 1 << (7 - new_bit % 8);
                 disk.head_bit = new_bit % 8;
+            } else {
+                let track = &disk.raw_track_data[tmap_track as usize];
+                let curr_head = if last_track_type == TrackType::Flux {
+                    let mut prev_head = 0;
+                    for i in 0..disk.head {
+                        prev_head += disk.raw_track_data[last_track as usize][i] as usize;
+                    }
+                    prev_head += disk.mc3470_counter;
+
+                    let mut prev_duration = 0;
+                    for i in 0..last_track_bits {
+                        prev_duration += disk.raw_track_data[last_track as usize][i] as usize;
+                    }
+
+                    let mut curr_duration = 0;
+                    for item in track {
+                        curr_duration += *item as usize;
+                    }
+
+                    (prev_head + 1) * curr_duration / prev_duration
+                } else {
+                    (disk.head * 8 + disk.head_bit + 7) * 8 % track.len()
+                };
+
+                disk.head = 0;
+                let mut value = track[disk.head] as usize;
+                let mut accessed = 0;
+                while accessed + value < curr_head {
+                    accessed += value;
+                    disk.head += 1;
+                    value = track[disk.head] as usize;
+                }
+
+                disk.mc3470_read_pulse = track[disk.head] as usize;
+                disk.mc3470_counter = curr_head - accessed;
             }
 
             disk.last_track = track_to_read;
