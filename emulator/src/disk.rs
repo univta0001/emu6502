@@ -1876,8 +1876,8 @@ impl DiskDrive {
 
             // Read the flux data for 4 times = 0.125 * 4 = 0.5 microsecond
             for _ in 0..4 {
-                return_value = if disk.mc3470_counter < 8 {
-                    1
+                if disk.mc3470_counter < 8 {
+                    return_value = 1;
                 } else if disk.mc3470_counter >= disk.mc3470_read_pulse {
                     disk.mc3470_counter = 0;
                     disk.head += 1;
@@ -1885,14 +1885,15 @@ impl DiskDrive {
                         disk.head = 0
                     }
                     let mut value = track[disk.head] as usize;
-                    while track[disk.head] == 255 && disk.head < track_bits - 1 {
+                    while track[disk.head] == 255 && disk.head + 1 < track_bits {
                         disk.head += 1;
                         value += track[disk.head] as usize;
                     }
                     disk.mc3470_read_pulse = value;
-                    1
+                    return_value = 1;
+                    continue;
                 } else {
-                    0
+                    return_value = 0;
                 };
                 disk.mc3470_counter += 1;
             }
@@ -1933,29 +1934,6 @@ impl DiskDrive {
                 disk.head = new_bit / 8;
                 disk.head_mask = 1 << (7 - new_bit % 8);
                 disk.head_bit = new_bit % 8;
-            } else {
-                /*
-                let ratio = if last_track_type != TrackType::Flux {
-                    let last_offset = (disk.head * 8 + disk.head_bit + 7) as f32;
-                    if last_offset > last_track_bits as f32 {
-                        (last_offset - last_track_bits as f32) / last_track_bits as f32
-                    } else {
-                        last_offset / last_track_bits as f32
-                    }
-                } else {
-                    if disk.head > last_track_bits {
-                        (disk.head - last_track_bits) as f32 / last_track_bits as f32
-                    } else {
-                        disk.head as f32 / last_track_bits as f32
-                    }
-                };
-                */
-
-                //let track = &disk.raw_track_data[tmap_track as usize];
-                //disk.head = (ratio * track_bits as f32) as usize;
-                //disk.mc3470_read_pulse = track[disk.head] as usize;
-                // disk.mc3470_counter
-                // disk.mc3470_read_pulse
             }
 
             disk.last_track = track_to_read;
