@@ -1921,7 +1921,7 @@ impl DiskDrive {
             if track_type != TrackType::Flux {
                 // Adjust the disk head as each track size is different
                 let new_bit = if last_track_type == TrackType::Flux {
-                    (disk.head * track_bits) / last_track_bits
+                    0
                 } else {
                     let last_head = disk.head * 8 + disk.head_bit + 1;
                     (last_head * track_bits) / last_track_bits
@@ -1930,28 +1930,8 @@ impl DiskDrive {
                 disk.head = new_bit / 8;
                 disk.head_mask = 1 << (7 - new_bit % 8);
                 disk.head_bit = new_bit % 8;
-            } else {
-                /*
-                let track = &disk.raw_track_data[tmap_track as usize];
-                if last_track_type != TrackType::Flux {
-                    let curr_head = (disk.head * 8 + disk.head_bit) * 32;
-
-                    disk.head = 0;
-                    let mut value = track[disk.head] as usize;
-                    let mut accessed = 0;
-                    while accessed + value < curr_head {
-                        accessed += value;
-                        disk.head += 1;
-                        if disk.head >= track.len() {
-                            disk.head = 0;
-                        }
-                        value = track[disk.head] as usize;
-                    }
-
-                    disk.mc3470_read_pulse = track[disk.head] as usize;
-                    disk.mc3470_counter = curr_head - accessed;
-                }
-                */
+            } else if last_track_type != TrackType::Flux {
+                disk.head = 0;
             }
 
             disk.last_track = track_to_read;
