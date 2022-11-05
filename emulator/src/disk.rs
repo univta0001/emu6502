@@ -1945,6 +1945,9 @@ impl DiskDrive {
                     while accessed + value < curr_head {
                         accessed += value;
                         disk.head += 1;
+                        if disk.head >= track.len() {
+                            disk.head = 0;
+                        }
                         value = track[disk.head] as usize;
                     }
 
