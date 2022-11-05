@@ -1923,7 +1923,7 @@ impl DiskDrive {
                 let new_bit = if last_track_type == TrackType::Flux {
                     (disk.head * track_bits) / last_track_bits
                 } else {
-                    let last_head = disk.head * 8 + disk.head_bit + 7;
+                    let last_head = disk.head * 8 + disk.head_bit + 1;
                     if last_head > last_track_bits {
                         ((last_head - last_track_bits) * track_bits) / last_track_bits
                     } else {
@@ -1937,7 +1937,7 @@ impl DiskDrive {
             } else {
                 let track = &disk.raw_track_data[tmap_track as usize];
                 if last_track_type != TrackType::Flux {
-                    let curr_head = (disk.head * 8 + disk.head_bit + 7) * 32 % track.len();
+                    let curr_head = (disk.head * 8 + disk.head_bit) * 32 % track.len();
 
                     disk.head = 0;
                     let mut value = track[disk.head] as usize;
