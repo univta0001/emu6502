@@ -1924,17 +1924,14 @@ impl DiskDrive {
                     (disk.head * track_bits) / last_track_bits
                 } else {
                     let last_head = disk.head * 8 + disk.head_bit + 1;
-                    if last_head > last_track_bits {
-                        ((last_head - last_track_bits) * track_bits) / last_track_bits
-                    } else {
-                        (last_head * track_bits) / last_track_bits
-                    }
+                    (last_head * track_bits) / last_track_bits
                 };
 
                 disk.head = new_bit / 8;
                 disk.head_mask = 1 << (7 - new_bit % 8);
                 disk.head_bit = new_bit % 8;
             } else {
+                /*
                 let track = &disk.raw_track_data[tmap_track as usize];
                 if last_track_type != TrackType::Flux {
                     let curr_head = (disk.head * 8 + disk.head_bit) * 32;
@@ -1954,6 +1951,7 @@ impl DiskDrive {
                     disk.mc3470_read_pulse = track[disk.head] as usize;
                     disk.mc3470_counter = curr_head - accessed;
                 }
+                */
             }
 
             disk.last_track = track_to_read;
