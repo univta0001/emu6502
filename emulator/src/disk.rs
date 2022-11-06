@@ -1932,6 +1932,8 @@ impl DiskDrive {
                 disk.head_bit = new_bit % 8;
             } else if last_track_type != TrackType::Flux {
                 disk.head = 0;
+            } else {
+                disk.head = disk.head * track_bits / last_track_bits;
             }
 
             disk.last_track = track_to_read;
