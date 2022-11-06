@@ -760,8 +760,8 @@ impl Bus {
                 val
             }
 
-            // 0x60 PB3 should only works in real Apple 2GS
-            0x60 => self.pushbutton_latch[3],
+            // 0x60 Need to return floating bus value for serpentine
+            0x60 => self.read_floating_bus(),
 
             0x61 => {
                 if !self.swap_button {
