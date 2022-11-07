@@ -182,16 +182,16 @@ impl AY8910 {
     }
 
     fn update_tone(&mut self) {
-        for i in 0..3 {
-            let env_period = if self.tone[i].period == 0 {
+        for tone in self.tone.iter_mut() {
+            let env_period = if tone.period == 0 {
                 1
             } else {
-                self.tone[i].period as usize
+                tone.period as usize
             };
-            self.tone[i].count += 1;
-            if self.tone[i].count >= env_period {
-                self.tone[i].count -= env_period;
-                self.tone[i].level = !self.tone[i].level
+            tone.count += 1;
+            if tone.count >= env_period {
+                tone.count -= env_period;
+                tone.level = !tone.level
             }
         }
     }
