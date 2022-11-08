@@ -11,13 +11,13 @@ rand = "0.8.5"
 flate2 = "1.0.24"
 instant = { version = "0.1.12", features = ["wasm-bindgen"], optional = true }
 getrandom = { version = "0.2.8", features = ["js"] }
-serde = { version = "1.0.146", features = ["derive"],  optional = true }
+serde = { version = "1.0.147", features = ["derive"],  optional = true }
 iz80 = { version = "0.3.5", optional = true }
 derivative = { version = "2.2.0", optional = true }
 chrono = { version = "0.4.22", default-features = false, features = ["clock", "wasmbind"] }
 
 [dev-dependencies]
-regex = "1.6.0"
+regex = "1.7.0"
 criterion = { version = "0.4.0", features = ['html_reports'] }
 crossbeam-utils = "0.8.12"
 serde_json = "1.0.87"
@@ -25,7 +25,7 @@ crossbeam-epoch = "0.9.11"
 ryu = "1.0.11"
 autocfg = "1.1.0"
 crossbeam-channel = "0.5.6"
-num_cpus = "1.13.1"
+num_cpus = "1.14.0"
 
 [features]
 default = [ ]
