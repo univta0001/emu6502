@@ -707,6 +707,7 @@ Function Keys:
     Ctrl-F10           Eject Hard Disk 1
     Ctrl-F11           Eject Hard Disk 2
     Ctrl-PrintScreen   Save screenshot as screenshot.png
+    Shift-Insert       Paste clipboard text to the emulator
     F1                 Load Disk 1 file
     F2                 Load Disk 2 file
     F3                 Swap Disk 1 and Disk 2
