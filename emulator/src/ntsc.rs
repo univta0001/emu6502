@@ -7,7 +7,7 @@ use std::iter::zip;
 const NTSC_SAMPLE_RATE: f32 = 14318181.818181818;
 const NTSC_SUBCARRIER: f32 = 0.25;
 
-pub const NTSC_LUMA_BANDWIDTH: f32 = 2000000.0;
+pub const NTSC_LUMA_BANDWIDTH: f32 = 2300000.0;
 pub const NTSC_CHROMA_BANDWIDTH: f32 = 600000.0;
 pub const NTSC_PIXEL_NEIGHBOR: usize = 6;
 pub const NTSC_FILTER_SIZE: usize = 8;
