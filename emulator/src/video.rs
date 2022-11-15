@@ -834,19 +834,19 @@ impl Video {
         let mut value = 0;
         match addr {
             0xc00c => {
-                if write_flag {
+                if self.apple2e && write_flag {
                     self.vid80_mode = false;
                     self.update_video();
                 }
             }
             0xc00d => {
-                if write_flag {
+                if self.apple2e && write_flag {
                     self.vid80_mode = true;
                     self.update_video();
                 }
             }
             0xc00e => {
-                if write_flag {
+                if self.apple2e && write_flag {
                     self.altchar = false;
                     for i in 0..self.video_dirty.len() {
                         self.video_dirty[i] = 1;
@@ -854,7 +854,7 @@ impl Video {
                 }
             }
             0xc00f => {
-                if write_flag {
+                if self.apple2e && write_flag {
                     self.altchar = true;
                     for i in 0..self.video_dirty.len() {
                         self.video_dirty[i] = 1;
@@ -863,12 +863,14 @@ impl Video {
             }
 
             0xc019 => {
-                let val = self.cycles;
-                let row = val / CYCLES_PER_ROW;
-                if row < 192 {
-                    return 0x80;
-                } else {
-                    return 0;
+                if self.apple2e {
+                    let val = self.cycles;
+                    let row = val / CYCLES_PER_ROW;
+                    if row < 192 {
+                        return 0x80;
+                    } else {
+                        return 0;
+                    }
                 }
             }
 
