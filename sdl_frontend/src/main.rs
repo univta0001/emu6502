@@ -289,7 +289,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
 
         Event::ControllerDeviceRemoved { which, .. } => {
             // Which refers to instance id
-            event_param.gamepads.remove(&(which as u32));
+            event_param.gamepads.remove(&which);
         }
 
         Event::KeyDown {

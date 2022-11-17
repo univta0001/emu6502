@@ -591,10 +591,10 @@ impl CPU {
 
     pub fn get_indirect_zeropage_addr(&mut self, _: &OpCode, prog_addr: u16) -> u16 {
         if !self.callback {
-            let ptr: u8 = self.next_byte() as u8;
+            let ptr = self.next_byte();
             self.bus.addr_read_u16(ptr as u16)
         } else {
-            let ptr: u8 = self.bus.unclocked_addr_read(prog_addr.wrapping_add(1)) as u8;
+            let ptr = self.bus.unclocked_addr_read(prog_addr.wrapping_add(1));
             self.bus.unclocked_addr_read_u16(ptr as u16)
         }
     }
@@ -602,12 +602,12 @@ impl CPU {
     pub fn get_indirect_x_addr(&mut self, _: &OpCode, prog_addr: u16) -> u16 {
         if !self.callback {
             let base = self.next_byte();
-            let ptr: u8 = (base as u8).wrapping_add(self.register_x);
+            let ptr = base.wrapping_add(self.register_x);
             self.tick();
             self.bus.addr_read_u16(ptr as u16)
         } else {
             let base = self.bus.unclocked_addr_read(prog_addr.wrapping_add(1));
-            let ptr: u8 = (base as u8).wrapping_add(self.register_x);
+            let ptr = base.wrapping_add(self.register_x);
             self.bus.unclocked_addr_read_u16(ptr as u16)
         }
     }
@@ -641,11 +641,11 @@ impl CPU {
         if !self.callback {
             let base = self.next_word();
             let ptr = base.wrapping_add(self.register_x as u16);
-            self.bus.addr_read_u16(ptr as u16)
+            self.bus.addr_read_u16(ptr)
         } else {
             let base = self.bus.unclocked_addr_read_u16(prog_add.wrapping_add(1));
             let ptr = base.wrapping_add(self.register_x as u16);
-            self.bus.unclocked_addr_read_u16(ptr as u16)
+            self.bus.unclocked_addr_read_u16(ptr)
         }
     }
 
@@ -843,8 +843,8 @@ impl CPU {
     }
 
     pub fn load(&mut self, program: &[u8], offset: u16) {
-        for i in 0..program.len() {
-            self.bus.mem_write(offset + i as u16, program[i as usize]);
+        for (i, item) in program.iter().enumerate() {
+            self.bus.mem_write(offset + i as u16, *item);
         }
     }
 
@@ -1894,7 +1894,7 @@ impl Machine for Bus {
 
     fn poke(&mut self, address: u16, value: u8) {
         //eprintln!("Poke addr = {:04x} {:04X} {:02X}", address, translate_address(address), value);
-        self.addr_write(translate_z80address(address as u16), value);
+        self.addr_write(translate_z80address(address), value);
     }
 
     fn port_in(&mut self, _address: u16) -> u8 {

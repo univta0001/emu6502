@@ -1805,7 +1805,7 @@ impl Video {
         for i in 0..14 {
             let pos = (x + i) % 4;
             let luma_u32 = luma_to_u32(&luma, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR);
-            let color = self.chroma_hgr[pos as usize][luma_u32 as usize];
+            let color = self.chroma_hgr[pos][luma_u32 as usize];
             //let color = chroma_ntsc_color(&luma, x + i, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR, false, &self.ntsc_decoder);
             self.set_pixel_count(x + i, y1 * 2, color, 1);
         }
@@ -1936,7 +1936,7 @@ impl Video {
         for i in 0..7 {
             let pos = (x + offset + i) % 4;
             let luma_u32 = luma_to_u32(&luma, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR);
-            let color = self.chroma_dhgr[pos as usize][luma_u32 as usize];
+            let color = self.chroma_dhgr[pos][luma_u32 as usize];
             //let color = chroma_ntsc_color(&luma, x + offset + i, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR, true, &self.ntsc_decoder);
             self.set_pixel_count(x + offset + i, y1 * 2, color, 1);
         }
@@ -2235,9 +2235,9 @@ impl Video {
                 let pos = (x + i) % 4;
                 let luma_u32 = luma_to_u32(&luma, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR);
                 let color = if an3 {
-                    self.chroma_dhgr[pos as usize][luma_u32 as usize]
+                    self.chroma_dhgr[pos][luma_u32 as usize]
                 } else {
-                    self.chroma_hgr[pos as usize][luma_u32 as usize]
+                    self.chroma_hgr[pos][luma_u32 as usize]
                 };
                 //let color = chroma_ntsc_color(&luma, x + i, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR, an3, &self.ntsc_decoder);
                 self.set_pixel_count(x + i, 2 * row, color, 1);
@@ -2676,7 +2676,7 @@ impl Video {
             for i in 0..14 {
                 let pos = (x + i) % 4;
                 let luma_u32 = luma_to_u32(&luma, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR);
-                let color = self.chroma_dhgr[pos as usize][luma_u32 as usize];
+                let color = self.chroma_dhgr[pos][luma_u32 as usize];
                 //let color = chroma_ntsc_color(&luma, x + i, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR, true, &self.ntsc_decoder);
                 self.set_pixel_count(x + i, 2 * row, color, 1);
             }

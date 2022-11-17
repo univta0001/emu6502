@@ -113,7 +113,7 @@ impl Envelope {
         }
         self.step = 0xf;
         self.holding = false;
-        self.volume = (0xf ^ self.attack) as u8;
+        self.volume = 0xf ^ self.attack;
     }
 }
 

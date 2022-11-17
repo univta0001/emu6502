@@ -444,7 +444,7 @@ impl Card for Mouse {
         value: u8,
         _write_flag: bool,
     ) -> u8 {
-        let slot = (((addr & 0x00ff) - 0x0080) >> 4) as u16;
+        let slot = ((addr & 0x00ff) - 0x0080) >> 4;
         let map_addr = ((addr & 0x00ff) - (slot << 4)) as u8;
 
         match map_addr & 0x0f {

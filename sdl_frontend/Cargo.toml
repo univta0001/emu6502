@@ -14,7 +14,7 @@ emu6502 = { path = "../emulator" }
 sdl2 = "0.35.2"
 #sdl2 = { version = "0.35.2", features = ['bundled', 'static-link'] }
 serde_yaml = { version = "0.9.14", optional = true }
-image = "0.24.4"
+image = "0.24.5"
 spin_sleep = "1.1.1"
 
 #[target.x86_64-pc-windows-msvc.dependencies]
@@ -22,7 +22,7 @@ spin_sleep = "1.1.1"
 
 [build-dependencies]
 embed-resource = "1.7.4"
-cc = "1.0.74"
+cc = "1.0.76"
 
 [features]
 #default = [ ]

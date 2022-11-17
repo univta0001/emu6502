@@ -396,13 +396,13 @@ pub fn dump_trace(output: &mut String, cpu: &mut CPU, addr: u16, status: bool) {
                         };
 
                         output.push_str("($");
-                        hex_u16(output, address as u16);
+                        hex_u16(output, address);
                         output.push_str(") = ");
                         hex_u16(output, jmp_addr);
                         pad(output, 13, "", false);
                     } else {
                         output.push('$');
-                        hex_u16(output, address as u16);
+                        hex_u16(output, address);
                         pad(output, 22, "", false);
                     }
                     output.push(' ');
