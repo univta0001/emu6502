@@ -27,6 +27,7 @@ use sdl2::rect::Rect;
 use sdl2::render::BlendMode;
 use sdl2::render::Canvas;
 use sdl2::render::RenderTarget;
+use sdl2::render::Texture;
 use sdl2::GameControllerSubsystem;
 use sdl2::VideoSubsystem;
 use std::cell::RefCell;
@@ -892,6 +893,120 @@ fn load_serialized_image() -> Result<CPU, String> {
     Ok(new_cpu)
 }
 
+fn update_audio(cpu: &mut CPU, audio_device: &sdl2::audio::AudioQueue<i16>) {
+    let mut snd = cpu.bus.audio.borrow_mut();
+    if audio_device.size() < AUDIO_SAMPLE_SIZE * 2 * 4 {
+        let _ = audio_device.queue_audio(&snd.data.sample[..]);
+        snd.clear_buffer();
+    } else {
+        snd.clear_buffer();
+    }
+}
+
+fn update_video<T: RenderTarget>(
+    cpu: &mut CPU,
+    save_screenshot: &mut bool,
+    canvas: &mut Canvas<T>,
+    texture: &mut Texture,
+) {
+    let mut disp = cpu.bus.video.borrow_mut();
+    if *save_screenshot {
+        if let Ok(output) = File::create("screenshot.png") {
+            let encoder = PngEncoder::new(output);
+            let result = encoder.write_image(&disp.frame, 560, 384, ColorType::Rgba8);
+            if result.is_err() {
+                eprintln!("Unable to create PNG file");
+            }
+        } else {
+            eprintln!("Unable to create screenshot.png");
+        }
+
+        *save_screenshot = false;
+    }
+
+    let dirty_region = disp.get_dirty_region();
+
+    /*
+    if dirty_region.len() > 0
+    && !(dirty_region.len() == 1 && dirty_region[0].0 == 0 && dirty_region[0].1 == 23)
+    {
+        eprintln!("UI updates = {} {:?}", dirty_region.len() , dirty_region);
+    }
+    */
+
+    canvas.set_blend_mode(BlendMode::Blend);
+    for region in dirty_region {
+        let start = region.0 * 16;
+        let end = 16 * ((region.1 - region.0) + 1);
+        let rect = Rect::new(0, start as i32, 560, end as u32);
+        texture
+            .update(rect, &disp.frame[start * 4 * 560..], 560 * 4)
+            .unwrap();
+        canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
+    }
+    disp.clear_video_dirty();
+
+    let mut harddisk_on = false;
+    let disk_is_on = {
+        let disk_status = cpu.bus.disk.borrow().is_motor_on();
+        let harddisk_status = cpu.bus.harddisk.borrow().is_busy();
+        if harddisk_status {
+            harddisk_on = true;
+        }
+        disk_status || harddisk_status
+    };
+
+    if disk_is_on {
+        let rect = Rect::new(552, 0, 8, 8);
+        texture
+            .update(rect, &disp.frame[552 * 4..], 560 * 4)
+            .unwrap();
+        canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
+        if harddisk_on {
+            canvas.set_draw_color(Color::RGBA(0, 255, 0, 128));
+        } else {
+            canvas.set_draw_color(Color::RGBA(255, 0, 0, 128));
+        }
+        let _result = draw_circle(canvas, 560 - 4, 4, 2);
+    } else {
+        let rect = Rect::new(552, 0, 8, 8);
+        texture
+            .update(rect, &disp.frame[552 * 4..], 560 * 4)
+            .unwrap();
+        canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
+    }
+    canvas.present();
+}
+
+fn initialize_new_cpu(cpu: &mut CPU, display_index: &mut usize) {
+    let mmu = cpu.bus.mem.borrow();
+    let mut disp = cpu.bus.video.borrow_mut();
+    disp.video_main[0x400..0xc00]
+        .clone_from_slice(&mmu.cpu_memory[0x400..0xc00]);
+    disp.video_aux[0x400..0xc00]
+        .clone_from_slice(&mmu.aux_memory[0x400..0xc00]);
+    disp.video_main[0x2000..0x6000]
+        .clone_from_slice(&mmu.cpu_memory[0x2000..0x6000]);
+    disp.video_aux[0x2000..0x6000]
+        .clone_from_slice(&mmu.aux_memory[0x2000..0x6000]);
+
+    // Restore the display mode
+    match disp.get_display_mode() {
+        DisplayMode::NTSC => *display_index = 1,
+        DisplayMode::MONO => *display_index = 2,
+        DisplayMode::RGB => *display_index = 3,
+        _ => *display_index = 0,
+    }
+
+    // Update NTSC details
+    let luma_bandwidth = disp.luma_bandwidth;
+    let chroma_bandwidth = disp.chroma_bandwidth;
+    disp.update_ntsc_matrix(luma_bandwidth, chroma_bandwidth);
+
+    // Invalidate video cache
+    disp.invalidate_video_cache()
+}
+
 fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     /*
     #[cfg(target_os = "windows")]
@@ -1233,82 +1348,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             if dcyc >= cpu_cycles {
                 let video_elapsed = video_refresh.elapsed().as_micros() + video_offset;
                 if video_elapsed >= (cpu_period as u128) {
-                    let mut snd = _cpu.bus.audio.borrow_mut();
-                    if audio_device.size() < AUDIO_SAMPLE_SIZE * 2 * 4 {
-                        let _ = audio_device.queue_audio(&snd.data.sample[..]);
-                        snd.clear_buffer();
-                    } else {
-                        snd.clear_buffer();
-                    }
-
-                    let mut disp = _cpu.bus.video.borrow_mut();
-                    if save_screenshot {
-                        if let Ok(output) = File::create("screenshot.png") {
-                            let encoder = PngEncoder::new(output);
-                            let result =
-                                encoder.write_image(&disp.frame, 560, 384, ColorType::Rgba8);
-                            if result.is_err() {
-                                eprintln!("Unable to create PNG file");
-                            }
-                        } else {
-                            eprintln!("Unable to create screenshot.png");
-                        }
-
-                        save_screenshot = false;
-                    }
-
-                    let dirty_region = disp.get_dirty_region();
-
-                    /*
-                    if dirty_region.len() > 0
-                    && !(dirty_region.len() == 1 && dirty_region[0].0 == 0 && dirty_region[0].1 == 23)
-                    {
-                        eprintln!("UI updates = {} {:?}", dirty_region.len() , dirty_region);
-                    }
-                    */
-
-                    canvas.set_blend_mode(BlendMode::Blend);
-                    for region in dirty_region {
-                        let start = region.0 * 16;
-                        let end = 16 * ((region.1 - region.0) + 1);
-                        let rect = Rect::new(0, start as i32, 560, end as u32);
-                        texture
-                            .update(rect, &disp.frame[start * 4 * 560..], 560 * 4)
-                            .unwrap();
-                        canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
-                    }
-                    disp.clear_video_dirty();
-
-                    let mut harddisk_on = false;
-                    let disk_is_on = {
-                        let disk_status = _cpu.bus.disk.borrow().is_motor_on();
-                        let harddisk_status = _cpu.bus.harddisk.borrow().is_busy();
-                        if harddisk_status {
-                            harddisk_on = true;
-                        }
-                        disk_status || harddisk_status
-                    };
-
-                    if disk_is_on {
-                        let rect = Rect::new(552, 0, 8, 8);
-                        texture
-                            .update(rect, &disp.frame[552 * 4..], 560 * 4)
-                            .unwrap();
-                        canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
-                        if harddisk_on {
-                            canvas.set_draw_color(Color::RGBA(0, 255, 0, 128));
-                        } else {
-                            canvas.set_draw_color(Color::RGBA(255, 0, 0, 128));
-                        }
-                        let _result = draw_circle(&mut canvas, 560 - 4, 4, 2);
-                    } else {
-                        let rect = Rect::new(552, 0, 8, 8);
-                        texture
-                            .update(rect, &disp.frame[552 * 4..], 560 * 4)
-                            .unwrap();
-                        canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
-                    }
-                    canvas.present();
+                    update_audio(_cpu, &audio_device);
+                    update_video(_cpu, &mut save_screenshot, &mut canvas, &mut texture);
                     video_offset = video_elapsed % (cpu_period as u128);
                     video_refresh = Instant::now();
                 }
@@ -1330,7 +1371,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     handle_event(_cpu, event_value, &mut event_param);
                 }
 
-                // Get mouse state
+                // Update mouse state
                 let mouse_state = _event_pump.mouse_state();
                 let buttons = [mouse_state.left(), mouse_state.right()];
                 _cpu.bus
@@ -1362,39 +1403,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             {
                 let result = load_serialized_image();
                 match result {
-                    Ok(new_cpu) => {
+                    Ok(mut new_cpu) => {
                         previous_cycles = new_cpu.bus.get_cycles();
-
-                        // Initialize new cpu video memory
-                        //if let Some(video) = &mut new_cpu.bus.video
-                        {
-                            let mmu = new_cpu.bus.mem.borrow();
-                            let mut disp = new_cpu.bus.video.borrow_mut();
-                            disp.video_main[0x400..0xc00]
-                                .clone_from_slice(&mmu.cpu_memory[0x400..0xc00]);
-                            disp.video_aux[0x400..0xc00]
-                                .clone_from_slice(&mmu.aux_memory[0x400..0xc00]);
-                            disp.video_main[0x2000..0x6000]
-                                .clone_from_slice(&mmu.cpu_memory[0x2000..0x6000]);
-                            disp.video_aux[0x2000..0x6000]
-                                .clone_from_slice(&mmu.aux_memory[0x2000..0x6000]);
-
-                            // Restore the display mode
-                            match disp.get_display_mode() {
-                                DisplayMode::NTSC => display_index = 1,
-                                DisplayMode::MONO => display_index = 2,
-                                DisplayMode::RGB => display_index = 3,
-                                _ => display_index = 0,
-                            }
-
-                            // Update NTSC details
-                            let luma_bandwidth = disp.luma_bandwidth;
-                            let chroma_bandwidth = disp.chroma_bandwidth;
-                            disp.update_ntsc_matrix(luma_bandwidth, chroma_bandwidth);
-
-                            // Invalidate video cache
-                            disp.invalidate_video_cache()
-                        }
+                        initialize_new_cpu(&mut new_cpu, &mut display_index);
                         cpu = new_cpu
                     }
                     Err(message) => eprintln!("{}", message),
