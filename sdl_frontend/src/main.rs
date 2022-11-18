@@ -1237,8 +1237,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     if audio_device.size() < AUDIO_SAMPLE_SIZE * 2 * 4 {
                         let _ = audio_device.queue_audio(&snd.data.sample[..]);
                         snd.clear_buffer();
-                    } else {
-                        snd.clear_buffer();
                     }
 
                     let mut disp = _cpu.bus.video.borrow_mut();
