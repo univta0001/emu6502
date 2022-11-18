@@ -1348,7 +1348,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             if dcyc >= cpu_cycles {
                 let video_elapsed = video_refresh.elapsed().as_micros() + video_offset;
                 if video_elapsed >= (cpu_period as u128) {
-                    update_audio(_cpu, &audio_device);
                     update_video(_cpu, &mut save_screenshot, &mut canvas, &mut texture);
                     video_offset = video_elapsed % (cpu_period as u128);
                     video_refresh = Instant::now();
@@ -1392,6 +1391,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 estimated_mhz = (dcyc as f32) / elapsed as f32;
 
                 dcyc -= cpu_cycles;
+                update_audio(_cpu, &audio_device);
                 t = Instant::now();
             }
         });
