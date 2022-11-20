@@ -981,14 +981,10 @@ fn update_video<T: RenderTarget>(
 fn initialize_new_cpu(cpu: &mut CPU, display_index: &mut usize) {
     let mmu = cpu.bus.mem.borrow();
     let mut disp = cpu.bus.video.borrow_mut();
-    disp.video_main[0x400..0xc00]
-        .clone_from_slice(&mmu.cpu_memory[0x400..0xc00]);
-    disp.video_aux[0x400..0xc00]
-        .clone_from_slice(&mmu.aux_memory[0x400..0xc00]);
-    disp.video_main[0x2000..0x6000]
-        .clone_from_slice(&mmu.cpu_memory[0x2000..0x6000]);
-    disp.video_aux[0x2000..0x6000]
-        .clone_from_slice(&mmu.aux_memory[0x2000..0x6000]);
+    disp.video_main[0x400..0xc00].clone_from_slice(&mmu.cpu_memory[0x400..0xc00]);
+    disp.video_aux[0x400..0xc00].clone_from_slice(&mmu.aux_memory[0x400..0xc00]);
+    disp.video_main[0x2000..0x6000].clone_from_slice(&mmu.cpu_memory[0x2000..0x6000]);
+    disp.video_aux[0x2000..0x6000].clone_from_slice(&mmu.aux_memory[0x2000..0x6000]);
 
     // Restore the display mode
     match disp.get_display_mode() {

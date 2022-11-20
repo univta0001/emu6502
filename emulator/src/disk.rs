@@ -1360,6 +1360,15 @@ impl DiskDrive {
         self.load_dsk_po_nib_array_to_woz(&data, disk_type, Self::convert_dsk_po_track_to_woz)
     }
 
+    pub fn load_dsk_po_array_to_woz(&mut self, dsk: &[u8], po_mode: bool) -> io::Result<()> {
+        let disk_type = if po_mode { DiskType::Po } else { DiskType::Dsk };
+        self.load_dsk_po_nib_array_to_woz(dsk, disk_type, Self::convert_dsk_po_track_to_woz)
+    }
+
+    pub fn load_nib_array_to_woz(&mut self, dsk: &[u8]) -> io::Result<()> {
+        self.load_dsk_po_nib_array_to_woz(dsk, DiskType::Nib, Self::convert_nib_track_to_woz)
+    }
+
     pub fn load_dsk_po_nib_array_to_woz(
         &mut self,
         dsk: &[u8],
@@ -1956,7 +1965,6 @@ impl DiskDrive {
         } else {
             disk.trackmap[tmap_track as usize]
         };
-
 
         let mut rng = rand::thread_rng();
 
