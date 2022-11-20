@@ -20,7 +20,7 @@ chrono = { version = "0.4.23", default-features = false, features = ["clock", "w
 regex = "1.7.0"
 criterion = { version = "0.4.0", features = ['html_reports'] }
 crossbeam-utils = "0.8.12"
-serde_json = "1.0.87"
+serde_json = "1.0.88"
 crossbeam-epoch = "0.9.11"
 ryu = "1.0.11"
 autocfg = "1.1.0"

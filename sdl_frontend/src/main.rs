@@ -942,7 +942,7 @@ fn update_video<T: RenderTarget>(
         texture
             .update(rect, &disp.frame[start * 4 * 560..], 560 * 4)
             .unwrap();
-        canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
+        canvas.copy(texture, Some(rect), Some(rect)).unwrap();
     }
     disp.clear_video_dirty();
 
@@ -961,7 +961,7 @@ fn update_video<T: RenderTarget>(
         texture
             .update(rect, &disp.frame[552 * 4..], 560 * 4)
             .unwrap();
-        canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
+        canvas.copy(texture, Some(rect), Some(rect)).unwrap();
         if harddisk_on {
             canvas.set_draw_color(Color::RGBA(0, 255, 0, 128));
         } else {
@@ -973,7 +973,7 @@ fn update_video<T: RenderTarget>(
         texture
             .update(rect, &disp.frame[552 * 4..], 560 * 4)
             .unwrap();
-        canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
+        canvas.copy(texture, Some(rect), Some(rect)).unwrap();
     }
     canvas.present();
 }

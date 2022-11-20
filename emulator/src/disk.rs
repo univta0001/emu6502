@@ -156,10 +156,6 @@ pub struct DiskDrive {
     #[cfg_attr(feature = "serde_support", serde(default))]
     fast_disk_timer: usize,
 
-    #[cfg_attr(feature = "serde_support", serde(skip))]
-    #[cfg_attr(feature = "serde_support", serde(default = "default_rng"))]
-    rng: ThreadRng,
-
     #[cfg_attr(feature = "serde_support", serde(default))]
     old_latch: u8,
 }
@@ -1148,7 +1144,6 @@ impl DiskDrive {
             disable_fast_disk: false,
             enable_save: false,
             fast_disk_timer: 0,
-            rng: rand::thread_rng(),
         }
     }
 
@@ -1962,8 +1957,11 @@ impl DiskDrive {
             disk.trackmap[tmap_track as usize]
         };
 
+
+        let mut rng = rand::thread_rng();
+
         // Only add disk jitter for read operations
-        let disk_jitter = if self.rng.gen::<f32>() < self.random_one_rate && !self.q7 {
+        let disk_jitter = if rng.gen::<f32>() < self.random_one_rate && !self.q7 {
             0.0125
         } else {
             0.0
@@ -2001,7 +1999,7 @@ impl DiskDrive {
                 }
             }
 
-            self.update_disk_bit_buffer();
+            self.update_disk_bit_buffer(rng);
             self.lss_cycle -= optimal_timing;
         }
 
@@ -2010,13 +2008,13 @@ impl DiskDrive {
         }
     }
 
-    fn update_disk_bit_buffer(&mut self) {
+    fn update_disk_bit_buffer(&mut self, mut rng: rand::rngs::ThreadRng) {
         if self.bit_buffer & 0x0f != 0 {
             self.pulse = (self.bit_buffer & 0x2) >> 1;
         } else {
             // Based on WOZ2 (https://applesaucefdc.com/woz/reference2/)
             // The random bit 1 is generated with probability 0.3 or 30%
-            let random_value: f32 = self.rng.gen();
+            let random_value: f32 = rng.gen();
             if random_value < self.random_one_rate {
                 self.pulse = 1
             } else {
@@ -2316,9 +2314,4 @@ fn default_tmap_data() -> Vec<u8> {
 #[cfg(feature = "serde_support")]
 fn default_trackmap() -> Vec<TrackType> {
     vec![TrackType::None; WOZ_TMAP_SIZE]
-}
-
-#[cfg(feature = "serde_support")]
-fn default_rng() -> ThreadRng {
-    rand::thread_rng()
 }
