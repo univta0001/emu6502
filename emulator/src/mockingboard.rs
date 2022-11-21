@@ -1,7 +1,6 @@
 use crate::bus::Card;
 use crate::mmu::Mmu;
 use crate::video::Video;
-use std::cell::RefCell;
 
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
@@ -801,8 +800,8 @@ impl Default for Mockingboard {
 impl Card for Mockingboard {
     fn rom_access(
         &mut self,
-        _mem: &RefCell<Mmu>,
-        _video: &RefCell<Video>,
+        _mem: &mut Mmu,
+        _video: &mut Video,
         addr: u16,
         value: u8,
         write_flag: bool,
@@ -818,8 +817,8 @@ impl Card for Mockingboard {
 
     fn io_access(
         &mut self,
-        _mem: &RefCell<Mmu>,
-        _video: &RefCell<Video>,
+        _mem: &mut Mmu,
+        _video: &mut Video,
         _addr: u16,
         _value: u8,
         _write_flag: bool,

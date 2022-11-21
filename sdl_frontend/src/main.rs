@@ -30,7 +30,6 @@ use sdl2::render::RenderTarget;
 use sdl2::render::Texture;
 use sdl2::GameControllerSubsystem;
 use sdl2::VideoSubsystem;
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsStr;
@@ -469,16 +468,14 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             *event_param.display_index = (*event_param.display_index + 1) % display_mode.len();
             cpu.bus
                 .video
-                .borrow_mut()
                 .set_display_mode(display_mode[*event_param.display_index]);
         }
         Event::KeyDown {
             keycode: Some(Keycode::F5),
             ..
         } => {
-            let mut drv = cpu.bus.disk.borrow_mut();
-            let drive_flag = drv.get_disable_fast_disk();
-            drv.set_disable_fast_disk(!drive_flag);
+            let drive_flag = cpu.bus.disk.get_disable_fast_disk();
+            cpu.bus.disk.set_disable_fast_disk(!drive_flag);
         }
         Event::KeyDown {
             keycode: Some(Keycode::F4),
@@ -520,7 +517,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                     }
                 }
             } else {
-                cpu.bus.disk.borrow_mut().swap_drive();
+                cpu.bus.disk.swap_drive();
             }
         }
 
@@ -748,7 +745,7 @@ fn load_disk<P>(cpu: &mut CPU, path: P, drive: usize) -> Result<(), Box<dyn Erro
 where
     P: AsRef<Path>,
 {
-    let mut drv = cpu.bus.disk.borrow_mut();
+    let drv = &mut cpu.bus.disk;
     let path_ref = path.as_ref();
     let drive_selected = drv.drive_selected();
     drv.drive_select(drive);
@@ -768,7 +765,7 @@ where
     P: AsRef<Path>,
 {
     let path_ref = path.as_ref();
-    let mut drv = cpu.bus.harddisk.borrow_mut();
+    let drv = &mut cpu.bus.harddisk;
     let drive_selected = drv.drive_selected();
     drv.drive_select(drive);
     drv.load_hdv_2mg_file(path_ref)?;
@@ -779,31 +776,31 @@ where
 }
 
 fn eject_harddisk(cpu: &mut CPU, drive: usize) {
-    cpu.bus.harddisk.borrow_mut().eject(drive);
+    cpu.bus.harddisk.eject(drive);
 }
 
 fn eject_disk(cpu: &mut CPU, drive: usize) {
-    cpu.bus.disk.borrow_mut().eject(drive);
+    cpu.bus.disk.eject(drive);
 }
 
 #[cfg(feature = "serde_support")]
 fn is_disk_loaded(cpu: &CPU, drive: usize) -> bool {
-    cpu.bus.disk.borrow().is_loaded(drive)
+    cpu.bus.disk.is_loaded(drive)
 }
 
 #[cfg(feature = "serde_support")]
 fn is_harddisk_loaded(cpu: &CPU, drive: usize) -> bool {
-    cpu.bus.harddisk.borrow().is_loaded(drive)
+    cpu.bus.harddisk.is_loaded(drive)
 }
 
 #[cfg(feature = "serde_support")]
 fn get_disk_filename(cpu: &CPU, drive: usize) -> Option<String> {
-    Some(cpu.bus.disk.borrow().get_disk_filename(drive))
+    Some(cpu.bus.disk.get_disk_filename(drive))
 }
 
 #[cfg(feature = "serde_support")]
 fn get_harddisk_filename(cpu: &CPU, drive: usize) -> Option<String> {
-    Some(cpu.bus.harddisk.borrow().get_disk_filename(drive))
+    Some(cpu.bus.harddisk.get_disk_filename(drive))
 }
 
 fn draw_circle<T: RenderTarget>(
@@ -894,7 +891,7 @@ fn load_serialized_image() -> Result<CPU, String> {
 }
 
 fn update_audio(cpu: &mut CPU, audio_device: &sdl2::audio::AudioQueue<i16>) {
-    let mut snd = cpu.bus.audio.borrow_mut();
+    let snd = &mut cpu.bus.audio;
     if audio_device.size() < AUDIO_SAMPLE_SIZE * 2 * 4 {
         let _ = audio_device.queue_audio(&snd.data.sample[..]);
         snd.clear_buffer();
@@ -909,7 +906,7 @@ fn update_video<T: RenderTarget>(
     canvas: &mut Canvas<T>,
     texture: &mut Texture,
 ) {
-    let mut disp = cpu.bus.video.borrow_mut();
+    let disp = &mut cpu.bus.video;
     if *save_screenshot {
         if let Ok(output) = File::create("screenshot.png") {
             let encoder = PngEncoder::new(output);
@@ -948,8 +945,8 @@ fn update_video<T: RenderTarget>(
 
     let mut harddisk_on = false;
     let disk_is_on = {
-        let disk_status = cpu.bus.disk.borrow().is_motor_on();
-        let harddisk_status = cpu.bus.harddisk.borrow().is_busy();
+        let disk_status = cpu.bus.disk.is_motor_on();
+        let harddisk_status = cpu.bus.harddisk.is_busy();
         if harddisk_status {
             harddisk_on = true;
         }
@@ -979,8 +976,8 @@ fn update_video<T: RenderTarget>(
 }
 
 fn initialize_new_cpu(cpu: &mut CPU, display_index: &mut usize) {
-    let mmu = cpu.bus.mem.borrow();
-    let mut disp = cpu.bus.video.borrow_mut();
+    let mmu = &mut cpu.bus.mem;
+    let disp = &mut cpu.bus.video;
     disp.video_main[0x400..0xc00].clone_from_slice(&mmu.cpu_memory[0x400..0xc00]);
     disp.video_aux[0x400..0xc00].clone_from_slice(&mmu.aux_memory[0x400..0xc00]);
     disp.video_main[0x2000..0x6000].clone_from_slice(&mmu.cpu_memory[0x2000..0x6000]);
@@ -1066,9 +1063,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     canvas.clear();
     canvas.set_scale(2.0, 2.0).unwrap();
 
-    texture
-        .update(None, &bus.video.borrow().frame, 560 * 4)
-        .unwrap();
+    texture.update(None, &bus.video.frame, 560 * 4).unwrap();
     canvas.copy(&texture, None, None).unwrap();
     canvas.present();
 
@@ -1095,10 +1090,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut ntsc_chroma = NTSC_CHROMA_BANDWIDTH;
 
     // Enable save for disk
-    cpu.bus.disk.borrow_mut().set_enable_save_disk(true);
+    cpu.bus.disk.set_enable_save_disk(true);
 
     // Enable save for hard disk
-    cpu.bus.harddisk.borrow_mut().set_enable_save_disk(true);
+    cpu.bus.harddisk.set_enable_save_disk(true);
 
     //cpu.load(apple2_rom, 0xd000);
     //cpu.load(apple2e_rom, 0xc000);
@@ -1110,7 +1105,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     // Handle optional arguments
     if pargs.contains("--50hz") {
-        cpu.bus.video.borrow_mut().set_video_50hz(true);
+        cpu.bus.video.set_video_50hz(true);
     }
 
     if pargs.contains("--nojoystick") {
@@ -1130,17 +1125,11 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
 
     if pargs.contains("--norgb") {
-        cpu.bus
-            .video
-            .borrow_mut()
-            .set_display_mode(DisplayMode::DEFAULT);
+        cpu.bus.video.set_display_mode(DisplayMode::DEFAULT);
     }
 
     if pargs.contains("--rgb") {
-        cpu.bus
-            .video
-            .borrow_mut()
-            .set_display_mode(DisplayMode::RGB);
+        cpu.bus.video.set_display_mode(DisplayMode::RGB);
     }
 
     if let Some(model) = pargs.opt_value_from_str::<_, String>(["-m", "--model"])? {
@@ -1157,7 +1146,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         if bank == 0 || bank >= 128 {
             panic!("RAMWorks III accepts value from 1 to 127");
         }
-        let mut mmu = cpu.bus.mem.borrow_mut();
+        let mmu = &mut cpu.bus.mem;
         mmu.set_aux_size(bank);
     }
 
@@ -1165,18 +1154,15 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         if value * 1024 > 0x1000000 {
             panic!("RAMFactor can accept up to 16 MiB");
         }
-        cpu.bus.ramfactor.borrow_mut().set_size(value * 1024);
+        cpu.bus.ramfactor.set_size(value * 1024);
     }
 
     if let Some(input_rate) = pargs.opt_value_from_str::<_, f32>("--weakbit")? {
-        cpu.bus.disk.borrow_mut().set_random_one_rate(input_rate);
+        cpu.bus.disk.set_random_one_rate(input_rate);
     }
 
     if let Some(input_rate) = pargs.opt_value_from_str::<_, u8>("--opt_timing")? {
-        cpu.bus
-            .disk
-            .borrow_mut()
-            .set_override_optimal_timing(input_rate);
+        cpu.bus.disk.set_override_optimal_timing(input_rate);
     }
 
     if let Some(input_file) = pargs.opt_value_from_str::<_, String>("--d1")? {
@@ -1233,12 +1219,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         }
 
         let audio = &mut cpu.bus.audio;
-        audio.borrow_mut().mboard.clear();
+        audio.mboard.clear();
         for _ in 0..mboard {
-            audio
-                .borrow_mut()
-                .mboard
-                .push(RefCell::new(Mockingboard::new()));
+            audio.mboard.push(Mockingboard::new());
         }
         for i in 0..mboard {
             cpu.bus
@@ -1261,10 +1244,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
 
     if ntsc_luma != NTSC_LUMA_BANDWIDTH || ntsc_chroma != NTSC_CHROMA_BANDWIDTH {
-        cpu.bus
-            .video
-            .borrow_mut()
-            .update_ntsc_matrix(ntsc_luma, ntsc_chroma);
+        cpu.bus.video.update_ntsc_matrix(ntsc_luma, ntsc_chroma);
     }
 
     // Load dsk image
@@ -1304,7 +1284,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     cpu.setup_emulator();
 
     // Change the refresh video to the start of the VBL instead of end of the VBL
-    let mut dcyc = if cpu.bus.video.borrow().is_video_50hz() {
+    let mut dcyc = if cpu.bus.video.is_video_50hz() {
         CPU_CYCLES_PER_FRAME_50HZ - 65 * 192
     } else {
         CPU_CYCLES_PER_FRAME_60HZ - 65 * 192
@@ -1336,7 +1316,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 }
             }
 
-            if _cpu.bus.video.borrow().is_video_50hz() {
+            if _cpu.bus.video.is_video_50hz() {
                 cpu_cycles = CPU_CYCLES_PER_FRAME_50HZ;
                 cpu_period = 20_000;
             }

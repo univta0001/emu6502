@@ -9,8 +9,6 @@ use crate::ramfactor::RamFactor;
 use crate::video::Video;
 use rand::Rng;
 //use std::collections::HashMap;
-use std::cell::Cell;
-use std::cell::{RefCell, RefMut};
 
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
@@ -24,16 +22,16 @@ pub const ROM_END: u16 = 0xffff;
 pub trait Card {
     fn rom_access(
         &mut self,
-        mem: &RefCell<Mmu>,
-        video: &RefCell<Video>,
+        mem: &mut Mmu,
+        video: &mut Video,
         addr: u16,
         value: u8,
         write_flag: bool,
     ) -> u8;
     fn io_access(
         &mut self,
-        mem: &RefCell<Mmu>,
-        video: &RefCell<Video>,
+        mem: &mut Mmu,
+        video: &mut Video,
         addr: u16,
         value: u8,
         write_flag: bool,
@@ -58,12 +56,12 @@ pub enum IODevice {
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize, Derivative))]
 #[cfg_attr(feature = "serde_support", derivative(Debug))]
 pub struct Bus {
-    pub disk: RefCell<DiskDrive>,
-    pub video: RefCell<Video>,
-    pub audio: RefCell<Audio>,
-    pub parallel: RefCell<ParallelCard>,
+    pub disk: DiskDrive,
+    pub video: Video,
+    pub audio: Audio,
+    pub parallel: ParallelCard,
 
-    pub keyboard_latch: Cell<u8>,
+    pub keyboard_latch: u8,
     pub pushbutton_latch: [u8; 4],
     pub paddle_latch: [u16; 4],
     pub paddle_x_trim: i8,
@@ -73,30 +71,30 @@ pub struct Bus {
     pub disable_audio: bool,
     pub joystick_flag: bool,
     pub joystick_jitter: bool,
-    pub paddle_trigger: Cell<usize>,
-    pub mem: RefCell<Mmu>,
-    pub cycles: Cell<usize>,
-    pub intcxrom: Cell<bool>,
-    pub slotc3rom: Cell<bool>,
-    pub intc8rom: Cell<bool>,
+    pub paddle_trigger: usize,
+    pub mem: Mmu,
+    pub cycles: usize,
+    pub intcxrom: bool,
+    pub slotc3rom: bool,
+    pub intc8rom: bool,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub swap_button: bool,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
-    pub harddisk: RefCell<HardDisk>,
+    pub harddisk: HardDisk,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
-    pub mouse: RefCell<Mouse>,
+    pub mouse: Mouse,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
-    pub noslotclock: RefCell<NoSlotClock>,
+    pub noslotclock: NoSlotClock,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
-    pub iou: Cell<bool>,
+    pub iou: bool,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
-    pub halt_cpu: Cell<bool>,
+    pub halt_cpu: bool,
     //bad_softswitch_addr: HashMap<u16, bool>,
     #[cfg_attr(
         feature = "serde_support",
@@ -106,13 +104,13 @@ pub struct Bus {
     pub io_slot: Vec<IODevice>,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
-    pub ramfactor: RefCell<RamFactor>,
+    pub ramfactor: RamFactor,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
-    pub extended_rom: Cell<u8>,
+    pub extended_rom: u8,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
-    pub is_apple2c: Cell<bool>,
+    pub is_apple2c: bool,
 }
 
 pub trait Mem {
@@ -124,7 +122,7 @@ pub trait Mem {
 
     fn mem_aux_write(&mut self, addr: u16, data: u8);
 
-    fn addr_read(&self, addr: u16) -> u8;
+    fn addr_read(&mut self, addr: u16) -> u8;
 
     fn addr_write(&mut self, addr: u16, data: u8);
 
@@ -167,45 +165,45 @@ pub trait Mem {
         self.mem_write(pos.wrapping_add(1), hi);
     }
 
-    fn unclocked_addr_read(&self, addr: u16) -> u8;
+    fn unclocked_addr_read(&mut self, addr: u16) -> u8;
     fn unclocked_addr_write(&mut self, addr: u16, data: u8);
 }
 
 impl Bus {
     pub fn new() -> Self {
-        let mem = RefCell::new(Mmu::default());
+        let mem = Mmu::default();
         let mut bus = Bus {
-            keyboard_latch: Cell::new(0),
+            keyboard_latch: 0,
             pushbutton_latch: [0x0, 0x0, 0x0, 0x0],
             paddle_latch: [0x7f, 0x7f, 0x7f, 0x7f],
             paddle_x_trim: 0,
             paddle_y_trim: 0,
-            paddle_trigger: Cell::new(0),
+            paddle_trigger: 0,
             swap_button: false,
             joystick_flag: true,
             joystick_jitter: false,
-            cycles: Cell::new(0),
-            disk: RefCell::new(DiskDrive::default()),
-            video: RefCell::new(Video::new()),
-            audio: RefCell::new(Audio::new()),
-            parallel: RefCell::new(ParallelCard::new()),
-            ramfactor: RefCell::new(RamFactor::new()),
-            harddisk: RefCell::new(HardDisk::new()),
-            mouse: RefCell::new(Mouse::new()),
-            intcxrom: Cell::new(false),
-            slotc3rom: Cell::new(false),
-            intc8rom: Cell::new(false),
-            is_apple2c: Cell::new(false),
-            noslotclock: RefCell::new(NoSlotClock::new()),
+            cycles: 0,
+            disk: DiskDrive::default(),
+            video: Video::new(),
+            audio: Audio::new(),
+            parallel: ParallelCard::new(),
+            ramfactor: RamFactor::new(),
+            harddisk: HardDisk::new(),
+            mouse: Mouse::new(),
+            intcxrom: false,
+            slotc3rom: false,
+            intc8rom: false,
+            is_apple2c: false,
+            noslotclock: NoSlotClock::new(),
             disable_video: false,
             disable_disk: false,
             disable_audio: false,
             //bad_softswitch_addr: HashMap::new(),
             mem,
-            iou: Cell::new(false),
-            halt_cpu: Cell::new(false),
+            iou: false,
+            halt_cpu: false,
             io_slot: default_io_slot(),
-            extended_rom: Cell::new(0),
+            extended_rom: 0,
         };
 
         // Memory initialization is based on the implementation of AppleWin
@@ -237,67 +235,63 @@ impl Bus {
     }
 
     pub fn reset(&mut self) {
-        self.intcxrom.set(false);
-        self.slotc3rom.set(false);
-        self.intc8rom.set(false);
-        self.extended_rom.set(0);
+        self.intcxrom = false;
+        self.slotc3rom = false;
+        self.intc8rom = false;
+        self.extended_rom = 0;
 
-        self.mem.borrow_mut().reset();
-        self.video.borrow_mut().reset();
-        self.ramfactor.borrow_mut().reset();
+        self.mem.reset();
+        self.video.reset();
+        self.ramfactor.reset();
 
-        if self.is_apple2c.get() {
-            self.intcxrom.set(true);
+        if self.is_apple2c {
+            self.intcxrom = true;
         }
 
         if !self.disable_audio {
-            self.audio
-                .borrow_mut()
-                .mboard
-                .iter_mut()
-                .for_each(|mb| mb.borrow_mut().reset())
+            self.audio.mboard.iter_mut().for_each(|mb| mb.reset())
         }
 
         if !self.disable_disk {
-            self.disk.borrow_mut().reset();
+            self.disk.reset();
         }
     }
 
-    pub fn tick(&self) {
-        self.cycles.set(self.cycles.get() + 1);
+    pub fn tick(&mut self) {
+        self.cycles += 1;
 
         if !self.disable_video {
-            self.video.borrow_mut().tick();
+            self.video.tick();
         }
 
         if !self.disable_audio {
-            self.audio.borrow_mut().tick();
+            self.audio.tick();
         }
 
         if !self.disable_disk {
-            self.disk.borrow_mut().tick();
-            self.harddisk.borrow_mut().tick();
+            self.disk.tick();
+            self.harddisk.tick();
         }
     }
 
     pub fn get_cycles(&self) -> usize {
-        self.cycles.get()
+        self.cycles
     }
 
     pub fn set_cycles(&mut self, cycles: usize) {
-        self.cycles.set(cycles);
+        self.cycles = cycles;
     }
 
     pub fn is_normal_speed(&self) -> bool {
-        self.disk.borrow().is_normal_disk() || self.audio.borrow().is_audio_active()
+        self.disk.is_normal_disk() || self.audio.is_audio_active()
     }
 
     fn get_paddle_trigger(&self) -> usize {
-        self.paddle_trigger.get()
+        self.paddle_trigger
     }
 
-    fn set_paddle_trigger(&self, value: usize) {
-        self.paddle_trigger.set(value);
+    fn set_paddle_trigger(&mut self, value: usize) {
+        self.paddle_trigger = value;
     }
 
     pub fn register_device(&mut self, device: IODevice, slot: usize) {
@@ -319,25 +313,25 @@ impl Bus {
         }
     }
 
-    fn iodevice_io_access(&self, addr: u16, value: u8, write_flag: bool) -> u8 {
+    fn iodevice_io_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
         let slot = (((addr & 0x00ff) - 0x0080) >> 4) as usize;
         if slot < self.io_slot.len() {
             let slot_value = self.io_slot[slot];
             //eprintln!("IOAccess - {:04x} {} {}",addr,slot,io_addr);
-            let return_value: Option<RefMut<'_, dyn Card>> = match slot_value {
-                IODevice::Printer => Some(self.parallel.borrow_mut()),
-                IODevice::RamFactor => Some(self.ramfactor.borrow_mut()),
-                IODevice::Mouse => Some(self.mouse.borrow_mut()),
-                IODevice::Disk => Some(self.disk.borrow_mut()),
-                IODevice::HardDisk => Some(self.harddisk.borrow_mut()),
+            let return_value: Option<&mut dyn Card> = match slot_value {
+                IODevice::Printer => Some(&mut self.parallel),
+                IODevice::RamFactor => Some(&mut self.ramfactor),
+                IODevice::Mouse => Some(&mut self.mouse),
+                IODevice::Disk => Some(&mut self.disk),
+                IODevice::HardDisk => Some(&mut self.harddisk),
                 IODevice::Mockingboard(_) => None,
                 #[cfg(feature = "z80")]
                 IODevice::Z80 => None,
                 _ => None,
             };
 
-            if let Some(mut device) = return_value {
-                device.io_access(&self.mem, &self.video, addr, value, write_flag)
+            if let Some(device) = return_value {
+                device.io_access(&mut self.mem, &mut self.video, addr, value, write_flag)
             } else {
                 self.read_floating_bus()
             }
@@ -346,19 +340,25 @@ impl Bus {
         }
     }
 
-    fn iodevice_rom_access(&self, addr: u16, value: u8, write_flag: bool) -> u8 {
-        if !self.intcxrom.get() {
+    fn iodevice_rom_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
+        if !self.intcxrom {
             if addr >= 0xc800 {
                 // Handle the extended rom separately
-                let slot = self.extended_rom.get() as usize;
+                let slot = self.extended_rom as usize;
                 let slot_value = self.io_slot[slot];
-                let return_value: Option<RefMut<'_, dyn Card>> = match slot_value {
-                    IODevice::RamFactor => Some(self.ramfactor.borrow_mut()),
+                let return_value: Option<&mut dyn Card> = match slot_value {
+                    IODevice::RamFactor => Some(&mut self.ramfactor),
                     _ => None,
                 };
 
-                if let Some(mut device) = return_value {
-                    return device.rom_access(&self.mem, &self.video, addr, value, write_flag);
+                if let Some(device) = return_value {
+                    return device.rom_access(
+                        &mut self.mem,
+                        &mut self.video,
+                        addr,
+                        value,
+                        write_flag,
+                    );
                 } else {
                     return self.read_floating_bus();
                 }
@@ -370,25 +370,25 @@ impl Bus {
                 //eprintln!("ROMAccess - {:04x} {} {}",addr,slot,ioaddr);
 
                 // Implement no slot clock
-                let mut clock = self.noslotclock.borrow_mut();
+                let clock = &mut self.noslotclock;
                 if clock.is_clock_register_enabled() {
                     return clock.io_access(addr, 0, false);
                 } else {
                     clock.io_access(addr, 0, false);
                 }
 
-                let audio = self.audio.borrow_mut();
-                self.extended_rom.set(slot as u8);
-                let return_value: Option<RefMut<'_, dyn Card>> = match slot_value {
-                    IODevice::Printer => Some(self.parallel.borrow_mut()),
-                    IODevice::RamFactor => Some(self.ramfactor.borrow_mut()),
-                    IODevice::Mouse => Some(self.mouse.borrow_mut()),
-                    IODevice::Disk => Some(self.disk.borrow_mut()),
-                    IODevice::HardDisk => Some(self.harddisk.borrow_mut()),
+                let audio = &mut self.audio;
+                self.extended_rom = slot as u8;
+                let return_value: Option<&mut dyn Card> = match slot_value {
+                    IODevice::Printer => Some(&mut self.parallel),
+                    IODevice::RamFactor => Some(&mut self.ramfactor),
+                    IODevice::Mouse => Some(&mut self.mouse),
+                    IODevice::Disk => Some(&mut self.disk),
+                    IODevice::HardDisk => Some(&mut self.harddisk),
                     #[cfg(feature = "z80")]
                     IODevice::Z80 => {
                         if write_flag {
-                            self.halt_cpu.set(true);
+                            self.halt_cpu = true;
                         }
                         None
                     }
@@ -396,14 +396,14 @@ impl Bus {
                         if audio.mboard.is_empty() || device_no >= audio.mboard.len() {
                             None
                         } else {
-                            Some(audio.mboard[device_no].borrow_mut())
+                            Some(&mut audio.mboard[device_no])
                         }
                     }
                     _ => None,
                 };
 
-                if let Some(mut device) = return_value {
-                    device.rom_access(&self.mem, &self.video, addr, value, write_flag)
+                if let Some(device) = return_value {
+                    device.rom_access(&mut self.mem, &mut self.video, addr, value, write_flag)
                 } else {
                     self.read_floating_bus()
                 }
@@ -450,13 +450,12 @@ impl Bus {
     }
 
     pub fn toggle_video_freq(&mut self) {
-        self.video.borrow_mut().toggle_video_freq();
+        self.video.toggle_video_freq();
     }
 
     pub fn set_mouse_state(&mut self, x: i32, y: i32, buttons: &[bool; 2]) {
-        let mut mouse_interface = self.mouse.borrow_mut();
-        mouse_interface.tick(self.get_cycles());
-        mouse_interface.set_state(x, y, buttons);
+        self.mouse.tick(self.get_cycles());
+        self.mouse.set_state(x, y, buttons);
     }
 
     pub fn reset_paddle_latch(&mut self, paddle: usize) {
@@ -476,9 +475,9 @@ impl Bus {
     }
 
     pub fn poll_halt_status(&mut self) -> Option<()> {
-        let halt_status = self.halt_cpu.get();
+        let halt_status = self.halt_cpu;
         if halt_status {
-            self.halt_cpu.set(false);
+            self.halt_cpu = false;
             Some(())
         } else {
             None
@@ -487,33 +486,29 @@ impl Bus {
 
     pub fn irq(&mut self) -> Option<usize> {
         if !self.disable_video {
-            let irq = self.mouse.borrow_mut().poll_irq();
+            let irq = self.mouse.poll_irq();
             if irq.is_some() {
                 return irq;
             }
         }
 
         if !self.disable_audio {
-            self.audio
-                .borrow_mut()
-                .mboard
-                .iter_mut()
-                .find_map(|mb| mb.borrow_mut().poll_irq())
+            self.audio.mboard.iter_mut().find_map(|mb| mb.poll_irq())
         } else {
             None
         }
     }
 
     fn read_floating_bus(&self) -> u8 {
-        self.video.borrow().read_latch()
+        self.video.read_latch()
     }
 
     pub fn get_keyboard_latch(&self) -> u8 {
-        self.keyboard_latch.get()
+        self.keyboard_latch
     }
 
-    pub fn set_keyboard_latch(&self, value: u8) {
-        self.keyboard_latch.set(value)
+    pub fn set_keyboard_latch(&mut self, value: u8) {
+        self.keyboard_latch = value
     }
 
     fn get_io_status(&self, flag: bool) -> u8 {
@@ -524,221 +519,199 @@ impl Bus {
         }
     }
 
-    pub fn io_access(&self, addr: u16, value: u8, write_flag: bool) -> u8 {
+    pub fn io_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
         let io_addr = (addr & 0xff) as u8;
 
         match io_addr {
             0x00 => {
-                let mut mmu = self.mem.borrow_mut();
                 if write_flag {
-                    mmu._80storeon = false;
-                    self.video.borrow_mut()._80storeon = false;
+                    self.mem._80storeon = false;
+                    self.video._80storeon = false;
                 }
                 let value = self.get_keyboard_latch();
-                mmu.mem_write(0xc000, value);
+                self.mem.mem_write(0xc000, value);
                 value
             }
 
             0x01 => {
                 if write_flag {
-                    let mut mmu = self.mem.borrow_mut();
-                    mmu._80storeon = true;
-                    self.video.borrow_mut()._80storeon = true;
+                    self.mem._80storeon = true;
+                    self.video._80storeon = true;
                 }
                 self.get_keyboard_latch()
             }
 
             0x02 => {
                 if write_flag {
-                    let mut mmu = self.mem.borrow_mut();
-                    mmu.rdcardram = false;
+                    self.mem.rdcardram = false;
                 }
                 self.get_keyboard_latch()
             }
 
             0x03 => {
                 if write_flag {
-                    let mut mmu = self.mem.borrow_mut();
-                    mmu.rdcardram = true;
+                    self.mem.rdcardram = true;
                 }
                 self.get_keyboard_latch()
             }
 
             0x04 => {
                 if write_flag {
-                    let mut mmu = self.mem.borrow_mut();
-                    mmu.wrcardram = false;
+                    self.mem.wrcardram = false;
                 }
                 self.get_keyboard_latch()
             }
 
             0x05 => {
                 if write_flag {
-                    let mut mmu = self.mem.borrow_mut();
-                    mmu.wrcardram = true;
+                    self.mem.wrcardram = true;
                 }
                 self.get_keyboard_latch()
             }
 
             0x06 => {
-                if write_flag && !self.is_apple2c.get() {
-                    self.intcxrom.set(false);
-                    if self.slotc3rom.get() {
-                        self.intc8rom.set(false);
+                if write_flag && !self.is_apple2c {
+                    self.intcxrom = false;
+                    if self.slotc3rom {
+                        self.intc8rom = false;
                     }
                 }
                 self.get_keyboard_latch()
             }
 
             0x07 => {
-                if write_flag && !self.is_apple2c.get() {
-                    self.intcxrom.set(true);
-                    self.slotc3rom.set(false);
+                if write_flag && !self.is_apple2c {
+                    self.intcxrom = true;
+                    self.slotc3rom = false;
                 }
                 self.get_keyboard_latch()
             }
 
             0x08 => {
                 if write_flag {
-                    let mut mmu = self.mem.borrow_mut();
-                    mmu.altzp = false;
+                    self.mem.altzp = false;
                 }
                 self.get_keyboard_latch()
             }
 
             0x09 => {
                 if write_flag {
-                    let mut mmu = self.mem.borrow_mut();
-                    mmu.altzp = true;
+                    self.mem.altzp = true;
                 }
                 self.get_keyboard_latch()
             }
 
             0x0a => {
-                if write_flag && !self.is_apple2c.get() {
-                    self.slotc3rom.set(false);
+                if write_flag && !self.is_apple2c {
+                    self.slotc3rom = false;
                 }
                 self.get_keyboard_latch()
             }
 
             0x0b => {
-                if write_flag && !self.is_apple2c.get() {
-                    self.slotc3rom.set(true);
+                if write_flag && !self.is_apple2c {
+                    self.slotc3rom = true;
                 }
                 self.get_keyboard_latch()
             }
 
-            0x0c..=0x0f => self.video.borrow_mut().io_access(addr, value, write_flag),
+            0x0c..=0x0f => self.video.io_access(addr, value, write_flag),
 
             0x10 => {
                 let keyboard_latch = self.get_keyboard_latch();
                 self.set_keyboard_latch(keyboard_latch & 0x7f);
-                let mut mmu = self.mem.borrow_mut();
-                mmu.mem_write(0xc000, keyboard_latch);
+                self.mem.mem_write(0xc000, keyboard_latch);
                 keyboard_latch
             }
 
-            0x11 => self.get_io_status(!self.mem.borrow().bank1),
+            0x11 => self.get_io_status(!self.mem.bank1),
 
-            0x12 => self.get_io_status(self.mem.borrow().readbsr),
+            0x12 => self.get_io_status(self.mem.readbsr),
 
-            0x13 => self.get_io_status(self.mem.borrow().rdcardram),
+            0x13 => self.get_io_status(self.mem.rdcardram),
 
-            0x14 => self.get_io_status(self.mem.borrow().wrcardram),
+            0x14 => self.get_io_status(self.mem.wrcardram),
 
-            0x15 => self.get_io_status(self.intcxrom.get()),
+            0x15 => self.get_io_status(self.intcxrom),
 
-            0x16 => self.get_io_status(self.mem.borrow().altzp),
+            0x16 => self.get_io_status(self.mem.altzp),
 
-            0x17 => self.get_io_status(self.slotc3rom.get()),
+            0x17 => self.get_io_status(self.slotc3rom),
 
-            0x18 => self.get_io_status(self.mem.borrow()._80storeon),
+            0x18 => self.get_io_status(self.mem._80storeon),
 
             0x19..=0x1f => {
-                self.video.borrow_mut().io_access(addr, value, write_flag)
-                    | (self.get_keyboard_latch() & 0x7f)
+                self.video.io_access(addr, value, write_flag) | (self.get_keyboard_latch() & 0x7f)
             }
 
             0x20 => self.read_floating_bus(),
 
-            0x21 => self.video.borrow_mut().io_access(addr, value, write_flag),
+            0x21 => self.video.io_access(addr, value, write_flag),
 
-            0x29 => self.video.borrow_mut().io_access(addr, value, write_flag),
+            0x29 => self.video.io_access(addr, value, write_flag),
 
             0x30..=0x3f => self.audio_io_access(),
 
             0x50 => {
                 {
-                    let mut disp = self.video.borrow_mut();
-                    disp.enable_graphics(true);
+                    self.video.enable_graphics(true);
                 }
                 self.read_floating_bus()
             }
 
             0x51 => {
                 {
-                    let mut disp = self.video.borrow_mut();
-                    disp.enable_graphics(false);
+                    self.video.enable_graphics(false);
                 }
                 self.read_floating_bus()
             }
 
             0x52 => {
                 {
-                    let mut disp = self.video.borrow_mut();
-                    disp.enable_mixed_mode(false);
+                    self.video.enable_mixed_mode(false);
                 }
                 self.read_floating_bus()
             }
 
             0x53 => {
                 {
-                    let mut disp = self.video.borrow_mut();
-                    disp.enable_mixed_mode(true);
+                    self.video.enable_mixed_mode(true);
                 }
                 self.read_floating_bus()
             }
 
             0x54 => {
                 {
-                    let mut mmu = self.mem.borrow_mut();
-                    mmu.video_page2 = false;
-                    let mut disp = self.video.borrow_mut();
-                    disp.enable_video_page2(false);
-                    disp.update_video();
+                    self.mem.video_page2 = false;
+                    self.video.enable_video_page2(false);
+                    self.video.update_video();
                 }
                 self.read_floating_bus()
             }
 
             0x55 => {
                 {
-                    let mut mmu = self.mem.borrow_mut();
-                    mmu.video_page2 = true;
-                    let mut disp = self.video.borrow_mut();
-                    disp.enable_video_page2(true);
-                    disp.update_video();
+                    self.mem.video_page2 = true;
+                    self.video.enable_video_page2(true);
+                    self.video.update_video();
                 }
                 self.read_floating_bus()
             }
 
             0x56 => {
                 {
-                    let mut mmu = self.mem.borrow_mut();
-                    mmu.video_hires = false;
-                    let mut disp = self.video.borrow_mut();
-                    disp.enable_lores(true);
-                    disp.update_video();
+                    self.mem.video_hires = false;
+                    self.video.enable_lores(true);
+                    self.video.update_video();
                 }
                 self.read_floating_bus()
             }
 
             0x57 => {
                 {
-                    let mut mmu = self.mem.borrow_mut();
-                    mmu.video_hires = true;
-                    let mut disp = self.video.borrow_mut();
-                    disp.enable_lores(false);
-                    disp.update_video();
+                    self.mem.video_hires = true;
+                    self.video.enable_lores(false);
+                    self.video.update_video();
                 }
                 self.read_floating_bus()
             }
@@ -746,17 +719,15 @@ impl Bus {
 
             0x5e => {
                 let val = self.read_floating_bus();
-                let mut disp = self.video.borrow_mut();
-                disp.enable_dhires(true);
-                disp.update_video();
+                self.video.enable_dhires(true);
+                self.video.update_video();
                 val
             }
 
             0x5f => {
                 let val = self.read_floating_bus();
-                let mut disp = self.video.borrow_mut();
-                disp.enable_dhires(false);
-                disp.update_video();
+                self.video.enable_dhires(false);
+                self.video.update_video();
                 val
             }
 
@@ -827,8 +798,7 @@ impl Bus {
             0x73 => {
                 if write_flag {
                     self.set_paddle_trigger(self.get_cycles());
-                    let mut mmu = self.mem.borrow_mut();
-                    mmu.set_aux_bank(value);
+                    self.mem.set_aux_bank(value);
                 }
                 self.read_floating_bus()
             }
@@ -836,9 +806,9 @@ impl Bus {
             0x7e => {
                 let val = self.read_floating_bus() & 0x7f;
                 if write_flag {
-                    self.iou.set(false);
+                    self.iou = false;
                     val
-                } else if !self.iou.get() {
+                } else if !self.iou {
                     val | 0x80
                 } else {
                     val
@@ -848,9 +818,9 @@ impl Bus {
             0x7f => {
                 let val = self.read_floating_bus() & 0x7f;
                 if write_flag {
-                    self.iou.set(true);
+                    self.iou = true;
                     val
-                } else if self.video.borrow().is_dhires_mode() {
+                } else if self.video.is_dhires_mode() {
                     val | 0x80
                 } else {
                     val
@@ -858,41 +828,40 @@ impl Bus {
             }
 
             0x80..=0x8f => {
-                let mut mmu = self.mem.borrow_mut();
                 let write_mode = (io_addr & 0x01) > 0;
                 let off_mode = (io_addr & 0x02) > 0;
                 let bank1_mode = (io_addr & 0x08) > 0;
 
                 if write_mode {
                     if !write_flag {
-                        if mmu.prewrite {
-                            mmu.writebsr = true;
+                        if self.mem.prewrite {
+                            self.mem.writebsr = true;
                         }
-                        mmu.prewrite = true;
+                        self.mem.prewrite = true;
                     } else {
-                        mmu.prewrite = false;
+                        self.mem.prewrite = false;
                     }
 
                     if off_mode {
-                        mmu.readbsr = true;
+                        self.mem.readbsr = true;
                     } else {
-                        mmu.readbsr = false;
+                        self.mem.readbsr = false;
                     }
                 } else {
-                    mmu.writebsr = false;
-                    mmu.prewrite = false;
+                    self.mem.writebsr = false;
+                    self.mem.prewrite = false;
 
                     if off_mode {
-                        mmu.readbsr = false;
+                        self.mem.readbsr = false;
                     } else {
-                        mmu.readbsr = true;
+                        self.mem.readbsr = true;
                     }
                 }
 
                 if bank1_mode {
-                    mmu.bank1 = true;
+                    self.mem.bank1 = true;
                 } else {
-                    mmu.bank1 = false;
+                    self.mem.bank1 = false;
                 }
                 0
             }
@@ -929,14 +898,14 @@ impl Bus {
         }
     }
 
-    fn audio_io_access(&self) -> u8 {
-        self.audio.borrow_mut().click();
+    fn audio_io_access(&mut self) -> u8 {
+        self.audio.click();
         self.read_floating_bus()
     }
 }
 
 impl Mem for Bus {
-    fn addr_read(&self, addr: u16) -> u8 {
+    fn addr_read(&mut self, addr: u16) -> u8 {
         self.tick();
         self.unclocked_addr_read(addr)
     }
@@ -946,30 +915,29 @@ impl Mem for Bus {
         self.unclocked_addr_write(addr, data);
     }
 
-    fn unclocked_addr_read(&self, addr: u16) -> u8 {
+    fn unclocked_addr_read(&mut self, addr: u16) -> u8 {
         match addr {
-            0x0..=0xbfff => self.mem.borrow().unclocked_addr_read(addr),
+            0x0..=0xbfff => self.mem.unclocked_addr_read(addr),
 
-            ROM_START..=ROM_END => self.mem.borrow().unclocked_addr_read(addr),
+            ROM_START..=ROM_END => self.mem.unclocked_addr_read(addr),
 
             // Unused slots should be random values
             0xc100..=0xc2ff | 0xc400..=0xc7ff => self.iodevice_rom_access(addr, 0, false),
 
             0xc300..=0xc3ff => {
                 // Implement no slot clock
-                let mut clock = self.noslotclock.borrow_mut();
-                if clock.is_clock_register_enabled() {
-                    return clock.io_access(addr, 0, false);
+                if self.noslotclock.is_clock_register_enabled() {
+                    return self.noslotclock.io_access(addr, 0, false);
                 } else {
-                    clock.io_access(addr, 0, false);
+                    self.noslotclock.io_access(addr, 0, false);
                 }
 
-                if !self.slotc3rom.get() {
-                    self.intc8rom.set(true);
+                if !self.slotc3rom {
+                    self.intc8rom = true;
                 }
-                if self.slotc3rom.get() {
+                if self.slotc3rom {
                     self.read_floating_bus()
-                } else if self.video.borrow().is_apple2e() {
+                } else if self.video.is_apple2e() {
                     self.mem_read(addr)
                 } else {
                     self.read_floating_bus()
@@ -979,9 +947,9 @@ impl Mem for Bus {
             0xc000..=0xc0ff => self.io_access(addr, 0, false),
             0xc800..=0xcfff => {
                 if addr == 0xcfff {
-                    self.intc8rom.set(false);
+                    self.intc8rom = false;
                 }
-                if self.intcxrom.get() || self.intc8rom.get() || self.is_apple2c.get() {
+                if self.intcxrom || self.intc8rom || self.is_apple2c {
                     self.mem_read(addr)
                 } else {
                     self.iodevice_rom_access(addr, 0, false)
@@ -993,25 +961,22 @@ impl Mem for Bus {
     fn unclocked_addr_write(&mut self, addr: u16, data: u8) {
         match addr {
             0x0..=0x3ff | 0xc00..=0x1fff | 0x6000..=0xbfff => {
-                self.mem.borrow_mut().unclocked_addr_write(addr, data);
+                self.mem.unclocked_addr_write(addr, data);
             }
 
             0x400..=0xbff | 0x2000..=0x5fff => {
-                let mut mmu = self.mem.borrow_mut();
-                mmu.unclocked_addr_write(addr, data);
+                self.mem.unclocked_addr_write(addr, data);
 
                 // Shadow it to the video ram
-                let aux_memory = mmu.is_aux_memory(addr, true);
-                let aux_bank = mmu.aux_bank();
+                let aux_memory = self.mem.is_aux_memory(addr, true);
+                let aux_bank = self.mem.aux_bank();
                 if aux_bank == 0 {
-                    self.video
-                        .borrow_mut()
-                        .update_shadow_memory(aux_memory, addr, data);
+                    self.video.update_shadow_memory(aux_memory, addr, data);
                 }
             }
 
             ROM_START..=ROM_END => {
-                self.mem.borrow_mut().unclocked_addr_write(addr, data);
+                self.mem.unclocked_addr_write(addr, data);
             }
 
             0xc000..=0xc0ff => {
@@ -1032,25 +997,25 @@ impl Mem for Bus {
             }
 
             0xcfff => {
-                self.intc8rom.set(false);
+                self.intc8rom = false;
             }
         }
     }
 
     fn mem_read(&self, addr: u16) -> u8 {
-        self.mem.borrow().mem_read(addr)
+        self.mem.mem_read(addr)
     }
 
     fn mem_write(&mut self, addr: u16, data: u8) {
-        self.mem.borrow_mut().mem_write(addr, data);
+        self.mem.mem_write(addr, data);
     }
 
     fn mem_aux_read(&self, addr: u16) -> u8 {
-        self.mem.borrow().mem_aux_read(addr)
+        self.mem.mem_aux_read(addr)
     }
 
     fn mem_aux_write(&mut self, addr: u16, data: u8) {
-        self.mem.borrow_mut().mem_aux_write(addr, data);
+        self.mem.mem_aux_write(addr, data);
     }
 }
 

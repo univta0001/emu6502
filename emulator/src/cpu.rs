@@ -6,9 +6,6 @@ use crate::opcodes::OpCode;
 //use crate::trace::trace;
 
 #[cfg(feature = "z80")]
-use std::cell::RefCell;
-
-#[cfg(feature = "z80")]
 use iz80::*;
 
 #[cfg(feature = "z80")]
@@ -360,7 +357,7 @@ pub struct CPU {
         feature = "serde_support",
         serde(serialize_with = "serialize_cpu", deserialize_with = "deserialize_cpu")
     )]
-    pub z80cpu: RefCell<Cpu>,
+    pub z80cpu: Cpu,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -856,7 +853,7 @@ impl CPU {
         self.status = CpuFlags::from_bits_truncate(0b00100100);
 
         if self.is_apple2c() {
-            self.bus.is_apple2c.set(true);
+            self.bus.is_apple2c = true;
         }
 
         self.bus.reset();
@@ -1316,7 +1313,7 @@ impl CPU {
 
     pub fn setup_emulator(&mut self) {
         if self.is_apple2e() {
-            self.bus.video.borrow_mut().set_apple2e(true);
+            self.bus.video.set_apple2e(true);
         }
 
         if self.is_apple2e_enh() || self.is_apple2c() {
@@ -1354,7 +1351,7 @@ impl CPU {
             self.interrupt(interrupt::NMI);
         } else if self.bus.irq().is_some() && !self.status.contains(CpuFlags::INTERRUPT_DISABLE) {
             let irq_happen = self.bus.irq().unwrap();
-            let cycles_elapsed = self.bus.cycles.get().saturating_sub(irq_happen);
+            let cycles_elapsed = self.bus.cycles.saturating_sub(irq_happen);
 
             // If the interrupt happens on the last cycle of the opcode, execute the opcode and
             // then the interrupt handling routine
@@ -1365,7 +1362,7 @@ impl CPU {
 
         if self.alt_cpu {
             #[cfg(feature = "z80")]
-            self.z80cpu.borrow_mut().execute_instruction(&mut self.bus);
+            self.z80cpu.execute_instruction(&mut self.bus);
             return true;
         }
 
@@ -1880,14 +1877,12 @@ impl CPU {
 
 #[cfg(feature = "z80")]
 impl Machine for Bus {
-    fn peek(&self, address: u16) -> u8 {
+    fn peek(&mut self, address: u16) -> u8 {
         //eprintln!("Peek addr = {:04x} {:04X}", address, translate_address(address));
         /*
         let const_ptr = self as *const Bus;
         let mut_ptr = const_ptr as *mut Bus;
-        unsafe {
-            (*mut_ptr).addr_read(translate_z80address(address))
-        }
+        unsafe { (*mut_ptr).addr_read(translate_z80address(address)) }
         */
         self.addr_read(translate_z80address(address))
     }
@@ -1908,8 +1903,8 @@ impl Machine for Bus {
 }
 
 #[cfg(feature = "z80")]
-fn default_z80cpu() -> RefCell<Cpu> {
-    RefCell::new(Cpu::new())
+fn default_z80cpu() -> Cpu {
+    Cpu::new()
 }
 
 #[cfg(feature = "z80")]
@@ -1959,11 +1954,25 @@ fn hex_get16(map: &BTreeMap<String, String>, key: &str) -> std::io::Result<u16> 
 
 #[cfg(feature = "z80")]
 #[cfg(feature = "serde_support")]
-fn serialize_cpu<S: Serializer>(v: &RefCell<Cpu>, serializer: S) -> Result<S::Ok, S::Error> {
+fn serialize_cpu<S: Serializer>(v: &Cpu, serializer: S) -> Result<S::Ok, S::Error> {
     let mut map = BTreeMap::new();
-    let mut value = v.borrow_mut();
-    let r = value.registers();
+    /*
+    let const_ptr = v as *const Cpu;
+    let mut_ptr = const_ptr as *mut Cpu;
 
+    unsafe {
+        let r = (*mut_ptr).registers();
+        map.insert("AF", format!("{:04X}", r.get16(Reg16::AF)));
+        map.insert("BC", format!("{:04X}", r.get16(Reg16::BC)));
+        map.insert("DE", format!("{:04X}", r.get16(Reg16::DE)));
+        map.insert("HL", format!("{:04X}", r.get16(Reg16::HL)));
+        map.insert("SP", format!("{:04X}", r.get16(Reg16::SP)));
+        map.insert("IX", format!("{:04X}", r.get16(Reg16::IX)));
+        map.insert("IY", format!("{:04X}", r.get16(Reg16::IY)));
+        map.insert("PC", format!("{:04X}", r.pc()));
+    }
+    */
+    let r = v.reg();
     map.insert("AF", format!("{:04X}", r.get16(Reg16::AF)));
     map.insert("BC", format!("{:04X}", r.get16(Reg16::BC)));
     map.insert("DE", format!("{:04X}", r.get16(Reg16::DE)));
@@ -1978,12 +1987,11 @@ fn serialize_cpu<S: Serializer>(v: &RefCell<Cpu>, serializer: S) -> Result<S::Ok
 
 #[cfg(feature = "z80")]
 #[cfg(feature = "serde_support")]
-fn deserialize_cpu<'de, D: Deserializer<'de>>(deserializer: D) -> Result<RefCell<Cpu>, D::Error> {
+fn deserialize_cpu<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Cpu, D::Error> {
     let map = BTreeMap::<String, String>::deserialize(deserializer)?;
-    let v = default_z80cpu();
+    let mut v = default_z80cpu();
     {
-        let mut value = v.borrow_mut();
-        let r = value.registers();
+        let r = v.registers();
         r.set16(Reg16::AF, hex_get16(&map, "AF").map_err(Error::custom)?);
         r.set16(Reg16::BC, hex_get16(&map, "BC").map_err(Error::custom)?);
         r.set16(Reg16::DE, hex_get16(&map, "DE").map_err(Error::custom)?);

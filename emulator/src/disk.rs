@@ -5,7 +5,6 @@ use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use rand::prelude::*;
-use std::cell::RefCell;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::prelude::*;
@@ -2216,8 +2215,8 @@ impl Default for DiskDrive {
 impl Card for DiskDrive {
     fn rom_access(
         &mut self,
-        _mem: &RefCell<Mmu>,
-        _video: &RefCell<Video>,
+        _mem: &mut Mmu,
+        _video: &mut Video,
         addr: u16,
         _value: u8,
         _write_mode: bool,
@@ -2227,8 +2226,8 @@ impl Card for DiskDrive {
 
     fn io_access(
         &mut self,
-        _mem: &RefCell<Mmu>,
-        _video: &RefCell<Video>,
+        _mem: &mut Mmu,
+        _video: &mut Video,
         addr: u16,
         value: u8,
         write_mode: bool,

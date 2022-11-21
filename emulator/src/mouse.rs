@@ -1,7 +1,6 @@
 use crate::bus::Card;
 use crate::mmu::Mmu;
 use crate::video::Video;
-use std::cell::RefCell;
 
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
@@ -131,10 +130,8 @@ impl Mouse {
         }
     }
 
-    fn mouse_status(&mut self, mem: &RefCell<Mmu>, slot: u16) {
+    fn mouse_status(&mut self, mmu: &mut Mmu, slot: u16) {
         //eprintln!("MouseStatus");
-        let mut mmu = mem.borrow_mut();
-
         if !self.enabled {
             mmu.mem_write(KEY_POINTER + slot, 0);
             return;
@@ -176,7 +173,7 @@ impl Mouse {
         self.last_buttons[0] = self.buttons[0];
     }
 
-    fn set_mouse(&mut self, mem: &RefCell<Mmu>, slot: u16, value: u8) {
+    fn set_mouse(&mut self, mmu: &mut Mmu, slot: u16, value: u8) {
         //eprintln!("SetMouse = {:02x}", value);
         if value & 0x1 > 0 {
             self.enabled = true;
@@ -184,8 +181,6 @@ impl Mouse {
             self.enabled = false;
         }
         self.mode = value;
-
-        let mut mmu = mem.borrow_mut();
 
         // Update mode
         mmu.mem_write(MODE + slot, self.mode);
@@ -245,22 +240,19 @@ impl Mouse {
         status
     }
 
-    fn serve_mouse(&mut self, mem: &RefCell<Mmu>, slot: u16) {
+    fn serve_mouse(&mut self, mmu: &mut Mmu, slot: u16) {
         //eprintln!("ServeMouse");
-        let mut mmu = mem.borrow_mut();
         let status = self.get_status();
         mmu.mem_write(STATUS + slot, status);
         self.interrupt = 0;
         self.irq_happen = 0;
     }
 
-    fn read_mouse(&mut self, mem: &RefCell<Mmu>, slot: u16) {
+    fn read_mouse(&mut self, mmu: &mut Mmu, slot: u16) {
         //eprintln!("ReadMouse");
         if !self.enabled {
             return;
         }
-
-        let mut mmu = mem.borrow_mut();
 
         let x_range = self.clamp_max_x - self.clamp_min_x;
         let y_range = self.clamp_max_y - self.clamp_min_y;
@@ -305,7 +297,7 @@ impl Mouse {
         }
     }
 
-    fn pos_mouse(&mut self, _mem: &RefCell<Mmu>) {
+    fn pos_mouse(&mut self, _mem: &mut Mmu) {
         /*
         Not required in the emulation as the read_mouse will always return the absolute value
 
@@ -329,8 +321,7 @@ impl Mouse {
         */
     }
 
-    fn clamp_mouse(&mut self, mem: &RefCell<Mmu>, value: usize) {
-        let mmu = mem.borrow();
+    fn clamp_mouse(&mut self, mmu: &mut Mmu, value: usize) {
         let min = (mmu.mem_read(CLAMP_MIN_HIGH) as i32 * 256 + mmu.mem_read(CLAMP_MIN_LOW) as i32)
             as i16 as i32;
         let max = (mmu.mem_read(CLAMP_MAX_HIGH) as i32 * 256 + mmu.mem_read(CLAMP_MAX_LOW) as i32)
@@ -427,8 +418,8 @@ impl Default for Mouse {
 impl Card for Mouse {
     fn rom_access(
         &mut self,
-        _mem: &RefCell<Mmu>,
-        _video: &RefCell<Video>,
+        _mem: &mut Mmu,
+        _video: &mut Video,
         addr: u16,
         _value: u8,
         _write_flag: bool,
@@ -438,8 +429,8 @@ impl Card for Mouse {
 
     fn io_access(
         &mut self,
-        mem: &RefCell<Mmu>,
-        _video: &RefCell<Video>,
+        mem: &mut Mmu,
+        _video: &mut Video,
         addr: u16,
         value: u8,
         _write_flag: bool,

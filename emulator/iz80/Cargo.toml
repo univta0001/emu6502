@@ -1,0 +1,13 @@
+[package]
+name = "iz80"
+version = "0.3.5"
+authors = ["Ivan Izaguirre <ivanizag@gmail.com>"]
+edition = "2018"
+license = "BSD-3-Clause"
+description = "Z80 and 8080 emulator"
+keywords = ["Z80", "8080", "CPM", "emulator"]
+homepage = "https://github.com/ivanizag/iz80"
+repository = "https://github.com/ivanizag/iz80"
+readme = "README.md"
+
+[dependencies]

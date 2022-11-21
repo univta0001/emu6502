@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use emu6502::bus::Bus;
 use emu6502::cpu::CPU;
 use emu6502::bus::IODevice;
@@ -18,7 +17,7 @@ impl Emulator {
     pub fn load_disk(&mut self, name: &str, array: &[u8], drive: usize) -> bool {
         if name.ends_with(".2mg") || name.ends_with(".hdv") {
             let hdv_mode = name.ends_with(".hdv");
-            let mut drv = self.cpu.bus.harddisk.borrow_mut();
+            let drv = &mut self.cpu.bus.harddisk;
             let drive_selected = drv.drive_selected();
             drv.drive_select(drive);
             let result = drv.load_hdv_2mg_array(array,hdv_mode);
@@ -30,7 +29,7 @@ impl Emulator {
             drv.drive_select(drive_selected);
             true
         } else {
-            let mut drv = self.cpu.bus.disk.borrow_mut();
+            let drv = &mut self.cpu.bus.disk;
             let drive_selected = drv.drive_selected();
             drv.drive_select(drive);
             let dsk: Vec<u8> = array.to_vec();
@@ -85,22 +84,22 @@ impl Emulator {
     }
 
     pub fn frame_buffer(&self) -> js_sys::Uint8ClampedArray {
-        let array = &self.cpu.bus.video.borrow().frame[..];
+        let array = &self.cpu.bus.video.frame[..];
         js_sys::Uint8ClampedArray::from(array)
     }
 
     pub fn video_50hz(&mut self, state: bool) {
-        self.cpu.bus.video.borrow_mut().set_video_50hz(state);
+        self.cpu.bus.video.set_video_50hz(state);
     }
 
     pub fn clear_dirty_page_frame_buffer(&mut self) {
-        self.cpu.bus.video.borrow_mut().clear_video_dirty();
+        self.cpu.bus.video.clear_video_dirty();
     }
 
     pub fn get_dirty_region_frame_buffer(&self) -> js_sys::Uint8ClampedArray {
         let mut lower_array = Vec::new();
         let mut upper_array = Vec::new();
-        let dirty_region = self.cpu.bus.video.borrow().get_dirty_region();
+        let dirty_region = self.cpu.bus.video.get_dirty_region();
         for item in dirty_region {
             lower_array.push(item.0 as u8);
             upper_array.push(item.1 as u8);
@@ -110,11 +109,11 @@ impl Emulator {
     }
 
     pub fn sound_buffer(&self) -> js_sys::Int16Array {
-        js_sys::Int16Array::from(&self.cpu.bus.audio.borrow().data.sample[..])
+        js_sys::Int16Array::from(&self.cpu.bus.audio.data.sample[..])
     }
 
     pub fn clear_sound_buffer(&mut self) {
-        self.cpu.bus.audio.borrow_mut().clear_buffer();
+        self.cpu.bus.audio.clear_buffer();
     }
 
     pub fn step_cpu(&mut self) {
@@ -126,7 +125,7 @@ impl Emulator {
     }
 
     pub fn is_video_50hz(&self) -> bool {
-        self.cpu.bus.video.borrow().is_video_50hz()
+        self.cpu.bus.video.is_video_50hz()
     }
 
     pub fn interrupt_reset(&mut self) {
@@ -152,7 +151,7 @@ impl Emulator {
     }
 
     pub fn keyboard_latch(&mut self, value: u8) {
-        self.cpu.bus.keyboard_latch.set((value + 128) as u8);
+        self.cpu.bus.keyboard_latch=(value + 128) as u8;
     }
 
     pub fn is_apple2e(&self) -> bool {
@@ -168,8 +167,8 @@ impl Emulator {
     }
 
     pub fn is_disk_motor_on(&self) -> bool {
-        let disk_on = self.cpu.bus.disk.borrow().is_motor_on();
-        let harddisk_on = self.cpu.bus.harddisk.borrow().is_busy();
+        let disk_on = self.cpu.bus.disk.is_motor_on();
+        let harddisk_on = self.cpu.bus.harddisk.is_busy();
         disk_on || harddisk_on
     }
 }
@@ -183,9 +182,9 @@ pub async fn init_emul() -> Emulator {
 
     cpu.load(&apple2ee_rom, 0xc000);
 
-    cpu.bus.audio.borrow_mut().mboard.clear();
+    cpu.bus.audio.mboard.clear();
     for _ in 0..2 {
-        cpu.bus.audio.borrow_mut().mboard.push(RefCell::new(Mockingboard::new()));
+        cpu.bus.audio.mboard.push(Mockingboard::new());
     }
 
     for i in 0..2 {

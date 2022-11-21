@@ -1,7 +1,6 @@
 use crate::bus::Card;
 use crate::mmu::Mmu;
 use crate::video::Video;
-use std::cell::RefCell;
 use std::ffi::OsStr;
 use std::fs::OpenOptions;
 use std::io::{self, Seek, SeekFrom, Write};
@@ -285,8 +284,8 @@ impl Default for HardDisk {
 impl Card for HardDisk {
     fn rom_access(
         &mut self,
-        _mem: &RefCell<Mmu>,
-        _video: &RefCell<Video>,
+        _mem: &mut Mmu,
+        _video: &mut Video,
         addr: u16,
         _value: u8,
         _write_flag: bool,
@@ -296,8 +295,8 @@ impl Card for HardDisk {
 
     fn io_access(
         &mut self,
-        mem: &RefCell<Mmu>,
-        video: &RefCell<Video>,
+        mmu: &mut Mmu,
+        video: &mut Video,
         addr: u16,
         value: u8,
         write_flag: bool,
@@ -332,7 +331,6 @@ impl Card for HardDisk {
 
                             //eprintln!("Reading ${:04x} ${:04x} ${:04x}",block_offset,start,end);
                             if block_offset < disk.offset + disk.data_len {
-                                let mut mmu = mem.borrow_mut();
                                 let mut buf = [0u8; HD_BLOCK_SIZE];
                                 buf[..].copy_from_slice(&disk.raw_data[start..end]);
                                 for (i, data) in buf.iter().enumerate() {
@@ -350,9 +348,9 @@ impl Card for HardDisk {
                                         || (0x2000..=0x5fff).contains(&addr)
                                     {
                                         if mmu.is_aux_memory(addr, true) {
-                                            video.borrow_mut().video_aux[addr as usize] = *data;
+                                            video.video_aux[addr as usize] = *data;
                                         } else {
-                                            video.borrow_mut().video_main[addr as usize] = *data;
+                                            video.video_main[addr as usize] = *data;
                                         }
                                     }
                                 }
@@ -381,7 +379,6 @@ impl Card for HardDisk {
                                 return DeviceStatus::DeviceIoError as u8;
                             }
 
-                            let mmu = mem.borrow();
                             let mut buf = [0u8; HD_BLOCK_SIZE];
 
                             for (i, item) in buf.iter_mut().enumerate() {
