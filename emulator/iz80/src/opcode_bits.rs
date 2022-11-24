@@ -137,7 +137,7 @@ pub fn build_set_res_r(bit: u8, r: Reg8, value: bool) -> Opcode {
 
             let mut v = env.reg8_ext(r);
             if value {
-                v |=  1 << bit;
+                v |= 1 << bit;
             } else {
                 v &= !(1 << bit);
             }

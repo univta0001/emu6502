@@ -15,9 +15,10 @@ Features in the emulator
 - Apple IIe Extended 80-Column Text Card
 - RGB cards: Apple's Extended 80-Column Text/AppleColor Adaptor Card
 - 60 Hz / 50Hz display mode support
+- Video Scanline mode
 - Support for Vapor-lock cycle counting demos e.g. megademo, mad2
 - NTSC emulation supported
-- Z80 Emulation at Slot 2
+- Z80 Emulation
 - Hard Disk support 
 - Support for RamFactor 1 MiB and RamWorks III up to 8 MiB
 - Preliminary support for Apple //c (Rom FF)

@@ -127,6 +127,7 @@ pub struct Video {
     video_50hz: bool,
     mono_mode: bool,
     rgb_mode: u8,
+    scanline: bool,
 }
 
 const TEXT_LEN: usize = 0x400;
@@ -701,6 +702,7 @@ impl Video {
             chroma_bandwidth,
             chroma_hgr,
             chroma_dhgr,
+            scanline: false,
         }
     }
 
@@ -1173,6 +1175,15 @@ impl Video {
         self.video_latch
     }
 
+    pub fn set_scanline(&mut self, state: bool) {
+        self.scanline = state;
+        self.invalidate_video_cache();
+    }
+
+    pub fn get_scanline(&self) -> bool {
+        self.scanline
+    }
+
     pub fn enable_graphics(&mut self, state: bool) {
         self.graphics_mode = state;
     }
@@ -1295,9 +1306,16 @@ impl Video {
         self.frame[base] = r;
         self.frame[base + 1] = g;
         self.frame[base + 2] = b;
-        self.frame[base + offset] = r;
-        self.frame[base + offset + 1] = g;
-        self.frame[base + offset + 2] = b;
+
+        if !self.scanline {
+            self.frame[base + offset] = r;
+            self.frame[base + offset + 1] = g;
+            self.frame[base + offset + 2] = b;
+        } else {
+            self.frame[base + offset] = 0;
+            self.frame[base + offset + 1] = 0;
+            self.frame[base + offset + 2] = 0;
+        }
     }
 
     pub fn set_pixel_blend_alpha(&mut self, x: usize, y: usize, rgb: Rgb, alpha: u8) {
@@ -1335,12 +1353,21 @@ impl Video {
         self.frame[base + 5] = g;
         self.frame[base + 6] = b;
 
-        self.frame[base + offset] = r;
-        self.frame[base + 1 + offset] = g;
-        self.frame[base + 2 + offset] = b;
-        self.frame[base + 4 + offset] = r;
-        self.frame[base + 5 + offset] = g;
-        self.frame[base + 6 + offset] = b;
+        if !self.scanline {
+            self.frame[base + offset] = r;
+            self.frame[base + 1 + offset] = g;
+            self.frame[base + 2 + offset] = b;
+            self.frame[base + 4 + offset] = r;
+            self.frame[base + 5 + offset] = g;
+            self.frame[base + 6 + offset] = b;
+        } else {
+            self.frame[base + offset] = 0;
+            self.frame[base + 1 + offset] = 0;
+            self.frame[base + 2 + offset] = 0;
+            self.frame[base + 4 + offset] = 0;
+            self.frame[base + 5 + offset] = 0;
+            self.frame[base + 6 + offset] = 0;
+        }
     }
 
     pub fn draw_line(&mut self, x1: usize, y1: usize, x2: usize, y2: usize, rgb: Rgb) {
@@ -1597,7 +1624,11 @@ impl Video {
                     fore_color
                 };
                 self.set_pixel(xindex, y1offset, color);
-                self.set_pixel(xindex, y1offset + 1, color);
+                if !self.scanline {
+                    self.set_pixel(xindex, y1offset + 1, color);
+                } else {
+                    self.set_pixel(xindex, y1offset + 1, COLOR_BLACK);
+                }
 
                 shift >>= 1;
             }

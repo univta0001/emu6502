@@ -29,7 +29,6 @@ pub trait Machine {
     fn port_out(&mut self, address: u16, value: u8);
 }
 
-
 /// A simple Machine implementation
 ///
 /// A minimum implementation of Machine. It uses two arrays of 65536 bytes to back the peeks and
@@ -68,7 +67,7 @@ impl Machine for PlainMachine {
 impl Default for PlainMachine {
     fn default() -> Self {
         Self::new()
-    }  
+    }
 }
 
 #[cfg(test)]
