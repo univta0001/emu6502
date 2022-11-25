@@ -130,6 +130,8 @@ pub struct Video {
     video_50hz: bool,
     mono_mode: bool,
     rgb_mode: u8,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
     scanline: bool,
 }
 

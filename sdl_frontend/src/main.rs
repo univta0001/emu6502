@@ -718,7 +718,7 @@ Function Keys:
     F3                 Swap Disk 1 and Disk 2
     F4                 Disable / Enable Joystick
     F5                 Disable / Enable Fask Disk emulation
-    F6                 Toggle Display Mode (Default, NTSC, Mono, RGB)
+    F6                 Toggle Display Mode (Default, NTSC, RGB, Mono)
     F7                 Disable / Enable Joystick jitter
     F8                 Disable / Enable 50/60 Hz video
     F9                 Disable / Enable full speed emulation
@@ -1285,10 +1285,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let display_mode = [
         DisplayMode::DEFAULT,
         DisplayMode::NTSC,
+        DisplayMode::RGB,
         DisplayMode::MONO_WHITE,
         DisplayMode::MONO_GREEN,
         DisplayMode::MONO_AMBER,
-        DisplayMode::RGB,
     ];
 
     cpu.reset();
