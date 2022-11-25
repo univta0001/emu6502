@@ -111,6 +111,9 @@ pub struct Bus {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub is_apple2c: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    pub full_speed: bool,
 }
 
 pub trait Mem {
@@ -204,6 +207,7 @@ impl Bus {
             halt_cpu: false,
             io_slot: default_io_slot(),
             extended_rom: 0,
+            full_speed: false,
         };
 
         // Memory initialization is based on the implementation of AppleWin
