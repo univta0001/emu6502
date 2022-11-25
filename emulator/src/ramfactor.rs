@@ -791,14 +791,14 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_ramfactor_auto_increment() {
+    fn auto_increment() {
         let mut rf = RamFactor::new();
         rf.update_data(0, false);
         assert_eq!(rf.addr, 0x1, "Addr should be incremented to 1");
     }
 
     #[test]
-    fn test_ramfactor_addr_larger_than_memory() {
+    fn addr_larger_than_memory() {
         let status = std::panic::catch_unwind(|| {
             let mut rf = RamFactor::new();
             rf.addr = 0xffffff;
@@ -812,7 +812,7 @@ mod test {
     }
 
     #[test]
-    fn test_ramfactor_addr_wraparound() {
+    fn addr_wraparound() {
         let mut rf = RamFactor::new();
         rf.addr = 0xffffff;
         rf.update_data(0, false);
@@ -820,7 +820,7 @@ mod test {
     }
 
     #[test]
-    fn test_ramfactor_hi_nibble_f0() {
+    fn hi_nibble_f0() {
         let mut rf = RamFactor::new();
         let mut value = rf.update_high_addr(0, false);
         assert_eq!(
@@ -838,7 +838,7 @@ mod test {
     }
 
     #[test]
-    fn test_ramfactor_low_increment() {
+    fn low_increment() {
         let mut rf = RamFactor::new();
         rf.addr = 0x01ff00;
         rf.update_low_addr(0, true);
@@ -862,7 +862,7 @@ mod test {
     }
 
     #[test]
-    fn test_ramfactor_medium_increment() {
+    fn medium_increment() {
         let mut rf = RamFactor::new();
         rf.addr = 0x01ff00;
         rf.update_medium_addr(0, true);

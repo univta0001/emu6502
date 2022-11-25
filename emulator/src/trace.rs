@@ -455,7 +455,7 @@ mod test {
     use crate::bus::Bus;
 
     #[test]
-    fn test_format_trace() {
+    fn format_trace() {
         let mut bus = Bus::default();
         bus.mem_write(0x64, 0xa2);
         bus.mem_write(0x65, 0x01);
@@ -489,7 +489,7 @@ mod test {
     }
 
     #[test]
-    fn test_format_mem_access() {
+    fn format_mem_access() {
         let mut bus = Bus::default();
         // ORA ($33), Y
         bus.mem_write(0x64, 0x11);
@@ -518,7 +518,7 @@ mod test {
     }
 
     #[test]
-    fn test_format_beq_jmp_access() {
+    fn format_beq_jmp_access() {
         let mut bus = Bus::default();
         // ORA ($33), Y
         bus.mem_write(0x1000, 0xa9);

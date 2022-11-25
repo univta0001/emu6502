@@ -2125,7 +2125,7 @@ mod test {
     //use crate::trace::disassemble;
 
     #[test]
-    fn test_functional_test_6502() {
+    fn functional_test_6502() {
         let function_test: Vec<u8> = std::fs::read("../6502_functional_test.bin").unwrap();
         let bus = Bus::new();
         let mut cpu = CPU::new(bus);
@@ -2145,7 +2145,7 @@ mod test {
     }
 
     #[test]
-    fn test_functional_test_65c02() {
+    fn functional_test_65c02() {
         let function_test: Vec<u8> = std::fs::read("../65C02_extended_opcodes_test.bin").unwrap();
         let bus = Bus::new();
         let mut cpu = CPU::new(bus);
@@ -2166,7 +2166,7 @@ mod test {
     }
 
     #[test]
-    fn test_decimal_add_negative() {
+    fn decimal_add_negative() {
         let bus = Bus::default();
         let mut cpu = CPU::new(bus);
         cpu.reset();
@@ -2192,7 +2192,7 @@ mod test {
     }
 
     #[test]
-    fn test_decimal_test_6502() {
+    fn decimal_test_6502() {
         let function_test: Vec<u8> = std::fs::read("../6502_decimal_test.bin").unwrap();
         let bus = Bus::new();
         let mut cpu = CPU::new(bus);
@@ -2211,7 +2211,7 @@ mod test {
     }
 
     #[test]
-    fn test_bra_cycle() {
+    fn bra_cycle() {
         let bus = Bus::default();
         let mut cpu = CPU::new(bus);
         cpu.reset();
@@ -2231,7 +2231,7 @@ mod test {
     }
 
     #[test]
-    fn test_pha_pla_cycle() {
+    fn pha_pla_cycle() {
         let bus = Bus::default();
         let mut cpu = CPU::new(bus);
         cpu.reset();
@@ -2244,7 +2244,7 @@ mod test {
     }
 
     #[test]
-    fn test_cmp_cycle() {
+    fn cmp_cycle() {
         let bus = Bus::default();
         let mut cpu = CPU::new(bus);
         cpu.reset();
@@ -2257,7 +2257,7 @@ mod test {
     }
 
     #[test]
-    fn test_lda_absolute_cycle() {
+    fn lda_absolute_cycle() {
         let bus = Bus::default();
         let mut cpu = CPU::new(bus);
         cpu.reset();
@@ -2270,7 +2270,7 @@ mod test {
     }
 
     #[test]
-    fn test_lda_indirect_x_cycle() {
+    fn lda_indirect_x_cycle() {
         let bus = Bus::default();
         let mut cpu = CPU::new(bus);
         cpu.reset();
@@ -2283,7 +2283,7 @@ mod test {
     }
 
     #[test]
-    fn test_ldy_immed_cycle() {
+    fn ldy_immed_cycle() {
         let bus = Bus::default();
         let mut cpu = CPU::new(bus);
         cpu.reset();
@@ -2296,7 +2296,7 @@ mod test {
     }
 
     #[test]
-    fn test_lda_absolute_x_cycle() {
+    fn lda_absolute_x_cycle() {
         let bus = Bus::default();
         let mut cpu = CPU::new(bus);
         cpu.reset();
@@ -2312,7 +2312,7 @@ mod test {
     }
 
     #[test]
-    fn test_plp_break() {
+    fn plp_break() {
         let bus = Bus::default();
         let mut cpu = CPU::new(bus);
         cpu.reset();
@@ -2325,7 +2325,7 @@ mod test {
     }
 
     #[test]
-    fn test_plp_unused() {
+    fn plp_unused() {
         let bus = Bus::default();
         let mut cpu = CPU::new(bus);
         cpu.reset();
@@ -2338,7 +2338,7 @@ mod test {
     }
 
     #[test]
-    fn test_adc_cycle() {
+    fn adc_cycle() {
         let bus = Bus::default();
         let mut cpu = CPU::new(bus);
         cpu.reset();
@@ -2362,7 +2362,7 @@ mod test {
     }
 
     #[test]
-    fn test_fca8() {
+    fn fca8_delay() {
         // FCA8 Wait routine has 2.5 A^2 + 13.5 A + 13 cycles
         // Each cycle takes 14 / 14.318181 microseconds
         // For A=0, it is like A=256 but 10 cycles short. It should take 167299 CPU cycles.
@@ -2405,7 +2405,7 @@ mod test {
     }
 
     #[test]
-    fn test_delay_a() {
+    fn delay_accum() {
         // Delay_a routine takes 25+a
         let bus = Bus::default();
         let mut cpu = CPU::new(bus);
@@ -2440,7 +2440,7 @@ mod test {
     }
 
     #[test]
-    fn test_delay_43() {
+    fn delay43() {
         let bus = Bus::default();
         let mut cpu = CPU::new(bus);
         cpu.reset();
@@ -2507,7 +2507,7 @@ mod test {
     // $dc, $fc 3 bytes 4 cycles
 
     #[test]
-    fn test_65c02_nop1() {
+    fn nop1_65c02() {
         let bus = Bus::new();
         let mut cpu = CPU::new(bus);
         cpu.reset();
@@ -2524,7 +2524,7 @@ mod test {
     }
 
     #[test]
-    fn test_65c02_nop_ldd() {
+    fn nop_ldd_65c02() {
         let bus = Bus::new();
         let mut cpu = CPU::new(bus);
         cpu.reset();
@@ -2542,7 +2542,7 @@ mod test {
     }
 
     #[test]
-    fn test_65c02_nop_ldd_zpg() {
+    fn nop_ldd_zpg_65c02() {
         let bus = Bus::new();
         let mut cpu = CPU::new(bus);
         cpu.reset();
@@ -2560,7 +2560,7 @@ mod test {
     }
 
     #[test]
-    fn test_65c02_nop_ldd_zpg_x() {
+    fn nop_ldd_zpg_x_65c02() {
         let bus = Bus::new();
         let mut cpu = CPU::new(bus);
         cpu.reset();
@@ -2578,7 +2578,7 @@ mod test {
     }
 
     #[test]
-    fn test_65c02_nop_5c() {
+    fn nop_5c_65c02() {
         let bus = Bus::new();
         let mut cpu = CPU::new(bus);
         cpu.reset();
@@ -2596,7 +2596,7 @@ mod test {
     }
 
     #[test]
-    fn test_65c02_nop_ldd_abs() {
+    fn nop_ldd_abs_65c02() {
         let bus = Bus::new();
         let mut cpu = CPU::new(bus);
         cpu.reset();
@@ -2614,7 +2614,7 @@ mod test {
     }
 
     #[test]
-    fn test_65c02_stz() {
+    fn stz_65c02() {
         let bus = Bus::new();
         let mut cpu = CPU::new(bus);
         cpu.reset();
@@ -2654,7 +2654,7 @@ mod test {
     }
 
     #[test]
-    fn test_6502_shift() {
+    fn shift_6502() {
         let bus = Bus::new();
         let mut cpu = CPU::new(bus);
         cpu.reset();
@@ -2729,7 +2729,7 @@ mod test {
     }
 
     #[test]
-    fn test_65c02_shift() {
+    fn shift_65c02() {
         let bus = Bus::new();
         let mut cpu = CPU::new(bus);
         cpu.reset();
@@ -2804,7 +2804,7 @@ mod test {
     }
 
     #[test]
-    fn test_bank_1_writing() {
+    fn bank_1_writing() {
         let bus = Bus::new();
         let mut cpu = CPU::new(bus);
         cpu.reset();
@@ -2829,7 +2829,7 @@ mod test {
     }
 
     #[test]
-    fn test_bank_1_reset_prewrite() {
+    fn bank_1_reset_prewrite() {
         let bus = Bus::new();
         let mut cpu = CPU::new(bus);
         cpu.reset();
@@ -2857,7 +2857,7 @@ mod test {
     }
 
     #[test]
-    fn test_bank_2_writing() {
+    fn bank_2_writing() {
         let bus = Bus::new();
         let mut cpu = CPU::new(bus);
         cpu.reset();
@@ -2882,7 +2882,7 @@ mod test {
     }
 
     #[test]
-    fn test_bank_2_reset_prewrite() {
+    fn bank_2_reset_prewrite() {
         let bus = Bus::new();
         let mut cpu = CPU::new(bus);
         cpu.reset();

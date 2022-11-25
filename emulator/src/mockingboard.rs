@@ -844,21 +844,21 @@ mod test {
     }
 
     #[test]
-    fn test_w65c22_t1_loaded() {
+    fn w65c22_t1_loaded() {
         let mut w65c22 = W65C22::new("#1");
         setup(&mut w65c22);
         assert_eq!(w65c22.t1_loaded, true, "T1C T1 loaded should be true");
     }
 
     #[test]
-    fn test_w65c22_t1_load_ifr() {
+    fn w65c22_t1_load_ifr() {
         let mut w65c22 = W65C22::new("#1");
         setup(&mut w65c22);
         assert_eq!(w65c22.ifr & 0x40 == 0, true, "T1 IFR should be cleared");
     }
 
     #[test]
-    fn test_w65c22_t1_load_value() {
+    fn w65c22_t1_load_value() {
         let mut w65c22 = W65C22::new("#1");
         setup(&mut w65c22);
         assert_eq!(w65c22.ifr & 0x40 == 0, true, "T1 IFR should be cleared");
@@ -867,14 +867,14 @@ mod test {
     }
 
     #[test]
-    fn test_w65c22_t1_initial_load() {
+    fn w65c22_t1_initial_load() {
         let mut w65c22 = W65C22::new("#1");
         setup(&mut w65c22);
         assert_eq!(w65c22.t1c, 0x06, "T1 counter initial load should be 6");
     }
 
     #[test]
-    fn test_w65c22_t1_countdown() {
+    fn w65c22_t1_countdown() {
         let mut w65c22 = W65C22::new("#1");
         setup(&mut w65c22);
         for _ in 0..6 {
@@ -885,7 +885,7 @@ mod test {
     }
 
     #[test]
-    fn test_w65c22_t1_underflow() {
+    fn w65c22_t1_underflow() {
         let mut w65c22 = W65C22::new("#1");
         setup(&mut w65c22);
         for _ in 0..7 {
@@ -900,7 +900,7 @@ mod test {
     }
 
     #[test]
-    fn test_w65c22_t1_reload() {
+    fn w65c22_t1_reload() {
         let mut w65c22 = W65C22::new("#1");
         setup(&mut w65c22);
         for _ in 0..8 {
@@ -924,7 +924,7 @@ mod test {
     }
 
     #[test]
-    fn test_detect_mockingboard() {
+    fn detect_mockingboard() {
         let mut bus = Bus::new();
         bus.io_slot[4] = IODevice::Mockingboard(0);
         let mut cpu = CPU::new(bus);
