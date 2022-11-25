@@ -11,3 +11,6 @@ repository = "https://github.com/ivanizag/iz80"
 readme = "README.md"
 
 [dependencies]
+
+[lib]
+doctest = false
