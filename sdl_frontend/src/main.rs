@@ -61,7 +61,7 @@ struct EventParam<'a> {
     estimated_mhz: &'a mut f32,
     reload_cpu: &'a mut bool,
     save_screenshot: &'a mut bool,
-    display_mode: &'a [DisplayMode; 4],
+    display_mode: &'a [DisplayMode; 6],
     display_index: &'a mut usize,
     clipboard_text: &'a mut String,
 }
@@ -993,8 +993,10 @@ fn initialize_new_cpu(cpu: &mut CPU, display_index: &mut usize) {
     // Restore the display mode
     match disp.get_display_mode() {
         DisplayMode::NTSC => *display_index = 1,
-        DisplayMode::MONO => *display_index = 2,
+        DisplayMode::MONO_WHITE => *display_index = 2,
         DisplayMode::RGB => *display_index = 3,
+        DisplayMode::MONO_GREEN => *display_index = 4,
+        DisplayMode::MONO_AMBER => *display_index = 5,
         _ => *display_index = 0,
     }
 
@@ -1283,7 +1285,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let display_mode = [
         DisplayMode::DEFAULT,
         DisplayMode::NTSC,
-        DisplayMode::MONO,
+        DisplayMode::MONO_WHITE,
+        DisplayMode::MONO_GREEN,
+        DisplayMode::MONO_AMBER,
         DisplayMode::RGB,
     ];
 

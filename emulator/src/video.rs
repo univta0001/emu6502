@@ -13,10 +13,13 @@ pub type Rgb = [u8; 3];
 pub type Yuv = [f32; 3];
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[allow(non_camel_case_types)]
 pub enum DisplayMode {
     DEFAULT,
     NTSC,
-    MONO,
+    MONO_WHITE,
+    MONO_GREEN,
+    MONO_AMBER,
     RGB,
 }
 
@@ -983,6 +986,22 @@ impl Video {
         }
     }
 
+    fn is_display_mode_mono(&self) -> bool {
+        self.display_mode == DisplayMode::MONO_WHITE
+            || self.display_mode == DisplayMode::MONO_GREEN
+            || self.display_mode == DisplayMode::MONO_AMBER
+    }
+
+    fn get_mono_color(&self) -> Rgb {
+        if self.display_mode == DisplayMode::MONO_GREEN {
+            COLOR_GREEN
+        } else if self.display_mode == DisplayMode::MONO_AMBER {
+            COLOR_ORANGE
+        } else {
+            COLOR_WHITE
+        }
+    }
+
     fn get_video_mode(&self) -> u32 {
         let mut mode: u32 = 0;
 
@@ -1004,7 +1023,7 @@ impl Video {
         if self.dhires_mode {
             mode |= 0x20;
         }
-        if self.display_mode == DisplayMode::MONO
+        if self.is_display_mode_mono()
             || self.mono_mode
             || (self.display_mode == DisplayMode::RGB && self.rgb_mode == 0x3)
         {
@@ -1567,28 +1586,31 @@ impl Video {
         let normal = ch & 0x80 > 0;
         let mut back_color;
         let mut fore_color;
+
+        let mono_color = self.get_mono_color();
+
         if normal {
             if !flash {
                 back_color = COLOR_BLACK;
-                fore_color = COLOR_WHITE;
+                fore_color = mono_color;
             } else {
-                back_color = COLOR_WHITE;
+                back_color = mono_color;
                 fore_color = COLOR_BLACK;
             }
         } else if !flash {
             if self.apple2e {
                 back_color = COLOR_BLACK;
-                fore_color = COLOR_WHITE;
+                fore_color = mono_color;
             } else {
-                back_color = COLOR_WHITE;
+                back_color = mono_color;
                 fore_color = COLOR_BLACK;
             }
         } else if self.apple2e {
-            back_color = COLOR_WHITE;
+            back_color = mono_color;
             fore_color = COLOR_BLACK;
         } else {
             back_color = COLOR_BLACK;
-            fore_color = COLOR_WHITE;
+            fore_color = mono_color;
         }
 
         if self.display_mode == DisplayMode::RGB && self.dhires_mode && !self.vid80_mode {
@@ -1678,7 +1700,7 @@ impl Video {
         };
 
         if self.vid80_mode && self.dhires_mode {
-            if !self.mono_mode && !(self.display_mode == DisplayMode::MONO) {
+            if !self.mono_mode && !(self.is_display_mode_mono()) {
                 if self.display_mode == DisplayMode::NTSC {
                     self.draw_dlores_ntsc_a2_y(x1, y1, ch, offset, aux);
                 } else {
@@ -1696,9 +1718,12 @@ impl Video {
                 if x1 & 1 != 0 {
                     mask <<= 2;
                 }
+
+                let mono_color = self.get_mono_color();
+
                 for xindex in 0..7 {
                     if color & mask != 0 {
-                        self.set_pixel_count(x1 * 14 + xindex + offset, y1 * 2, COLOR_WHITE, 1);
+                        self.set_pixel_count(x1 * 14 + xindex + offset, y1 * 2, mono_color, 1);
                     } else {
                         self.set_pixel_count(x1 * 14 + xindex + offset, y1 * 2, COLOR_BLACK, 1);
                     }
@@ -1708,7 +1733,7 @@ impl Video {
                     }
                 }
             }
-        } else if !self.mono_mode && !(self.display_mode == DisplayMode::MONO) {
+        } else if !self.mono_mode && !(self.is_display_mode_mono()) {
             if self.display_mode == DisplayMode::NTSC {
                 self.draw_lores_ntsc_a2_y(x1, y1, ch);
             } else {
@@ -1726,9 +1751,12 @@ impl Video {
             if x1 & 1 != 0 {
                 mask <<= 2;
             }
+
+            let mono_color = self.get_mono_color();
+
             for xindex in 0..14 {
                 if color & mask != 0 {
-                    self.set_pixel_count(x1 * 14 + xindex, y1 * 2, COLOR_WHITE, 1);
+                    self.set_pixel_count(x1 * 14 + xindex, y1 * 2, mono_color, 1);
                 } else {
                     self.set_pixel_count(x1 * 14 + xindex, y1 * 2, COLOR_BLACK, 1);
                 }
@@ -1984,7 +2012,7 @@ impl Video {
     }
 
     fn draw_raw_hires_a2_row_col(&mut self, row: usize, col: usize, value: u8) {
-        if self.display_mode == DisplayMode::MONO || self.mono_mode {
+        if self.is_display_mode_mono() || self.mono_mode {
             self.draw_raw_hires_mono_a2_row_col(row, col, value);
             return;
         }
@@ -2161,16 +2189,20 @@ impl Video {
                     0
                 };
 
+                let mono_color = self.get_mono_color();
+
                 if bit != 0 {
-                    self.set_pixel_count(x + 2 * offset, 2 * row, COLOR_WHITE, 1);
+                    self.set_pixel_count(x + 2 * offset, 2 * row, mono_color, 1);
                 } else {
                     self.set_pixel_count(x + 2 * offset, 2 * row, COLOR_BLACK, 1);
                 }
             }
 
             while mask != 0x80 {
+                let mono_color = self.get_mono_color();
+
                 if value & mask > 0 {
-                    self.set_pixel_count(hbs + x + 2 * offset, 2 * row, COLOR_WHITE, 2);
+                    self.set_pixel_count(hbs + x + 2 * offset, 2 * row, mono_color, 2);
                 } else {
                     self.set_pixel_count(hbs + x + 2 * offset, 2 * row, COLOR_BLACK, 2);
                 }
@@ -2308,7 +2340,7 @@ impl Video {
     fn draw_raw_dhires_a2_row_col(&mut self, row: usize, col: usize, value: u8, aux_value: u8) {
         if self.display_mode == DisplayMode::RGB && self.rgb_mode == 0x3
             || self.mono_mode
-            || self.display_mode == DisplayMode::MONO
+            || self.is_display_mode_mono()
         {
             self.draw_raw_dhires_mono_a2_row_col(row, col, value, aux_value);
             return;
@@ -2585,14 +2617,17 @@ impl Video {
             let x = col * 14;
             let mut offset = 0;
             let mut mask = 0x1;
+
+            let mono_color = self.get_mono_color();
+
             while mask != 0x80 {
                 if aux_value & mask > 0 {
-                    self.set_pixel_count(x + offset, row * 2, COLOR_WHITE, 1);
+                    self.set_pixel_count(x + offset, row * 2, mono_color, 1);
                 } else {
                     self.set_pixel_count(x + offset, row * 2, COLOR_BLACK, 1);
                 }
                 if value & mask > 0 {
-                    self.set_pixel_count(x + offset + 7, row * 2, COLOR_WHITE, 1);
+                    self.set_pixel_count(x + offset + 7, row * 2, mono_color, 1);
                 } else {
                     self.set_pixel_count(x + offset + 7, row * 2, COLOR_BLACK, 1);
                 }
@@ -2976,8 +3011,10 @@ fn serialize_display_mode<S: Serializer>(
 ) -> Result<S::Ok, S::Error> {
     let value = match v {
         DisplayMode::NTSC => 1,
-        DisplayMode::MONO => 2,
+        DisplayMode::MONO_WHITE => 2,
         DisplayMode::RGB => 3,
+        DisplayMode::MONO_GREEN => 4,
+        DisplayMode::MONO_AMBER => 5,
         _ => 0,
     };
     usize::serialize(&value, serializer)
@@ -2989,8 +3026,10 @@ fn deserialize_display_mode<'de, D: Deserializer<'de>>(
 ) -> Result<DisplayMode, D::Error> {
     let value = match usize::deserialize(deserializer)? {
         1 => DisplayMode::NTSC,
-        2 => DisplayMode::MONO,
+        2 => DisplayMode::MONO_WHITE,
         3 => DisplayMode::RGB,
+        4 => DisplayMode::MONO_GREEN,
+        5 => DisplayMode::MONO_AMBER,
         _ => DisplayMode::DEFAULT,
     };
     Ok(value)
