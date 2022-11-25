@@ -1,7 +1,7 @@
 use std::fmt;
 
 /// 8 bit registers
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Reg8 {
     /// 8 bit register A
     A = 0,
@@ -41,7 +41,7 @@ pub enum Reg8 {
 const REG_COUNT8: usize = 16;
 
 /// 16 bit registers, composed from 8 bit registers
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Reg16 {
     /// 16 but register AF
     AF = Reg8::A as isize,

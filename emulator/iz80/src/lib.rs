@@ -9,6 +9,7 @@
 //!
 //! ```
 //!    // Prepare the device
+//!    use iz80::{Cpu,Machine,PlainMachine};
 //!    let mut machine = PlainMachine::new();
 //!    let mut cpu = Cpu::new(); // Or Cpu::new_8080()
 //!    cpu.set_trace(true);
