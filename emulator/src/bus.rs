@@ -921,9 +921,7 @@ impl Mem for Bus {
 
     fn unclocked_addr_read(&mut self, addr: u16) -> u8 {
         match addr {
-            0x0..=0xbfff => self.mem.unclocked_addr_read(addr),
-
-            ROM_START..=ROM_END => self.mem.unclocked_addr_read(addr),
+            0x0..=0xbfff | ROM_START..=ROM_END => self.mem.unclocked_addr_read(addr),
 
             // Unused slots should be random values
             0xc100..=0xc2ff | 0xc400..=0xc7ff => self.iodevice_rom_access(addr, 0, false),
@@ -964,7 +962,7 @@ impl Mem for Bus {
 
     fn unclocked_addr_write(&mut self, addr: u16, data: u8) {
         match addr {
-            0x0..=0x3ff | 0xc00..=0x1fff | 0x6000..=0xbfff => {
+            0x0..=0x3ff | 0xc00..=0x1fff | 0x6000..=0xbfff | ROM_START..=ROM_END => {
                 self.mem.unclocked_addr_write(addr, data);
             }
 
@@ -977,10 +975,6 @@ impl Mem for Bus {
                 if aux_bank == 0 {
                     self.video.update_shadow_memory(aux_memory, addr, data);
                 }
-            }
-
-            ROM_START..=ROM_END => {
-                self.mem.unclocked_addr_write(addr, data);
             }
 
             0xc000..=0xc0ff => {
