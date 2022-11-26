@@ -46,7 +46,10 @@ use std::time::Instant;
 
 const CPU_CYCLES_PER_FRAME_60HZ: usize = 17030;
 const CPU_CYCLES_PER_FRAME_50HZ: usize = 20280;
-const AUDIO_SAMPLE_SIZE: u32 = 48000 / 60;
+
+// The correct NTSC frame rate is 59.94 and not 60
+const AUDIO_SAMPLE_SIZE: u32 = 4800000 / 5994;
+
 //const CPU_6502_MHZ: usize = 157500 * 1000 / 11 * 65 / 912;
 const NTSC_LUMA_BANDWIDTH: f32 = 2300000.0;
 const NTSC_CHROMA_BANDWIDTH: f32 = 600000.0;
@@ -1313,7 +1316,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             previous_cycles = current_cycles;
 
             let mut cpu_cycles = CPU_CYCLES_PER_FRAME_60HZ;
-            let mut cpu_period = 16_667;
+            let mut cpu_period = 16_683;
 
             // Handle clipboard text if any
             if !clipboard_text.is_empty() {
