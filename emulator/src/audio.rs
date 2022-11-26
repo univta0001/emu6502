@@ -1,3 +1,4 @@
+use crate::bus::Tick;
 use crate::mockingboard::Mockingboard;
 
 #[cfg(feature = "serde_support")]
@@ -52,39 +53,6 @@ impl Audio {
         }
     }
 
-    pub fn tick(&mut self) {
-        self.fcycles += 1.0;
-        self.mboard.iter_mut().for_each(|mb| mb.tick());
-
-        if self.fcycles >= (self.fcycles_per_sample) {
-            self.fcycles -= self.fcycles_per_sample;
-            //if self.data.sample.len() < AUDIO_SAMPLE_SIZE*2
-            {
-                self.audio_active = false;
-
-                let beep = self.dc_filter(self.data.phase);
-                let mut left_phase: HigherChannel = 0;
-                let mut right_phase: HigherChannel = 0;
-
-                // Update left channel
-                self.update_phase(&mut left_phase, 0);
-
-                // Update right channel
-                self.update_phase(&mut right_phase, 1);
-
-                left_phase = left_phase.saturating_add(beep as HigherChannel);
-                right_phase = right_phase.saturating_add(beep as HigherChannel);
-
-                let ratio = (3 * self.mboard.len() + 1) as HigherChannel;
-
-                // Left audio
-                self.data.sample.push((left_phase / ratio) as Channel);
-
-                // Right audio
-                self.data.sample.push((right_phase / ratio) as Channel);
-            }
-        }
-    }
 
     pub fn is_audio_active(&self) -> bool {
         self.audio_active
@@ -164,6 +132,42 @@ impl Audio {
     pub fn click(&mut self) {
         self.dc_filter = 32768 + 12000;
         self.data.phase = -self.data.phase;
+    }
+}
+
+impl Tick for Audio {
+    fn tick(&mut self) {
+        self.fcycles += 1.0;
+        self.mboard.iter_mut().for_each(|mb| mb.tick());
+
+        if self.fcycles >= (self.fcycles_per_sample) {
+            self.fcycles -= self.fcycles_per_sample;
+            //if self.data.sample.len() < AUDIO_SAMPLE_SIZE*2
+            {
+                self.audio_active = false;
+
+                let beep = self.dc_filter(self.data.phase);
+                let mut left_phase: HigherChannel = 0;
+                let mut right_phase: HigherChannel = 0;
+
+                // Update left channel
+                self.update_phase(&mut left_phase, 0);
+
+                // Update right channel
+                self.update_phase(&mut right_phase, 1);
+
+                left_phase = left_phase.saturating_add(beep as HigherChannel);
+                right_phase = right_phase.saturating_add(beep as HigherChannel);
+
+                let ratio = (3 * self.mboard.len() + 1) as HigherChannel;
+
+                // Left audio
+                self.data.sample.push((left_phase / ratio) as Channel);
+
+                // Right audio
+                self.data.sample.push((right_phase / ratio) as Channel);
+            }
+        }
     }
 }
 

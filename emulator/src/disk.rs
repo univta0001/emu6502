@@ -1,4 +1,4 @@
-use crate::bus::Card;
+use crate::bus::{Tick,Card};
 use crate::mmu::Mmu;
 use crate::video::Video;
 use flate2::read::GzDecoder;
@@ -1146,47 +1146,6 @@ impl DiskDrive {
         }
     }
 
-    pub fn tick(&mut self) {
-        self.cycles += 1;
-
-        if !self.is_motor_on() {
-            return;
-        }
-
-        if self.fast_disk_timer > 0 {
-            self.fast_disk_timer -= 1;
-        }
-
-        if self.pending_ticks > 0 {
-            self.pending_ticks -= 1;
-            if self.pending_ticks == 0 {
-                let mut disk = &mut self.drive[self.drive_select];
-                disk.motor_status = false;
-                self.fast_disk_timer = 0;
-
-                // Check for modified flag, if it is modified needs to save back the file
-                if disk.modified {
-                    if self.enable_save {
-                        let save_status = save_dsk_woz_to_disk(disk);
-                        if save_status.is_err() {
-                            eprintln!("Unable to save disk = {:?}", save_status);
-                        }
-                    }
-                    disk.modified = false;
-                }
-                return;
-            }
-        }
-
-        self.move_head_woz();
-        self.step_lss();
-        self.move_head_woz();
-        self.step_lss();
-
-        // Read Pulse last for only 1 microsecond
-        self.pulse = 0;
-    }
-
     pub fn reset(&mut self) {
         self.motor_status(false);
     }
@@ -2169,6 +2128,49 @@ impl DiskDrive {
             0x0d => self.latch = self.latch << 1 | 0x1,
             _ => self.latch = 0,
         }
+    }
+}
+
+impl Tick for DiskDrive {
+    fn tick(&mut self) {
+        self.cycles += 1;
+
+        if !self.is_motor_on() {
+            return;
+        }
+
+        if self.fast_disk_timer > 0 {
+            self.fast_disk_timer -= 1;
+        }
+
+        if self.pending_ticks > 0 {
+            self.pending_ticks -= 1;
+            if self.pending_ticks == 0 {
+                let mut disk = &mut self.drive[self.drive_select];
+                disk.motor_status = false;
+                self.fast_disk_timer = 0;
+
+                // Check for modified flag, if it is modified needs to save back the file
+                if disk.modified {
+                    if self.enable_save {
+                        let save_status = save_dsk_woz_to_disk(disk);
+                        if save_status.is_err() {
+                            eprintln!("Unable to save disk = {:?}", save_status);
+                        }
+                    }
+                    disk.modified = false;
+                }
+                return;
+            }
+        }
+
+        self.move_head_woz();
+        self.step_lss();
+        self.move_head_woz();
+        self.step_lss();
+
+        // Read Pulse last for only 1 microsecond
+        self.pulse = 0;
     }
 }
 

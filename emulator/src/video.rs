@@ -1,4 +1,5 @@
 use crate::ntsc::*;
+use crate::bus::Tick;
 
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -133,6 +134,18 @@ pub struct Video {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     scanline: bool,
+}
+
+impl Tick for Video {
+    fn tick(&mut self) {
+        self.cycles += 1;
+
+        if self.cycles >= self.cycle_field {
+            self.cycles %= self.cycle_field;
+        }
+
+        self.update_video();
+    }
 }
 
 const TEXT_LEN: usize = 0x400;
@@ -709,16 +722,6 @@ impl Video {
             chroma_dhgr,
             scanline: false,
         }
-    }
-
-    pub fn tick(&mut self) {
-        self.cycles += 1;
-
-        if self.cycles >= self.cycle_field {
-            self.cycles %= self.cycle_field;
-        }
-
-        self.update_video();
     }
 
     pub fn get_cycles(&self) -> usize {

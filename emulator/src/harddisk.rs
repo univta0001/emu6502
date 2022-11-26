@@ -1,4 +1,4 @@
-use crate::bus::Card;
+use crate::bus::{Tick,Card};
 use crate::mmu::Mmu;
 use crate::video::Video;
 use std::ffi::OsStr;
@@ -120,13 +120,6 @@ impl HardDisk {
         }
     }
 
-    pub fn tick(&mut self) {
-        let disk = &mut self.drive[self.drive_select];
-        if disk.busy_cycle > 0 {
-            disk.busy_cycle -= 1;
-        }
-    }
-
     pub fn is_busy(&self) -> bool {
         let disk = &self.drive[self.drive_select];
         disk.busy_cycle > 0
@@ -224,6 +217,15 @@ impl HardDisk {
         };
 
         Ok(absolute_path)
+    }
+}
+
+impl Tick for HardDisk {
+    fn tick(&mut self) {
+        let disk = &mut self.drive[self.drive_select];
+        if disk.busy_cycle > 0 {
+            disk.busy_cycle -= 1;
+        }
     }
 }
 

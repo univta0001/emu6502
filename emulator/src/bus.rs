@@ -38,6 +38,10 @@ pub trait Card {
     ) -> u8;
 }
 
+pub trait Tick {
+    fn tick(&mut self);
+}
+
 #[derive(Copy, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub enum IODevice {
