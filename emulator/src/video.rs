@@ -818,19 +818,14 @@ impl Video {
     }
 
     pub fn update_shadow_memory(&mut self, aux_memory: bool, addr: u16, value: u8) {
-        let old_value;
-        if aux_memory {
-            old_value = self.video_aux[addr as usize];
-            self.video_aux[addr as usize] = value;
-        } else {
-            old_value = self.video_main[addr as usize];
-            self.video_main[addr as usize] = value;
-        }
+        let mem = if aux_memory { &mut self.video_aux } else { &mut self.video_main };
 
         // Do not reparse video if value is not changed
-        if old_value == value {
+        if mem[addr as usize] == value {
             return
         }
+
+        mem[addr as usize] = value;
 
         if (0x0400..=0x0bff).contains(&addr) {
             // 000000cd eabab000 -> 000abcde
