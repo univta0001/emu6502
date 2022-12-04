@@ -1490,7 +1490,7 @@ impl DiskDrive {
         let crc32_value = crc32(0, &dsk[12..]);
 
         if crc32_value != crc32_check {
-            let err_message = format!("Invalid woz2 file - Checksum Failed ({:08X}))", crc32_value);
+            let err_message = format!("Invalid woz2 file - Checksum Failed ({crc32_value:08X}))");
             return Err(std::io::Error::new(
                 io::ErrorKind::InvalidInput,
                 err_message,
@@ -2155,7 +2155,7 @@ impl Tick for DiskDrive {
                     if self.enable_save {
                         let save_status = save_dsk_woz_to_disk(disk);
                         if save_status.is_err() {
-                            eprintln!("Unable to save disk = {:?}", save_status);
+                            eprintln!("Unable to save disk = {save_status:?}");
                         }
                     }
                     disk.modified = false;

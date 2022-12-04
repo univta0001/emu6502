@@ -595,19 +595,19 @@ fn as_hex<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
 
     for value in gz_vector {
         if count >= 0x40 {
-            let addr_key = format!("{:06X}", addr);
+            let addr_key = format!("{addr:06X}");
             map.insert(addr_key, s);
             s = String::new();
             count = 0;
             addr += 0x40;
         }
-        let hex = format!("{:02X}", value);
+        let hex = format!("{value:02X}");
         s.push_str(&hex);
         count += 1;
     }
 
     if !s.is_empty() {
-        let addr_key = format!("{:06X}", addr);
+        let addr_key = format!("{addr:06X}");
         map.insert(addr_key, s);
     }
     BTreeMap::serialize(&map, serializer)
@@ -624,7 +624,7 @@ fn from_hex<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Er
     let mut gz_vector: Vec<u8> = Vec::new();
     let mut addr = 0;
     for key in map.keys() {
-        let addr_value = format!("{:06X}", addr);
+        let addr_value = format!("{addr:06X}");
         if *key != addr_value {
             return Err(Error::invalid_value(
                 Unexpected::Seq,

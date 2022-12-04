@@ -23,10 +23,10 @@ pub fn build_rot_r(
     indexed: bool,
 ) -> Opcode {
     let full_name = if indexed {
-        format!("LD {}, {} {}", r, name, Reg8::_HL)
+        format!("LD {r}, {name} {}", Reg8::_HL)
     } else {
         let separator = if fast { "" } else { " " };
-        format!("{}{}{}", name, separator, r)
+        format!("{name}{separator}{r}")
     };
     Opcode {
         name: full_name,
@@ -90,7 +90,7 @@ pub fn build_rot_r(
 
 pub fn build_bit_r(n: u8, r: Reg8) -> Opcode {
     Opcode {
-        name: format!("BIT {}, {}", n, r),
+        name: format!("BIT {n}, {r}"),
         action: Box::new(move |env: &mut Environment| {
             env.load_displacement(r);
 
@@ -131,7 +131,7 @@ pub fn build_bit_r(n: u8, r: Reg8) -> Opcode {
 pub fn build_set_res_r(bit: u8, r: Reg8, value: bool) -> Opcode {
     let name = if value { "SET" } else { "RES" };
     Opcode {
-        name: format!("{} {}, {}", name, bit, r),
+        name: format!("{name} {bit}, {r}"),
         action: Box::new(move |env: &mut Environment| {
             env.load_displacement(r);
 
@@ -150,7 +150,7 @@ pub fn build_set_res_r(bit: u8, r: Reg8, value: bool) -> Opcode {
 pub fn build_indexed_set_res_r(bit: u8, r: Reg8, value: bool) -> Opcode {
     let name = if value { "SET" } else { "RES" };
     Opcode {
-        name: format!("LD {}, {} {}, {}", r, name, bit, Reg8::_HL),
+        name: format!("LD {r}, {name} {bit}, {}", Reg8::_HL),
         action: Box::new(move |env: &mut Environment| {
             /*
             An instruction such as LD r, RES b, (IX+d) should be interpreted as

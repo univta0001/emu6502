@@ -412,7 +412,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                     if let Ok(Response::Okay(file_path)) = result {
                         let result = load_harddisk(cpu, &file_path, 1);
                         if let Err(e) = result {
-                            eprintln!("Unable to load hard disk {} : {}", file_path.display(), e);
+                            eprintln!("Unable to load hard disk {} : {e}", file_path.display());
                         }
                     }
                 } else {
@@ -434,7 +434,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                     if let Ok(Response::Okay(file_path)) = result {
                         let result = load_harddisk(cpu, &file_path, 0);
                         if let Err(e) = result {
-                            eprintln!("Unable to load hard disk {} : {}", file_path.display(), e);
+                            eprintln!("Unable to load hard disk {} : {e}", file_path.display());
                         }
                     }
                 } else {
@@ -561,7 +561,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                     if let Ok(Response::Okay(file_path)) = result {
                         let result = load_disk(cpu, &file_path, 1);
                         if let Err(e) = result {
-                            eprintln!("Unable to load disk {} : {}", file_path.display(), e);
+                            eprintln!("Unable to load disk {} : {e}", file_path.display());
                         }
                     }
                 } else {
@@ -643,7 +643,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         Event::DropFile { filename, .. } => {
             let result = load_disk(cpu, Path::new(&filename), 0);
             if let Err(e) = result {
-                eprintln!("Unable to load disk {} : {}", filename, e);
+                eprintln!("Unable to load disk {filename} : {e}");
             }
         }
 
@@ -653,7 +653,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
 
 fn print_help() {
     eprintln!(
-        r#"emul6502 {}
+        r#"emul6502 {VERSION}
 
 USAGE:
     emul6502 [FLAGS] [disk 1] [disk 2]
@@ -729,8 +729,7 @@ Function Keys:
     F10                Load Hard Disk 1 file
     F11                Load Hard Disk 2 file
     F12 / Break        Reset
-"#,
-        VERSION
+"#
     );
 }
 
@@ -870,12 +869,12 @@ fn load_serialized_image() -> Result<CPU, String> {
 
     let result = fs::read_to_string(&file_path);
     let Ok(input) = result else {
-        return Err(format!("Unable to restore the image : {:?}", result))
+        return Err(format!("Unable to restore the image : {result:?}"))
     };
 
     let deserialized_result = serde_yaml::from_str::<CPU>(&input);
     let Ok(mut new_cpu) = deserialized_result else {
-        return Err(format!("Unable to restore the image : {:?}", deserialized_result));
+        return Err(format!("Unable to restore the image : {deserialized_result:?}"));
     };
 
     // Load the loaded disk into the new cpu
@@ -884,7 +883,7 @@ fn load_serialized_image() -> Result<CPU, String> {
             if let Some(disk_filename) = get_disk_filename(&new_cpu, drive) {
                 let result = load_disk(&mut new_cpu, &disk_filename, drive);
                 if let Err(e) = result {
-                    eprintln!("Unable to load disk {} : {}", file_path.display(), e);
+                    eprintln!("Unable to load disk {} : {e}", file_path.display());
                 }
             }
         }
@@ -892,7 +891,7 @@ fn load_serialized_image() -> Result<CPU, String> {
             if let Some(disk_filename) = get_harddisk_filename(&new_cpu, drive) {
                 let result = load_harddisk(&mut new_cpu, &disk_filename, drive);
                 if let Err(e) = result {
-                    eprintln!("Unable to load disk {} : {}", file_path.display(), e);
+                    eprintln!("Unable to load disk {} : {e}", file_path.display());
                 }
             }
         }
@@ -1399,7 +1398,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         initialize_new_cpu(&mut new_cpu, &mut display_index);
                         cpu = new_cpu
                     }
-                    Err(message) => eprintln!("{}", message),
+                    Err(message) => eprintln!("{message}"),
                 }
             }
         }

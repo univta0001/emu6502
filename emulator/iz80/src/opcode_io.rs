@@ -16,7 +16,7 @@ instructions before.
 
 pub fn build_out_c_r(r: Reg8) -> Opcode {
     Opcode {
-        name: format!("OUT (C), {}", r),
+        name: format!("OUT (C), {r}"),
         action: Box::new(move |env: &mut Environment| {
             let address = env.state.reg.get16(Reg16::BC);
             let value = env.state.reg.get8(r);
@@ -48,7 +48,7 @@ pub fn build_out_n_a() -> Opcode {
 
 pub fn build_in_r_c(r: Reg8) -> Opcode {
     Opcode {
-        name: format!("IN {}, (C)", r),
+        name: format!("IN {r}, (C)"),
         action: Box::new(move |env: &mut Environment| {
             let address = env.state.reg.get16(Reg16::BC);
             let value = env.port_in(address);
@@ -90,7 +90,7 @@ instructions before.
 
 pub fn build_in_block((inc, repeat, postfix): (bool, bool, &'static str)) -> Opcode {
     Opcode {
-        name: format!("IN{}", postfix),
+        name: format!("IN{postfix}"),
         action: Box::new(move |env: &mut Environment| {
             // The INI/INIR/IND/INDR instructions use BC after decrementing B
             let b = env.state.reg.inc_dec8(Reg8::B, false /* decrement */);
@@ -119,7 +119,7 @@ pub fn build_in_block((inc, repeat, postfix): (bool, bool, &'static str)) -> Opc
 pub fn build_out_block((inc, repeat, postfix): (bool, bool, &'static str)) -> Opcode {
     let n0 = if repeat { "OT" } else { "OUT" };
     Opcode {
-        name: format!("{}{}", n0, postfix),
+        name: format!("{n0}{postfix}"),
         action: Box::new(move |env: &mut Environment| {
             // the OUTI/OTIR/OUTD/OTDR instructions use BC before decrementing B
             let address = env.state.reg.get16(Reg16::BC);

@@ -19,18 +19,18 @@ impl Opcode {
         if self.name.contains("nn") {
             // Immediate argument 16 bits
             let nn = env.peek16_pc();
-            let nn_str = format!("{:04x}h", nn);
+            let nn_str = format!("{nn:04x}h");
             name.replace("nn", &nn_str)
         } else if self.name.contains('n') {
             // Immediate argument 8 bits
             let n = env.peek_pc();
-            let n_str = format!("{:02x}h", n);
+            let n_str = format!("{n:02x}h");
             name.replace('n', &n_str)
         } else if self.name.contains('d') {
             // Immediate argument 8 bits signed
             // In assembly it's shown with 2 added as if it were from the opcode pc.
             let d = env.peek_pc() as i8 as i16 + 2;
-            let d_str = format!("{:+x}", d);
+            let d_str = format!("{d:+x}");
             name.replace('d', &d_str)
         } else {
             name
@@ -67,7 +67,7 @@ pub fn build_halt() -> Opcode {
 
 pub fn build_pop_rr(rr: Reg16) -> Opcode {
     Opcode {
-        name: format!("POP {:?}", rr),
+        name: format!("POP {rr:?}"),
         action: Box::new(move |env: &mut Environment| {
             let value = env.pop();
             env.set_reg16(rr, value);
@@ -77,7 +77,7 @@ pub fn build_pop_rr(rr: Reg16) -> Opcode {
 
 pub fn build_push_rr(rr: Reg16) -> Opcode {
     Opcode {
-        name: format!("PUSH {:?}", rr),
+        name: format!("PUSH {rr:?}"),
         action: Box::new(move |env: &mut Environment| {
             let value = env.reg16_ext(rr);
             env.push(value);
@@ -97,7 +97,7 @@ pub fn build_conf_interrupts(enable: bool) -> Opcode {
 
 pub fn build_im(im: u8) -> Opcode {
     Opcode {
-        name: format!("IM {}", im),
+        name: format!("IM {im}"),
         action: Box::new(move |env: &mut Environment| {
             env.state.reg.set_interrupt_mode(im);
         }),

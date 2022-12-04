@@ -30,7 +30,7 @@ pub fn build_jr_unconditional() -> Opcode {
 
 pub fn build_jr_eq((flag, value, name): (Flag, bool, &str)) -> Opcode {
     Opcode {
-        name: format!("JR {}, d", name),
+        name: format!("JR {name}, d"),
         action: Box::new(move |env: &mut Environment| {
             let offset = env.advance_pc();
             if env.state.reg.get_flag(flag) == value {
@@ -59,7 +59,7 @@ pub fn build_jp_unconditional() -> Opcode {
 
 pub fn build_jp_eq((flag, value, name): (Flag, bool, &str)) -> Opcode {
     Opcode {
-        name: format!("JP {}, nn", name),
+        name: format!("JP {name}, nn"),
         action: Box::new(move |env: &mut Environment| {
             let address = env.advance_immediate16();
             if env.state.reg.get_flag(flag) == value {
@@ -93,7 +93,7 @@ pub fn build_call() -> Opcode {
 
 pub fn build_call_eq((flag, value, name): (Flag, bool, &str)) -> Opcode {
     Opcode {
-        name: format!("CALL {}, nn", name),
+        name: format!("CALL {name}, nn"),
         action: Box::new(move |env: &mut Environment| {
             let address = env.advance_immediate16();
             if env.state.reg.get_flag(flag) == value {
@@ -105,7 +105,7 @@ pub fn build_call_eq((flag, value, name): (Flag, bool, &str)) -> Opcode {
 
 pub fn build_rst(d: u8) -> Opcode {
     Opcode {
-        name: format!("RST {:02x}h", d),
+        name: format!("RST {d:02x}h"),
         action: Box::new(move |env: &mut Environment| {
             let address = d as u16;
             env.subroutine_call(address);
@@ -145,7 +145,7 @@ pub fn build_retn() -> Opcode {
 
 pub fn build_ret_eq((flag, value, name): (Flag, bool, &str)) -> Opcode {
     Opcode {
-        name: format!("RET {}", name),
+        name: format!("RET {name}"),
         action: Box::new(move |env: &mut Environment| {
             if env.state.reg.get_flag(flag) == value {
                 env.subroutine_return();

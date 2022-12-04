@@ -49,10 +49,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let estimated_mhz = (cpu.bus.get_cycles() as f32 / elapsed as f32) / 1000.0;
 
     let mut output = io::stderr();
-    writeln!(output, "Elapsed time:      {:>12} ms", elapsed)?;
-    writeln!(output, "Estimated MHz:    {:>12.3} MHz", estimated_mhz)?;
+    writeln!(output, "Elapsed time:      {elapsed:>12} ms")?;
+    writeln!(output, "Estimated MHz:    {estimated_mhz:>12.3} MHz")?;
     writeln!(output, "Total Cycles:         {:>12}", cpu.bus.get_cycles())?;
-    writeln!(output, "Total Instructions:   {:>12}", instr_count)?;
+    writeln!(output, "Total Instructions:   {instr_count:>12}")?;
 
     writeln!(output, "Total Branches:       {:>12}", _cpu_stats.branches)?;
     writeln!(output, "Total Branches Taken: {:>12}", _cpu_stats.branches_taken)?;

@@ -7,7 +7,7 @@ pub fn build_operator_a_r(r: Reg8, (op, name): (Operator, &str)) -> Opcode {
     if r != Reg8::_HL && r != Reg8::H && r != Reg8::L {
         // Fast version
         Opcode {
-            name: format!("{} A, {}", name, r),
+            name: format!("{name} A, {r}"),
             action: Box::new(move |env: &mut Environment| {
                 let a = env.state.reg.a();
                 let b = env.state.reg.get8(r);
@@ -17,7 +17,7 @@ pub fn build_operator_a_r(r: Reg8, (op, name): (Operator, &str)) -> Opcode {
         }
     } else {
         Opcode {
-            name: format!("{} A, {}", name, r),
+            name: format!("{name} A, {r}"),
             action: Box::new(move |env: &mut Environment| {
                 env.load_displacement(r);
 
@@ -33,7 +33,7 @@ pub fn build_operator_a_r(r: Reg8, (op, name): (Operator, &str)) -> Opcode {
 
 pub fn build_operator_a_n((op, name): (Operator, &str)) -> Opcode {
     Opcode {
-        name: format!("{} A, n", name),
+        name: format!("{name} A, n"),
         action: Box::new(move |env: &mut Environment| {
             let a = env.state.reg.a();
             let b = env.advance_pc();
@@ -46,7 +46,7 @@ pub fn build_operator_a_n((op, name): (Operator, &str)) -> Opcode {
 
 pub fn build_cp_block((inc, repeat, postfix): (bool, bool, &'static str)) -> Opcode {
     Opcode {
-        name: format!("CP{}", postfix),
+        name: format!("CP{postfix}"),
         action: Box::new(move |env: &mut Environment| {
             let a = env.state.reg.a();
             let b = env.reg8_ext(Reg8::_HL);

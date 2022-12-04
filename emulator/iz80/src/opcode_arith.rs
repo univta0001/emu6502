@@ -6,7 +6,7 @@ use super::registers::*;
 // 16 bit ADD opcodes
 pub fn build_add_hl_rr(rr: Reg16) -> Opcode {
     Opcode {
-        name: format!("ADD HL, {:?}", rr),
+        name: format!("ADD HL, {rr:?}"),
         action: Box::new(move |env: &mut Environment| {
             let aa = env.index_value();
             let bb = env.reg16_ext(rr);
@@ -18,7 +18,7 @@ pub fn build_add_hl_rr(rr: Reg16) -> Opcode {
 
 pub fn build_adc_hl_rr(rr: Reg16) -> Opcode {
     Opcode {
-        name: format!("ADC HL, {:?}", rr),
+        name: format!("ADC HL, {rr:?}"),
         action: Box::new(move |env: &mut Environment| {
             let aa = env.index_value(); // This will always be HL.
             let bb = env.reg16_ext(rr);
@@ -30,7 +30,7 @@ pub fn build_adc_hl_rr(rr: Reg16) -> Opcode {
 
 pub fn build_sbc_hl_rr(rr: Reg16) -> Opcode {
     Opcode {
-        name: format!("SBC HL, {:?}", rr),
+        name: format!("SBC HL, {rr:?}"),
         action: Box::new(move |env: &mut Environment| {
             let aa = env.index_value(); // This will always be HL.
             let bb = env.reg16_ext(rr);
@@ -43,7 +43,7 @@ pub fn build_sbc_hl_rr(rr: Reg16) -> Opcode {
 // INC, DEC opcodes
 pub fn build_inc_r(r: Reg8) -> Opcode {
     Opcode {
-        name: format!("INC {}", r),
+        name: format!("INC {r}"),
         action: Box::new(move |env: &mut Environment| {
             env.load_displacement(r);
 
@@ -56,7 +56,7 @@ pub fn build_inc_r(r: Reg8) -> Opcode {
 
 pub fn build_dec_r(r: Reg8) -> Opcode {
     Opcode {
-        name: format!("DEC {}", r),
+        name: format!("DEC {r}"),
         action: Box::new(move |env: &mut Environment| {
             env.load_displacement(r);
 
@@ -71,7 +71,7 @@ pub fn build_inc_dec_rr(rr: Reg16, inc: bool) -> Opcode {
     let delta = if inc { 1 } else { -1_i16 as u16 };
     let mnemonic = if inc { "INC" } else { "DEC" };
     Opcode {
-        name: format!("{} {:?}", mnemonic, rr),
+        name: format!("{mnemonic} {rr:?}"),
         action: Box::new(move |env: &mut Environment| {
             let mut v = env.reg16_ext(rr);
             v = v.wrapping_add(delta);

@@ -787,6 +787,7 @@ impl Video {
                     if self.video_reparse[row] > 2 {
                         self.video_reparse[row] = 0;
                     } else {
+                        self.video_dirty[row / 8] = 1;
                         self.video_reparse[row] += 1;
                     }
                 }
@@ -817,10 +818,18 @@ impl Video {
     }
 
     pub fn update_shadow_memory(&mut self, aux_memory: bool, addr: u16, value: u8) {
+        let old_value;
         if aux_memory {
+            old_value = self.video_aux[addr as usize];
             self.video_aux[addr as usize] = value;
         } else {
+            old_value = self.video_main[addr as usize];
             self.video_main[addr as usize] = value;
+        }
+
+        // Do not reparse video if value is not changed
+        if old_value == value {
+            return
         }
 
         if (0x0400..=0x0bff).contains(&addr) {

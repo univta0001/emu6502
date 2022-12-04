@@ -161,9 +161,9 @@ impl Mouse {
         y = i32::max(self.clamp_min_y, i32::min(y, self.clamp_max_y));
 
         let text = if !keyboard_pressed {
-            format!("{},{},{}\r", x, y, button_state)
+            format!("{x},{y},{button_state}\r")
         } else {
-            format!("{},{},-{}\r", x, y, button_state)
+            format!("{x},{y},-{button_state}\r")
         };
 
         for (i, c) in text.as_bytes().iter().enumerate() {

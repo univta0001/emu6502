@@ -60,7 +60,7 @@ pub fn build_ld_r_r(dst: Reg8, src: Reg8, _special: bool) -> Opcode {
     {
         // Faster version
         Opcode {
-            name: format!("LD {}, {}", dst, src),
+            name: format!("LD {dst}, {src}"),
             action: Box::new(move |env: &mut Environment| {
                 let value = env.state.reg.get8(src);
                 env.state.reg.set8(dst, value);
@@ -69,7 +69,7 @@ pub fn build_ld_r_r(dst: Reg8, src: Reg8, _special: bool) -> Opcode {
     } else {
         // Full version
         Opcode {
-            name: format!("LD {}, {}", dst, src),
+            name: format!("LD {dst}, {src}"),
             action: Box::new(move |env: &mut Environment| {
                 env.load_displacement(src);
                 env.load_displacement(dst);
@@ -96,7 +96,7 @@ pub fn build_ld_r_r(dst: Reg8, src: Reg8, _special: bool) -> Opcode {
 
 pub fn build_ld_r_n(r: Reg8) -> Opcode {
     Opcode {
-        name: format!("LD {}, n", r),
+        name: format!("LD {r}, n"),
         action: Box::new(move |env: &mut Environment| {
             env.load_displacement(r);
 
@@ -109,7 +109,7 @@ pub fn build_ld_r_n(r: Reg8) -> Opcode {
 pub fn build_ld_a_prr(rr: Reg16) -> Opcode {
     // rr can be only BC or DE
     Opcode {
-        name: format!("LD A, ({:?})", rr),
+        name: format!("LD A, ({rr:?})"),
         action: Box::new(move |env: &mut Environment| {
             let address = env.state.reg.get16(rr);
             let value = env.sys.peek(address);
@@ -132,7 +132,7 @@ pub fn build_ld_a_pnn() -> Opcode {
 pub fn build_ld_prr_a(rr: Reg16) -> Opcode {
     // rr can be only BC or DE
     Opcode {
-        name: format!("LD ({:?}), A", rr),
+        name: format!("LD ({rr:?}), A"),
         action: Box::new(move |env: &mut Environment| {
             let value = env.state.reg.a();
             let address = env.state.reg.get16(rr);
@@ -155,7 +155,7 @@ pub fn build_ld_pnn_a() -> Opcode {
 // 16 bit load
 pub fn build_ld_rr_nn(rr: Reg16) -> Opcode {
     Opcode {
-        name: format!("LD {:?}, nn", rr),
+        name: format!("LD {rr:?}, nn"),
         action: Box::new(move |env: &mut Environment| {
             let value = env.advance_immediate16();
             env.set_reg16(rr, value);
@@ -175,7 +175,7 @@ pub fn build_ld_sp_hl() -> Opcode {
 
 pub fn build_ld_pnn_rr(rr: Reg16, _fast: bool) -> Opcode {
     Opcode {
-        name: format!("LD (nn), {:?}", rr),
+        name: format!("LD (nn), {rr:?}"),
         action: Box::new(move |env: &mut Environment| {
             let address = env.advance_immediate16();
             let value = env.reg16_ext(rr);
@@ -186,7 +186,7 @@ pub fn build_ld_pnn_rr(rr: Reg16, _fast: bool) -> Opcode {
 
 pub fn build_ld_rr_pnn(rr: Reg16, _fast: bool) -> Opcode {
     Opcode {
-        name: format!("LD {:?}, (nn)", rr),
+        name: format!("LD {rr:?}, (nn)"),
         action: Box::new(move |env: &mut Environment| {
             let address = env.advance_immediate16();
             let value = env.sys.peek16(address);
@@ -248,7 +248,7 @@ pub fn build_ex_psp_hl() -> Opcode {
 
 pub fn build_ld_block((inc, repeat, postfix): (bool, bool, &'static str)) -> Opcode {
     Opcode {
-        name: format!("LD{}", postfix),
+        name: format!("LD{postfix}"),
         action: Box::new(move |env: &mut Environment| {
             let value = env.reg8_ext(Reg8::_HL);
             let address = env.state.reg.get16(Reg16::DE);
