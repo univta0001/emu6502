@@ -22,7 +22,7 @@ spin_sleep = "1.1.1"
 
 [build-dependencies]
 embed-resource = "1.7.4"
-cc = "1.0.76"
+cc = "1.0.77"
 
 [features]
 #default = [ ]
