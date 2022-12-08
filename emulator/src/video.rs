@@ -1,5 +1,5 @@
-use crate::ntsc::*;
 use crate::bus::Tick;
+use crate::ntsc::*;
 
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -818,11 +818,15 @@ impl Video {
     }
 
     pub fn update_shadow_memory(&mut self, aux_memory: bool, addr: u16, value: u8) {
-        let mem = if aux_memory { &mut self.video_aux } else { &mut self.video_main };
+        let mem = if aux_memory {
+            &mut self.video_aux
+        } else {
+            &mut self.video_main
+        };
 
         // Do not reparse video if value is not changed
         if mem[addr as usize] == value {
-            return
+            return;
         }
 
         mem[addr as usize] = value;

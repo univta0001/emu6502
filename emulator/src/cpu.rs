@@ -425,11 +425,11 @@ mod interrupt {
     };
 }
 
-fn absolute_x_force_tick(op: &OpCode, apple2e: bool) -> bool {
-    if apple2e {
-        matches!(op.code, 0x9d | 0x3e | 0x7e | 0x1e | 0x5e | 0xfe | 0xde)
-    } else {
+fn absolute_x_force_tick(op: &OpCode, m65c02: bool) -> bool {
+    if m65c02 {
         matches!(op.code, 0x9d | 0xfe | 0xde)
+    } else {
+        matches!(op.code, 0x9d | 0xfe | 0xde | 0x3e | 0x7e | 0x1e | 0x5e)
     }
 
     /*
@@ -560,7 +560,7 @@ impl CPU {
                 self.bus.unclocked_addr_read(addr);
             }
 
-            if !self.callback && (page_crossed || absolute_x_force_tick(op, self.is_apple2e())) {
+            if !self.callback && (page_crossed || absolute_x_force_tick(op, self.m65c02)) {
                 self.tick();
             }
             addr
@@ -2057,8 +2057,12 @@ impl CpuStats {
         }
     }
 
-    fn absolute_x_force_tick(&self, op: &OpCode) -> bool {
-        matches!(op.code, 0x9d | 0x3e | 0x7e | 0x1e | 0x5e | 0xfe | 0xde)
+    fn absolute_x_force_tick(&self, op: &OpCode, m65c02: bool) -> bool {
+        if m65c02 {
+            matches!(op.code, 0x9d | 0xfe | 0xde)
+        } else {
+            matches!(op.code, 0x9d | 0xfe | 0xde | 0x3e | 0x7e | 0x1e | 0x5e)
+        }
     }
 
     fn absolute_y_force_tick(&self, op: &OpCode) -> bool {
@@ -2081,7 +2085,9 @@ impl CpuStats {
     }
 
     fn update_cross_page(&mut self, cpu: &mut CPU, opcode: &OpCode) {
-        if opcode.mode == AddressingMode::Absolute_X && !self.absolute_x_force_tick(opcode) {
+        if opcode.mode == AddressingMode::Absolute_X
+            && !self.absolute_x_force_tick(opcode, cpu.m65c02)
+        {
             let base = self.next_word(cpu);
             let addr = base.wrapping_add(cpu.register_x as u16);
             let page_crossed = self.page_cross(base, addr);
@@ -2323,17 +2329,31 @@ mod test {
         cpu.bus.disable_disk = true;
         cpu.m65c02 = false;
         cpu.load_and_run(&[0x6c, 0x03, 0x00, 0x05, 0x00, 0x00]);
-        assert_eq!(cpu.bus.get_cycles(), 5, "Jmp Indirect 6502 should take 5 cycles");
+        assert_eq!(
+            cpu.bus.get_cycles(),
+            5,
+            "Jmp Indirect 6502 should take 5 cycles"
+        );
         cpu.bus.set_cycles(0);
         cpu.load_and_run(&[0x6c, 0xff, 0x00]);
-        assert_eq!(cpu.program_counter, 0x6c03, "Jmp Indirect 6502 PC should have 0x6c03");
+        assert_eq!(
+            cpu.program_counter, 0x6c03,
+            "Jmp Indirect 6502 PC should have 0x6c03"
+        );
         cpu.bus.set_cycles(0);
         cpu.m65c02 = true;
         cpu.load_and_run(&[0x6c, 0x03, 0x00, 0x05, 0x00, 0x00]);
-        assert_eq!(cpu.bus.get_cycles(), 6, "Jmp Indirect 65C02 should take 6 cycles");
+        assert_eq!(
+            cpu.bus.get_cycles(),
+            6,
+            "Jmp Indirect 65C02 should take 6 cycles"
+        );
         cpu.bus.set_cycles(0);
         cpu.load_and_run(&[0x6c, 0xff, 0x00]);
-        assert_eq!(cpu.program_counter, 0xff01, "Jmp Indirect 65C02 PC should have 0xff01");
+        assert_eq!(
+            cpu.program_counter, 0xff01,
+            "Jmp Indirect 65C02 PC should have 0xff01"
+        );
     }
 
     #[test]
@@ -2689,7 +2709,7 @@ mod test {
         cpu.load_and_run(&opcodes);
         assert_eq!(
             cpu.bus.get_cycles(),
-            8,
+            9,
             "ASL ADDR,X (0x1e) opcodes should have 7 cycles"
         );
         opcodes = [0xa2, 0x01, 0x1e, 0xff, 0x00, 0x00];
@@ -2706,7 +2726,7 @@ mod test {
         cpu.load_and_run(&opcodes);
         assert_eq!(
             cpu.bus.get_cycles(),
-            8,
+            9,
             "LSR ADDR,X (0x1e) opcodes should have 7 cycles"
         );
         opcodes = [0xa2, 0x01, 0x5e, 0xff, 0x00, 0x00];
@@ -2723,7 +2743,7 @@ mod test {
         cpu.load_and_run(&opcodes);
         assert_eq!(
             cpu.bus.get_cycles(),
-            8,
+            9,
             "ROL ADDR,X (0x1e) opcodes should have 7 cycles"
         );
         opcodes = [0xa2, 0x01, 0x3e, 0xff, 0x00, 0x00];
@@ -2740,7 +2760,7 @@ mod test {
         cpu.load_and_run(&opcodes);
         assert_eq!(
             cpu.bus.get_cycles(),
-            8,
+            9,
             "ROR ADDR,X (0x1e) opcodes should have 7 cycles"
         );
         opcodes = [0xa2, 0x01, 0x7e, 0xff, 0x00, 0x00];

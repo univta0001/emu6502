@@ -53,7 +53,6 @@ impl Audio {
         }
     }
 
-
     pub fn is_audio_active(&self) -> bool {
         self.audio_active
     }

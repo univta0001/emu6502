@@ -1,4 +1,4 @@
-use crate::bus::{Tick,Card};
+use crate::bus::{Card, Tick};
 use crate::mmu::Mmu;
 use crate::video::Video;
 use std::ffi::OsStr;
