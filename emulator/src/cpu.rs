@@ -1589,6 +1589,7 @@ impl CPU {
                         self.bus.addr_read_u16(mem_address)
                     }
                 } else {
+                    self.tick();
                     self.bus.addr_read_u16(mem_address)
                 };
 
@@ -2309,6 +2310,24 @@ mod test {
         cpu.bus.set_cycles(0);
         cpu.load_and_run(&[0xa2, 0x80, 0xbd, 0x80, 0x20, 0x00]);
         assert_eq!(cpu.bus.get_cycles(), 7);
+    }
+
+    #[test]
+    fn jmp_indirect_cycle() {
+        let bus = Bus::default();
+        let mut cpu = CPU::new(bus);
+        cpu.reset();
+        cpu.bus.set_cycles(0);
+        cpu.bus.disable_audio = true;
+        cpu.bus.disable_video = true;
+        cpu.bus.disable_disk = true;
+        cpu.m65c02 = false;
+        cpu.load_and_run(&[0x6c, 0x03, 0x00, 0x05, 0x00, 0x00]);
+        assert_eq!(cpu.bus.get_cycles(), 5, "Jmp Indirect 6502 should take 5 cycles");
+        cpu.bus.set_cycles(0);
+        cpu.m65c02 = true;
+        cpu.load_and_run(&[0x6c, 0x03, 0x00, 0x05, 0x00, 0x00]);
+        assert_eq!(cpu.bus.get_cycles(), 6, "Jmp Indirect 65C02 should take 6 cycles");
     }
 
     #[test]
