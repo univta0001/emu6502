@@ -2325,9 +2325,15 @@ mod test {
         cpu.load_and_run(&[0x6c, 0x03, 0x00, 0x05, 0x00, 0x00]);
         assert_eq!(cpu.bus.get_cycles(), 5, "Jmp Indirect 6502 should take 5 cycles");
         cpu.bus.set_cycles(0);
+        cpu.load_and_run(&[0x6c, 0xff, 0x00]);
+        assert_eq!(cpu.program_counter, 0x6c03, "Jmp Indirect 6502 PC should have 0x6c03");
+        cpu.bus.set_cycles(0);
         cpu.m65c02 = true;
         cpu.load_and_run(&[0x6c, 0x03, 0x00, 0x05, 0x00, 0x00]);
         assert_eq!(cpu.bus.get_cycles(), 6, "Jmp Indirect 65C02 should take 6 cycles");
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&[0x6c, 0xff, 0x00]);
+        assert_eq!(cpu.program_counter, 0xff01, "Jmp Indirect 65C02 PC should have 0xff01");
     }
 
     #[test]
