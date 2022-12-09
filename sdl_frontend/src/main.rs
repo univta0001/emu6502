@@ -1237,7 +1237,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     if slot_mboard > 2 {
         panic!("Maximum of two mockingboards supported");
-    } else {
+    } else if slot_mboard > 0 {
         let audio = &mut cpu.bus.audio;
         audio.mboard.clear();
         for _ in 0..slot_mboard {
