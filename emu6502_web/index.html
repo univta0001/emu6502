@@ -14,8 +14,8 @@
                 <audio></audio>
             </div>
             <div id="motor" class="absolute top-0 left-0 opacity-25" style="visibility:hidden">
-                <svg height="20" width="20">
-                    <circle cx="10" cy="10" r="5" fill="red" />
+                <svg height="20" width="1120">
+                    <circle cx="1110" cy="10" r="5" fill="red" />
                 </svg>
             </div>
         </div>
@@ -37,7 +37,7 @@
             await init();
             const emu6502 = await wasm.init_emul();
 
-            const load_disk = (success,filter=".dsk,.po,.woz,.hdv,.2mg,.dsk.gz,.po.gz,.woz.gz") => {
+            const load_disk = (success,filter=".nib,.dsk,.po,.woz,.hdv,.2mg,.nib.gz,.dsk.gz,.po.gz,.woz.gz") => {
                 var frm = document.createElement("form");
                 var upload = document.createElement("input");
                 upload.type = "file";
