@@ -7,7 +7,7 @@ use crate::noslotclock::NoSlotClock;
 use crate::parallel::ParallelCard;
 use crate::ramfactor::RamFactor;
 use crate::video::Video;
-use rand::Rng;
+//use rand::Rng;
 //use std::collections::HashMap;
 
 #[cfg(feature = "serde_support")]
@@ -221,17 +221,17 @@ impl Bus {
             bus.unclocked_addr_write(addr + 1, 0xff);
         }
 
-        let mut rng = rand::thread_rng();
+        //let mut rng = rand::thread_rng();
         for addr in (0x0000..0xc000).step_by(512) {
-            let rand_value = rng.gen_range(0..=65535);
+            let rand_value = fastrand::u16(0..=65535);
             bus.unclocked_addr_write(addr + 0x28, (rand_value & 0xff) as u8);
             bus.unclocked_addr_write(addr + 0x29, ((rand_value >> 8) & 0xff) as u8);
-            let rand_value = rng.gen_range(0..=65535);
+            let rand_value = fastrand::u16(0..=65535);
             bus.unclocked_addr_write(addr + 0x68, (rand_value & 0xff) as u8);
             bus.unclocked_addr_write(addr + 0x99, ((rand_value >> 8) & 0xff) as u8);
         }
 
-        let rand_value = rng.gen_range(0..=65535);
+        let rand_value = fastrand::u16(0..=65535);
         bus.unclocked_addr_write(0x4e, (rand_value & 0xff) as u8);
         bus.unclocked_addr_write(0x4f, ((rand_value >> 8) & 0xff) as u8);
         bus.unclocked_addr_write(0x620b, 0);
@@ -896,8 +896,8 @@ impl Bus {
         if !self.joystick_jitter {
             value
         } else {
-            let mut rng = rand::thread_rng();
-            let jitter: i8 = rng.gen_range(-4..5);
+            //let mut rng = rand::thread_rng();
+            let jitter: i8 = fastrand::i8(-4..5);
             if jitter < 0 {
                 value.saturating_sub((-jitter) as u16)
             } else {

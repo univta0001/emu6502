@@ -1,7 +1,7 @@
 use crate::bus::{Card, Tick};
 use crate::mmu::Mmu;
 use crate::video::Video;
-use rand::prelude::*;
+//use rand::prelude::*;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::prelude::*;
@@ -1982,10 +1982,10 @@ impl DiskDrive {
             disk.trackmap[tmap_track as usize]
         };
 
-        let mut rng = rand::thread_rng();
+        //let mut rng = rand::thread_rng();
 
         // Only add disk jitter for read operations
-        let disk_jitter = if rng.gen::<f32>() < self.random_one_rate && !self.q7 {
+        let disk_jitter = if fastrand::f32() < self.random_one_rate && !self.q7 {
             0.0125
         } else {
             0.0
@@ -2023,7 +2023,12 @@ impl DiskDrive {
                 }
             }
 
-            self.update_disk_bit_buffer(rng);
+            if self.bit_buffer & 0x0f != 0 {
+               self.pulse = (self.bit_buffer & 0x2) >> 1;
+            } else {
+                self.update_disk_bit_buffer(fastrand::f32())
+            }
+
             self.lss_cycle -= optimal_timing;
         }
 
@@ -2032,19 +2037,13 @@ impl DiskDrive {
         }
     }
 
-    fn update_disk_bit_buffer(&mut self, mut rng: rand::rngs::ThreadRng) {
-        if self.bit_buffer & 0x0f != 0 {
-            self.pulse = (self.bit_buffer & 0x2) >> 1;
+    fn update_disk_bit_buffer(&mut self, random_value: f32) {
+        // The random bit 1 is generated with probability 0.3 or 30%
+        if random_value < self.random_one_rate {
+            self.pulse = 1
         } else {
-            // Based on WOZ2 (https://applesaucefdc.com/woz/reference2/)
-            // The random bit 1 is generated with probability 0.3 or 30%
-            let random_value: f32 = rng.gen();
-            if random_value < self.random_one_rate {
-                self.pulse = 1
-            } else {
-                self.pulse = 0
-            };
-        }
+            self.pulse = 0
+        };
     }
 
     pub fn set_disable_fast_disk(&mut self, state: bool) {
