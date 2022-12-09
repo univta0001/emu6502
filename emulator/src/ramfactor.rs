@@ -2,21 +2,23 @@ use crate::bus::Card;
 use crate::mmu::Mmu;
 use crate::video::Video;
 
-#[cfg(feature = "serde_support")]
+#[cfg(all(feature = "serde_support", feature = "flate"))]
 use flate2::read::GzDecoder;
-#[cfg(feature = "serde_support")]
+#[cfg(all(feature = "serde_support", feature = "flate"))]
 use flate2::write::GzEncoder;
-#[cfg(feature = "serde_support")]
+#[cfg(all(feature = "serde_support", feature = "flate"))]
 use flate2::Compression;
-#[cfg(feature = "serde_support")]
+#[cfg(all(feature = "serde_support", feature = "flate"))]
 use serde::de::{Error, Unexpected};
-#[cfg(feature = "serde_support")]
+#[cfg(all(feature = "serde_support", feature = "flate"))]
 use serde::ser;
 #[cfg(feature = "serde_support")]
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-#[cfg(feature = "serde_support")]
+use serde::{Deserialize, Serialize};
+#[cfg(all(feature = "serde_support", feature = "flate"))]
+use serde::{Deserializer, Serializer};
+#[cfg(all(feature = "serde_support", feature = "flate"))]
 use std::collections::BTreeMap;
-#[cfg(feature = "serde_support")]
+#[cfg(all(feature = "serde_support", feature = "flate"))]
 use std::io::{Read, Write};
 
 const ROM: [u8; 8192] = [
@@ -544,7 +546,7 @@ pub struct RamFactor {
     addr: usize,
 
     #[cfg_attr(
-        feature = "serde_support",
+        all(feature = "serde_support", feature = "flate"),
         serde(serialize_with = "as_hex", deserialize_with = "from_hex_mem")
     )]
     #[cfg_attr(feature = "serde_support", serde(default = "default_mem"))]
@@ -552,7 +554,7 @@ pub struct RamFactor {
 }
 
 // Serialization / Deserialization functions
-#[cfg(feature = "serde_support")]
+#[cfg(all(feature = "serde_support", feature = "flate"))]
 fn hex_to_u8(c: u8) -> std::io::Result<u8> {
     match c {
         b'A'..=b'F' => Ok(c - b'A' + 10),
@@ -565,7 +567,7 @@ fn hex_to_u8(c: u8) -> std::io::Result<u8> {
     }
 }
 
-#[cfg(feature = "serde_support")]
+#[cfg(all(feature = "serde_support", feature = "flate"))]
 fn as_hex<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
     let mut map = BTreeMap::new();
     let mut addr = 0;
@@ -613,7 +615,7 @@ fn as_hex<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
     BTreeMap::serialize(&map, serializer)
 }
 
-#[cfg(feature = "serde_support")]
+#[cfg(all(feature = "serde_support", feature = "flate"))]
 fn from_hex<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
     let map = BTreeMap::<String, String>::deserialize(deserializer)?;
 
@@ -658,7 +660,7 @@ fn from_hex<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Er
     Ok(v)
 }
 
-#[cfg(feature = "serde_support")]
+#[cfg(all(feature = "serde_support", feature = "flate"))]
 fn from_hex_mem<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
     from_hex(deserializer)
 }

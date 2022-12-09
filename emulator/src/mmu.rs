@@ -1,20 +1,20 @@
 use crate::bus::{ROM_END, ROM_START};
 
-#[cfg(feature = "serde_support")]
+#[cfg(all(feature = "serde_support", feature = "flate"))]
 use flate2::read::GzDecoder;
-#[cfg(feature = "serde_support")]
+#[cfg(all(feature = "serde_support", feature = "flate"))]
 use flate2::write::GzEncoder;
-#[cfg(feature = "serde_support")]
+#[cfg(all(feature = "serde_support", feature = "flate"))]
 use flate2::Compression;
 #[cfg(feature = "serde_support")]
 use serde::de::{Error, Unexpected};
-#[cfg(feature = "serde_support")]
+#[cfg(all(feature = "serde_support", feature = "flate"))]
 use serde::ser;
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 #[cfg(feature = "serde_support")]
 use std::collections::BTreeMap;
-#[cfg(feature = "serde_support")]
+#[cfg(all(feature = "serde_support", feature = "flate"))]
 use std::io::{Read, Write};
 
 #[derive(Debug)]
@@ -72,7 +72,7 @@ pub struct Mmu {
     pub aux_bank: u8,
 
     #[cfg_attr(
-        feature = "serde_support",
+        all(feature = "serde_support", feature = "flate"),
         serde(serialize_with = "as_opt_hex", deserialize_with = "from_hex_opt")
     )]
     pub ext_aux_mem: Option<Vec<u8>>,
@@ -357,7 +357,7 @@ fn hex_to_u8(c: u8) -> std::io::Result<u8> {
     }
 }
 
-#[cfg(feature = "serde_support")]
+#[cfg(all(feature = "serde_support", feature = "flate"))]
 fn as_opt_hex<S: Serializer>(value: &Option<Vec<u8>>, serializer: S) -> Result<S::Ok, S::Error> {
     if let Some(ref v) = *value {
         return as_hex_6bytes(v, serializer);
@@ -365,7 +365,7 @@ fn as_opt_hex<S: Serializer>(value: &Option<Vec<u8>>, serializer: S) -> Result<S
     serializer.serialize_none()
 }
 
-#[cfg(feature = "serde_support")]
+#[cfg(all(feature = "serde_support", feature = "flate"))]
 fn as_hex_6bytes<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
     let mut map = BTreeMap::new();
     let mut addr = 0;
@@ -426,7 +426,7 @@ fn as_hex<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
     BTreeMap::serialize(&map, serializer)
 }
 
-#[cfg(feature = "serde_support")]
+#[cfg(all(feature = "serde_support", feature = "flate"))]
 fn from_hex_opt<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<Vec<u8>>, D::Error> {
     let map: Option<BTreeMap<String, String>> = Option::deserialize(deserializer)?;
 

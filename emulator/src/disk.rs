@@ -1,17 +1,23 @@
 use crate::bus::{Card, Tick};
 use crate::mmu::Mmu;
 use crate::video::Video;
-use flate2::read::GzDecoder;
-use flate2::write::GzEncoder;
-use flate2::Compression;
 use rand::prelude::*;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::prelude::*;
-use std::io::Read;
 use std::io::{self};
 use std::path::Path;
 use std::path::PathBuf;
+
+#[cfg(feature = "flate")]
+use std::io::Read;
+
+#[cfg(feature = "flate")]
+use flate2::read::GzDecoder;
+#[cfg(feature = "flate")]
+use flate2::write::GzEncoder;
+#[cfg(feature = "flate")]
+use flate2::Compression;
 
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
@@ -629,6 +635,7 @@ fn _decode_chunk_id(chunk_id: u32) -> String {
     s
 }
 
+#[cfg(feature = "flate")]
 fn decompress_array_gz(data: &[u8]) -> io::Result<Vec<u8>> {
     let mut buffer: Vec<u8> = Vec::new();
     let mut gz = GzDecoder::new(data);
@@ -639,6 +646,8 @@ fn decompress_array_gz(data: &[u8]) -> io::Result<Vec<u8>> {
 // It is assumed that the woz structure is the same when saving back
 fn save_woz_file(disk: &mut Disk) -> io::Result<()> {
     let path = Path::new(&disk.filename);
+
+    #[cfg(feature = "flate")]
     let dsk: Vec<u8> = if path
         .extension()
         .unwrap()
@@ -649,6 +658,9 @@ fn save_woz_file(disk: &mut Disk) -> io::Result<()> {
     } else {
         std::fs::read(path)?
     };
+
+    #[cfg(not(feature = "flate"))]
+    let dsk: Vec<u8> = std::fs::read(path)?;
 
     if dsk.len() <= 12 {
         return Err(std::io::Error::new(
@@ -736,24 +748,34 @@ fn save_woz_file(disk: &mut Disk) -> io::Result<()> {
     newdsk[11] = ((crc32_value >> 24) & 0xff) as u8;
 
     // Write to new file
-    let path = Path::new(&disk.filename);
-    let mut gz_compress = false;
-    if path
-        .extension()
-        .unwrap()
-        .eq_ignore_ascii_case(OsStr::new("gz"))
+
+    #[cfg(feature = "flate")]
     {
-        gz_compress = true;
+        let path = Path::new(&disk.filename);
+        let mut gz_compress = false;
+        if path
+            .extension()
+            .unwrap()
+            .eq_ignore_ascii_case(OsStr::new("gz"))
+        {
+            gz_compress = true;
+        }
+
+        if !gz_compress {
+            let mut file = File::create(&disk.filename)?;
+            file.write_all(&newdsk)?;
+        } else {
+            let mut file = GzEncoder::new(
+                io::BufWriter::new(File::create(&disk.filename)?),
+                Compression::best(),
+            );
+            file.write_all(&newdsk)?;
+        }
     }
 
-    if !gz_compress {
+    #[cfg(not(feature = "flate"))]
+    {
         let mut file = File::create(&disk.filename)?;
-        file.write_all(&newdsk)?;
-    } else {
-        let mut file = GzEncoder::new(
-            io::BufWriter::new(File::create(&disk.filename)?),
-            Compression::best(),
-        );
         file.write_all(&newdsk)?;
     }
 
@@ -884,24 +906,33 @@ fn convert_woz_to_dsk(disk: &mut Disk) -> io::Result<()> {
     }
 
     // Write to new file
-    let path = Path::new(&disk.filename);
-    let mut gz_compress = false;
-    if path
-        .extension()
-        .unwrap()
-        .eq_ignore_ascii_case(OsStr::new("gz"))
+
+    #[cfg(feature = "flate")]
     {
-        gz_compress = true;
+        let path = Path::new(&disk.filename);
+        let mut gz_compress = false;
+        if path
+            .extension()
+            .unwrap()
+            .eq_ignore_ascii_case(OsStr::new("gz"))
+        {
+            gz_compress = true;
+        }
+        if !gz_compress {
+            let mut file = File::create(&disk.filename)?;
+            file.write_all(&data)?;
+        } else {
+            let mut file = GzEncoder::new(
+                io::BufWriter::new(File::create(&disk.filename)?),
+                Compression::best(),
+            );
+            file.write_all(&data)?;
+        }
     }
 
-    if !gz_compress {
+    #[cfg(not(feature = "flate"))]
+    {
         let mut file = File::create(&disk.filename)?;
-        file.write_all(&data)?;
-    } else {
-        let mut file = GzEncoder::new(
-            io::BufWriter::new(File::create(&disk.filename)?),
-            Compression::best(),
-        );
         file.write_all(&data)?;
     }
 
@@ -918,24 +949,33 @@ fn convert_woz_to_nib(disk: &mut Disk) -> io::Result<()> {
     }
 
     // Write to new file
-    let path = Path::new(&disk.filename);
-    let mut gz_compress = false;
-    if path
-        .extension()
-        .unwrap()
-        .eq_ignore_ascii_case(OsStr::new("gz"))
+    #[cfg(feature = "flate")]
     {
-        gz_compress = true;
+        let path = Path::new(&disk.filename);
+        let mut gz_compress = false;
+        if path
+            .extension()
+            .unwrap()
+            .eq_ignore_ascii_case(OsStr::new("gz"))
+        {
+            gz_compress = true;
+        }
+
+        if !gz_compress {
+            let mut file = File::create(&disk.filename)?;
+            file.write_all(&data)?;
+        } else {
+            let mut file = GzEncoder::new(
+                io::BufWriter::new(File::create(&disk.filename)?),
+                Compression::best(),
+            );
+            file.write_all(&data)?;
+        }
     }
 
-    if !gz_compress {
+    #[cfg(not(feature = "flate"))]
+    {
         let mut file = File::create(&disk.filename)?;
-        file.write_all(&data)?;
-    } else {
-        let mut file = GzEncoder::new(
-            io::BufWriter::new(File::create(&disk.filename)?),
-            Compression::best(),
-        );
         file.write_all(&data)?;
     }
 
@@ -1257,6 +1297,8 @@ impl DiskDrive {
         P: AsRef<Path>,
     {
         let filename = filename_path.as_ref();
+
+        #[cfg(feature = "flate")]
         let dsk: Vec<u8> = if filename
             .extension()
             .unwrap()
@@ -1267,6 +1309,9 @@ impl DiskDrive {
         } else {
             std::fs::read(filename)?
         };
+
+        #[cfg(not(feature = "flate"))]
+        let dsk: Vec<u8> = std::fs::read(filename)?;
 
         if dsk.len() != DSK_IMAGE_SIZE && dsk.len() != DSK40_IMAGE_SIZE {
             return Err(std::io::Error::new(
@@ -1285,6 +1330,8 @@ impl DiskDrive {
         P: AsRef<Path>,
     {
         let filename = filename_path.as_ref();
+
+        #[cfg(feature = "flate")]
         let dsk: Vec<u8> = if filename
             .extension()
             .unwrap()
@@ -1296,6 +1343,9 @@ impl DiskDrive {
             std::fs::read(filename)?
         };
 
+        #[cfg(not(feature = "flate"))] 
+        let dsk: Vec<u8> = std::fs::read(filename)?;    
+
         if dsk.len() != NIB_IMAGE_SIZE {
             return Err(std::io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -1306,11 +1356,13 @@ impl DiskDrive {
         self.load_dsk_po_nib_array_to_woz(&dsk, DiskType::Nib, Self::convert_nib_track_to_woz)
     }
 
+    #[cfg(feature = "flate")]
     pub fn load_nib_gz_array_to_woz(&mut self, dsk: &[u8]) -> io::Result<()> {
         let data = decompress_array_gz(dsk)?;
         self.load_dsk_po_nib_array_to_woz(&data, DiskType::Nib, Self::convert_nib_track_to_woz)
     }
 
+    #[cfg(feature = "flate")]
     pub fn load_dsk_po_gz_array_to_woz(&mut self, dsk: &[u8], po_mode: bool) -> io::Result<()> {
         let data = decompress_array_gz(dsk)?;
 
@@ -1442,6 +1494,8 @@ impl DiskDrive {
         P: AsRef<Path>,
     {
         let filename = filename_path.as_ref();
+
+        #[cfg(feature = "flate")]
         let dsk: Vec<u8> = if filename
             .extension()
             .unwrap()
@@ -1453,9 +1507,13 @@ impl DiskDrive {
             std::fs::read(filename)?
         };
 
+        #[cfg(not(feature = "flate"))]
+        let dsk: Vec<u8> = std::fs::read(filename)?;
+
         self.load_woz_array(&dsk)
     }
 
+    #[cfg(feature = "flate")]
     pub fn load_woz_gz_array(&mut self, dsk: &[u8]) -> io::Result<()> {
         let data = decompress_array_gz(dsk)?;
         self.load_woz_array(&data)
