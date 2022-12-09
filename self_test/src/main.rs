@@ -5,10 +5,10 @@ use emu6502::cpu::{CpuStats, CPU};
 use std::error::Error;
 use std::io::{self, BufWriter, Write};
 
-#[cfg(all(target_arch = "x86_64", target_os = "linux"))]
+#[cfg(all(target_os = "linux"))]
 use std::fs::File;
 
-#[cfg(all(target_arch = "x86_64", target_os = "linux"))]
+#[cfg(all(target_os = "linux"))]
 use pprof::protos::Message;
 
 #[rustfmt::skip]
@@ -37,7 +37,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     let now = std::time::Instant::now();
 
-    #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
+    #[cfg(all(target_os = "linux"))]
     let guard = pprof::ProfilerGuard::new(100).unwrap();
 
     cpu.run_with_callback(|_cpu| {
