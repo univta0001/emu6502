@@ -2024,7 +2024,7 @@ impl DiskDrive {
             }
 
             if self.bit_buffer & 0x0f != 0 {
-               self.pulse = (self.bit_buffer & 0x2) >> 1;
+                self.pulse = (self.bit_buffer & 0x2) >> 1;
             } else {
                 self.update_disk_bit_buffer(fastrand::f32())
             }

@@ -321,6 +321,14 @@ impl Bus {
         }
     }
 
+    pub fn clear_device(&mut self, device: IODevice) {
+        for i in 1..8 {
+            if self.io_slot[i] == device {
+                self.io_slot[i] = IODevice::None
+            }
+        }
+    }
+
     fn iodevice_io_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
         let slot = (((addr & 0x00ff) - 0x0080) >> 4) as usize;
         if slot < self.io_slot.len() {

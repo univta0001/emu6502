@@ -852,10 +852,11 @@ fn register_device(cpu: &mut CPU, device: &str, slot: usize, mboard: &mut usize)
         "none" => cpu.bus.register_device(IODevice::None, slot),
         "harddisk" => cpu.bus.register_device(IODevice::HardDisk, slot),
         "mboard" => {
-            cpu.bus.register_device(IODevice::Mockingboard(*mboard), slot);
-            if *mboard == 0 && slot != 4 {
-                cpu.bus.unregister_device(4);
+            if *mboard == 0 {
+                cpu.bus.clear_device(IODevice::Mockingboard(0));
             }
+            cpu.bus
+                .register_device(IODevice::Mockingboard(*mboard), slot);
         }
         "mouse" => cpu.bus.register_device(IODevice::Mouse, slot),
         "parallel" => cpu.bus.register_device(IODevice::Printer, slot),
@@ -1204,42 +1205,42 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         load_harddisk(&mut cpu, path, 1)?;
     }
 
-    let mut mboard = 0;
+    let mut slot_mboard = 0;
 
     if let Some(device) = pargs.opt_value_from_str::<_, String>("--s1")? {
-        register_device(&mut cpu, &device, 1, &mut mboard);
+        register_device(&mut cpu, &device, 1, &mut slot_mboard);
     }
 
     if let Some(device) = pargs.opt_value_from_str::<_, String>("--s2")? {
-        register_device(&mut cpu, &device, 2, &mut mboard);
+        register_device(&mut cpu, &device, 2, &mut slot_mboard);
     }
 
     if let Some(device) = pargs.opt_value_from_str::<_, String>("--s3")? {
-        register_device(&mut cpu, &device, 3, &mut mboard);
+        register_device(&mut cpu, &device, 3, &mut slot_mboard);
     }
 
     if let Some(device) = pargs.opt_value_from_str::<_, String>("--s4")? {
-        register_device(&mut cpu, &device, 4, &mut mboard);
+        register_device(&mut cpu, &device, 4, &mut slot_mboard);
     }
 
     if let Some(device) = pargs.opt_value_from_str::<_, String>("--s5")? {
-        register_device(&mut cpu, &device, 5, &mut mboard);
+        register_device(&mut cpu, &device, 5, &mut slot_mboard);
     }
 
     if let Some(device) = pargs.opt_value_from_str::<_, String>("--s6")? {
-        register_device(&mut cpu, &device, 6, &mut mboard);
+        register_device(&mut cpu, &device, 6, &mut slot_mboard);
     }
 
     if let Some(device) = pargs.opt_value_from_str::<_, String>("--s7")? {
-        register_device(&mut cpu, &device, 7, &mut mboard);
+        register_device(&mut cpu, &device, 7, &mut slot_mboard);
     }
 
-    if mboard > 2 {
+    if slot_mboard > 2 {
         panic!("Maximum of two mockingboards supported");
     } else {
         let audio = &mut cpu.bus.audio;
         audio.mboard.clear();
-        for _ in 0..mboard {
+        for _ in 0..slot_mboard {
             audio.mboard.push(Mockingboard::new());
         }
     }
@@ -1254,6 +1255,11 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         for _ in 0..mboard {
             audio.mboard.push(Mockingboard::new());
         }
+
+        for i in 0..slot_mboard {
+            cpu.bus.clear_device(IODevice::Mockingboard(i))
+        }
+
         for i in 0..mboard {
             cpu.bus
                 .register_device(IODevice::Mockingboard(i as usize), (4 + i) as usize);
