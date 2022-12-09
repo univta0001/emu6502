@@ -161,13 +161,14 @@ impl NoSlotClock {
         //let now = Local::now();
 
         let utc = time::OffsetDateTime::UNIX_EPOCH
-            + time::Duration::try_from(
-                SystemTime::now()
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .unwrap(),
-            )
-            .unwrap();
-        let now = utc.to_offset(time::UtcOffset::current_local_offset().unwrap());
+            + SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap();
+        let now = if let Ok(offset) = time::UtcOffset::current_local_offset() {
+            utc.to_offset(offset)
+        } else {
+            utc
+        };
 
         let centisecond = now.nanosecond() / 1_000_000;
         self.clock_register
