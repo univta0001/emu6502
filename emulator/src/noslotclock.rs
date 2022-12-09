@@ -1,4 +1,10 @@
-use chrono::prelude::*;
+//use chrono::prelude::*;
+
+#[cfg(feature = "instant_time")]
+use instant::SystemTime;
+
+#[cfg(not(feature = "instant_time"))]
+use std::time::SystemTime;
 
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
@@ -152,7 +158,16 @@ impl NoSlotClock {
     }
 
     fn populate_clock_register(&mut self) {
-        let now = Local::now();
+        //let now = Local::now();
+
+        let utc = time::OffsetDateTime::UNIX_EPOCH
+            + time::Duration::try_from(
+                SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap(),
+            )
+            .unwrap();
+        let now = utc.to_offset(time::UtcOffset::current_local_offset().unwrap());
 
         let centisecond = now.nanosecond() / 1_000_000;
         self.clock_register
