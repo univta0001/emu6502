@@ -51,6 +51,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut output = io::stderr();
     writeln!(output, "Elapsed time:      {elapsed:>12} ms")?;
     writeln!(output, "Estimated MHz:    {estimated_mhz:>12.3} MHz")?;
+    writeln!(output, "PC:                   {:>#12x}", cpu.program_counter)?;
     writeln!(output, "Total Cycles:         {:>12}", cpu.bus.get_cycles())?;
     writeln!(output, "Total Instructions:   {instr_count:>12}")?;
 
