@@ -180,7 +180,7 @@ impl NoSlotClock {
         self.clock_register.write_nibble((date % 10) as usize);
         self.clock_register.write_nibble((date / 10) as usize);
 
-        let month = now.month();
+        let month = now.month() as usize;
         self.clock_register.write_nibble((month % 10) as usize);
         self.clock_register.write_nibble((month / 10) as usize);
 

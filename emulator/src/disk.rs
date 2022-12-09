@@ -1343,8 +1343,8 @@ impl DiskDrive {
             std::fs::read(filename)?
         };
 
-        #[cfg(not(feature = "flate"))] 
-        let dsk: Vec<u8> = std::fs::read(filename)?;    
+        #[cfg(not(feature = "flate"))]
+        let dsk: Vec<u8> = std::fs::read(filename)?;
 
         if dsk.len() != NIB_IMAGE_SIZE {
             return Err(std::io::Error::new(
