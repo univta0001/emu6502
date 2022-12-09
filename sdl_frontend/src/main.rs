@@ -847,11 +847,16 @@ fn draw_circle<T: RenderTarget>(
     Ok(())
 }
 
-fn register_device(cpu: &mut CPU, device: &str, slot: usize) {
+fn register_device(cpu: &mut CPU, device: &str, slot: usize, mboard: &mut usize) {
     match device {
         "none" => cpu.bus.register_device(IODevice::None, slot),
         "harddisk" => cpu.bus.register_device(IODevice::HardDisk, slot),
-        "mboard" => cpu.bus.register_device(IODevice::Mockingboard(0), slot),
+        "mboard" => {
+            cpu.bus.register_device(IODevice::Mockingboard(*mboard), slot);
+            if *mboard == 0 && slot != 4 {
+                cpu.bus.unregister_device(4);
+            }
+        }
         "mouse" => cpu.bus.register_device(IODevice::Mouse, slot),
         "parallel" => cpu.bus.register_device(IODevice::Printer, slot),
         "ramfactor" => cpu.bus.register_device(IODevice::RamFactor, slot),
@@ -860,6 +865,8 @@ fn register_device(cpu: &mut CPU, device: &str, slot: usize) {
         "diskii" => cpu.bus.register_device(IODevice::Disk, slot),
         _ => {}
     }
+
+    *mboard += 1;
 }
 
 fn load_serialized_image() -> Result<CPU, String> {
@@ -1197,32 +1204,44 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         load_harddisk(&mut cpu, path, 1)?;
     }
 
+    let mut mboard = 0;
+
     if let Some(device) = pargs.opt_value_from_str::<_, String>("--s1")? {
-        register_device(&mut cpu, &device, 1);
+        register_device(&mut cpu, &device, 1, &mut mboard);
     }
 
     if let Some(device) = pargs.opt_value_from_str::<_, String>("--s2")? {
-        register_device(&mut cpu, &device, 2);
+        register_device(&mut cpu, &device, 2, &mut mboard);
     }
 
     if let Some(device) = pargs.opt_value_from_str::<_, String>("--s3")? {
-        register_device(&mut cpu, &device, 3);
+        register_device(&mut cpu, &device, 3, &mut mboard);
     }
 
     if let Some(device) = pargs.opt_value_from_str::<_, String>("--s4")? {
-        register_device(&mut cpu, &device, 4);
+        register_device(&mut cpu, &device, 4, &mut mboard);
     }
 
     if let Some(device) = pargs.opt_value_from_str::<_, String>("--s5")? {
-        register_device(&mut cpu, &device, 5);
+        register_device(&mut cpu, &device, 5, &mut mboard);
     }
 
     if let Some(device) = pargs.opt_value_from_str::<_, String>("--s6")? {
-        register_device(&mut cpu, &device, 6);
+        register_device(&mut cpu, &device, 6, &mut mboard);
     }
 
     if let Some(device) = pargs.opt_value_from_str::<_, String>("--s7")? {
-        register_device(&mut cpu, &device, 7);
+        register_device(&mut cpu, &device, 7, &mut mboard);
+    }
+
+    if mboard > 2 {
+        panic!("Maximum of two mockingboards supported");
+    } else {
+        let audio = &mut cpu.bus.audio;
+        audio.mboard.clear();
+        for _ in 0..mboard {
+            audio.mboard.push(Mockingboard::new());
+        }
     }
 
     if let Some(mboard) = pargs.opt_value_from_str::<_, u8>("--mboard")? {
