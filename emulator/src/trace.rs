@@ -1,9 +1,7 @@
 use crate::bus::Mem;
 use crate::cpu::AddressingMode;
-use crate::cpu::CPU;
+use crate::cpu::{CPU,OPCODES,OpCode};
 //use std::collections::HashMap;
-use crate::cpu::OPCODES;
-use crate::opcodes::OpCode;
 use std::cmp::Ordering;
 
 pub fn hex_from_digit(num: u8) -> char {

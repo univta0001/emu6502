@@ -8,7 +8,6 @@ pub mod mockingboard;
 pub mod mouse;
 pub mod noslotclock;
 pub mod ntsc;
-pub mod opcodes;
 pub mod parallel;
 pub mod ramfactor;
 pub mod trace;
