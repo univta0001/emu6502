@@ -266,8 +266,6 @@ pub fn adjust_disassemble_addr(cpu: &mut CPU, addr: u16, step: i16) -> u16 {
 }
 
 pub fn disassemble(output: &mut String, cpu: &mut CPU) {
-    let old_callback = cpu.callback;
-    cpu.callback = true;
     let mut pc = cpu.program_counter;
     for _ in 0..20 {
         let code = cpu.bus.unclocked_addr_read(pc);
@@ -276,12 +274,9 @@ pub fn disassemble(output: &mut String, cpu: &mut CPU) {
         output.push_str("\r\n");
         pc = pc.wrapping_add(ops.len as u16);
     }
-    cpu.callback = old_callback;
 }
 
 pub fn disassemble_addr(output: &mut String, cpu: &mut CPU, addr: u16, size: usize) {
-    let old_callback = cpu.callback;
-    cpu.callback = true;
     let mut pc = addr;
     for _ in 0..size {
         let code = cpu.bus.unclocked_addr_read(pc);
@@ -290,7 +285,6 @@ pub fn disassemble_addr(output: &mut String, cpu: &mut CPU, addr: u16, size: usi
         output.push_str("\r\n");
         pc = pc.wrapping_add(ops.len as u16);
     }
-    cpu.callback = old_callback;
 }
 
 pub fn trace(output: &mut String, cpu: &mut CPU) {
@@ -299,10 +293,7 @@ pub fn trace(output: &mut String, cpu: &mut CPU) {
 }
 
 pub fn trace_addr(output: &mut String, cpu: &mut CPU, addr: u16) {
-    let old_callback = cpu.callback;
-    cpu.callback = true;
     dump_trace(output, cpu, addr, true);
-    cpu.callback = old_callback;
 }
 
 pub fn dump_trace(output: &mut String, cpu: &mut CPU, addr: u16, status: bool) {
@@ -312,7 +303,7 @@ pub fn dump_trace(output: &mut String, cpu: &mut CPU, addr: u16, status: bool) {
     let (mem_addr, stored_value) = match ops.mode {
         AddressingMode::Immediate | AddressingMode::NoneAddressing => (0, 0),
         _ => {
-            let addr = cpu.get_operand_address(ops, addr);
+            let addr = cpu.get_cb_operand_address(ops, addr);
             if addr >> 8 & 0xff == 0xc0 {
                 (addr, cpu.bus.mem_read(addr))
             } else {

@@ -329,7 +329,6 @@ pub struct CPU {
     pub stack_pointer: u8,
     pub bus: Bus,
     pub m65c02: bool,
-    pub callback: bool,
     pub full_speed: bool,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
@@ -462,7 +461,6 @@ impl CPU {
             bus,
             m65c02: false,
             m65c02_rockwell_disable: false,
-            callback: false,
             halt_cpu: false,
             alt_cpu: false,
             self_test: false,
@@ -497,166 +495,162 @@ impl CPU {
         value
     }
 
-    pub fn get_zeropage_addr(&mut self, _: &OpCode, addr: u16) -> u16 {
-        if !self.callback {
-            self.next_byte() as u16
-        } else {
-            self.bus.unclocked_addr_read(addr.wrapping_add(1)) as u16
-        }
+    pub fn get_zeropage_addr(&mut self) -> u16 {
+        self.next_byte() as u16
     }
 
-    pub fn get_absolute_addr(&mut self, _: &OpCode, addr: u16) -> u16 {
-        if !self.callback {
-            self.next_word()
-        } else {
-            self.bus.unclocked_addr_read_u16(addr.wrapping_add(1))
-        }
+    pub fn get_absolute_addr(&mut self) -> u16 {
+        self.next_word()
     }
 
-    pub fn get_zeropage_x_addr(&mut self, _: &OpCode, addr: u16) -> u16 {
-        if !self.callback {
-            let pos = self.next_byte();
+    pub fn get_zeropage_x_addr(&mut self) -> u16 {
+        let pos = self.next_byte();
+        self.tick();
+        pos.wrapping_add(self.register_x) as u16
+    }
+
+    pub fn get_zeropage_y_addr(&mut self) -> u16 {
+        let pos = self.next_byte();
+        self.tick();
+        pos.wrapping_add(self.register_y) as u16
+    }
+
+    pub fn get_zeropage_relative_addr(&mut self) -> u16 {
+        self.next_byte() as u16
+    }
+
+    pub fn get_absolute_x_addr(&mut self, op: &OpCode) -> u16 {
+        let base = self.next_word();
+        let addr = base.wrapping_add(self.register_x as u16);
+        let page_crossed = self.page_cross(base, addr);
+
+        // 6502 will perform false read when cross page
+        if !self.m65c02 && page_crossed {
+            self.bus.unclocked_addr_read(base & 0xff00 | addr & 0xff);
+        }
+
+        // Implement false read for RMW ABS,X instructions to pass a2audit test
+        if matches!(op.code, 0x1e | 0x3e | 0x5e | 0x7e | 0xde | 0xfe) {
+            self.bus.unclocked_addr_read(addr);
+        }
+
+        if page_crossed || absolute_x_force_tick(op, self.m65c02) {
             self.tick();
-            pos.wrapping_add(self.register_x) as u16
-        } else {
-            let pos = self.bus.unclocked_addr_read(addr.wrapping_add(1));
-            pos.wrapping_add(self.register_x) as u16
         }
+        addr
     }
 
-    pub fn get_zeropage_y_addr(&mut self, _: &OpCode, addr: u16) -> u16 {
-        if !self.callback {
-            let pos = self.next_byte();
+    pub fn get_absolute_y_addr(&mut self, op: &OpCode) -> u16 {
+        let base = self.next_word();
+        let addr = base.wrapping_add(self.register_y as u16);
+        let page_crossed = self.page_cross(base, addr);
+
+        if page_crossed || absolute_y_force_tick(op) {
             self.tick();
-            pos.wrapping_add(self.register_y) as u16
-        } else {
-            let pos = self.bus.unclocked_addr_read(addr.wrapping_add(1));
-            pos.wrapping_add(self.register_y) as u16
         }
+        addr
     }
 
-    pub fn get_zeropage_relative_addr(&mut self, _: &OpCode, addr: u16) -> u16 {
-        if !self.callback {
-            self.next_byte() as u16
-        } else {
-            self.bus.unclocked_addr_read(addr.wrapping_add(1)) as u16
-        }
+    pub fn get_indirect_zeropage_addr(&mut self) -> u16 {
+        let ptr = self.next_byte();
+        self.bus.addr_read_u16(ptr as u16)
     }
 
-    pub fn get_absolute_x_addr(&mut self, op: &OpCode, prog_addr: u16) -> u16 {
-        if !self.callback {
-            let base = self.next_word();
-            let addr = base.wrapping_add(self.register_x as u16);
-            let page_crossed = self.page_cross(base, addr);
+    pub fn get_indirect_x_addr(&mut self) -> u16 {
+        let base = self.next_byte();
+        let ptr = base.wrapping_add(self.register_x);
+        self.tick();
+        self.bus.addr_read_u16(ptr as u16)
+    }
 
-            // 6502 will perform false read when cross page
-            if !self.m65c02 && page_crossed {
-                self.bus.unclocked_addr_read(base & 0xff00 | addr & 0xff);
+    pub fn get_indirect_y_addr(&mut self, op: &OpCode) -> u16 {
+        let base = self.next_byte();
+        let deref_base = self.bus.addr_read_u16(base as u16);
+        let deref = deref_base.wrapping_add(self.register_y as u16);
+        let page_crossed = self.page_cross(deref, deref_base);
+
+        if !self.m65c02 {
+            // Only implement false read for 6502
+            if op.code == 0x91 {
+                self.bus.unclocked_addr_read(deref);
             }
-
-            // Implement false read for RMW ABS,X instructions to pass a2audit test
-            if matches!(op.code, 0x1e | 0x3e | 0x5e | 0x7e | 0xde | 0xfe) {
-                self.bus.unclocked_addr_read(addr);
-            }
-
-            if !self.callback && (page_crossed || absolute_x_force_tick(op, self.m65c02)) {
-                self.tick();
-            }
-            addr
-        } else {
-            let base = self.bus.unclocked_addr_read_u16(prog_addr.wrapping_add(1));
-            base.wrapping_add(self.register_x as u16)
         }
-    }
 
-    pub fn get_absolute_y_addr(&mut self, op: &OpCode, prog_addr: u16) -> u16 {
-        if !self.callback {
-            let base = self.next_word();
-            let addr = base.wrapping_add(self.register_y as u16);
-            let page_crossed = self.page_cross(base, addr);
-
-            if !self.callback && (page_crossed || absolute_y_force_tick(op)) {
-                self.tick();
-            }
-            addr
-        } else {
-            let base = self.bus.unclocked_addr_read_u16(prog_addr.wrapping_add(1));
-            base.wrapping_add(self.register_y as u16)
-        }
-    }
-
-    pub fn get_indirect_zeropage_addr(&mut self, _: &OpCode, prog_addr: u16) -> u16 {
-        if !self.callback {
-            let ptr = self.next_byte();
-            self.bus.addr_read_u16(ptr as u16)
-        } else {
-            let ptr = self.bus.unclocked_addr_read(prog_addr.wrapping_add(1));
-            self.bus.unclocked_addr_read_u16(ptr as u16)
-        }
-    }
-
-    pub fn get_indirect_x_addr(&mut self, _: &OpCode, prog_addr: u16) -> u16 {
-        if !self.callback {
-            let base = self.next_byte();
-            let ptr = base.wrapping_add(self.register_x);
+        if page_crossed || indirect_y_force_tick(op) {
             self.tick();
-            self.bus.addr_read_u16(ptr as u16)
-        } else {
-            let base = self.bus.unclocked_addr_read(prog_addr.wrapping_add(1));
-            let ptr = base.wrapping_add(self.register_x);
-            self.bus.unclocked_addr_read_u16(ptr as u16)
         }
+        deref
     }
 
-    pub fn get_indirect_y_addr(&mut self, op: &OpCode, prog_addr: u16) -> u16 {
-        if !self.callback {
-            let base = self.next_byte();
-            let deref_base = self.bus.addr_read_u16(base as u16);
-            let deref = deref_base.wrapping_add(self.register_y as u16);
-            let page_crossed = self.page_cross(deref, deref_base);
-
-            if !self.m65c02 {
-                // Only implement false read for 6502
-                if op.code == 0x91 {
-                    self.bus.unclocked_addr_read(deref);
-                }
-            }
-
-            if !self.callback && (page_crossed || indirect_y_force_tick(op)) {
-                self.tick();
-            }
-            deref
-        } else {
-            let base = self.bus.unclocked_addr_read(prog_addr.wrapping_add(1));
-            let deref_base = self.bus.unclocked_addr_read_u16(base as u16);
-            deref_base.wrapping_add(self.register_y as u16)
-        }
+    pub fn get_indirect_absolute_x_addr(&mut self) -> u16 {
+        let base = self.next_word();
+        let ptr = base.wrapping_add(self.register_x as u16);
+        self.bus.addr_read_u16(ptr)
     }
 
-    pub fn get_indirect_absolute_x_addr(&mut self, _: &OpCode, prog_add: u16) -> u16 {
-        if !self.callback {
-            let base = self.next_word();
-            let ptr = base.wrapping_add(self.register_x as u16);
-            self.bus.addr_read_u16(ptr)
-        } else {
-            let base = self.bus.unclocked_addr_read_u16(prog_add.wrapping_add(1));
-            let ptr = base.wrapping_add(self.register_x as u16);
-            self.bus.unclocked_addr_read_u16(ptr)
-        }
+    pub fn get_immediate_addr(&mut self) -> u16 {
+        let original_pc = self.program_counter;
+        self.increment_pc();
+        original_pc
     }
 
-    pub fn get_immediate_addr(&mut self, _: &OpCode, addr: u16) -> u16 {
-        if !self.callback {
-            let original_pc = self.program_counter;
-            self.increment_pc();
-            original_pc
-        } else {
-            addr
-        }
+    pub fn get_cb_zeropage_addr(&mut self, addr: u16) -> u16 {
+        self.bus.unclocked_addr_read(addr.wrapping_add(1)) as u16
     }
 
-    pub fn get_none_addr(&mut self, _: &OpCode) -> u16 {
-        0
+    pub fn get_cb_absolute_addr(&mut self, addr: u16) -> u16 {
+        self.bus.unclocked_addr_read_u16(addr.wrapping_add(1))
+    }
+
+    pub fn get_cb_zeropage_x_addr(&mut self, addr: u16) -> u16 {
+        let pos = self.bus.unclocked_addr_read(addr.wrapping_add(1));
+        pos.wrapping_add(self.register_x) as u16
+    }
+
+    pub fn get_cb_zeropage_y_addr(&mut self, addr: u16) -> u16 {
+        let pos = self.bus.unclocked_addr_read(addr.wrapping_add(1));
+        pos.wrapping_add(self.register_y) as u16
+    }
+
+    pub fn get_cb_zeropage_relative_addr(&mut self, addr: u16) -> u16 {
+        self.bus.unclocked_addr_read(addr.wrapping_add(1)) as u16
+    }
+
+    pub fn get_cb_absolute_x_addr(&mut self, prog_addr: u16) -> u16 {
+        let base = self.bus.unclocked_addr_read_u16(prog_addr.wrapping_add(1));
+        base.wrapping_add(self.register_x as u16)
+    }
+
+    pub fn get_cb_absolute_y_addr(&mut self, prog_addr: u16) -> u16 {
+        let base = self.bus.unclocked_addr_read_u16(prog_addr.wrapping_add(1));
+        base.wrapping_add(self.register_y as u16)
+    }
+
+    pub fn get_cb_indirect_zeropage_addr(&mut self, prog_addr: u16) -> u16 {
+        let ptr = self.bus.unclocked_addr_read(prog_addr.wrapping_add(1));
+        self.bus.unclocked_addr_read_u16(ptr as u16)
+    }
+
+    pub fn get_cb_indirect_x_addr(&mut self, prog_addr: u16) -> u16 {
+        let base = self.bus.unclocked_addr_read(prog_addr.wrapping_add(1));
+        let ptr = base.wrapping_add(self.register_x);
+        self.bus.unclocked_addr_read_u16(ptr as u16)
+    }
+
+    pub fn get_cb_indirect_y_addr(&mut self, prog_addr: u16) -> u16 {
+        let base = self.bus.unclocked_addr_read(prog_addr.wrapping_add(1));
+        let deref_base = self.bus.unclocked_addr_read_u16(base as u16);
+        deref_base.wrapping_add(self.register_y as u16)
+    }
+
+    pub fn get_cb_indirect_absolute_x_addr(&mut self, prog_add: u16) -> u16 {
+        let base = self.bus.unclocked_addr_read_u16(prog_add.wrapping_add(1));
+        let ptr = base.wrapping_add(self.register_x as u16);
+        self.bus.unclocked_addr_read_u16(ptr)
+    }
+
+    pub fn get_cb_immediate_addr(&mut self, addr: u16) -> u16 {
+        addr
     }
 
     /*
@@ -664,9 +658,7 @@ impl CPU {
         let addr = self.get_oper_address(op,addr);
         if addr == 0x3000 && !self.bus._80storeon {
             let mut output = String::new();
-            self.callback = true;
             disassemble(&mut output, self);
-            self.callback = false;
             eprintln!("{}", output);
         }
         addr
@@ -675,18 +667,42 @@ impl CPU {
 
     pub fn get_operand_address(&mut self, op: &OpCode, addr: u16) -> u16 {
         match op.mode {
-            AddressingMode::ZeroPage => self.get_zeropage_addr(op, addr),
-            AddressingMode::Absolute => self.get_absolute_addr(op, addr),
-            AddressingMode::ZeroPage_X => self.get_zeropage_x_addr(op, addr),
-            AddressingMode::ZeroPage_Y => self.get_zeropage_y_addr(op, addr),
-            AddressingMode::ZeroPage_Relative => self.get_zeropage_relative_addr(op, addr),
-            AddressingMode::Absolute_X => self.get_absolute_x_addr(op, addr),
-            AddressingMode::Absolute_Y => self.get_absolute_y_addr(op, addr),
-            AddressingMode::Indirect_ZeroPage => self.get_indirect_zeropage_addr(op, addr),
-            AddressingMode::Indirect_X => self.get_indirect_x_addr(op, addr),
-            AddressingMode::Indirect_Y => self.get_indirect_y_addr(op, addr),
-            AddressingMode::Indirect_Absolute_X => self.get_indirect_absolute_x_addr(op, addr),
-            AddressingMode::Immediate => self.get_immediate_addr(op, addr),
+            AddressingMode::ZeroPage => self.get_zeropage_addr(),
+            AddressingMode::Absolute => self.get_absolute_addr(),
+            AddressingMode::ZeroPage_X => self.get_zeropage_x_addr(),
+            AddressingMode::ZeroPage_Y => self.get_zeropage_y_addr(),
+            AddressingMode::ZeroPage_Relative => self.get_zeropage_relative_addr(),
+            AddressingMode::Absolute_X => self.get_absolute_x_addr(op),
+            AddressingMode::Absolute_Y => self.get_absolute_y_addr(op),
+            AddressingMode::Indirect_ZeroPage => self.get_indirect_zeropage_addr(),
+            AddressingMode::Indirect_X => self.get_indirect_x_addr(),
+            AddressingMode::Indirect_Y => self.get_indirect_y_addr(op),
+            AddressingMode::Indirect_Absolute_X => self.get_indirect_absolute_x_addr(),
+            AddressingMode::Immediate => self.get_immediate_addr(),
+            _ => {
+                eprintln!(
+                    "Addr 0x{:04x} Opcode 0x{:02x} mode {:?} is not supported",
+                    addr, &op.code, &op.mode
+                );
+                addr
+            }
+        }
+    }
+
+    pub fn get_cb_operand_address(&mut self, op: &OpCode, addr: u16) -> u16 {
+        match op.mode {
+            AddressingMode::ZeroPage => self.get_cb_zeropage_addr(addr),
+            AddressingMode::Absolute => self.get_cb_absolute_addr(addr),
+            AddressingMode::ZeroPage_X => self.get_cb_zeropage_x_addr(addr),
+            AddressingMode::ZeroPage_Y => self.get_cb_zeropage_y_addr(addr),
+            AddressingMode::ZeroPage_Relative => self.get_cb_zeropage_relative_addr(addr),
+            AddressingMode::Absolute_X => self.get_cb_absolute_x_addr(addr),
+            AddressingMode::Absolute_Y => self.get_cb_absolute_y_addr(addr),
+            AddressingMode::Indirect_ZeroPage => self.get_cb_indirect_zeropage_addr(addr),
+            AddressingMode::Indirect_X => self.get_cb_indirect_x_addr(addr),
+            AddressingMode::Indirect_Y => self.get_cb_indirect_y_addr(addr),
+            AddressingMode::Indirect_Absolute_X => self.get_cb_indirect_absolute_x_addr(addr),
+            AddressingMode::Immediate => self.get_cb_immediate_addr(addr),
             _ => {
                 eprintln!(
                     "Addr 0x{:04x} Opcode 0x{:02x} mode {:?} is not supported",
@@ -1183,8 +1199,8 @@ impl CPU {
         self.update_zero_and_negative_flags(compare_with.wrapping_sub(data));
     }
 
-    fn branch(&mut self, op: &OpCode, condition: bool) {
-        let addr = self.get_immediate_addr(op, self.program_counter);
+    fn branch(&mut self, _: &OpCode, condition: bool) {
+        let addr = self.get_immediate_addr();
 
         if condition {
             self.tick();
@@ -1365,9 +1381,7 @@ impl CPU {
             return true;
         }
 
-        self.callback = true;
         callback(self);
-        self.callback = false;
 
         let program_counter_state = self.program_counter;
         let code = self.next_byte();
