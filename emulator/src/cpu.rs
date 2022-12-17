@@ -762,43 +762,34 @@ impl CPU {
         self.read_operand(op);
     }
 
-    fn ldy(&mut self, op: &OpCode) {
-        let data = self.read_operand(op);
-        self.register_y = data;
-        self.update_zero_and_negative_flags(self.register_y);
+    fn ldy(&mut self, addr: u16) {
+        let data = self.bus.addr_read(addr);
+        self.set_register_y(data);
     }
 
-    fn ldx(&mut self, op: &OpCode) {
-        let data = self.read_operand(op);
-        self.register_x = data;
-        self.update_zero_and_negative_flags(self.register_x);
+    fn ldx(&mut self, addr: u16) {
+        let data = self.bus.addr_read(addr);
+        self.set_register_x(data);
     }
 
-    fn lda(&mut self, op: &OpCode) {
-        let data = self.read_operand(op);
+    fn lda(&mut self, addr: u16) {
+        let data = self.bus.addr_read(addr);
         self.set_register_a(data);
     }
 
-    fn sta(&mut self, op: &OpCode) {
-        let addr = self.get_operand_address(op, self.program_counter);
+    fn sta(&mut self, addr: u16) {
         self.bus.addr_write(addr, self.register_a);
     }
 
-    fn stx(&mut self, op: &OpCode) {
-        let addr = self.get_operand_address(op, self.program_counter);
+    fn stx(&mut self, addr: u16) {
         self.bus.addr_write(addr, self.register_x);
     }
 
-    fn sty(&mut self, op: &OpCode) {
-        let addr = self.get_operand_address(op, self.program_counter);
+    fn sty(&mut self, addr: u16) {
         self.bus.addr_write(addr, self.register_y);
     }
 
-    fn stz(&mut self, op: &OpCode) {
-        let addr = self.get_operand_address(op, self.program_counter);
-        if op.code == 0x9e {
-            self.bus.tick();
-        }
+    fn stz(&mut self, addr: u16) {
         self.bus.addr_write(addr, 0);
     }
 
@@ -817,18 +808,18 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_y);
     }
 
-    fn and(&mut self, op: &OpCode) {
-        let data = self.read_operand(op);
+    fn and(&mut self, addr: u16) {
+        let data = self.bus.addr_read(addr);
         self.set_register_a(data & self.register_a);
     }
 
-    fn eor(&mut self, op: &OpCode) {
-        let data = self.read_operand(op);
+    fn eor(&mut self, addr: u16) {
+        let data = self.bus.addr_read(addr);
         self.set_register_a(data ^ self.register_a);
     }
 
-    fn ora(&mut self, op: &OpCode) {
-        let data = self.read_operand(op);
+    fn ora(&mut self, addr: u16) {
+        let data = self.bus.addr_read(addr);
         self.set_register_a(data | self.register_a);
     }
 
@@ -1020,8 +1011,7 @@ impl CPU {
         self.set_register_a(data)
     }
 
-    fn asl(&mut self, op: &OpCode) -> u8 {
-        let addr = self.get_operand_address(op, self.program_counter);
+    fn asl(&mut self, addr: u16) {
         let mut data = self.bus.addr_read(addr);
 
         self.status.set(CpuFlags::CARRY, data & 0x80 > 0);
@@ -1029,7 +1019,6 @@ impl CPU {
         data <<= 1;
         self.bus.addr_write(addr, data);
         self.update_zero_and_negative_flags(data);
-        data
     }
 
     fn lsr_accumulator(&mut self) {
@@ -1041,8 +1030,7 @@ impl CPU {
         self.set_register_a(data)
     }
 
-    fn lsr(&mut self, op: &OpCode) -> u8 {
-        let addr = self.get_operand_address(op, self.program_counter);
+    fn lsr(&mut self, addr: u16) {
         let mut data = self.bus.addr_read(addr);
 
         self.status.set(CpuFlags::CARRY, data & 1 == 1);
@@ -1050,11 +1038,9 @@ impl CPU {
         self.tick();
         self.bus.addr_write(addr, data);
         self.update_zero_and_negative_flags(data);
-        data
     }
 
-    fn rol(&mut self, op: &OpCode) -> u8 {
-        let addr = self.get_operand_address(op, self.program_counter);
+    fn rol(&mut self, addr: u16) {
         let mut data = self.bus.addr_read(addr);
         let old_carry = self.status.contains(CpuFlags::CARRY) as u8;
 
@@ -1064,7 +1050,6 @@ impl CPU {
         self.tick();
         self.bus.addr_write(addr, data);
         self.update_zero_and_negative_flags(data);
-        data
     }
 
     fn rol_accumulator(&mut self) {
@@ -1078,8 +1063,7 @@ impl CPU {
         self.set_register_a(data);
     }
 
-    fn ror(&mut self, op: &OpCode) -> u8 {
-        let addr = self.get_operand_address(op, self.program_counter);
+    fn ror(&mut self, addr: u16) {
         let mut data = self.bus.addr_read(addr);
         let old_carry = self.status.contains(CpuFlags::CARRY) as u8;
 
@@ -1089,7 +1073,6 @@ impl CPU {
         self.tick();
         self.bus.addr_write(addr, data);
         self.update_zero_and_negative_flags(data);
-        data
     }
 
     fn ror_accumulator(&mut self) {
@@ -1103,14 +1086,12 @@ impl CPU {
         self.set_register_a(data);
     }
 
-    fn inc(&mut self, op: &OpCode) -> u8 {
-        let addr = self.get_operand_address(op, self.program_counter);
+    fn inc(&mut self, addr: u16) {
         let mut data = self.bus.addr_read(addr);
         data = data.wrapping_add(1);
         self.tick();
         self.bus.addr_write(addr, data);
         self.update_zero_and_negative_flags(data);
-        data
     }
 
     fn dey(&mut self) {
@@ -1131,14 +1112,12 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_a);
     }
 
-    fn dec(&mut self, op: &OpCode) -> u8 {
-        let addr = self.get_operand_address(op, self.program_counter);
+    fn dec(&mut self, addr: u16) {
         let mut data = self.bus.addr_read(addr);
         data = data.wrapping_sub(1);
         self.tick();
         self.bus.addr_write(addr, data);
         self.update_zero_and_negative_flags(data);
-        data
     }
 
     fn plx(&mut self) {
@@ -1181,15 +1160,19 @@ impl CPU {
         self.stack_push(flags.bits());
     }
 
-    fn bit(&mut self, op: &OpCode) {
-        let data = self.read_operand(op);
+    fn bit_immediate(&mut self) {
+        let data = self.bus.addr_read(self.program_counter);
+        self.increment_pc();
         let and = self.register_a & data;
         self.status.set(CpuFlags::ZERO, and == 0);
+    }
 
-        if op.mode != AddressingMode::Immediate {
-            self.status.set(CpuFlags::NEGATIVE, data & 0b10000000 > 0);
-            self.status.set(CpuFlags::OVERFLOW, data & 0b01000000 > 0);
-        }
+    fn bit(&mut self, addr: u16) {
+        let data = self.bus.addr_read(addr);
+        let and = self.register_a & data;
+        self.status.set(CpuFlags::ZERO, and == 0);
+        self.status.set(CpuFlags::NEGATIVE, data & 0b10000000 > 0);
+        self.status.set(CpuFlags::OVERFLOW, data & 0b01000000 > 0);
     }
 
     fn trb(&mut self, op: &OpCode) {
@@ -1210,8 +1193,8 @@ impl CPU {
         self.bus.addr_write(addr, data | self.register_a);
     }
 
-    fn compare(&mut self, op: &OpCode, compare_with: u8) {
-        let data = self.read_operand(op);
+    fn compare(&mut self, addr: u16, compare_with: u8) {
+        let data = self.bus.addr_read(addr);
         self.status.set(CpuFlags::CARRY, data <= compare_with);
         self.update_zero_and_negative_flags(compare_with.wrapping_sub(data));
     }
@@ -1229,7 +1212,7 @@ impl CPU {
             }
 
             self.program_counter = jump_addr;
-        } 
+        }
     }
 
     fn rmb(&mut self, bit: u8) {
@@ -1404,9 +1387,58 @@ impl CPU {
         let opcode = &OPCODES[code as usize];
 
         match code {
-            /* LDA */
-            0xa9 | 0xa5 | 0xb5 | 0xad | 0xbd | 0xb9 | 0xa1 | 0xb1 | 0xb2 => {
-                self.lda(opcode);
+            /* LDA immediate */
+            0xa9 => {
+                let addr = self.get_immediate_addr();
+                self.lda(addr);
+            }
+
+            /* LDA absolute */
+            0xad => {
+                let addr = self.get_absolute_addr();
+                self.lda(addr);
+            }
+
+            /* LDA zeropage */
+            0xa5 => {
+                let addr = self.get_zeropage_addr();
+                self.lda(addr);
+            }
+
+            /* LDA zeropage,X */
+            0xb5 => {
+                let addr = self.get_zeropage_x_addr();
+                self.lda(addr);
+            }
+
+            /* LDA absolute,X */
+            0xbd => {
+                let addr = self.get_absolute_x_addr(opcode);
+                self.lda(addr);
+            }
+
+            /* LDA absolute,Y */
+            0xb9 => {
+                let addr = self.get_absolute_y_addr(opcode);
+                self.lda(addr);
+            }
+
+            /* LDA indirect,X */
+            0xa1 => {
+                let addr = self.get_indirect_x_addr();
+                self.lda(addr);
+            }
+
+            /* LDA indirect,Y */
+            0xb1 => {
+                let addr = self.get_indirect_y_addr(opcode);
+                self.lda(addr);
+            }
+
+            /* LDA zeropage,Y */
+            0xb2 => {
+                let addr = self.get_indirect_zeropage_addr();
+                self.lda(addr);
             }
 
             /* TAX */
@@ -1472,7 +1504,7 @@ impl CPU {
             /* SEI */
             0x78 => {
                 self.tick();
-                self.status.insert(CpuFlags::INTERRUPT_DISABLE);
+                self.status.insert(CpuFlags::INTERRUPT_DISABLE)
             }
 
             /* SED */
@@ -1503,69 +1535,330 @@ impl CPU {
             }
 
             /* ADC */
-            0x69 | 0x65 | 0x75 | 0x6d | 0x7d | 0x79 | 0x61 | 0x71 | 0x72 => {
+            0x69 | 0x6d | 0x65 | 0x75 | 0x7d | 0x79 | 0x61 | 0x71 | 0x72 => {
                 self.adc(opcode);
             }
 
             /* SBC */
-            0xe9 | 0xe5 | 0xf5 | 0xed | 0xfd | 0xf9 | 0xe1 | 0xf1 | 0xf2 => {
+            0xe9 | 0xed | 0xe5 | 0xf5 | 0xfd | 0xf9 | 0xe1 | 0xf1 | 0xf2 => {
                 self.sbc(opcode);
             }
 
-            /* AND */
-            0x29 | 0x25 | 0x35 | 0x2d | 0x3d | 0x39 | 0x21 | 0x31 | 0x32 => {
-                self.and(opcode);
+            /* AND immediate */
+            0x29 => {
+                let addr = self.get_immediate_addr();
+                self.and(addr);
             }
 
-            /* EOR */
-            0x49 | 0x45 | 0x55 | 0x4d | 0x5d | 0x59 | 0x41 | 0x51 | 0x52 => {
-                self.eor(opcode);
+            /* AND zeropage */
+            0x25 => {
+                let addr = self.get_zeropage_addr();
+                self.and(addr);
             }
 
-            /* ORA */
-            0x09 | 0x05 | 0x15 | 0x0d | 0x1d | 0x19 | 0x01 | 0x11 | 0x12 => {
-                self.ora(opcode);
+            /* AND zeropage,X */
+            0x35 => {
+                let addr = self.get_zeropage_x_addr();
+                self.and(addr);
+            }
+
+            /* AND absolute */
+            0x2d => {
+                let addr = self.get_absolute_addr();
+                self.and(addr);
+            }
+
+            /* AND absolute,X */
+            0x3d => {
+                let addr = self.get_absolute_x_addr(opcode);
+                self.and(addr);
+            }
+
+            /* AND absolute,Y */
+            0x39 => {
+                let addr = self.get_absolute_y_addr(opcode);
+                self.and(addr);
+            }
+
+            /* AND indirect,X */
+            0x21 => {
+                let addr = self.get_indirect_x_addr();
+                self.and(addr);
+            }
+
+            /* AND indirect,Y */
+            0x31 => {
+                let addr = self.get_indirect_y_addr(opcode);
+                self.and(addr);
+            }
+
+            /* AND indirect,zeropage */
+            0x32 => {
+                let addr = self.get_indirect_zeropage_addr();
+                self.and(addr);
+            }
+
+            /* EOR immediate  */
+            0x49 => {
+                let addr = self.get_immediate_addr();
+                self.eor(addr);
+            }
+
+            /* EOR zeropage */
+            0x45 => {
+                let addr = self.get_zeropage_addr();
+                self.eor(addr);
+            }
+
+            /* EOR zeropage,X  */
+            0x55 => {
+                let addr = self.get_zeropage_x_addr();
+                self.eor(addr);
+            }
+
+            /* EOR absolute */
+            0x4d => {
+                let addr = self.get_absolute_addr();
+                self.eor(addr);
+            }
+
+            /* EOR absolute,X  */
+            0x5d => {
+                let addr = self.get_absolute_x_addr(opcode);
+                self.eor(addr);
+            }
+
+            /* EOR absolute,Y  */
+            0x59 => {
+                let addr = self.get_absolute_y_addr(opcode);
+                self.eor(addr);
+            }
+
+            /* EOR indirect,X  */
+            0x41 => {
+                let addr = self.get_indirect_x_addr();
+                self.eor(addr);
+            }
+
+            /* EOR indirect,Y  */
+            0x51 => {
+                let addr = self.get_indirect_y_addr(opcode);
+                self.eor(addr);
+            }
+
+            /* EOR indirect,zeropage  */
+            0x52 => {
+                let addr = self.get_indirect_zeropage_addr();
+                self.eor(addr);
+            }
+
+            /* ORA immediate */
+            0x09 => {
+                let addr = self.get_immediate_addr();
+                self.ora(addr);
+            }
+
+            /* ORA zeropage */
+            0x05 => {
+                let addr = self.get_zeropage_addr();
+                self.ora(addr);
+            }
+
+            /* ORA zeropage,X */
+            0x15 => {
+                let addr = self.get_zeropage_x_addr();
+                self.ora(addr);
+            }
+
+            /* ORA absolute */
+            0x0d => {
+                let addr = self.get_absolute_addr();
+                self.ora(addr);
+            }
+
+            /* ORA absolute,X */
+            0x1d => {
+                let addr = self.get_absolute_x_addr(opcode);
+                self.ora(addr);
+            }
+
+            /* ORA absolute,Y */
+            0x19 => {
+                let addr = self.get_absolute_y_addr(opcode);
+                self.ora(addr);
+            }
+
+            /* ORA indirect,X */
+            0x01 => {
+                let addr = self.get_indirect_x_addr();
+                self.ora(addr);
+            }
+
+            /* ORA indirect,Y */
+            0x11 => {
+                let addr = self.get_indirect_y_addr(opcode);
+                self.ora(addr);
+            }
+
+            /* ORA indirect,zeropage */
+            0x12 => {
+                let addr = self.get_indirect_zeropage_addr();
+                self.ora(addr);
             }
 
             /* LSR */ 0x4a => self.lsr_accumulator(),
 
-            /* LSR */
-            0x46 | 0x56 | 0x4e | 0x5e => {
-                self.lsr(opcode);
+            /* LSR zeropage */
+            0x46 => {
+                let addr = self.get_zeropage_addr();
+                self.lsr(addr);
             }
 
-            /*ASL*/ 0x0a => self.asl_accumulator(),
-
-            /* ASL */
-            0x06 | 0x16 | 0x0e | 0x1e => {
-                self.asl(opcode);
+            /* LSR zeropage,x */
+            0x56 => {
+                let addr = self.get_zeropage_x_addr();
+                self.lsr(addr);
             }
 
-            /*ROL*/ 0x2a => self.rol_accumulator(),
+            /* LSR absolute */
+            0x4e => {
+                let addr = self.get_absolute_addr();
+                self.lsr(addr);
+            }
 
-            /* ROL */
-            0x26 | 0x36 | 0x2e | 0x3e => {
-                self.rol(opcode);
+            /* LSR absolute,x */
+            0x5e => {
+                let addr = self.get_absolute_x_addr(opcode);
+                self.lsr(addr);
+            }
+
+            /* ASL */ 0x0a => self.asl_accumulator(),
+
+            /* ASL zeropage */
+            0x06 => {
+                let addr = self.get_zeropage_addr();
+                self.asl(addr);
+            }
+
+            /* ASL zeropage,X */
+            0x16 => {
+                let addr = self.get_zeropage_x_addr();
+                self.asl(addr);
+            }
+
+            /* ASL absolute */
+            0x0e => {
+                let addr = self.get_absolute_addr();
+                self.asl(addr);
+            }
+
+            /* ASL absolute,X */
+            0x1e => {
+                let addr = self.get_absolute_x_addr(opcode);
+                self.asl(addr);
+            }
+
+            /* ROL */ 0x2a => self.rol_accumulator(),
+
+            /* ROL zeropage */
+            0x26 => {
+                let addr = self.get_zeropage_addr();
+                self.rol(addr);
+            }
+
+            /* ROL zeropage,X */
+            0x36 => {
+                let addr = self.get_zeropage_x_addr();
+                self.rol(addr);
+            }
+
+            /* ROL absolute */
+            0x2e => {
+                let addr = self.get_absolute_addr();
+                self.rol(addr);
+            }
+
+            /* ROL absolute,X */
+            0x3e => {
+                let addr = self.get_absolute_x_addr(opcode);
+                self.rol(addr);
             }
 
             /* ROR */ 0x6a => self.ror_accumulator(),
 
-            /* ROR */
-            0x66 | 0x76 | 0x6e | 0x7e => {
-                self.ror(opcode);
+            /* ROR zeropage */
+            0x66 => {
+                let addr = self.get_zeropage_addr();
+                self.ror(addr);
             }
 
-            /* INC */
-            0xe6 | 0xf6 | 0xee | 0xfe => {
-                self.inc(opcode);
+            /* ROR zeropage,X */
+            0x76 => {
+                let addr = self.get_zeropage_x_addr();
+                self.ror(addr);
+            }
+
+            /* ROR absolute */
+            0x6e => {
+                let addr = self.get_absolute_addr();
+                self.ror(addr);
+            }
+
+            /* ROR absolute,X */
+            0x7e => {
+                let addr = self.get_absolute_x_addr(opcode);
+                self.ror(addr);
+            }
+
+            /* INC absolute */
+            0xee => {
+                let addr = self.get_absolute_addr();
+                self.inc(addr);
+            }
+
+            /* INC zeropage */
+            0xe6 => {
+                let addr = self.get_zeropage_addr();
+                self.inc(addr);
+            }
+
+            /* INC zeropage,X */
+            0xf6 => {
+                let addr = self.get_zeropage_x_addr();
+                self.inc(addr);
+            }
+
+            /* INC absolute,X */
+            0xfe => {
+                let addr = self.get_absolute_x_addr(opcode);
+                self.inc(addr);
             }
 
             /* INY */
             0xc8 => self.iny(),
 
-            /* DEC */
-            0xc6 | 0xd6 | 0xce | 0xde => {
-                self.dec(opcode);
+            /* DEC absolute */
+            0xce => {
+                let addr = self.get_absolute_addr();
+                self.dec(addr);
+            }
+
+            /* DEC zeropage */
+            0xc6 => {
+                let addr = self.get_zeropage_addr();
+                self.dec(addr);
+            }
+
+            /* DEC zeropage,X */
+            0xd6 => {
+                let addr = self.get_zeropage_x_addr();
+                self.dec(addr);
+            }
+
+            /* DEC absolute,X */
+            0xde => {
+                let addr = self.get_absolute_x_addr(opcode);
+                self.dec(addr);
             }
 
             /* DEX */
@@ -1578,18 +1871,95 @@ impl CPU {
                 self.dey();
             }
 
-            /* CMP */
-            0xc9 | 0xc5 | 0xd5 | 0xcd | 0xdd | 0xd9 | 0xc1 | 0xd1 | 0xd2 => {
-                self.compare(opcode, self.register_a);
+            /* CMP immediate */
+            0xc9 => {
+                let addr = self.get_immediate_addr();
+                self.compare(addr, self.register_a);
             }
 
-            /* CPY */
-            0xc0 | 0xc4 | 0xcc => {
-                self.compare(opcode, self.register_y);
+            /* CMP zeropage */
+            0xc5 => {
+                let addr = self.get_zeropage_addr();
+                self.compare(addr, self.register_a);
             }
 
-            /* CPX */
-            0xe0 | 0xe4 | 0xec => self.compare(opcode, self.register_x),
+            /* CMP zeropage,X */
+            0xd5 => {
+                let addr = self.get_zeropage_x_addr();
+                self.compare(addr, self.register_a);
+            }
+
+            /* CMP absolute */
+            0xcd => {
+                let addr = self.get_absolute_addr();
+                self.compare(addr, self.register_a);
+            }
+
+            /* CMP absolute,X */
+            0xdd => {
+                let addr = self.get_absolute_x_addr(opcode);
+                self.compare(addr, self.register_a);
+            }
+
+            /* CMP absolute,Y */
+            0xd9 => {
+                let addr = self.get_absolute_y_addr(opcode);
+                self.compare(addr, self.register_a);
+            }
+
+            /* CMP indirect,X */
+            0xc1 => {
+                let addr = self.get_indirect_x_addr();
+                self.compare(addr, self.register_a);
+            }
+
+            /* CMP indirect,Y */
+            0xd1 => {
+                let addr = self.get_indirect_y_addr(opcode);
+                self.compare(addr, self.register_a);
+            }
+
+            /* CMP indirect,zeropage */
+            0xd2 => {
+                let addr = self.get_indirect_zeropage_addr();
+                self.compare(addr, self.register_a);
+            }
+
+            /* CPY immediate */
+            0xc0 => {
+                let addr = self.get_immediate_addr();
+                self.compare(addr, self.register_y);
+            }
+
+            /* CPY zeropage */
+            0xc4 => {
+                let addr = self.get_zeropage_addr();
+                self.compare(addr, self.register_y);
+            }
+
+            /* CPY absolute */
+            0xcc => {
+                let addr = self.get_absolute_addr();
+                self.compare(addr, self.register_y);
+            }
+
+            /* CPX immediate*/
+            0xe0 => {
+                let addr = self.get_immediate_addr();
+                self.compare(addr, self.register_x)
+            }
+
+            /* CPX zeropage */
+            0xe4 => {
+                let addr = self.get_zeropage_addr();
+                self.compare(addr, self.register_x)
+            }
+
+            /* CPX absolute */
+            0xec => {
+                let addr = self.get_absolute_addr();
+                self.compare(addr, self.register_x)
+            }
 
             /* JMP Absolute */
             0x4c => {
@@ -1646,8 +2016,7 @@ impl CPU {
                 self.tick();
                 self.status.bits = self.stack_pop();
                 self.program_counter = self.stack_pop_u16();
-                self.status.remove(CpuFlags::BREAK);
-                self.status.insert(CpuFlags::UNUSED);
+                self.status.remove(CpuFlags::BREAK | CpuFlags::UNUSED);
             }
 
             /* BNE */
@@ -1691,33 +2060,176 @@ impl CPU {
             }
 
             /* BIT */
-            0x24 | 0x2c | 0x34 | 0x3c | 0x89 => {
-                self.bit(opcode);
+            0x89 => {
+                self.bit_immediate();
             }
 
-            /* STA */
-            0x85 | 0x95 | 0x8d | 0x9d | 0x99 | 0x81 | 0x91 | 0x92 => {
-                self.sta(opcode);
+            /* BIT zeropage */
+            0x24 => {
+                let addr = self.get_zeropage_addr();
+                self.bit(addr);
             }
 
-            /* STX */
-            0x86 | 0x96 | 0x8e => {
-                self.stx(opcode);
+            /* BIT absolute */
+            0x2c => {
+                let addr = self.get_absolute_addr();
+                self.bit(addr);
             }
 
-            /* STY */
-            0x84 | 0x94 | 0x8c => {
-                self.sty(opcode);
+            /* BIT zeropage,X */
+            0x34 => {
+                let addr = self.get_zeropage_x_addr();
+                self.bit(addr);
             }
 
-            /* LDX */
-            0xa2 | 0xa6 | 0xb6 | 0xae | 0xbe => {
-                self.ldx(opcode);
+            /* BIT absolute,X */
+            0x3c => {
+                let addr = self.get_absolute_x_addr(opcode);
+                self.bit(addr);
             }
 
-            /* LDY */
-            0xa0 | 0xa4 | 0xb4 | 0xac | 0xbc => {
-                self.ldy(opcode);
+            /* STA absolute */
+            0x8d => {
+                let addr = self.get_absolute_addr();
+                self.sta(addr);
+            }
+
+            /* STA zeropage */
+            0x85 => {
+                let addr = self.get_zeropage_addr();
+                self.sta(addr);
+            }
+
+            /* STA zeropage,X */
+            0x95 => {
+                let addr = self.get_zeropage_x_addr();
+                self.sta(addr);
+            }
+
+            /* STA absolute,X */
+            0x9d => {
+                let addr = self.get_absolute_x_addr(opcode);
+                self.sta(addr);
+            }
+
+            /* STA absolute,Y */
+            0x99 => {
+                let addr = self.get_absolute_y_addr(opcode);
+                self.sta(addr);
+            }
+
+            /* STA indirect,X */
+            0x81 => {
+                let addr = self.get_indirect_x_addr();
+                self.sta(addr);
+            }
+
+            /* STA indirect,Y */
+            0x91 => {
+                let addr = self.get_indirect_y_addr(opcode);
+                self.sta(addr);
+            }
+
+            /* STA indirect,zeropage */
+            0x92 => {
+                let addr = self.get_indirect_zeropage_addr();
+                self.sta(addr);
+            }
+
+            /* STX zeropage */
+            0x86 => {
+                let addr = self.get_zeropage_addr();
+                self.stx(addr);
+            }
+
+            /* STX zeropage,Y */
+            0x96 => {
+                let addr = self.get_zeropage_y_addr();
+                self.stx(addr);
+            }
+
+            /* STX absolute */
+            0x8e => {
+                let addr = self.get_absolute_addr();
+                self.stx(addr);
+            }
+
+            /* STY zeropage */
+            0x84 => {
+                let addr = self.get_zeropage_addr();
+                self.sty(addr);
+            }
+
+            /* STY zeropage,X */
+            0x94 => {
+                let addr = self.get_zeropage_x_addr();
+                self.sty(addr);
+            }
+
+            /* STY absolute */
+            0x8c => {
+                let addr = self.get_absolute_addr();
+                self.sty(addr);
+            }
+
+            /* LDX immediate */
+            0xa2 => {
+                let addr = self.get_immediate_addr();
+                self.ldx(addr);
+            }
+
+            /* LDX zeropage */
+            0xa6 => {
+                let addr = self.get_zeropage_addr();
+                self.ldx(addr);
+            }
+
+            /* LDX zeropage,Y */
+            0xb6 => {
+                let addr = self.get_zeropage_y_addr();
+                self.ldx(addr);
+            }
+
+            /* LDX absolute */
+            0xae => {
+                let addr = self.get_absolute_addr();
+                self.ldx(addr);
+            }
+
+            /* LDX absolute,Y */
+            0xbe => {
+                let addr = self.get_absolute_y_addr(opcode);
+                self.ldx(addr);
+            }
+
+            /* LDY immediate */
+            0xa0 => {
+                let addr = self.get_immediate_addr();
+                self.ldy(addr);
+            }
+
+            /* LDY zeropage */
+            0xa4 => {
+                let addr = self.get_zeropage_addr();
+                self.ldy(addr);
+            }
+
+            /* LDY zeropage,X */
+            0xb4 => {
+                let addr = self.get_zeropage_x_addr();
+                self.ldy(addr);
+            }
+
+            /* LDY absolute */
+            0xac => {
+                let addr = self.get_absolute_addr();
+                self.ldy(addr);
+            }
+
+            /* LDY absolute,X */
+            0xbc => {
+                let addr = self.get_absolute_x_addr(opcode);
+                self.ldy(addr);
             }
 
             /* NOP1 */
@@ -1871,9 +2383,29 @@ impl CPU {
                 self.dec_accumulator();
             }
 
-            /* STZ */
-            0x64 | 0x74 | 0x9c | 0x9e => {
-                self.stz(opcode);
+            /* STZ zeropage */
+            0x64 => {
+                let addr = self.get_zeropage_addr();
+                self.stz(addr);
+            }
+
+            /* STZ zeropage,X */
+            0x74 => {
+                let addr = self.get_zeropage_x_addr();
+                self.stz(addr);
+            }
+
+            /* STZ absolute */
+            0x9c => {
+                let addr = self.get_absolute_addr();
+                self.stz(addr);
+            }
+
+            /* STZ absolute,X */
+            0x9e => {
+                let addr = self.get_absolute_x_addr(opcode);
+                self.tick();
+                self.stz(addr);
             }
 
             /* JMP Indirect Absolute X */
