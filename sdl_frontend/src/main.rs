@@ -914,8 +914,6 @@ fn update_audio(cpu: &mut CPU, audio_device: &sdl2::audio::AudioQueue<i16>) {
         let _ = audio_device.queue_audio(&snd.data.sample[..]);
         snd.clear_buffer();
     } else {
-        audio_device.clear();
-        let _ = audio_device.queue_audio(&snd.data.sample[..]);
         snd.clear_buffer();
     }
 }
