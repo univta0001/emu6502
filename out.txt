@@ -1,2 +1,0 @@
-   Compiling sdl_frontend v0.1.0 (D:\temp\emu6502\sdl_frontend)
-    Finished dev [optimized + debuginfo] target(s) in 0.68s
