@@ -10,6 +10,8 @@ use instant::SystemTime;
 #[cfg(not(feature = "instant_time"))]
 use std::time::SystemTime;
 
+use num_integer::Integer;
+
 pub type Rgb = [u8; 3];
 pub type Yuv = [f32; 3];
 
@@ -735,8 +737,7 @@ impl Video {
 
     pub fn update_video(&mut self) {
         let val = self.cycles;
-        let row = val / CYCLES_PER_ROW;
-        let col = val % CYCLES_PER_ROW;
+        let (row,col) = val.div_rem(&CYCLES_PER_ROW);
 
         if val == 0 {
             let elapsed = SystemTime::now()

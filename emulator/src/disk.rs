@@ -22,6 +22,8 @@ use flate2::Compression;
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
 
+use num_integer::Integer;
+
 const DSK_IMAGE_SIZE: usize = 143360;
 const DSK40_IMAGE_SIZE: usize = 163840;
 const NIB_IMAGE_SIZE: usize = 232960;
@@ -2007,8 +2009,9 @@ impl DiskDrive {
 
                 if disk.head * 8 + disk.head_bit >= track_bits {
                     let wrapped = (disk.head * 8 + disk.head_bit) % track_bits;
-                    disk.head = wrapped / 8;
-                    disk.head_mask = 1 << (7 - wrapped % 8);
+                    let (head, remainder) = wrapped.div_rem(&8);
+                    disk.head = head;
+                    disk.head_mask = 1 << (7 - remainder);
                     disk.head_bit = wrapped % 8;
                 }
             }
