@@ -1297,6 +1297,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
 
     let mut t = Instant::now();
+    let mut video_time = Instant::now();
     let mut previous_cycles = 0;
     let mut estimated_mhz: f32 = 0.0;
 
@@ -1358,8 +1359,13 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             }
 
             if dcyc >= cpu_cycles {
-                update_video(_cpu, &mut save_screenshot, &mut canvas, &mut texture);
                 update_audio(_cpu, &audio_device);
+
+                // Update video only at multiple of 60Hz or 50Hz
+                if video_time.elapsed().as_micros() >= cpu_period as u128 {
+                    update_video(_cpu, &mut save_screenshot, &mut canvas, &mut texture);
+                    video_time = Instant::now();
+                }
 
                 for event_value in _event_pump.poll_iter() {
                     let mut event_param = EventParam {
@@ -1394,7 +1400,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 if adj_time > 0 && normal_speed && !_cpu.full_speed {
                     spin_sleep::sleep(std::time::Duration::from_micros(adj_time as u64));
                 }
-
+                
                 let elapsed = t.elapsed().as_micros();
                 estimated_mhz = (dcyc as f32) / elapsed as f32;
 
