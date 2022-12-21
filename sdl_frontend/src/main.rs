@@ -1300,9 +1300,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut previous_cycles = 0;
     let mut estimated_mhz: f32 = 0.0;
 
-    let mut video_refresh = Instant::now();
-    let mut video_offset = 0;
-
     let mut key_caps = true;
     let mut reload_cpu = false;
     let mut save_screenshot = false;
@@ -1361,13 +1358,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             }
 
             if dcyc >= cpu_cycles {
-                let video_elapsed = video_refresh.elapsed().as_micros() + video_offset;
-                if video_elapsed >= (cpu_period as u128) {
-                    update_video(_cpu, &mut save_screenshot, &mut canvas, &mut texture);
-                    update_audio(_cpu, &audio_device);
-                    video_offset = video_elapsed % (cpu_period as u128);
-                    video_refresh = Instant::now();
-                }
+                update_video(_cpu, &mut save_screenshot, &mut canvas, &mut texture);
+                update_audio(_cpu, &audio_device);
 
                 for event_value in _event_pump.poll_iter() {
                     let mut event_param = EventParam {
