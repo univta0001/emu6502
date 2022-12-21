@@ -1949,9 +1949,10 @@ impl DiskDrive {
                     (last_head * track_bits) / last_track_bits
                 };
 
-                disk.head = new_bit / 8;
-                disk.head_mask = 1 << (7 - new_bit % 8);
-                disk.head_bit = new_bit % 8;
+                let (head, remainder) = new_bit.div_rem(&8);
+                disk.head = head;
+                disk.head_mask = 1 << (7 - remainder);
+                disk.head_bit = remainder;
             } else if last_track_type != TrackType::Flux {
                 disk.head = 0;
             } else {
@@ -1987,7 +1988,7 @@ impl DiskDrive {
         //let mut rng = rand::thread_rng();
 
         // Only add disk jitter for read operations
-        let disk_jitter = if fastrand::f32() < self.random_one_rate && !self.q7 {
+        let disk_jitter = if !self.q7 && fastrand::f32() < self.random_one_rate {
             0.0125
         } else {
             0.0
@@ -2012,7 +2013,7 @@ impl DiskDrive {
                     let (head, remainder) = wrapped.div_rem(&8);
                     disk.head = head;
                     disk.head_mask = 1 << (7 - remainder);
-                    disk.head_bit = wrapped % 8;
+                    disk.head_bit = remainder;
                 }
             }
 
@@ -2098,9 +2099,10 @@ impl DiskDrive {
 
             if disk.head * 8 + disk.head_bit >= track_bits {
                 let wrapped = (disk.head * 8 + disk.head_bit) % track_bits;
-                disk.head = wrapped / 8;
-                disk.head_mask = 1 << (7 - wrapped % 8);
-                disk.head_bit = wrapped % 8;
+                let (head, remainder) = wrapped.div_rem(&8);
+                disk.head = head;
+                disk.head_mask = 1 << (7 - remainder);
+                disk.head_bit = remainder;
             }
 
             if !write_protected {
@@ -2149,7 +2151,7 @@ impl DiskDrive {
         let command = LSS_SEQUENCER_ROM_16[idx as usize];
         self.lss_state = command & 0xf0;
 
-        if command & 8 > 0 && command & 3 > 0 && self.q7 {
+        if self.q7 && command & 8 > 0 && command & 3 > 0 {
             let write_value = self.lss_state & 0x80 != self.prev_lss_state & 0x80;
             self.prev_lss_state = self.lss_state;
             let disk = &mut self.drive[self.drive_select];
