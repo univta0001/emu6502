@@ -15,7 +15,7 @@ use num_integer::Integer;
 pub type Rgb = [u8; 3];
 pub type Yuv = [f32; 3];
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 #[allow(non_camel_case_types)]
 pub enum DisplayMode {
     DEFAULT,

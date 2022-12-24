@@ -351,7 +351,7 @@ pub struct CPU {
     pub z80cpu: Cpu,
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, PartialEq)]
 #[allow(non_camel_case_types)]
 pub enum AddressingMode {
     Immediate,
