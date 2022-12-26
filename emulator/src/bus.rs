@@ -523,6 +523,10 @@ impl Bus {
         self.video.read_latch()
     }
 
+    fn read_floating_bus_high_bit(&self, value: u8) -> u8 {
+        self.video.read_latch() & 0x7f | value & 0x80
+    }
+
     pub fn get_keyboard_latch(&self) -> u8 {
         self.keyboard_latch
     }
@@ -765,20 +769,27 @@ impl Bus {
             0x60 => self.read_floating_bus(),
 
             0x61 => {
-                if !self.swap_button {
+                let button_value = if !self.swap_button {
                     self.pushbutton_latch[0]
                 } else {
                     self.pushbutton_latch[1]
-                }
+                };
+                self.read_floating_bus_high_bit(button_value)
             }
+
             0x62 => {
-                if !self.swap_button {
+                let button_value = if !self.swap_button {
                     self.pushbutton_latch[1]
                 } else {
                     self.pushbutton_latch[0]
-                }
+                };
+                self.read_floating_bus_high_bit(button_value)
             }
-            0x63 => self.pushbutton_latch[2],
+
+            0x63 => {
+                let button_value = self.pushbutton_latch[2];
+                self.read_floating_bus_high_bit(button_value)
+            }
 
             0x64 => {
                 // Apple PADDLE need to read value every 11 clock cycles to update counter
