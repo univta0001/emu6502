@@ -742,6 +742,19 @@ impl Bus {
 
             0x58..=0x5d => {
                 self.annunciator[((addr>>1) & 3) as usize] = (addr&1) != 0;
+
+                /*
+
+                //SpeedStar DataKey Dongle
+                let dongle_status = !(self.annunciator[1] & self.annunciator[2]);
+                if dongle_status {
+                    self.pushbutton_latch[2] = 0x80;
+                } else {
+                    self.pushbutton_latch[2] = 0x0;
+                }
+
+                */
+
                 self.read_floating_bus()
             }
 
