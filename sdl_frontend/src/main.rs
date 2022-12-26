@@ -638,6 +638,15 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             if status {
                 cpu.bus.set_keyboard_latch((value + 128) as u8);
             }
+
+            if !cpu.is_apple2e() && event_param.gamepads.len() == 0 {
+                let shift_mode = keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD);
+                if shift_mode {
+                    cpu.bus.pushbutton_latch[2] = 0x0;
+                } else {
+                    cpu.bus.pushbutton_latch[2] = 0x80;
+                }
+            }
         }
 
         Event::DropFile { filename, .. } => {
