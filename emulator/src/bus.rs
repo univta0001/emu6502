@@ -83,6 +83,9 @@ pub struct Bus {
     pub intc8rom: bool,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
+    pub annunciator: [bool; 4],
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
     pub swap_button: bool,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
@@ -200,6 +203,7 @@ impl Bus {
             intcxrom: false,
             slotc3rom: false,
             intc8rom: false,
+            annunciator: [false;4],
             is_apple2c: false,
             noslotclock: NoSlotClock::new(),
             disable_video: false,
@@ -731,19 +735,29 @@ impl Bus {
                 }
                 self.read_floating_bus()
             }
-            0x58..=0x5d => self.read_floating_bus(),
+
+            0x58..=0x5d => {
+                self.annunciator[((addr>>1) & 3) as usize] = (addr&1) != 0;
+                self.read_floating_bus()
+            }
 
             0x5e => {
+                self.annunciator[3] = false;
                 let val = self.read_floating_bus();
-                self.video.enable_dhires(true);
-                self.video.update_video();
+                if self.video.is_apple2e() {
+                   self.video.enable_dhires(true);
+                   self.video.update_video();
+                }
                 val
             }
 
             0x5f => {
+                self.annunciator[3] = true;
                 let val = self.read_floating_bus();
-                self.video.enable_dhires(false);
-                self.video.update_video();
+                if self.video.is_apple2e() {
+                    self.video.enable_dhires(false);
+                    self.video.update_video();
+                }
                 val
             }
 
