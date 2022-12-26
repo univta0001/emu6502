@@ -731,7 +731,7 @@ impl Bus {
                 }
                 self.read_floating_bus()
             }
-            0x58..=0x5d => 0,
+            0x58..=0x5d => self.read_floating_bus(),
 
             0x5e => {
                 let val = self.read_floating_bus();
