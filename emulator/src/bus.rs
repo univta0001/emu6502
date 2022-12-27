@@ -749,8 +749,8 @@ impl Bus {
                 self.annunciator[((addr >> 1) & 3) as usize] = (addr & 1) != 0;
 
                 //SpeedStar DataKey Dongle
-                self.pushbutton_latch[2] =
-                    u8::from(!(self.annunciator[1] & self.annunciator[2])) << 7;
+                //self.pushbutton_latch[2] =
+                //    u8::from(!(self.annunciator[1] & self.annunciator[2])) << 7;
 
                 self.read_floating_bus()
             }
