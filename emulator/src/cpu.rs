@@ -52,6 +52,8 @@ bitflags! {
 
 const STACK: u16 = 0x0100;
 const STACK_RESET: u8 = 0xfd;
+
+#[rustfmt::skip]
 pub const OPCODES: [OpCode; 256] = [
     OpCode::new(0x00, "BRK", 1, 7, AddressingMode::NoneAddressing, false),
     OpCode::new(0x01, "ORA", 2, 6, AddressingMode::Indirect_X, false),

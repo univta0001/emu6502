@@ -737,7 +737,7 @@ impl Video {
 
     pub fn update_video(&mut self) {
         let val = self.cycles;
-        let (row,col) = val.div_rem(&CYCLES_PER_ROW);
+        let (row, col) = val.div_rem(&CYCLES_PER_ROW);
 
         if val == 0 {
             let elapsed = SystemTime::now()

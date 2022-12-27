@@ -639,7 +639,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                 cpu.bus.set_keyboard_latch((value + 128) as u8);
             }
 
-            if !cpu.is_apple2e() && event_param.gamepads.len() == 0 {
+            if !cpu.is_apple2e() && event_param.gamepads.is_empty() {
                 let shift_mode = keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD);
                 if shift_mode {
                     cpu.bus.pushbutton_latch[2] = 0x0;
@@ -1409,7 +1409,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 if adj_time > 0 && normal_speed && !_cpu.full_speed {
                     spin_sleep::sleep(std::time::Duration::from_micros(adj_time as u64));
                 }
-                
+
                 let elapsed = t.elapsed().as_micros();
                 estimated_mhz = (dcyc as f32) / elapsed as f32;
 
