@@ -366,22 +366,16 @@ impl Bus {
                 // Handle the extended rom separately
                 let slot = self.extended_rom as usize;
                 let slot_value = self.io_slot[slot];
-                let return_value: Option<&mut dyn Card> = match slot_value {
-                    IODevice::RamFactor => Some(&mut self.ramfactor),
-                    _ => None,
-                };
-
-                if let Some(device) = return_value {
-                    return device.rom_access(
+                return match slot_value {
+                    IODevice::RamFactor => self.ramfactor.rom_access(
                         &mut self.mem,
                         &mut self.video,
                         addr,
                         value,
                         write_flag,
-                    );
-                } else {
-                    return self.read_floating_bus();
-                }
+                    ),
+                    _ => self.read_floating_bus(),
+                };
             }
 
             let slot = ((addr >> 8) & 0x0f) as usize;
