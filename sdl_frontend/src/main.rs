@@ -507,7 +507,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 #[cfg(feature = "serde_support")]
-                save_serialized_image(&cpu);
+                save_serialized_image(cpu);
             } else {
                 cpu.bus.disk.swap_drive();
             }
@@ -865,6 +865,14 @@ fn register_device(cpu: &mut CPU, device: &str, slot: usize, mboard: &mut usize)
 fn save_serialized_image(cpu: &CPU) {
     let output = serde_yaml::to_string(&cpu).unwrap();
     let yaml_output = output.replace("\"\"", "''").replace('"', "");
+
+    #[cfg(feature = "regex")]
+    let re = regex::Regex::new(r"'([0-9A-F]{4,6})'").unwrap();
+    #[cfg(feature = "regex")]
+    let yaml_output = re
+        .replace_all(&yaml_output, |caps: &regex::Captures| (caps[1]).to_string())
+        .to_string();
+
     let result = nfd2::open_save_dialog(Some("yaml"), None);
     if result.is_ok() {
         if let Ok(Response::Okay(file_path)) = result {

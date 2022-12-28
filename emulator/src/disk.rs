@@ -1657,10 +1657,8 @@ impl DiskDrive {
 
         if disk.force_disk_rom13 {
             disk.disk_rom13 = true;
-        } else {
-            if dsk[offset + 38] == 2 {
-                disk.disk_rom13 = true
-            }
+        } else if dsk[offset + 38] == 2 {
+            disk.disk_rom13 = true
         }
 
         if woz1 {
