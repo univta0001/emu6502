@@ -133,6 +133,9 @@ pub struct Disk {
     disk_rom13: bool,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
+    force_disk_rom13: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
     mc3470_counter: usize,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
@@ -1194,6 +1197,11 @@ impl DiskDrive {
         self.drive_select
     }
 
+    pub fn force_disk_rom13(&mut self) {
+        self.drive[0].force_disk_rom13 = true;
+        self.drive[1].force_disk_rom13 = true;
+    }
+
     pub fn swap_drive(&mut self) {
         let disk = self.drive.swap_remove(0);
         let track = disk.track;
@@ -1249,7 +1257,7 @@ impl DiskDrive {
 
     pub fn read_rom(&self, offset: u8) -> u8 {
         let disk = &self.drive[self.drive_select];
-        if disk.disk_rom13 {
+        if disk.force_disk_rom13 || disk.disk_rom13 {
             ROM13[offset as usize]
         } else {
             ROM[offset as usize]
@@ -1412,6 +1420,10 @@ impl DiskDrive {
         disk.write_protect = false;
         disk.last_track = 0;
         disk.disk_rom13 = false;
+
+        if disk.force_disk_rom13 {
+            disk.disk_rom13 = true;
+        }
 
         if no_of_tracks > 35 {
             disk.track_40 = true;
@@ -1642,8 +1654,13 @@ impl DiskDrive {
 
         // Check for 13 sector disk
         disk.disk_rom13 = false;
-        if dsk[offset + 38] == 2 {
-            disk.disk_rom13 = true
+
+        if disk.force_disk_rom13 {
+            disk.disk_rom13 = true;
+        } else {
+            if dsk[offset + 38] == 2 {
+                disk.disk_rom13 = true
+            }
         }
 
         if woz1 {
@@ -2230,6 +2247,7 @@ impl Disk {
             filename: "".to_owned(),
             loaded: false,
             disk_rom13: false,
+            force_disk_rom13: false,
             mc3470_counter: 0,
             mc3470_read_pulse: 0,
         }

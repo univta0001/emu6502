@@ -308,9 +308,12 @@ impl Bus {
 
     pub fn register_device(&mut self, device: IODevice, slot: usize) {
         if slot < self.io_slot.len() {
-            if device == IODevice::Disk {
+            if device == IODevice::Disk || device == IODevice::Disk13 {
                 for i in 1..8 {
-                    if i != slot && self.io_slot[i] == IODevice::Disk {
+                    if i != slot
+                        && (self.io_slot[i] == IODevice::Disk
+                            || self.io_slot[i] == IODevice::Disk13)
+                    {
                         self.io_slot[i] = IODevice::None
                     }
                 }
@@ -343,6 +346,10 @@ impl Bus {
                 IODevice::RamFactor => Some(&mut self.ramfactor),
                 IODevice::Mouse => Some(&mut self.mouse),
                 IODevice::Disk => Some(&mut self.disk),
+                IODevice::Disk13 => {
+                    self.disk.force_disk_rom13();
+                    Some(&mut self.disk)
+                }
                 IODevice::HardDisk => Some(&mut self.harddisk),
                 IODevice::Mockingboard(_) => None,
                 #[cfg(feature = "z80")]
@@ -398,6 +405,10 @@ impl Bus {
                     IODevice::RamFactor => Some(&mut self.ramfactor),
                     IODevice::Mouse => Some(&mut self.mouse),
                     IODevice::Disk => Some(&mut self.disk),
+                    IODevice::Disk13 => {
+                        self.disk.force_disk_rom13();
+                        Some(&mut self.disk)
+                    }
                     IODevice::HardDisk => Some(&mut self.harddisk),
                     #[cfg(feature = "z80")]
                     IODevice::Z80 => {

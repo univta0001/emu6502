@@ -684,25 +684,25 @@ FLAGS:
     --h2 PATH          Set the file path for hard disk 2
     --s1 device        Device slot 1 
                        Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
-                              diskii
+                              diskii,diskii13
     --s2 device        Device slot 2
                        Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
-                              diskii
+                              diskii,diskii13
     --s3 device        Device slot 3
                        Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
-                              diskii
+                              diskii,diskii13
     --s4 device        Device slot 4
                        Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
-                              diskii
+                              diskii,diskii13
     --s5 device        Device slot 5
                        Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
-                              diskii
+                              diskii,diskii13
     --s6 device        Device slot 6
                        Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
-                              diskii
+                              diskii,diskii13
     --s7 device        Device slot 7
                        Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
-                              diskii
+                              diskii,diskii13
     --weakbit rate     Set the random weakbit error rate (Default is 0.3)
     --opt_timing rate  Override the optimal timing (Default is 32)
     --rgb              Enable RGB mode (Default: RGB mode disabled)
@@ -873,6 +873,7 @@ fn register_device(cpu: &mut CPU, device: &str, slot: usize, mboard: &mut usize)
         #[cfg(feature = "z80")]
         "z80" => cpu.bus.register_device(IODevice::Z80, slot),
         "diskii" => cpu.bus.register_device(IODevice::Disk, slot),
+        "diskii13" => cpu.bus.register_device(IODevice::Disk13, slot),
         _ => {}
     }
 
