@@ -1051,7 +1051,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     //let _function_test: Vec<u8> = std::fs::read("6502_functional_test.bin").unwrap();
     //let _function_test: Vec<u8> = std::fs::read("65C02_extended_opcodes_test.bin").unwrap();
     //let apple2_rom: Vec<u8> = std::fs::read("Apple2_Plus.rom").unwrap();
-    let apple2_rom: Vec<u8> = include_bytes!("../../Apple2_Plus.rom").to_vec();
+    let apple2_rom: Vec<u8> = include_bytes!("../../Apple2.rom").to_vec();
+    let apple2p_rom: Vec<u8> = include_bytes!("../../Apple2_Plus.rom").to_vec();
     //let apple2e_rom: Vec<u8> = std::fs::read("Apple2e.rom").unwrap();
     let apple2e_rom: Vec<u8> = include_bytes!("../../Apple2e.rom").to_vec();
     //let apple2ee_rom: Vec<u8> = std::fs::read("Apple2e_enhanced.rom").unwrap();
@@ -1164,7 +1165,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     if let Some(model) = pargs.opt_value_from_str::<_, String>(["-m", "--model"])? {
         match &model[..] {
-            "apple2p" => cpu.load(&apple2_rom, 0xd000),
+            "apple2" => cpu.load(&apple2_rom, 0xd000),
+            "apple2p" => cpu.load(&apple2p_rom, 0xd000),
             "apple2e" => cpu.load(&apple2e_rom, 0xc000),
             "apple2ee" => cpu.load(&apple2ee_rom, 0xc000),
             "apple2c" => cpu.load(&apple2c_rom, 0xc000),
