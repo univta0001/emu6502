@@ -507,25 +507,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 #[cfg(feature = "serde_support")]
-                {
-                    let output = serde_yaml::to_string(&cpu).unwrap();
-                    let yaml_output = output.replace("\"\"", "''").replace('"', "");
-                    let result = nfd2::open_save_dialog(Some("yaml"), None);
-                    if result.is_ok() {
-                        if let Ok(Response::Okay(file_path)) = result {
-                            let write_result = fs::write(&file_path, yaml_output);
-                            if let Err(e) = write_result {
-                                eprintln!(
-                                    "Unable to write to file {} : {}",
-                                    file_path.display(),
-                                    e
-                                );
-                            }
-                        }
-                    } else {
-                        eprintln!("Unable to open save file dialog");
-                    }
-                }
+                save_serialized_image(&cpu);
             } else {
                 cpu.bus.disk.swap_drive();
             }
@@ -878,6 +860,22 @@ fn register_device(cpu: &mut CPU, device: &str, slot: usize, mboard: &mut usize)
     }
 
     *mboard += 1;
+}
+
+fn save_serialized_image(cpu: &CPU) {
+    let output = serde_yaml::to_string(&cpu).unwrap();
+    let yaml_output = output.replace("\"\"", "''").replace('"', "");
+    let result = nfd2::open_save_dialog(Some("yaml"), None);
+    if result.is_ok() {
+        if let Ok(Response::Okay(file_path)) = result {
+            let write_result = fs::write(&file_path, yaml_output);
+            if let Err(e) = write_result {
+                eprintln!("Unable to write to file {} : {}", file_path.display(), e);
+            }
+        }
+    } else {
+        eprintln!("Unable to open save file dialog");
+    }
 }
 
 fn load_serialized_image() -> Result<CPU, String> {

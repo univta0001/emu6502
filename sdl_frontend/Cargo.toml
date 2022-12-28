@@ -27,7 +27,7 @@ cc = "1.0.78"
 [features]
 #default = [ ]
 default = ["serde_support", "z80", "flate"]
-serde_support = ["dep:serde_yaml","emu6502/serde_support"]
+serde_support = ["dep:serde_yaml", "emu6502/serde_support"]
 z80 = ["emu6502/z80"]
 flate = ["emu6502/flate"]
 
