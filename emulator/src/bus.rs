@@ -558,7 +558,6 @@ impl Bus {
                     self.video._80storeon = false;
                 }
                 let value = self.get_keyboard_latch();
-                self.mem.mem_write(0xc000, value);
                 value
             }
 
@@ -649,7 +648,6 @@ impl Bus {
             0x10 => {
                 let keyboard_latch = self.get_keyboard_latch();
                 self.set_keyboard_latch(keyboard_latch & 0x7f);
-                self.mem.mem_write(0xc000, keyboard_latch);
                 keyboard_latch
             }
 
