@@ -648,7 +648,11 @@ impl Bus {
             0x10 => {
                 let keyboard_latch = self.get_keyboard_latch();
                 self.set_keyboard_latch(keyboard_latch & 0x7f);
-                keyboard_latch
+                if self.video.is_apple2e() {
+                    keyboard_latch
+                } else {
+                    keyboard_latch & 0x7f
+                }
             }
 
             0x11 => self.get_io_status(!self.mem.bank1),
