@@ -1408,6 +1408,13 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 _cpu.bus
                     .set_mouse_state(mouse_state.x(), mouse_state.y(), &buttons);
 
+                // Update keyboard akd state
+                if _event_pump.keyboard_state().pressed_scancodes().count() > 0 {
+                    _cpu.bus.any_key_down = true;
+                } else {
+                    _cpu.bus.any_key_down = false;
+                }
+
                 let video_cpu_update = t.elapsed().as_micros();
                 //let adj_ms = dcyc * 1_000_000 / CPU_6502_MHZ;
                 let adj_ms = dcyc * cpu_period / cpu_cycles;

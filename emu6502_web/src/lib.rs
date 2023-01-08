@@ -1,8 +1,8 @@
 use emu6502::bus::Bus;
-use emu6502::cpu::CPU;
 use emu6502::bus::IODevice;
-use wasm_bindgen::prelude::*;
+use emu6502::cpu::CPU;
 use emu6502::mockingboard::Mockingboard;
+use wasm_bindgen::prelude::*;
 
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
@@ -20,9 +20,9 @@ impl Emulator {
             let drv = &mut self.cpu.bus.harddisk;
             let drive_selected = drv.drive_selected();
             drv.drive_select(drive);
-            let result = drv.load_hdv_2mg_array(array,hdv_mode);
+            let result = drv.load_hdv_2mg_array(array, hdv_mode);
             if result.is_err() {
-                return false
+                return false;
             }
             drv.set_disk_filename(name);
             drv.set_loaded(true);
@@ -50,8 +50,7 @@ impl Emulator {
                         return false;
                     }
                 }
-            } else if name.ends_with(".nib.gz")
-                || name.ends_with(".nib") {
+            } else if name.ends_with(".nib.gz") || name.ends_with(".nib") {
                 if name.ends_with(".gz") {
                     let result = drv.load_nib_gz_array_to_woz(&dsk);
                     if result.is_err() {
@@ -80,7 +79,7 @@ impl Emulator {
             drv.set_loaded(true);
             drv.drive_select(drive_selected);
             true
-        } 
+        }
     }
 
     pub fn frame_buffer(&self) -> js_sys::Uint8ClampedArray {
@@ -151,7 +150,11 @@ impl Emulator {
     }
 
     pub fn keyboard_latch(&mut self, value: u8) {
-        self.cpu.bus.keyboard_latch=(value + 128) as u8;
+        self.cpu.bus.keyboard_latch = (value + 128) as u8;
+    }
+
+    pub fn any_key_down(&mut self, flag: bool) {
+        self.cpu.bus.any_key_down = flag
     }
 
     pub fn is_apple2e(&self) -> bool {
@@ -188,7 +191,8 @@ pub async fn init_emul() -> Emulator {
     }
 
     for i in 0..2 {
-        cpu.bus.register_device(IODevice::Mockingboard(i as usize),(4+i) as usize);
+        cpu.bus
+            .register_device(IODevice::Mockingboard(i as usize), (4 + i) as usize);
     }
 
     cpu.reset();

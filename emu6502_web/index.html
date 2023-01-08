@@ -103,6 +103,8 @@
 
             // Setup Keyboard Handler
             const onKeydown = (e) => {
+                emu6502.any_key_down(true);
+
                 let apple2e = emu6502.is_apple2e();
 
                 if (e.isComposing || e.keyCode === 229) {
@@ -289,6 +291,8 @@
             }
 
             const onKeyup = (e) => {
+                emu6502.any_key_down(false);
+
                 if (e.isComposing || e.keyCode === 229) {
                     return; 
                 }

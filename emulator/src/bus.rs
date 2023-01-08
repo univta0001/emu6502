@@ -121,6 +121,9 @@ pub struct Bus {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub full_speed: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    pub any_key_down: bool,
 }
 
 pub trait Mem {
@@ -216,6 +219,7 @@ impl Bus {
             io_slot: default_io_slot(),
             extended_rom: 0,
             full_speed: false,
+            any_key_down: false,
         };
 
         // Memory initialization is based on the implementation of AppleWin
@@ -557,8 +561,7 @@ impl Bus {
                     self.mem._80storeon = false;
                     self.video._80storeon = false;
                 }
-                let value = self.get_keyboard_latch();
-                value
+                self.get_keyboard_latch()
             }
 
             0x01 => {
@@ -649,7 +652,11 @@ impl Bus {
                 let keyboard_latch = self.get_keyboard_latch();
                 self.set_keyboard_latch(keyboard_latch & 0x7f);
                 if self.video.is_apple2e() {
-                    keyboard_latch
+                    if self.any_key_down {
+                        keyboard_latch | 0x80
+                    } else {
+                        keyboard_latch & 0x7f
+                    }
                 } else {
                     keyboard_latch & 0x7f
                 }
