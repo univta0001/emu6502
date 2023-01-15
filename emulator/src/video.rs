@@ -15,21 +15,16 @@ use num_integer::Integer;
 pub type Rgb = [u8; 3];
 pub type Yuv = [f32; 3];
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Default,Debug, Copy, Clone, PartialEq)]
 #[allow(non_camel_case_types)]
 pub enum DisplayMode {
+    #[default]
     DEFAULT,
     NTSC,
     MONO_WHITE,
     MONO_GREEN,
     MONO_AMBER,
     RGB,
-}
-
-impl Default for DisplayMode {
-    fn default() -> Self {
-        DisplayMode::DEFAULT
-    }
 }
 
 #[derive(Debug)]
