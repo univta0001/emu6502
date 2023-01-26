@@ -11,7 +11,7 @@ use emu6502::trace::{adjust_disassemble_addr, disassemble_addr};
 use image::codecs::png::PngEncoder;
 use image::ColorType;
 use image::ImageEncoder;
-use nfd2::Response;
+use rfd::FileDialog;
 use sdl2::audio::AudioSpecDesired;
 use sdl2::controller::Axis;
 use sdl2::controller::Button;
@@ -407,17 +407,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 eject_harddisk(cpu, 1);
             } else {
-                let result = nfd2::open_file_dialog(Some("hdv,2mg"), None);
-                if result.is_ok() {
-                    if let Ok(Response::Okay(file_path)) = result {
-                        let result = load_harddisk(cpu, &file_path, 1);
-                        if let Err(e) = result {
-                            eprintln!("Unable to load hard disk {} : {e}", file_path.display());
-                        }
-                    }
-                } else {
-                    eprintln!("Unable to open hard disk file dialog");
-                }
+                open_harddisk_dialog(cpu, 1);
             }
         }
 
@@ -429,17 +419,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 eject_harddisk(cpu, 0);
             } else {
-                let result = nfd2::open_file_dialog(Some("hdv,2mg"), None);
-                if result.is_ok() {
-                    if let Ok(Response::Okay(file_path)) = result {
-                        let result = load_harddisk(cpu, &file_path, 0);
-                        if let Err(e) = result {
-                            eprintln!("Unable to load hard disk {} : {e}", file_path.display());
-                        }
-                    }
-                } else {
-                    eprintln!("Unable to open hard disk file dialog");
-                }
+                open_harddisk_dialog(cpu, 0);
             }
         }
 
@@ -537,18 +517,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                     eject_disk(cpu, 1);
                 }
             } else {
-                let result =
-                    nfd2::open_file_dialog(Some("dsk,po,nib,woz,nib.gz,dsk.gz,po.gz,woz.gz"), None);
-                if result.is_ok() {
-                    if let Ok(Response::Okay(file_path)) = result {
-                        let result = load_disk(cpu, &file_path, 1);
-                        if let Err(e) = result {
-                            eprintln!("Unable to load disk {} : {e}", file_path.display());
-                        }
-                    }
-                } else {
-                    eprintln!("Unable to open file dialog");
-                }
+                open_disk_dialog(cpu,1);
             }
         }
 
@@ -568,18 +537,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                     eject_disk(cpu, 0);
                 }
             } else {
-                let result =
-                    nfd2::open_file_dialog(Some("dsk,po,nib,woz,nib.gz,dsk.gz,po.gz,woz.gz"), None);
-                if result.is_ok() {
-                    if let Ok(Response::Okay(file_path)) = result {
-                        let result = load_disk(cpu, &file_path, 0);
-                        if let Err(e) = result {
-                            eprintln!("Unable to load disk {} : {}", file_path.display(), e);
-                        }
-                    }
-                } else {
-                    eprintln!("Unable to open file dialog");
-                }
+                open_disk_dialog(cpu,0);
             }
         }
 
@@ -757,6 +715,19 @@ where
     Ok(())
 }
 
+fn open_disk_dialog(cpu: &mut CPU, drive: usize) {
+    let result = FileDialog::new()
+        .add_filter("Disk image", &["dsk","po","nib","woz","nib.gz","dsk.gz","po.gz","woz.gz"])
+        .pick_file();
+
+    if let Some(file_path) = result {
+        let result = load_disk(cpu, &file_path, drive);
+        if let Err(e) = result {
+            eprintln!("Unable to load disk {} : {e}", file_path.display());
+        }
+    }
+}
+
 fn load_harddisk<P>(
     cpu: &mut CPU,
     path: P,
@@ -774,6 +745,19 @@ where
     drv.set_loaded(true);
     drv.drive_select(drive_selected);
     Ok(())
+}
+
+fn open_harddisk_dialog(cpu: &mut CPU, drive: usize) {
+    let result = FileDialog::new()
+        .add_filter("Disk image", &["hdv","2mg"])
+        .pick_file();
+
+    if let Some(file_path) = result {
+        let result = load_harddisk(cpu, &file_path, drive);
+        if let Err(e) = result {
+            eprintln!("Unable to load hard disk {} : {e}", file_path.display());
+        }
+    } 
 }
 
 fn eject_harddisk(cpu: &mut CPU, drive: usize) {
@@ -873,22 +857,25 @@ fn save_serialized_image(cpu: &CPU) {
         .replace_all(&yaml_output, |caps: &regex::Captures| (caps[1]).to_string())
         .to_string();
 
-    let result = nfd2::open_save_dialog(Some("yaml"), None);
-    if result.is_ok() {
-        if let Ok(Response::Okay(file_path)) = result {
-            let write_result = fs::write(&file_path, yaml_output);
-            if let Err(e) = write_result {
-                eprintln!("Unable to write to file {} : {}", file_path.display(), e);
-            }
+    let result = FileDialog::new()
+        .add_filter("Save state", &["yaml"])
+        .save_file();
+
+    if let Some(file_path) = result {
+        let write_result = fs::write(&file_path, yaml_output);
+        if let Err(e) = write_result {
+            eprintln!("Unable to write to file {} : {}", file_path.display(), e);
         }
-    } else {
-        eprintln!("Unable to open save file dialog");
     }
 }
 
 fn load_serialized_image() -> Result<CPU, String> {
-    let Ok(Response::Okay(file_path)) = nfd2::open_file_dialog(Some("yaml"), None) else {
-         return Err("Unable to open file dialog".to_string())
+    let result = FileDialog::new()
+        .add_filter("Save state", &["yaml"])
+        .pick_file();
+
+    let Some(file_path) = result else {
+         return Err("".to_string())
     };
 
     let result = fs::read_to_string(&file_path);
@@ -1460,7 +1447,11 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         initialize_new_cpu(&mut new_cpu, &mut display_index);
                         cpu = new_cpu
                     }
-                    Err(message) => eprintln!("{message}"),
+                    Err(message) => {
+                        if !message.is_empty() {
+                            eprintln!("{message}")
+                        }
+                    }
                 }
             }
         }
