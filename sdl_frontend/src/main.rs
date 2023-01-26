@@ -54,7 +54,7 @@ const AUDIO_SAMPLE_SIZE: u32 = 4800000 / 5994;
 const NTSC_LUMA_BANDWIDTH: f32 = 2300000.0;
 const NTSC_CHROMA_BANDWIDTH: f32 = 600000.0;
 
-const VERSION: &str = "0.1.0";
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 struct EventParam<'a> {
     video_subsystem: &'a VideoSubsystem,
