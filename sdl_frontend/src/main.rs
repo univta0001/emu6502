@@ -1302,16 +1302,30 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         cpu.bus.video.update_ntsc_matrix(ntsc_luma, ntsc_chroma);
     }
 
-    // Load dsk image
-    if let Ok(input_file) = pargs.free_from_str::<String>() {
-        let path = Path::new(&input_file);
-        load_image(&mut cpu, path, 0)?;
+    let remaining = pargs.finish();
+
+    // Check that there are no more flags in the remaining arguments
+    for item in &remaining {
+        let path = Path::new(item);
+
+        if path.display().to_string().starts_with('-') {
+            eprintln!("Unrecognized option: {}", path.display());
+            eprintln!();
+            print_help();
+            return Ok(());
+        }
     }
 
-    let remaining = pargs.finish();
     if !remaining.is_empty() {
+        // Load dsk image in drive 1
         let path = Path::new(&remaining[0]);
-        load_image(&mut cpu, path, 1)?;
+        load_image(&mut cpu, path, 0)?;
+
+        if remaining.len() > 1 {
+            // Load dsk image in drive 2
+            let path2 = Path::new(&remaining[1]);
+            load_image(&mut cpu, path2, 1)?;
+        }
     }
 
     let mut t = Instant::now();

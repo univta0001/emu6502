@@ -196,7 +196,7 @@ pub const R: [Reg8; 8] = [
     Reg8::A,
 ];
 
-pub const CC: [(Flag, bool, &'static str); 8] = [
+pub const CC: [(Flag, bool, &str); 8] = [
     (Flag::Z, false, "NZ"),
     (Flag::Z, true, "Z"),
     (Flag::C, false, "NC"),
@@ -207,7 +207,7 @@ pub const CC: [(Flag, bool, &'static str); 8] = [
     (Flag::S, true, "N"),
 ];
 
-pub const ROT: [(ShiftDir, ShiftMode, &'static str); 8] = [
+pub const ROT: [(ShiftDir, ShiftMode, &str); 8] = [
     (ShiftDir::Left, ShiftMode::RotateCarry, "RLC"),
     (ShiftDir::Right, ShiftMode::RotateCarry, "RRC"),
     (ShiftDir::Left, ShiftMode::Rotate, "RL"),
@@ -219,7 +219,7 @@ pub const ROT: [(ShiftDir, ShiftMode, &'static str); 8] = [
 ];
 
 //pub const ALU: [(fn(&mut State, u8, u8) -> u8, &'static str); 8] = [
-pub const ALU: [(Operator, &'static str); 8] = [
+pub const ALU: [(Operator, &str); 8] = [
     (operator_add, "ADD"),
     (operator_adc, "ADC"),
     (operator_sub, "SUB"),
