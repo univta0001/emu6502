@@ -600,10 +600,17 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
     }
 }
 
-fn print_help() {
-    eprintln!(
-        r#"emul6502 {VERSION}
+fn print_version() {
+    eprintln!("emul6502 {VERSION}");
+}
 
+fn print_help() {
+    print_version();
+    print_usage();
+}
+
+fn print_usage() {
+    eprintln!(r#"
 USAGE:
     emul6502 [FLAGS] [disk 1] [disk 2]
 
@@ -677,9 +684,7 @@ Function Keys:
     F9                 Disable / Enable full speed emulation
     F10                Load Hard Disk 1 file
     F11                Load Hard Disk 2 file
-    F12 / Break        Reset
-"#
-    );
+    F12 / Break        Reset"#);
 }
 
 fn load_image<P>(cpu: &mut CPU, path: P, drive: usize) -> Result<(), Box<dyn Error + Send + Sync>>
@@ -1038,6 +1043,11 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     if pargs.contains(["-h", "--help"]) {
         print_help();
+        return Ok(());
+    }
+
+    if pargs.contains(["-v", "--version"]) {
+        print_version();
         return Ok(());
     }
 
