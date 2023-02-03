@@ -601,7 +601,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
 }
 
 fn print_version() {
-    eprintln!("emul6502 {VERSION}");
+    eprintln!("emul6502 {VERSION} ({})", env!("GIT_HASH"));
 }
 
 fn print_help() {
@@ -616,6 +616,7 @@ USAGE:
 
 FLAGS:
     -h, --help         Prints help information
+    -V, --version      Prints version information
     --50hz             Enable 50 Hz emulation     
     --nojoystick       Disable joystick
     --xtrim            Set joystick x-trim value
@@ -1046,7 +1047,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         return Ok(());
     }
 
-    if pargs.contains(["-v", "--version"]) {
+    if pargs.contains(["-V", "--version"]) {
         print_version();
         return Ok(());
     }
