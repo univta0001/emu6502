@@ -428,7 +428,7 @@ impl W65C22 {
 
         self.t1c = self.t1c.wrapping_sub(1);
 
-        if self.t1c == 0 && self.t1_loaded {
+        if self.t1_loaded && self.t1c == 0 {
             self.irq_happen = cycles;
         }
 
@@ -448,7 +448,7 @@ impl W65C22 {
 
         self.t2c = self.t2c.wrapping_sub(1);
 
-        if self.t2c == 0 && self.t2_loaded {
+        if self.t2_loaded && self.t2c == 0 {
             self.irq_happen = cycles;
         }
 
@@ -930,22 +930,20 @@ mod test {
     }
 
     #[test]
-    fn w65c22_t1_underflow_small_latch() {
+    fn w65c22_t1_underflow_irq() {
         let mut w65c22 = W65C22::new("#1");
+        let mut cycles = 0;
         w65c22.io_access(0x04, 0x00, true);
         w65c22.io_access(0x05, 0x00, true);
-        w65c22.tick(0);
+        w65c22.tick(cycles);
        
-        // Run for 2 cycles
+        // Run for 3 cycles
         for _ in 0..2 {
-            w65c22.tick(0);
+            cycles += 1;
+            w65c22.tick(cycles);
         }
-
-        assert_eq!(w65c22.t1c, 0x0, "T1 counter should be 0x0");
-
-        w65c22.tick(0);
-        
         assert_eq!(w65c22.t1c, 0xffffffff, "T1 counter should be 0xffffffff");
+        assert_eq!(w65c22.irq_happen, 0x0, "IRQ happen should be 0x0 and set when t1c = 0");
     }
 
     #[test]

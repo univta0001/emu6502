@@ -1363,7 +1363,7 @@ impl CPU {
 
             // If the interrupt happens on the last cycle of the opcode, execute the opcode and
             // then the interrupt handling routine
-            if cycles_elapsed > 0 {
+            if cycles_elapsed > 1 {
                 self.interrupt(interrupt::IRQ);
             }
         }
