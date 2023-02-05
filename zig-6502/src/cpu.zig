@@ -1143,7 +1143,6 @@ fn test_bitop_register(cpu: *CPU, op: CPU.BitOp, register: usize, address: Type.
         cpu.PC = TEST_ADDRESS;
         cpu.memory.data[address] = d.m; // put value in memory address
         const prevPS = cpu.PS; // remember PS
-        _ = prevPS;
 
         const prevRegs = cpu.regs; // remember registers
         cpu.regs[register] = d.r; // set desired register
@@ -1488,8 +1487,6 @@ fn test_inc_dec(cpu: *CPU, op: CPU.IncDecOp, register: usize, address: Type.Word
 
         const prevPS = cpu.PS; // remember PS
 
-        _ = prevPS;
-
         const prevRegs = cpu.regs; // remember registers
 
         _ = prevRegs;
@@ -1524,8 +1521,6 @@ fn test_set_bit(cpu: *CPU, op: CPU.ClearSet, bit: Status.Name, ticks: u32) !void
     }
 
     const prevPS = cpu.PS; // remember PS
-
-    _ = prevPS;
 
     const prevRegs = cpu.regs; // remember registers
 

@@ -924,6 +924,25 @@ mod test {
     }
 
     #[test]
+    fn w65c22_t1_underflow_small_latch() {
+        let mut w65c22 = W65C22::new("#1");
+        w65c22.io_access(0x04, 0x00, true);
+        w65c22.io_access(0x05, 0x00, true);
+        w65c22.tick(0);
+       
+        // Run for 2 cycles
+        for _ in 0..2 {
+            w65c22.tick(0);
+        }
+
+        assert_eq!(w65c22.t1c, 0x0, "T1 counter should be 0x0");
+
+        w65c22.tick(0);
+        
+        assert_eq!(w65c22.t1c, 0xffffffff, "T1 counter should be 0xffffffff");
+    }
+
+    #[test]
     fn detect_mockingboard() {
         let mut bus = Bus::new();
         bus.io_slot[4] = IODevice::Mockingboard(0);
