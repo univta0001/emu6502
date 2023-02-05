@@ -428,10 +428,13 @@ impl W65C22 {
 
         self.t1c = self.t1c.wrapping_sub(1);
 
+        if self.t1c == 0 && self.t1_loaded {
+            self.irq_happen = cycles;
+        }
+
         if self.t1c == 0xffffffff {
             if self.t1_loaded {
                 self.ifr |= 0x40;
-                self.irq_happen = cycles;
             }
 
             if self.acr & 0x40 == 0 {
@@ -445,10 +448,13 @@ impl W65C22 {
 
         self.t2c = self.t2c.wrapping_sub(1);
 
+        if self.t2c == 0 && self.t2_loaded {
+            self.irq_happen = cycles;
+        }
+
         if self.t2c == 0xffff {
             if self.t2_loaded {
                 self.ifr |= 0x20;
-                self.irq_happen = cycles;
             }
 
             if self.acr & 0x20 == 0 {
