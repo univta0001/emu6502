@@ -936,14 +936,17 @@ mod test {
         w65c22.io_access(0x04, 0x00, true);
         w65c22.io_access(0x05, 0x00, true);
         w65c22.tick(cycles);
-       
+
         // Run for 3 cycles
         for _ in 0..2 {
             cycles += 1;
             w65c22.tick(cycles);
         }
         assert_eq!(w65c22.t1c, 0xffffffff, "T1 counter should be 0xffffffff");
-        assert_eq!(w65c22.irq_happen, 0x0, "IRQ happen should be 0x0 and set when t1c = 0");
+        assert_eq!(
+            w65c22.irq_happen, 0x0,
+            "IRQ happen should be 0x0 and set when t1c = 0"
+        );
     }
 
     #[test]

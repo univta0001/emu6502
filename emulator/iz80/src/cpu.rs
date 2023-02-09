@@ -140,11 +140,11 @@ impl Cpu {
     pub fn signal_nmi(&mut self) {
         self.state.nmi_pending = true
     }
-    
+
     /// Signal reset
     pub fn signal_reset(&mut self) {
         self.state.reset_pending = true
-    }    
+    }
 }
 
 impl Default for Cpu {

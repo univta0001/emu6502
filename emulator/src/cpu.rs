@@ -3,6 +3,7 @@ use crate::bus::Mem;
 //use std::collections::HashMap;
 //use crate::trace::disassemble;
 //use crate::trace::trace;
+use bitflags::bitflags;
 
 #[cfg(feature = "z80")]
 use iz80::*;

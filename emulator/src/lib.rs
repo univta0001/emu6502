@@ -12,6 +12,3 @@ pub mod parallel;
 pub mod ramfactor;
 pub mod trace;
 pub mod video;
-
-#[macro_use]
-extern crate bitflags;

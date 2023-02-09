@@ -517,7 +517,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                     eject_disk(cpu, 1);
                 }
             } else {
-                open_disk_dialog(cpu,1);
+                open_disk_dialog(cpu, 1);
             }
         }
 
@@ -537,7 +537,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                     eject_disk(cpu, 0);
                 }
             } else {
-                open_disk_dialog(cpu,0);
+                open_disk_dialog(cpu, 0);
             }
         }
 
@@ -610,7 +610,8 @@ fn print_help() {
 }
 
 fn print_usage() {
-    eprintln!(r#"
+    eprintln!(
+        r#"
 USAGE:
     emul6502 [FLAGS] [disk 1] [disk 2]
 
@@ -685,7 +686,8 @@ Function Keys:
     F9                 Disable / Enable full speed emulation
     F10                Load Hard Disk 1 file
     F11                Load Hard Disk 2 file
-    F12 / Break        Reset"#);
+    F12 / Break        Reset"#
+    );
 }
 
 fn load_image<P>(cpu: &mut CPU, path: P, drive: usize) -> Result<(), Box<dyn Error + Send + Sync>>
@@ -723,7 +725,12 @@ where
 
 fn open_disk_dialog(cpu: &mut CPU, drive: usize) {
     let result = FileDialog::new()
-        .add_filter("Disk image", &["dsk","po","nib","woz","nib.gz","dsk.gz","po.gz","woz.gz"])
+        .add_filter(
+            "Disk image",
+            &[
+                "dsk", "po", "nib", "woz", "nib.gz", "dsk.gz", "po.gz", "woz.gz",
+            ],
+        )
         .pick_file();
 
     if let Some(file_path) = result {
@@ -755,7 +762,7 @@ where
 
 fn open_harddisk_dialog(cpu: &mut CPU, drive: usize) {
     let result = FileDialog::new()
-        .add_filter("Disk image", &["hdv","2mg"])
+        .add_filter("Disk image", &["hdv", "2mg"])
         .pick_file();
 
     if let Some(file_path) = result {
@@ -763,7 +770,7 @@ fn open_harddisk_dialog(cpu: &mut CPU, drive: usize) {
         if let Err(e) = result {
             eprintln!("Unable to load hard disk {} : {e}", file_path.display());
         }
-    } 
+    }
 }
 
 fn eject_harddisk(cpu: &mut CPU, drive: usize) {
