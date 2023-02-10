@@ -926,7 +926,10 @@ fn load_serialized_image() -> Result<CPU, String> {
 
 fn update_audio(cpu: &mut CPU, audio_device: &sdl2::audio::AudioQueue<i16>) {
     let snd = &mut cpu.bus.audio;
-    if audio_device.size() < AUDIO_SAMPLE_SIZE * 2 * 8 {
+
+    snd.update_cycles(cpu.bus.video.is_video_50hz());
+
+    if audio_device.size() < AUDIO_SAMPLE_SIZE * 2 * 12 {
         let _ = audio_device.queue_audio(&snd.data.sample[..]);
         snd.clear_buffer();
     } else {

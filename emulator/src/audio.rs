@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 type Channel = i16;
 type HigherChannel = i32;
 
+const PAL_14M: usize = 15625 * 912;
 const NTSC_14M: usize = 157500000 / 11;
 const CPU_6502_MHZ: usize = NTSC_14M * 65 / 912;
 const DEFAULT_RATE: usize = 48000;
@@ -55,6 +56,22 @@ impl Audio {
 
     pub fn is_audio_active(&self) -> bool {
         self.audio_active
+    }
+
+    fn ntsc_cycles(&self) -> f32 {
+        CPU_6502_MHZ as f32 / DEFAULT_RATE as f32
+    }
+
+    fn pal_cycles(&self) -> f32 {
+        (PAL_14M * 65 / 912) as f32 / DEFAULT_RATE as f32
+    }
+
+    pub fn update_cycles(&mut self, is_50hz: bool) {
+        if is_50hz {
+            self.fcycles_per_sample = self.pal_cycles()
+        } else {
+            self.fcycles_per_sample = self.ntsc_cycles()
+        }
     }
 
     fn update_phase(&mut self, phase: &mut HigherChannel, channel: usize) {
