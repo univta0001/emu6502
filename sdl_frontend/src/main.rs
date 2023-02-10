@@ -1151,6 +1151,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     // Handle optional arguments
     if pargs.contains("--50hz") {
         cpu.bus.video.set_video_50hz(true);
+        cpu.bus.audio.update_cycles(true);
     }
 
     if pargs.contains("--nojoystick") {
