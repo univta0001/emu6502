@@ -47,9 +47,7 @@ use std::time::Instant;
 const CPU_CYCLES_PER_FRAME_60HZ: usize = 17030;
 const CPU_CYCLES_PER_FRAME_50HZ: usize = 20280;
 
-// The correct NTSC frame rate is 59.94 and not 60
-const AUDIO_SAMPLE_SIZE: u32 = 4800000 / 5994;
-
+const AUDIO_SAMPLE_SIZE: u32 = 4800000 / 6000;
 const AUDIO_SAMPLE_SIZE_50HZ: u32 = 4800000 / 5000;
 
 //const CPU_6502_MHZ: usize = 157500 * 1000 / 11 * 65 / 912;
