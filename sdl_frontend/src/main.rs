@@ -1400,10 +1400,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             }
 
             if dcyc >= cpu_cycles {
+                update_audio(_cpu, &audio_device);
 
                 // Update video only at multiple of 60Hz or 50Hz
                 if video_time.elapsed().as_micros() >= cpu_period as u128 {
-                    update_audio(_cpu, &audio_device);
                     update_video(_cpu, &mut save_screenshot, &mut canvas, &mut texture);
                     video_time = Instant::now();
                 }
