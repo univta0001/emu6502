@@ -7,7 +7,8 @@ use serde::{Deserialize, Serialize};
 type Channel = i16;
 type HigherChannel = i32;
 
-const PAL_14M: usize = 15625 * 912;
+// PAL cpu is clocked at 1.014 MHz (PAL Horizontal Hz = 15625)
+const PAL_14M: usize = 15600 * 912;
 const NTSC_14M: usize = 157500000 / 11;
 const CPU_6502_MHZ: f32 = (NTSC_14M * 65) as f32 / 912.0;
 const DEFAULT_RATE: f32 = 48000.0;
