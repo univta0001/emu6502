@@ -50,6 +50,8 @@ const CPU_CYCLES_PER_FRAME_50HZ: usize = 20280;
 // The correct NTSC frame rate is 59.94 and not 60
 const AUDIO_SAMPLE_SIZE: u32 = 4800000 / 5994;
 
+const AUDIO_SAMPLE_SIZE_50HZ: u32 = 4800000 / 5000;
+
 //const CPU_6502_MHZ: usize = 157500 * 1000 / 11 * 65 / 912;
 const NTSC_LUMA_BANDWIDTH: f32 = 2300000.0;
 const NTSC_CHROMA_BANDWIDTH: f32 = 600000.0;
@@ -927,9 +929,16 @@ fn load_serialized_image() -> Result<CPU, String> {
 fn update_audio(cpu: &mut CPU, audio_device: &sdl2::audio::AudioQueue<i16>) {
     let snd = &mut cpu.bus.audio;
 
-    snd.update_cycles(cpu.bus.video.is_video_50hz());
+    let video_50hz = cpu.bus.video.is_video_50hz();
+    let audio_sample_size = if video_50hz {
+        AUDIO_SAMPLE_SIZE_50HZ
+    } else {
+        AUDIO_SAMPLE_SIZE
+    };
 
-    if audio_device.size() < AUDIO_SAMPLE_SIZE * 2 * 12 {
+    snd.update_cycles(video_50hz);
+
+    if audio_device.size() < audio_sample_size * 2 * 12 {
         let _ = audio_device.queue_audio(&snd.data.sample[..]);
         snd.clear_buffer();
     } else {
