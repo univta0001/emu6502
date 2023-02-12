@@ -1124,7 +1124,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let desired_spec = AudioSpecDesired {
         freq: Some(48000_i32),
         channels: Some(2),      // stereo
-        samples: Some(800_u16), // default sample size
+        samples: None, // default sample size
     };
     let audio_device = audio_subsystem
         .open_queue::<i16, _>(None, &desired_spec)
