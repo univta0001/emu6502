@@ -936,7 +936,7 @@ fn update_audio(cpu: &mut CPU, audio_device: &sdl2::audio::AudioQueue<i16>) {
 
     snd.update_cycles(video_50hz);
 
-    if audio_device.size() < audio_sample_size * 2 * 12 {
+    if audio_device.size() < audio_sample_size * 2 * 30 {
         let _ = audio_device.queue_audio(&snd.data.sample[..]);
         snd.clear_buffer();
     } else {
