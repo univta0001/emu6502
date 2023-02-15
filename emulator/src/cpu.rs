@@ -1369,8 +1369,8 @@ impl CPU {
             }
         }
 
+        #[cfg(feature = "z80")]
         if self.alt_cpu {
-            #[cfg(feature = "z80")]
             self.z80cpu.execute_instruction(&mut self.bus);
             return true;
         }
