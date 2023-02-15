@@ -995,14 +995,12 @@ impl Mem for Bus {
                     self.intc8rom = true;
                 }
 
-                if self.intcxrom && self.video.is_apple2e() {
-                    self.mem_read(addr)
-                } else if self.slotc3rom {
-                    self.read_floating_bus()
-                } else if self.video.is_apple2e() {
+                if !self.video.is_apple2e() {
+                    self.iodevice_rom_access(addr, 0, false)
+                } else if self.intcxrom || !self.slotc3rom {
                     self.mem_read(addr)
                 } else {
-                    self.read_floating_bus()
+                    self.iodevice_rom_access(addr, 0, false)
                 }
             }
 
