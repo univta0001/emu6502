@@ -613,7 +613,6 @@ impl Bus {
             0x07 => {
                 if write_flag && !self.is_apple2c {
                     self.intcxrom = true;
-                    self.slotc3rom = false;
                 }
                 self.get_keyboard_latch()
             }
@@ -998,7 +997,10 @@ impl Mem for Bus {
                 if !self.slotc3rom {
                     self.intc8rom = true;
                 }
-                if self.slotc3rom {
+
+                if self.intcxrom && self.video.is_apple2e() {
+                    self.mem_read(addr)
+                } else if self.slotc3rom {
                     self.read_floating_bus()
                 } else if self.video.is_apple2e() {
                     self.mem_read(addr)
