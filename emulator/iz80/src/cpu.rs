@@ -14,7 +14,7 @@ const NMI_ADDRESS: u16 = 0x0066;
 pub struct Cpu {
     state: State,
     trace: bool,
-    decoder: Box<dyn Decoder>,
+    decoder: Box<dyn Decoder + Send + Sync>,
 }
 
 pub(crate) trait Decoder {

@@ -1,7 +1,7 @@
 use super::environment::*;
 use super::registers::*;
 
-type OpcodeFn = dyn Fn(&mut Environment);
+type OpcodeFn = dyn Fn(&mut Environment) + Send + Sync;
 
 pub struct Opcode {
     pub name: String,

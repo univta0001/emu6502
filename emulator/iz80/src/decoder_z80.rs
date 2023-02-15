@@ -442,7 +442,6 @@ pub const ROT: [(ShiftDir, ShiftMode, &str); 8] = [
     (ShiftDir::Right, ShiftMode::Logical, "SRL"),
 ];
 
-//pub const ALU: [(fn(&mut State, u8, u8) -> u8, &'static str); 8] = [
 pub const ALU: [(Operator, &str); 8] = [
     (operator_add, "ADD"),
     (operator_adc, "ADC"),

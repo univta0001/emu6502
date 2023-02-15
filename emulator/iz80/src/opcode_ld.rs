@@ -246,7 +246,7 @@ pub fn build_ex_psp_hl() -> Opcode {
     }
 }
 
-pub fn build_ld_block((inc, repeat, postfix): (bool, bool, &'static str)) -> Opcode {
+pub fn build_ld_block((inc, repeat, postfix): (bool, bool, &str)) -> Opcode {
     Opcode {
         name: format!("LD{postfix}"),
         action: Box::new(move |env: &mut Environment| {

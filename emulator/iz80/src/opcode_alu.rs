@@ -44,7 +44,7 @@ pub fn build_operator_a_n((op, name): (Operator, &str)) -> Opcode {
     }
 }
 
-pub fn build_cp_block((inc, repeat, postfix): (bool, bool, &'static str)) -> Opcode {
+pub fn build_cp_block((inc, repeat, postfix): (bool, bool, &str)) -> Opcode {
     Opcode {
         name: format!("CP{postfix}"),
         action: Box::new(move |env: &mut Environment| {

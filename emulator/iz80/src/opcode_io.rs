@@ -88,7 +88,7 @@ pub fn build_in_a_n() -> Opcode {
 instructions before.
 */
 
-pub fn build_in_block((inc, repeat, postfix): (bool, bool, &'static str)) -> Opcode {
+pub fn build_in_block((inc, repeat, postfix): (bool, bool, &str)) -> Opcode {
     Opcode {
         name: format!("IN{postfix}"),
         action: Box::new(move |env: &mut Environment| {
