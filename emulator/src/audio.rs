@@ -51,7 +51,7 @@ impl Audio {
             data,
             fcycles: 0.0,
             fcycles_per_sample: CPU_6502_MHZ / DEFAULT_RATE,
-            dc_filter: 32768 + 12000,
+            dc_filter: 32000 + 16000,
             mboard: vec![Mockingboard::default()],
             audio_active: false,
         }
@@ -127,21 +127,16 @@ impl Audio {
         }
 
         self.audio_active = true;
+        self.dc_filter -= 1;
 
-        if self.dc_filter >= 32768 {
-            self.dc_filter -= 1;
+        if self.dc_filter >= 32000 {
             return phase;
         }
 
         let return_phase =
-            ((phase as HigherChannel * self.dc_filter as HigherChannel) / (32768_i32)) as Channel;
-        self.dc_filter -= 1;
+            ((phase as HigherChannel * self.dc_filter as HigherChannel) / (32000_i32)) as Channel;
 
         return_phase
-    }
-
-    pub fn get_audio_sample(&self) -> &Vec<Channel> {
-        &self.data.sample
     }
 
     pub fn clear_buffer(&mut self) {
@@ -149,7 +144,7 @@ impl Audio {
     }
 
     pub fn click(&mut self) {
-        self.dc_filter = 32768 + 12000;
+        self.dc_filter = 32000 + 16000;
         self.data.phase = -self.data.phase;
     }
 }
