@@ -62,7 +62,7 @@ impl Audio {
     }
 
     fn ntsc_cycles(&self) -> f32 {
-        CPU_6502_MHZ / DEFAULT_RATE as f32
+        CPU_6502_MHZ / DEFAULT_RATE
     }
 
     fn pal_cycles(&self) -> f32 {
@@ -133,10 +133,7 @@ impl Audio {
             return phase;
         }
 
-        let return_phase =
-            ((phase as HigherChannel * self.dc_filter as HigherChannel) / (32000_i32)) as Channel;
-
-        return_phase
+        ((phase as HigherChannel * self.dc_filter as HigherChannel) / (32000_i32)) as Channel
     }
 
     pub fn clear_buffer(&mut self) {
