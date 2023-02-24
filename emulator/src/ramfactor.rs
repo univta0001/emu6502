@@ -21,6 +21,9 @@ use std::collections::BTreeMap;
 #[cfg(all(feature = "serde_support", feature = "flate"))]
 use std::io::{Read, Write};
 
+#[cfg(all(feature = "serde_support"))]
+use crate::marshal::hex_to_u8;
+
 const ROM: [u8; 8192] = [
     0x43, 0x4f, 0x50, 0x59, 0x52, 0x49, 0x47, 0x48, 0x54, 0x20, 0x28, 0x43, 0x29, 0x20, 0x31, 0x39,
     0x38, 0x36, 0x2d, 0x38, 0x39, 0x20, 0x41, 0x50, 0x50, 0x4c, 0x49, 0x45, 0x44, 0x20, 0x45, 0x4e,
@@ -554,18 +557,6 @@ pub struct RamFactor {
 }
 
 // Serialization / Deserialization functions
-#[cfg(all(feature = "serde_support", feature = "flate"))]
-fn hex_to_u8(c: u8) -> std::io::Result<u8> {
-    match c {
-        b'A'..=b'F' => Ok(c - b'A' + 10),
-        b'a'..=b'f' => Ok(c - b'a' + 10),
-        b'0'..=b'9' => Ok(c - b'0'),
-        _ => Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            "Invalid hex char",
-        )),
-    }
-}
 
 #[cfg(all(feature = "serde_support", feature = "flate"))]
 fn as_hex<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
