@@ -807,9 +807,8 @@ impl Uthernet2 {
                 let result = stream.write(data);
                 if result.is_err() {
                     if let Err(error) = result {
-                        match error.kind() {
-                            ErrorKind::WouldBlock => {}
-                            _ => self.clear_socket_fd(i),
+                        if !(matches!(error.kind(), ErrorKind::WouldBlock)) {
+                            self.clear_socket_fd(i);
                         }
                     }
                 }
