@@ -7,6 +7,10 @@ use crate::noslotclock::NoSlotClock;
 use crate::parallel::ParallelCard;
 use crate::ramfactor::RamFactor;
 use crate::video::Video;
+
+#[cfg(not(target_os = "wasi"))]
+use crate::network::Uthernet2;
+
 //use rand::Rng;
 //use std::collections::HashMap;
 
@@ -55,6 +59,8 @@ pub enum IODevice {
     Z80,
     HardDisk,
     Mouse,
+    #[cfg(not(target_os = "wasi"))]
+    Uthernet2,
 }
 
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize, Derivative))]
@@ -124,6 +130,10 @@ pub struct Bus {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub any_key_down: bool,
+
+    #[cfg(not(target_os = "wasi"))]
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    pub uthernet2: Uthernet2,
 }
 
 pub trait Mem {
@@ -220,6 +230,8 @@ impl Bus {
             extended_rom: 0,
             full_speed: false,
             any_key_down: false,
+            #[cfg(not(target_os = "wasi"))]
+            uthernet2: Uthernet2::new(),
         };
 
         // Memory initialization is based on the implementation of AppleWin
@@ -358,6 +370,8 @@ impl Bus {
                 IODevice::Mockingboard(_) => None,
                 #[cfg(feature = "z80")]
                 IODevice::Z80 => None,
+                #[cfg(not(target_os = "wasi"))]
+                IODevice::Uthernet2 => Some(&mut self.uthernet2),
                 _ => None,
             };
 
@@ -1081,6 +1095,12 @@ impl Default for Bus {
 
         this.io_slot[1] = IODevice::Printer;
         this.io_slot[2] = IODevice::RamFactor;
+
+        #[cfg(not(target_os = "wasi"))] 
+        {
+            this.io_slot[3] = IODevice::Uthernet2;
+        }
+
         this.io_slot[4] = IODevice::Mockingboard(0);
         this.io_slot[5] = IODevice::Mouse;
         this.io_slot[6] = IODevice::Disk;
