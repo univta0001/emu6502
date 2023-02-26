@@ -342,11 +342,11 @@ impl Uthernet2 {
             _W5100_SN_TX_FSR1 => value = self.get_transmit_free_size_register(unit, 0),
             _W5100_SN_RX_RSR0 => {
                 self.receive_one_packet(unit);
-                value = self.get_receive_data_size_register(unit, 8);
+                value = self.mem[addr];
             }
             _W5100_SN_RX_RSR1 => {
                 self.receive_one_packet(unit);
-                value = self.get_receive_data_size_register(unit, 0);
+                value = self.mem[addr];
             }
             _ => {}
         }
@@ -420,15 +420,6 @@ impl Uthernet2 {
         let size = socket.transmit_size;
         let present = self.get_transmit_data_size(i);
         (((size - present) >> shift) & 0xff) as u8
-    }
-
-    fn get_receive_data_size_register(&self, i: usize, shift: usize) -> u8 {
-        let base_addr = self.get_base_socket_addr(i);
-        let rsr = u16::from_be_bytes([
-            self.mem[base_addr + _W5100_SN_RX_RSR0],
-            self.mem[base_addr + _W5100_SN_RX_RSR1],
-        ]);
-        ((rsr >> shift) & 0xff) as u8
     }
 
     fn get_transmit_data_size(&self, i: usize) -> usize {
