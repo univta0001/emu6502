@@ -44,7 +44,7 @@ impl Audio {
     pub fn new() -> Self {
         let data = AudioData {
             sample: Vec::new(),
-            phase: MAX_AMPLITUDE,
+            phase: -MAX_AMPLITUDE,
         };
 
         Audio {
