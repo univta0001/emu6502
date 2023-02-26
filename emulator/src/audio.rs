@@ -14,7 +14,7 @@ const PAL_14M: usize = 15600 * 912;
 const NTSC_14M: usize = 15720 * 912;
 const CPU_6502_MHZ: f32 = (NTSC_14M * 65) as f32 / 912.0;
 const DEFAULT_RATE: f32 = 48000.0;
-const MAX_AMPLITUDE: Channel = 0x7fff;
+const MAX_AMPLITUDE: Channel = Channel::MAX;
 
 const AY_LEVEL: [u16; 16] = [
     0x0000, 0x0385, 0x053d, 0x0770, 0x0ad7, 0x0fd5, 0x15b0, 0x230c, 0x2b4c, 0x43c1, 0x5a4c, 0x732f,
