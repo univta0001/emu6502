@@ -45,7 +45,7 @@ impl AudioFilter {
     }
 
     fn generate_coefficients(order: usize, sample_freq: f32, cutoff_freq: f32) -> Vec<f32> {
-        let omega = std::f32::consts::PI * cutoff_freq / sample_freq;
+        let omega = 2.0 * std::f32::consts::PI * cutoff_freq / sample_freq;
         let mut dc = 0.0;
         let mut filter = vec![0.0; order + 1];
 
