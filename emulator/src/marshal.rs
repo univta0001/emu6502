@@ -29,7 +29,10 @@ pub fn hex_to_u8(c: u8) -> std::io::Result<u8> {
 }
 
 #[cfg(all(feature = "serde_support", feature = "flate"))]
-pub fn as_opt_hex<S: Serializer>(value: &Option<Vec<u8>>, serializer: S) -> Result<S::Ok, S::Error> {
+pub fn as_opt_hex<S: Serializer>(
+    value: &Option<Vec<u8>>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
     if let Some(ref v) = *value {
         return as_hex_6bytes(v, serializer);
     }
@@ -98,7 +101,9 @@ pub fn as_hex<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Error>
 }
 
 #[cfg(all(feature = "serde_support", feature = "flate"))]
-pub fn from_hex_opt<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<Vec<u8>>, D::Error> {
+pub fn from_hex_opt<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<Vec<u8>>, D::Error> {
     let map: Option<BTreeMap<String, String>> = Option::deserialize(deserializer)?;
 
     if let Some(map) = map {

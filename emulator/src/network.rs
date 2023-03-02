@@ -1,10 +1,12 @@
 use crate::bus::Card;
-use crate::marshal::{as_hex, from_hex_32k};
 use crate::mmu::Mmu;
 use crate::video::Video;
 use std::io::ErrorKind;
 use std::io::{Read, Write};
 use std::net::{IpAddr, Shutdown, TcpStream, ToSocketAddrs};
+
+#[cfg(feature = "serde_support")]
+use crate::marshal::{as_hex, from_hex_32k};
 
 const U2_DEBUG: bool = false;
 const LABEL: &str = "Uthernet2";
@@ -377,8 +379,7 @@ impl Uthernet2 {
                 ]) as usize;
                 let free_available = socket.receive_size - rsr;
                 if free_available > 32 {
-                    let mut buffer = Vec::with_capacity(free_available - 1);
-                    buffer.resize(free_available - 1, 0);
+                    let mut buffer = vec![0; free_available - 1];
                     let result = stream.read(&mut buffer);
                     if let Ok(size) = result {
                         //u2_debug!("Read bytes received from peer = 0x{size:02X}");
@@ -741,11 +742,13 @@ impl Uthernet2 {
         let sn_tx_rr = (u16::from_be_bytes([
             self.mem[base_addr + _W5100_SN_TX_RD0],
             self.mem[base_addr + _W5100_SN_TX_RD1],
-        ]) as usize) & mask;
+        ]) as usize)
+            & mask;
         let sn_tx_wr = (u16::from_be_bytes([
             self.mem[base_addr + _W5100_SN_TX_WR0],
             self.mem[base_addr + _W5100_SN_TX_WR1],
-        ]) as usize) & mask;
+        ]) as usize)
+            & mask;
 
         let base = socket.transmit_addr;
         let rr_address = base + sn_tx_rr;

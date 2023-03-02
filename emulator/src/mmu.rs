@@ -1,7 +1,7 @@
 use crate::bus::{ROM_END, ROM_START};
 
 #[cfg(all(feature = "serde_support"))]
-use crate::marshal::{as_hex,from_hex_64k,as_opt_hex,from_hex_opt,from_hex_12k};
+use crate::marshal::{as_hex, as_opt_hex, from_hex_12k, from_hex_64k, from_hex_opt};
 
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};

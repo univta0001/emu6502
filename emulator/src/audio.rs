@@ -66,7 +66,7 @@ impl Audio {
     }
 
     fn pal_cycles(&self) -> f32 {
-        ((PAL_14M * 65) as f32  / 912.0) / DEFAULT_RATE
+        ((PAL_14M * 65) as f32 / 912.0) / DEFAULT_RATE
     }
 
     pub fn update_cycles(&mut self, is_50hz: bool) {
@@ -129,11 +129,11 @@ impl Audio {
         self.audio_active = true;
         self.dc_filter -= 1;
 
-        if self.dc_filter >= 32000 {
+        if self.dc_filter >= 32768 {
             return phase;
         }
 
-        ((phase as HigherChannel * self.dc_filter as HigherChannel) / (32000_i32)) as Channel
+        ((phase as HigherChannel * self.dc_filter as HigherChannel) / (32768_i32)) as Channel
     }
 
     pub fn clear_buffer(&mut self) {
@@ -141,7 +141,7 @@ impl Audio {
     }
 
     pub fn click(&mut self) {
-        self.dc_filter = 32000 + 30000;
+        self.dc_filter = 32768 + 30000;
         self.data.phase = -self.data.phase;
     }
 }

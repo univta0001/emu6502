@@ -1096,7 +1096,7 @@ impl Default for Bus {
         this.io_slot[1] = IODevice::Printer;
         this.io_slot[2] = IODevice::RamFactor;
 
-        #[cfg(not(target_os = "wasi"))] 
+        #[cfg(not(target_os = "wasi"))]
         {
             this.io_slot[3] = IODevice::Uthernet2;
         }
