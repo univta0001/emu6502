@@ -36,7 +36,7 @@ pub struct Audio {
 #[derive(Debug)]
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub struct AudioData {
-    pub sample: Vec<Channel>,
+    sample: Vec<Channel>,
     phase: Channel,
 }
 
@@ -134,6 +134,10 @@ impl Audio {
         }
 
         ((phase as HigherChannel * self.dc_filter as HigherChannel) / (32768_i32)) as Channel
+    }
+
+    pub fn get_buffer(&self) -> &[Channel] {
+        &self.data.sample
     }
 
     pub fn clear_buffer(&mut self) {

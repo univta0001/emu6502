@@ -108,7 +108,7 @@ impl Emulator {
     }
 
     pub fn sound_buffer(&self) -> js_sys::Int16Array {
-        js_sys::Int16Array::from(&self.cpu.bus.audio.data.sample[..])
+        js_sys::Int16Array::from(&self.cpu.bus.audio.get_buffer()[..])
     }
 
     pub fn clear_sound_buffer(&mut self) {
