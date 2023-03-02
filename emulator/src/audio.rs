@@ -21,6 +21,83 @@ const AY_LEVEL: [u16; 16] = [
     0x9204, 0xaff1, 0xd921, 0xffff,
 ];
 
+const FILTER_LENGTH: usize = 45;
+const CUTOFF_FREQ: f32 = DEFAULT_RATE / 2.0;
+
+#[derive(Debug)]
+struct AudioFilter {
+    buffer: Vec<Channel>,
+    buffer_pointer: usize,
+    filter: Vec<f32>,
+}
+
+impl AudioFilter {
+    pub fn new() -> Self {
+        let filter_len = FILTER_LENGTH;
+        let buffer = vec![0; filter_len];
+        let filter = Self::generate_coefficients(filter_len - 1, CPU_6502_MHZ, CUTOFF_FREQ);
+
+        Self {
+            buffer,
+            buffer_pointer: 0,
+            filter,
+        }
+    }
+
+    fn generate_coefficients(order: usize, sample_freq: f32, cutoff_freq: f32) -> Vec<f32> {
+        let omega = std::f32::consts::PI * cutoff_freq / sample_freq;
+        let mut dc = 0.0;
+        let mut filter = vec![0.0; order + 1];
+
+        for (i, item) in filter.iter_mut().enumerate() {
+            let j: isize = i as isize;
+            *item = if j == order as isize / 2 {
+                omega
+            } else {
+                let value = f32::sin(omega * (j - (order as isize) / 2) as f32)
+                    / (j - (order as isize) / 2) as f32;
+
+                // Hamming window
+                value
+                    * (0.54
+                        - 0.46 * f32::cos(2.0 * std::f32::consts::PI * j as f32 / (order as f32)))
+            };
+            dc += *item
+        }
+
+        // Normalize filter coefficients
+        for item in filter.iter_mut() {
+            *item /= dc
+        }
+        filter
+    }
+
+    fn _set_filter(&mut self, value: Vec<f32>) {
+        self.buffer_pointer = 0;
+        self.buffer = vec![0; value.len()];
+        self.filter = value;
+    }
+
+    fn filter(&mut self, value: Channel) -> Channel {
+        self.buffer[self.buffer_pointer] = value;
+        let output = self
+            .filter
+            .iter()
+            .enumerate()
+            .fold(0.0, |acc, (i, &value)| {
+                acc + value * self.buffer[(self.buffer_pointer + i) % self.buffer.len()] as f32
+            });
+        self.buffer_pointer = (self.buffer_pointer + 1) % self.buffer.len();
+        output as Channel
+    }
+}
+
+impl Default for AudioFilter {
+    fn default() -> Self {
+        AudioFilter::new()
+    }
+}
+
 #[derive(Debug)]
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde_support", serde(default))]
@@ -31,6 +108,9 @@ pub struct Audio {
     fcycles_per_sample: f32,
     dc_filter: usize,
     audio_active: bool,
+    #[cfg_attr(feature = "serde_support", serde(skip))]
+    audio_filter: AudioFilter,
+    filter_enabled: bool,
 }
 
 #[derive(Debug)]
@@ -54,6 +134,8 @@ impl Audio {
             dc_filter: 32000 + 16000,
             mboard: vec![Mockingboard::default()],
             audio_active: false,
+            audio_filter: Default::default(),
+            filter_enabled: false,
         }
     }
 
@@ -148,6 +230,14 @@ impl Audio {
         self.dc_filter = 32768 + 30000;
         self.data.phase = -self.data.phase;
     }
+
+    pub fn get_filter_enabled(&self) -> bool {
+        self.filter_enabled
+    }
+
+    pub fn set_filter_enabled(&mut self, value: bool) {
+        self.filter_enabled = value
+    }
 }
 
 impl Tick for Audio {
@@ -155,7 +245,10 @@ impl Tick for Audio {
         self.fcycles += 1.0;
         self.mboard.iter_mut().for_each(|mb| mb.tick());
         self.audio_active = false;
-        let beep = self.dc_filter(self.data.phase);
+        let mut beep = self.dc_filter(self.data.phase);
+        if self.filter_enabled {
+            beep = self.audio_filter.filter(beep);
+        }
 
         if self.fcycles >= (self.fcycles_per_sample) {
             self.fcycles -= self.fcycles_per_sample;

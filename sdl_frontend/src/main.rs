@@ -447,13 +447,19 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         }
         Event::KeyDown {
             keycode: Some(Keycode::F6),
+            keymod,
             ..
         } => {
-            let display_mode = *event_param.display_mode;
-            *event_param.display_index = (*event_param.display_index + 1) % display_mode.len();
-            cpu.bus
-                .video
-                .set_display_mode(display_mode[*event_param.display_index]);
+            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                let mode = !cpu.bus.audio.get_filter_enabled();
+                cpu.bus.audio.set_filter_enabled(mode);
+            } else {
+                let display_mode = *event_param.display_mode;
+                *event_param.display_index = (*event_param.display_index + 1) % display_mode.len();
+                cpu.bus
+                    .video
+                    .set_display_mode(display_mode[*event_param.display_index]);
+            }
         }
         Event::KeyDown {
             keycode: Some(Keycode::F5),
@@ -672,6 +678,7 @@ Function Keys:
     Ctrl-F3            Save state in YAML file
     Ctrl-F4            Load state from YAML file
     Ctrl-F5            Disable / Enable video scanline mode
+    Ctrl-F6            Disable / Enable audio filter
     Ctrl-F10           Eject Hard Disk 1
     Ctrl-F11           Eject Hard Disk 2
     Ctrl-PrintScreen   Save screenshot as screenshot.png
@@ -938,7 +945,7 @@ fn update_audio(cpu: &mut CPU, audio_device: &sdl2::audio::AudioQueue<i16>) {
     snd.update_cycles(video_50hz);
 
     if audio_device.size() < audio_sample_size * 2 * 30 {
-        let _ = audio_device.queue_audio(&snd.get_buffer()[..]);
+        let _ = audio_device.queue_audio(snd.get_buffer());
         snd.clear_buffer();
     } else {
         snd.clear_buffer();

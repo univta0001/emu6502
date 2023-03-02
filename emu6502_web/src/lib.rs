@@ -62,19 +62,18 @@ impl Emulator {
                         return false;
                     }
                 }
+            } else if name.ends_with(".gz") {
+                let result = drv.load_woz_gz_array(&dsk);
+                if result.is_err() {
+                    return false;
+                }
             } else {
-                if name.ends_with(".gz") {
-                    let result = drv.load_woz_gz_array(&dsk);
-                    if result.is_err() {
-                        return false;
-                    }
-                } else {
-                    let result = drv.load_woz_array(&dsk);
-                    if result.is_err() {
-                        return false;
-                    }
+                let result = drv.load_woz_array(&dsk);
+                if result.is_err() {
+                    return false;
                 }
             }
+
             drv.set_disk_filename(name);
             drv.set_loaded(true);
             drv.drive_select(drive_selected);
@@ -108,7 +107,7 @@ impl Emulator {
     }
 
     pub fn sound_buffer(&self) -> js_sys::Int16Array {
-        js_sys::Int16Array::from(&self.cpu.bus.audio.get_buffer()[..])
+        js_sys::Int16Array::from(self.cpu.bus.audio.get_buffer())
     }
 
     pub fn clear_sound_buffer(&mut self) {
@@ -150,7 +149,7 @@ impl Emulator {
     }
 
     pub fn keyboard_latch(&mut self, value: u8) {
-        self.cpu.bus.keyboard_latch = (value + 128) as u8;
+        self.cpu.bus.keyboard_latch = value + 0x80;
     }
 
     pub fn any_key_down(&mut self, flag: bool) {
