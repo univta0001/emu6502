@@ -21,7 +21,7 @@ const AY_LEVEL: [u16; 16] = [
     0x9204, 0xaff1, 0xd921, 0xffff,
 ];
 
-const FILTER_LENGTH: usize = 45;
+const FILTER_LENGTH: usize = 123;
 const CUTOFF_FREQ: f32 = DEFAULT_RATE / 2.0;
 
 #[derive(Debug)]
@@ -45,7 +45,7 @@ impl AudioFilter {
     }
 
     fn generate_coefficients(order: usize, sample_freq: f32, cutoff_freq: f32) -> Vec<f32> {
-        let omega = 2.0 * std::f32::consts::PI * cutoff_freq / sample_freq;
+        let omega = std::f32::consts::PI * cutoff_freq / sample_freq;
         let mut dc = 0.0;
         let mut filter = vec![0.0; order + 1];
 
@@ -78,8 +78,7 @@ impl AudioFilter {
         self.filter = value;
     }
 
-    fn filter(&mut self, value: Channel) -> Channel {
-        self.buffer[self.buffer_pointer] = value;
+    fn filter(&mut self) -> Channel {
         let output = self
             .filter
             .iter()
@@ -87,8 +86,12 @@ impl AudioFilter {
             .fold(0.0, |acc, (i, &value)| {
                 acc + value * self.buffer[(self.buffer_pointer + i) % self.buffer.len()] as f32
             });
-        self.buffer_pointer = (self.buffer_pointer + 1) % self.buffer.len();
         output as Channel
+    }
+
+    fn add_to_buffer(&mut self, value: Channel) {
+        self.buffer[self.buffer_pointer] = value;
+        self.buffer_pointer = (self.buffer_pointer + 1) % self.buffer.len();
     }
 }
 
@@ -247,11 +250,15 @@ impl Tick for Audio {
         self.audio_active = false;
         let mut beep = self.dc_filter(self.data.phase);
         if self.filter_enabled {
-            beep = self.audio_filter.filter(beep);
+            self.audio_filter.add_to_buffer(beep);
         }
 
         if self.fcycles >= (self.fcycles_per_sample) {
             self.fcycles -= self.fcycles_per_sample;
+
+            if self.filter_enabled {
+                beep = self.audio_filter.filter();
+            }
 
             let mut left_phase: HigherChannel = 0;
             let mut right_phase: HigherChannel = 0;
