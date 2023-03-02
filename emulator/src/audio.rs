@@ -141,7 +141,7 @@ impl Audio {
     }
 
     pub fn click(&mut self) {
-        self.dc_filter = 32000 + 16000;
+        self.dc_filter = 32000 + 30000;
         self.data.phase = -self.data.phase;
     }
 }
@@ -150,12 +150,12 @@ impl Tick for Audio {
     fn tick(&mut self) {
         self.fcycles += 1.0;
         self.mboard.iter_mut().for_each(|mb| mb.tick());
+        self.audio_active = false;
+        let beep = self.dc_filter(self.data.phase);
 
         if self.fcycles >= (self.fcycles_per_sample) {
             self.fcycles -= self.fcycles_per_sample;
-            self.audio_active = false;
 
-            let beep = self.dc_filter(self.data.phase);
             let mut left_phase: HigherChannel = 0;
             let mut right_phase: HigherChannel = 0;
 
