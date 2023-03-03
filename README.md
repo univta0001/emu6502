@@ -20,6 +20,7 @@ Features in the emulator
 - NTSC emulation supported
 - Z80 Emulation
 - Hard Disk support 
+- Uthernet II support for TCP client application (e.g. A2Stream)
 - Support for RamFactor 1 MiB and RamWorks III up to 8 MiB
 - Preliminary support for Apple //c (Rom FF)
 
