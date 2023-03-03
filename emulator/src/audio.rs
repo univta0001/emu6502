@@ -134,7 +134,7 @@ impl Audio {
             data,
             fcycles: 0.0,
             fcycles_per_sample: CPU_6502_MHZ / DEFAULT_RATE,
-            dc_filter: 32000 + 16000,
+            dc_filter: 32768 + 30000,
             mboard: vec![Mockingboard::default()],
             audio_active: false,
             audio_filter: Default::default(),

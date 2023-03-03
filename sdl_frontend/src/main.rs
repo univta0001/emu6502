@@ -665,6 +665,7 @@ FLAGS:
     --mboard 0|1|2     Number of mockingboards in Slot 4 and/or Slot 5
     --luma bandwidth   NTSC Luma B/W (Valid value: 0-7159090, Default: 2300000)
     --chroma bandwidth NTSC Chroma B/W (Valid value: 0-7159090, Default: 600000)
+    --capslock off     Turns off default capslock
 
 ARGS:
     [disk 1]           Disk 1 file (woz, dsk, po file). File can be in gz format
@@ -1326,6 +1327,13 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         cpu.bus.video.update_ntsc_matrix(ntsc_luma, ntsc_chroma);
     }
 
+    let mut key_caps = true;
+    if let Some(capslock) = pargs.opt_value_from_str::<_, String>("--capslock")? {
+        if capslock == "off" {
+            key_caps = false;
+        }
+    }
+
     let remaining = pargs.finish();
 
     // Check that there are no more flags in the remaining arguments
@@ -1357,7 +1365,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut previous_cycles = 0;
     let mut estimated_mhz: f32 = 0.0;
 
-    let mut key_caps = true;
     let mut reload_cpu = false;
     let mut save_screenshot = false;
 
