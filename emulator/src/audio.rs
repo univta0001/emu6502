@@ -21,8 +21,8 @@ const AY_LEVEL: [u16; 16] = [
     0x9204, 0xaff1, 0xd921, 0xffff,
 ];
 
-const FILTER_LENGTH: usize = 123;
-const CUTOFF_FREQ: f32 = DEFAULT_RATE / 2.0;
+const FILTER_LENGTH: usize = 85;
+const CUTOFF_FREQ: f32 = 22050.0 / 2.0;
 
 #[derive(Debug)]
 struct AudioFilter {
@@ -35,7 +35,7 @@ impl AudioFilter {
     pub fn new() -> Self {
         let filter_len = FILTER_LENGTH;
         let buffer = vec![0; filter_len];
-        let filter = Self::generate_coefficients(filter_len - 1, CPU_6502_MHZ, CUTOFF_FREQ);
+        let filter = Self::generate_coefficients(filter_len, CPU_6502_MHZ, CUTOFF_FREQ);
 
         Self {
             buffer,
@@ -44,9 +44,14 @@ impl AudioFilter {
         }
     }
 
-    fn generate_coefficients(order: usize, sample_freq: f32, cutoff_freq: f32) -> Vec<f32> {
-        let omega = std::f32::consts::PI * cutoff_freq / sample_freq;
+    /** Implements the truncated Sinc Filter
+     *  For sampling rate of 1021800 Hz, cutoff freq = 11025 Hz, 85 taps is required
+     *  Ref: www.fiiir.com
+     */
+    fn generate_coefficients(filter_length: usize, sample_freq: f32, cutoff_freq: f32) -> Vec<f32> {
+        let omega = 2.0 * std::f32::consts::PI * cutoff_freq / sample_freq;
         let mut dc = 0.0;
+        let order = filter_length - 1;
         let mut filter = vec![0.0; order + 1];
 
         for (i, item) in filter.iter_mut().enumerate() {
@@ -54,13 +59,8 @@ impl AudioFilter {
             *item = if j == order as isize / 2 {
                 omega
             } else {
-                let value = f32::sin(omega * (j - (order as isize) / 2) as f32)
-                    / (j - (order as isize) / 2) as f32;
-
-                // Hamming window
-                value
-                    * (0.54
-                        - 0.46 * f32::cos(2.0 * std::f32::consts::PI * j as f32 / (order as f32)))
+                f32::sin(omega * (j - (order as isize) / 2) as f32)
+                    / (j - (order as isize) / 2) as f32
             };
             dc += *item
         }
