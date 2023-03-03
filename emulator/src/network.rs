@@ -386,7 +386,7 @@ impl Uthernet2 {
                         if size == 0 {
                             self.clear_socket_fd(i);
                         } else {
-                            self.write_data_for_protocol(i, &buffer);
+                            self.write_data_for_protocol(i, &buffer[0..size]);
                         }
                     } else if let Err(error) = result {
                         if !(matches!(error.kind(), ErrorKind::WouldBlock)) {
