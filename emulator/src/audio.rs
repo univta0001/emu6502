@@ -21,8 +21,8 @@ const AY_LEVEL: [u16; 16] = [
     0x9204, 0xaff1, 0xd921, 0xffff,
 ];
 
-const FILTER_LENGTH: usize = 85;
-const CUTOFF_FREQ: f32 = 22050.0 / 2.0;
+const FILTER_LENGTH: usize = 43;
+const CUTOFF_FREQ: f32 = 20000.0;
 
 #[derive(Debug)]
 struct AudioFilter {
@@ -45,7 +45,7 @@ impl AudioFilter {
     }
 
     /** Implements the truncated Sinc Filter
-     *  For sampling rate of 1021800 Hz, cutoff freq = 11025 Hz, 85 taps is required
+     *  For sampling rate of 1021800 Hz, cutoff freq = 22050 Hz, 43 taps is required
      *  Ref: www.fiiir.com
      */
     fn generate_coefficients(filter_length: usize, sample_freq: f32, cutoff_freq: f32) -> Vec<f32> {
