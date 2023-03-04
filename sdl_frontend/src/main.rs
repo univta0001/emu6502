@@ -47,7 +47,7 @@ use std::time::Instant;
 const CPU_CYCLES_PER_FRAME_60HZ: usize = 17030;
 const CPU_CYCLES_PER_FRAME_50HZ: usize = 20280;
 
-const AUDIO_SAMPLE_RATE: u32 = 48000;
+const AUDIO_SAMPLE_RATE: u32 = emu6502::audio::AUDIO_SAMPLE_RATE as u32;
 const AUDIO_SAMPLE_SIZE: u32 = AUDIO_SAMPLE_RATE / 60;
 const AUDIO_SAMPLE_SIZE_50HZ: u32 = AUDIO_SAMPLE_RATE / 50;
 
@@ -1133,7 +1133,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let desired_spec = AudioSpecDesired {
         freq: Some(AUDIO_SAMPLE_RATE as i32),
         channels: Some(2),  // stereo
-        samples: Some(800), // default sample size
+        samples: Some(AUDIO_SAMPLE_SIZE as u16), // default sample size
     };
     let audio_device = audio_subsystem
         .open_queue::<i16, _>(None, &desired_spec)

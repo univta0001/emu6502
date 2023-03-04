@@ -7,13 +7,14 @@ use serde::{Deserialize, Serialize};
 type Channel = i16;
 type HigherChannel = i32;
 
+pub const AUDIO_SAMPLE_RATE: f32 = 48000.0;
+
 // PAL cpu is clocked at 1.014 MHz (PAL Horizontal Hz = 15625)
 const PAL_14M: usize = 15600 * 912;
 //const NTSC_14M: usize = 157500000 / 11;
 // NTSC cpu is clocked at 1.022 MHz (NTSC Horizontal Hz = 15730)
 const NTSC_14M: usize = 15720 * 912;
 const CPU_6502_MHZ: f32 = (NTSC_14M * 65) as f32 / 912.0;
-const DEFAULT_RATE: f32 = 48000.0;
 const MAX_AMPLITUDE: Channel = Channel::MAX;
 
 const AY_LEVEL: [u16; 16] = [
@@ -21,8 +22,7 @@ const AY_LEVEL: [u16; 16] = [
     0x9204, 0xaff1, 0xd921, 0xffff,
 ];
 
-const FILTER_LENGTH: usize = 43;
-const CUTOFF_FREQ: f32 = 20000.0;
+const CUTOFF_FREQ: f32 = 15000.0;
 
 #[derive(Debug)]
 struct AudioFilter {
@@ -33,9 +33,8 @@ struct AudioFilter {
 
 impl AudioFilter {
     pub fn new() -> Self {
-        let filter_len = FILTER_LENGTH;
-        let buffer = vec![0; filter_len];
-        let filter = Self::generate_coefficients(filter_len, CPU_6502_MHZ, CUTOFF_FREQ);
+        let filter = Self::generate_coefficients(CPU_6502_MHZ, CUTOFF_FREQ);
+        let buffer = vec![0; filter.len()];
 
         Self {
             buffer,
@@ -44,11 +43,14 @@ impl AudioFilter {
         }
     }
 
-    /** Implements the truncated Sinc Filter
-     *  For sampling rate of 1021800 Hz, cutoff freq = 22050 Hz, 43 taps is required
+    /** Implements the Window Sinc Filtering using Kaiser Window
+     *  For sampling rate of 1021800 Hz, cutoff freq = 15000 Hz, 153 taps is required
      *  Ref: www.fiiir.com
      */
-    fn generate_coefficients(filter_length: usize, sample_freq: f32, cutoff_freq: f32) -> Vec<f32> {
+    #[rustfmt::skip]
+    fn generate_coefficients(_sample_freq: f32, _cutoff_freq: f32) -> Vec<f32> {
+        /*
+        let filter_length = 145
         let omega = 2.0 * std::f32::consts::PI * cutoff_freq / sample_freq;
         let mut dc = 0.0;
         let order = filter_length - 1;
@@ -59,8 +61,10 @@ impl AudioFilter {
             *item = if j == order as isize / 2 {
                 omega
             } else {
-                f32::sin(omega * (j - (order as isize) / 2) as f32)
-                    / (j - (order as isize) / 2) as f32
+                let value = f32::sin(omega * (j - (order as isize) / 2) as f32)
+                    / (j - (order as isize) / 2) as f32;
+                value
+                    * (0.54 - 0.46 * f32::cos(2.0 * std::f32::consts::PI * j as f32 / order as f32))
             };
             dc += *item
         }
@@ -69,6 +73,47 @@ impl AudioFilter {
         for item in filter.iter_mut() {
             *item /= dc
         }
+        */
+
+        /*
+         * Constants are generated using the python script below
+         *    fs = 1021800  # Sampling rate.
+         *    fc = 15000  # Cutoff frequency.
+         *    N = 105  # Filter length, must be odd.
+         *    beta = 3.395  # Kaiser window beta.
+         *    h = np.sinc(2 * fL / fS * (np.arange(N) - (N - 1) / 2))
+         *    h *= np.kaiser(N, beta)
+         *    h /= np.sum(h)
+         */
+        
+        let filter = vec![
+            0.0004170501, 0.0004059818, 0.0003843866, 0.00035129327, 0.00030582395, 0.00024721568,
+            0.00017484151, 8.823115e-5, -1.2909192e-5, -0.00012867818, -0.00025896213, -0.0004034196,
+            -0.000561468, -0.00073227263, -0.00091473834, -0.001107504, -0.0013089401, -0.0015171495,
+            -0.0017299716, -0.0019449904, -0.0021595452, -0.0023707459, -0.002575491, -0.0027704905,
+            -0.0029522893, -0.0031172973, -0.00326182, -0.0033820926, -0.0034743168, -0.003534699,
+            -0.0035594914, -0.0035450316, -0.0034877881, -0.0033843997, -0.0032317203, -0.0030268608,
+            -0.0027672288, -0.0024505695, -0.002075002, -0.0016390538, -0.0011416931, -0.00058235636,
+            3.9027203e-5, 0.0007220159, 0.0014656404, 0.002268393, 0.0031282234, 0.004042537,
+            0.0050082025, 0.0060215625, 0.007078449, 0.008174207, 0.009303722, 0.01046145,
+            0.0116414605, 0.012837474, 0.014042909, 0.015250936, 0.016454525, 0.017646508,
+            0.018819634, 0.019966634, 0.021080274, 0.022153428, 0.02317913, 0.02415065,
+            0.025061527, 0.02590566, 0.026677335, 0.027371297, 0.027982783, 0.028507574,
+            0.028942034, 0.029283136, 0.0295285, 0.029676411, 0.029725831, 0.029676411,
+            0.0295285, 0.029283136, 0.028942034, 0.028507574, 0.027982783, 0.027371297,
+            0.026677335, 0.02590566, 0.025061527, 0.02415065, 0.02317913, 0.022153428,
+            0.021080274, 0.019966634, 0.018819634, 0.017646508, 0.016454525, 0.015250936,
+            0.014042909, 0.012837474, 0.0116414605, 0.01046145, 0.009303722, 0.008174207,
+            0.007078449, 0.0060215625, 0.0050082025, 0.004042537, 0.0031282234, 0.002268393,
+            0.0014656404, 0.0007220159, 3.9027203e-5, -0.00058235636, -0.0011416931, -0.0016390538,
+            -0.002075002, -0.0024505695, -0.0027672288, -0.0030268608, -0.0032317203, -0.0033843997,
+            -0.0034877881, -0.0035450316, -0.0035594914, -0.003534699, -0.0034743168, -0.0033820926,
+            -0.00326182, -0.0031172973, -0.0029522893, -0.0027704905, -0.002575491, -0.0023707459,
+            -0.0021595452, -0.0019449904, -0.0017299716, -0.0015171495, -0.0013089401, -0.001107504,
+            -0.00091473834, -0.00073227263, -0.000561468, -0.0004034196, -0.00025896213, -0.00012867818,
+            -1.2909192e-5, 8.823115e-5, 0.00017484151, 0.00024721568, 0.00030582395, 0.00035129327,
+            0.0003843866, 0.0004059818, 0.0004170501
+        ];        
         filter
     }
 
@@ -133,7 +178,7 @@ impl Audio {
         Audio {
             data,
             fcycles: 0.0,
-            fcycles_per_sample: CPU_6502_MHZ / DEFAULT_RATE,
+            fcycles_per_sample: CPU_6502_MHZ / AUDIO_SAMPLE_RATE,
             dc_filter: 32768 + 30000,
             mboard: vec![Mockingboard::default()],
             audio_active: false,
@@ -147,11 +192,11 @@ impl Audio {
     }
 
     fn ntsc_cycles(&self) -> f32 {
-        CPU_6502_MHZ / DEFAULT_RATE
+        CPU_6502_MHZ / AUDIO_SAMPLE_RATE
     }
 
     fn pal_cycles(&self) -> f32 {
-        ((PAL_14M * 65) as f32 / 912.0) / DEFAULT_RATE
+        ((PAL_14M * 65) as f32 / 912.0) / AUDIO_SAMPLE_RATE
     }
 
     pub fn update_cycles(&mut self, is_50hz: bool) {
