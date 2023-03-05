@@ -263,7 +263,8 @@ impl Uthernet2 {
 
     fn auto_increment(&mut self) {
         // If auto increment mode is enabled, increment the address
-        if self.mode & (_W5100_MR_AI as usize) > 0 {
+        // Auto-increment is only available if indirect bus i/f mode is enabled
+        if self.mode & (_W5100_MR_IND as usize) > 0 && self.mode & (_W5100_MR_AI as usize) > 0 {
             self.addr += 1;
 
             if self.addr == 0x6000 || self.addr == 0x8000 {
