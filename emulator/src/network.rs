@@ -3,7 +3,7 @@ use crate::mmu::Mmu;
 use crate::video::Video;
 use std::io::ErrorKind;
 use std::io::{Read, Write};
-use std::net::{IpAddr, Shutdown, TcpListener, TcpStream, ToSocketAddrs};
+use std::net::{IpAddr, TcpListener, TcpStream, ToSocketAddrs};
 
 #[cfg(feature = "serde_support")]
 use crate::marshal::{as_hex, from_hex_32k};
@@ -178,9 +178,6 @@ impl Default for Proto {
 
 impl Socket {
     fn clear_socket_handle(&mut self) {
-        if let Proto::Tcp(socket) = &mut self.socket_handle {
-            let _ = socket.shutdown(Shutdown::Write);
-        }
         self.socket_handle = Proto::None;
         self.status = W5100_SN_SR_CLOSED;
     }
@@ -837,27 +834,27 @@ impl Uthernet2 {
             & mask;
 
         let base = socket.transmit_addr;
-        let rr_address = base + sn_tx_rr;
+        let rd_address = base + sn_tx_rr;
         let wr_address = base + sn_tx_wr;
 
         // Copy socket data to vector
         let mut data = Vec::new();
-        if rr_address < wr_address {
-            data.extend_from_slice(&self.mem[rr_address..wr_address]);
+        if rd_address <= wr_address {
+            data.extend_from_slice(&self.mem[rd_address..wr_address]);
         } else {
             let end = base + size;
-            data.extend_from_slice(&self.mem[rr_address..end]);
+            data.extend_from_slice(&self.mem[rd_address..end]);
             data.extend_from_slice(&self.mem[base..wr_address]);
         }
 
         // Move read pointer to writer
-        self.mem[base_addr + W5100_SN_TX_RD0] = ((sn_tx_wr >> 8) & 0xff) as u8;
-        self.mem[base_addr + W5100_SN_TX_RD1] = (sn_tx_wr & 0xff) as u8;
+        self.mem[base_addr + W5100_SN_TX_RD0] = self.mem[base_addr + W5100_SN_TX_WR0];
+        self.mem[base_addr + W5100_SN_TX_RD1] = self.mem[base_addr + W5100_SN_TX_WR1];
 
-        match socket.status {
-            W5100_SN_SR_SOCK_ESTABLISHED => self.send_data_to_socket(i, &data),
-            _ => {
-                u2_debug!("Send data Socket#{i} Unknown mode: 0x{:02X}", socket.status)
+        if socket.is_open() {
+            match socket.status {
+                W5100_SN_SR_SOCK_ESTABLISHED => self.send_data_to_socket(i, &data),
+                _ => u2_debug!("Send data Socket#{i} Unknown mode: 0x{:02X}", socket.status),
             }
         }
     }
@@ -884,16 +881,12 @@ impl Uthernet2 {
             }
             */
             if let Proto::Tcp(stream) = &mut socket.socket_handle {
-                let result = stream.write(data);
+                let result = stream.write_all(data);
                 if result.is_err() {
                     if let Err(error) = result {
                         if !(matches!(error.kind(), ErrorKind::WouldBlock)) {
                             self.clear_socket_handle(i);
                         }
-                    }
-                } else if let Ok(size) = result {
-                    if size == 0 {
-                        self.clear_socket_handle(i);
                     }
                 }
             }
