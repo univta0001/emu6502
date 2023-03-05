@@ -129,7 +129,7 @@ const _W5100_SN_SR_SOCK_LAST_ACK: u8 = 0x1d;
 const W5100_SN_SR_SOCK_UDP: u8 = 0x22;
 const W5100_SN_SR_SOCK_IPRAW: u8 = 0x32;
 const W5100_SN_SR_SOCK_MACRAW: u8 = 0x42;
-const W5100_SN_SR_SOCK_PPPOE: u8 = 0x5f;
+const _W5100_SN_SR_SOCK_PPPOE: u8 = 0x5f;
 
 const W5100_S0_BASE: usize = 0x0400;
 const W5100_S3_MAX: usize = 0x07ff;
