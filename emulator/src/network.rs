@@ -153,14 +153,14 @@ use serde::{Deserialize, Serialize};
 enum Proto {
     None,
     Tcp(TcpStream),
-    _TcpListener(TcpListener),
+    TcpListener(TcpListener),
 }
 
 #[derive(Debug, Default)]
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 struct Socket {
     #[cfg_attr(feature = "serde_support", serde(default), serde(skip))]
-    fd: Proto,
+    socket_handle: Proto,
 
     transmit_addr: usize,
     transmit_size: usize,
@@ -177,20 +177,20 @@ impl Default for Proto {
 }
 
 impl Socket {
-    fn clear_fd(&mut self) {
-        if let Proto::Tcp(socket) = &mut self.fd {
-            let _ = socket.shutdown(Shutdown::Both);
+    fn clear_socket_handle(&mut self) {
+        if let Proto::Tcp(socket) = &mut self.socket_handle {
+            let _ = socket.shutdown(Shutdown::Write);
         }
-        self.fd = Proto::None;
+        self.socket_handle = Proto::None;
         self.status = W5100_SN_SR_CLOSED;
     }
 
-    fn set_fd(&mut self, proto: Proto) {
-        self.fd = proto
+    fn set_socket_handle(&mut self, proto: Proto) {
+        self.socket_handle = proto
     }
 
     fn is_open(&self) -> bool {
-        !matches!(self.fd, Proto::None)
+        !matches!(self.socket_handle, Proto::None)
             && ((self.status == W5100_SN_SR_SOCK_ESTABLISHED)
                 || (self.status == W5100_SN_SR_SOCK_UDP))
     }
@@ -388,7 +388,7 @@ impl Uthernet2 {
         let base_addr = self.get_base_socket_addr(i);
         let socket = &mut self.socket[i];
         if socket.is_open() {
-            if let Proto::Tcp(stream) = &mut socket.fd {
+            if let Proto::Tcp(stream) = &mut socket.socket_handle {
                 let rsr = u16::from_be_bytes([
                     self.mem[base_addr + W5100_SN_RX_RSR0],
                     self.mem[base_addr + W5100_SN_RX_RSR1],
@@ -400,14 +400,14 @@ impl Uthernet2 {
                     if let Ok(size) = result {
                         //u2_debug!("Read bytes received from peer = 0x{size:02X}");
                         if size == 0 {
-                            self.clear_socket_fd(i);
+                            self.clear_socket_handle(i);
                         } else {
                             self.write_data_for_protocol(i, &buffer[0..size]);
                         }
                     } else if let Err(error) = result {
                         if !(matches!(error.kind(), ErrorKind::WouldBlock)) {
                             u2_debug!("Read bytes received from peer ERROR - Closing socket");
-                            self.clear_socket_fd(i);
+                            self.clear_socket_handle(i);
                         }
                     }
                 }
@@ -615,10 +615,10 @@ impl Uthernet2 {
         W5100_S0_BASE + (i << 8)
     }
 
-    fn clear_socket_fd(&mut self, i: usize) {
+    fn clear_socket_handle(&mut self, i: usize) {
         let base_addr = self.get_base_socket_addr(i);
         let socket = &mut self.socket[i];
-        socket.clear_fd();
+        socket.clear_socket_handle();
         self.mem[base_addr + W5100_SN_SR] = socket.status;
     }
 
@@ -641,7 +641,7 @@ impl Uthernet2 {
         let mode_register = self.mem[base_addr];
         let protocol = mode_register & W5100_SN_MR_PROTO_MASK;
 
-        self.clear_socket_fd(i);
+        self.clear_socket_handle(i);
 
         // Open the socket
         match protocol {
@@ -723,7 +723,7 @@ impl Uthernet2 {
 
         // Check that the socket created is a TCP socket. If not close the socket
         if self.get_socket_status(i) != W5100_SN_SR_SOCK_INIT {
-            self.clear_socket_fd(i);
+            self.clear_socket_handle(i);
             return;
         }
 
@@ -741,11 +741,11 @@ impl Uthernet2 {
             stream
                 .set_nonblocking(true)
                 .expect("Cannot set non-blocking stream");
-            self.socket[i].set_fd(Proto::Tcp(stream));
+            self.socket[i].set_socket_handle(Proto::Tcp(stream));
             self.set_socket_status(i, W5100_SN_SR_SOCK_ESTABLISHED);
         } else {
             u2_debug!("Connect Socket on #{i} to {dest_string} FAILED");
-            self.clear_socket_fd(i);
+            self.clear_socket_handle(i);
         }
     }
 
@@ -756,14 +756,14 @@ impl Uthernet2 {
         if self.get_socket_status(i) == W5100_SN_SR_SOCK_LISTEN {
             if let Some(stream) = self.accept_socket(i) {
                 let socket = &mut self.socket[i];
-                socket.set_fd(Proto::Tcp(stream));
+                socket.set_socket_handle(Proto::Tcp(stream));
             }
             return;
         }
 
         // Check that the socket created is a TCP socket. If not close the socket
         if self.get_socket_status(i) != W5100_SN_SR_SOCK_INIT {
-            self.clear_socket_fd(i);
+            self.clear_socket_handle(i);
             return;
         }
 
@@ -782,18 +782,18 @@ impl Uthernet2 {
             listener
                 .set_nonblocking(true)
                 .expect("Cannot set non-blocking listener");
-            self.socket[i].set_fd(Proto::_TcpListener(listener));
+            self.socket[i].set_socket_handle(Proto::TcpListener(listener));
             self.set_socket_status(i, W5100_SN_SR_SOCK_LISTEN);
         } else {
             u2_debug!("Listen Socket on #{i} to {listen_string} FAILED");
-            self.clear_socket_fd(i);
+            self.clear_socket_handle(i);
         }
     }
 
     fn accept_socket(&mut self, i: usize) -> Option<TcpStream> {
         let socket = &mut self.socket[i];
 
-        if let Proto::_TcpListener(listener) = &mut socket.fd {
+        if let Proto::TcpListener(listener) = &mut socket.socket_handle {
             let listener_iter = listener.incoming();
             for stream in listener_iter {
                 match stream {
@@ -814,7 +814,7 @@ impl Uthernet2 {
 
     fn close_socket(&mut self, i: usize) {
         u2_debug!("Close Socket on #{i}");
-        self.clear_socket_fd(i);
+        self.clear_socket_handle(i);
     }
 
     fn send_data(&mut self, i: usize) {
@@ -867,7 +867,7 @@ impl Uthernet2 {
 
         if socket.is_open() {
             /*
-            match &mut socket.fd {
+            match &mut socket.socket_handle {
                 Proto::Tcp(stream) => {
                     let result = stream.write(data);
 
@@ -875,7 +875,7 @@ impl Uthernet2 {
                         if let Err(error) = result {
                             match error.kind() {
                                 ErrorKind::WouldBlock => {},
-                                _ => self.clear_socket_fd(i),
+                                _ => self.clear_socket_handle(i),
                             }
                         }
                     }
@@ -883,17 +883,17 @@ impl Uthernet2 {
                 _ => {}
             }
             */
-            if let Proto::Tcp(stream) = &mut socket.fd {
+            if let Proto::Tcp(stream) = &mut socket.socket_handle {
                 let result = stream.write(data);
                 if result.is_err() {
                     if let Err(error) = result {
                         if !(matches!(error.kind(), ErrorKind::WouldBlock)) {
-                            self.clear_socket_fd(i);
+                            self.clear_socket_handle(i);
                         }
                     }
                 } else if let Ok(size) = result {
                     if size == 0 {
-                        self.clear_socket_fd(i);
+                        self.clear_socket_handle(i);
                     }
                 }
             }
