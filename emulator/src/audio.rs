@@ -45,7 +45,10 @@ impl AudioFilter {
     }
 
     /** Implements the Window Sinc Filtering using Kaiser Window
-     *  For sampling rate of 1021800 Hz, cutoff freq = 22050 Hz, 145 taps is required
+     *  For sampling rate of 1021800 Hz, cutoff freq = 16537.5 Hz, 145 taps is required
+     *  The cutoff freq is used so that the frequency response starts tapering at 11025 Hz
+     *  and zero at 22050 Hz
+     *  
      *  Ref: www.fiiir.com
      */
     #[rustfmt::skip]
