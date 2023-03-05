@@ -1132,7 +1132,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let audio_subsystem = sdl_context.audio().unwrap();
     let desired_spec = AudioSpecDesired {
         freq: Some(AUDIO_SAMPLE_RATE as i32),
-        channels: Some(2),  // stereo
+        channels: Some(2),                       // stereo
         samples: Some(AUDIO_SAMPLE_SIZE as u16), // default sample size
     };
     let audio_device = audio_subsystem

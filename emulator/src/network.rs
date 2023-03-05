@@ -3,7 +3,7 @@ use crate::mmu::Mmu;
 use crate::video::Video;
 use std::io::ErrorKind;
 use std::io::{Read, Write};
-use std::net::{IpAddr, Shutdown, TcpStream, ToSocketAddrs};
+use std::net::{IpAddr, Shutdown, TcpListener, TcpStream, ToSocketAddrs};
 
 #[cfg(feature = "serde_support")]
 use crate::marshal::{as_hex, from_hex_32k};
@@ -19,8 +19,8 @@ const U2_C0X_ADDRESS_LOW: u8 = 0x06 & U2_C0X_MASK;
 const U2_C0X_DATA_PORT: u8 = 0x07 & U2_C0X_MASK;
 
 // _W5100 common constants
-const _W5100_MR: usize = 0x00;
-const _W5100_GAR0: usize = 0x01;
+const W5100_MR: usize = 0x00;
+const W5100_GAR0: usize = 0x01;
 const _W5100_GAR1: usize = 0x02;
 const _W5100_GAR2: usize = 0x03;
 const _W5100_GAR3: usize = 0x04;
@@ -34,108 +34,117 @@ const _W5100_SHAR2: usize = 0x0b;
 const _W5100_SHAR3: usize = 0x0c;
 const _W5100_SHAR4: usize = 0x0d;
 const _W5100_SHAR5: usize = 0x0e;
-const _W5100_SIPR0: usize = 0x0f;
+const W5100_SIPR0: usize = 0x0f;
 const _W5100_SIPR1: usize = 0x10;
 const _W5100_SIPR2: usize = 0x11;
-const _W5100_SIPR3: usize = 0x12;
+const W5100_SIPR3: usize = 0x12;
 const _W5100_IR: usize = 0x15;
 const _W5100_IMR: usize = 0x16;
-const _W5100_RTR0: usize = 0x17;
-const _W5100_RTR1: usize = 0x18;
-const _W5100_RCR: usize = 0x19;
-const _W5100_RMSR: usize = 0x1a;
-const _W5100_TMSR: usize = 0x1b;
+const W5100_RTR0: usize = 0x17;
+const W5100_RTR1: usize = 0x18;
+const W5100_RCR: usize = 0x19;
+const W5100_RMSR: usize = 0x1a;
+const W5100_TMSR: usize = 0x1b;
 const _W5100_PATR0: usize = 0x1c;
 const _W5100_PATR1: usize = 0x1d;
-const _W5100_PTIMER: usize = 0x28;
+const W5100_PTIMER: usize = 0x28;
 const _W5100_PMAGIC: usize = 0x29;
 const _W5100_UIPR0: usize = 0x2a;
 const _W5100_UIPR1: usize = 0x2b;
 const _W5100_UIPR2: usize = 0x2c;
 const _W5100_UIPR3: usize = 0x2d;
 const _W5100_UPORT0: usize = 0x2e;
-const _W5100_UPORT1: usize = 0x2f;
+const W5100_UPORT1: usize = 0x2f;
 
-const _W5100_MR_IND: u8 = 0x01;
-const _W5100_MR_AI: u8 = 0x02;
-const _W5100_MR_RST: u8 = 0x80;
+const W5100_MR_IND: u8 = 0x01;
+const W5100_MR_AI: u8 = 0x02;
+const W5100_MR_RST: u8 = 0x80;
 
 // _W5100 socket constants
-const _W5100_SN_MR: usize = 0x00;
-const _W5100_SN_CR: usize = 0x01;
+const W5100_SN_MR: usize = 0x00;
+const W5100_SN_CR: usize = 0x01;
 const _W5100_SN_IR: usize = 0x02;
-const _W5100_SN_SR: usize = 0x03;
+const W5100_SN_SR: usize = 0x03;
 const _W5100_SN_PORT0: usize = 0x04;
 const _W5100_SN_PORT1: usize = 0x05;
-const _W5100_SN_DHAR0: usize = 0x06;
-const _W5100_SN_DHAR1: usize = 0x07;
-const _W5100_SN_DHAR2: usize = 0x08;
-const _W5100_SN_DHAR3: usize = 0x09;
-const _W5100_SN_DHAR4: usize = 0x0a;
-const _W5100_SN_DHAR5: usize = 0x0b;
-const _W5100_SN_DIPR0: usize = 0x0c;
+const W5100_SN_DHAR0: usize = 0x06;
+const W5100_SN_DHAR1: usize = 0x07;
+const W5100_SN_DHAR2: usize = 0x08;
+const W5100_SN_DHAR3: usize = 0x09;
+const W5100_SN_DHAR4: usize = 0x0a;
+const W5100_SN_DHAR5: usize = 0x0b;
+const W5100_SN_DIPR0: usize = 0x0c;
 const _W5100_SN_DIPR1: usize = 0x0d;
 const _W5100_SN_DIPR2: usize = 0x0e;
-const _W5100_SN_DIPR3: usize = 0x0f;
-const _W5100_SN_DPORT0: usize = 0x10;
-const _W5100_SN_DPORT1: usize = 0x11;
+const W5100_SN_DIPR3: usize = 0x0f;
+const W5100_SN_DPORT0: usize = 0x10;
+const W5100_SN_DPORT1: usize = 0x11;
 const _W5100_SN_MSSR0: usize = 0x12;
 const _W5100_SN_MSSR1: usize = 0x13;
 const _W5100_SN_PROTO: usize = 0x14;
 const _W5100_SN_TOS: usize = 0x15;
-const _W5100_SN_TTL: usize = 0x16;
-const _W5100_SN_TX_FSR0: usize = 0x20;
-const _W5100_SN_TX_FSR1: usize = 0x21;
-const _W5100_SN_TX_RD0: usize = 0x22;
-const _W5100_SN_TX_RD1: usize = 0x23;
-const _W5100_SN_TX_WR0: usize = 0x24;
-const _W5100_SN_TX_WR1: usize = 0x25;
-const _W5100_SN_RX_RSR0: usize = 0x26;
-const _W5100_SN_RX_RSR1: usize = 0x27;
-const _W5100_SN_RX_RD0: usize = 0x28;
-const _W5100_SN_RX_RD1: usize = 0x29;
-const _W5100_SN_DNS_NAME_LEN: usize = 0x2a;
-const _W5100_SN_DNS_NAME_BEGIN: usize = 0x2b;
-const _W5100_SN_DNS_NAME_END: usize = 0xff;
-const _W5100_SN_DNS_NAME_CPTY: usize = _W5100_SN_DNS_NAME_END - _W5100_SN_DNS_NAME_BEGIN;
+const W5100_SN_TTL: usize = 0x16;
+const W5100_SN_TX_FSR0: usize = 0x20;
+const W5100_SN_TX_FSR1: usize = 0x21;
+const W5100_SN_TX_RD0: usize = 0x22;
+const W5100_SN_TX_RD1: usize = 0x23;
+const W5100_SN_TX_WR0: usize = 0x24;
+const W5100_SN_TX_WR1: usize = 0x25;
+const W5100_SN_RX_RSR0: usize = 0x26;
+const W5100_SN_RX_RSR1: usize = 0x27;
+const W5100_SN_RX_RD0: usize = 0x28;
+const W5100_SN_RX_RD1: usize = 0x29;
+const W5100_SN_DNS_NAME_LEN: usize = 0x2a;
+const W5100_SN_DNS_NAME_BEGIN: usize = 0x2b;
+const W5100_SN_DNS_NAME_END: usize = 0xff;
+const W5100_SN_DNS_NAME_CPTY: usize = W5100_SN_DNS_NAME_END - W5100_SN_DNS_NAME_BEGIN;
 
 // _W5100 socket mode register constants
-const _W5100_SN_MR_PROTO_MASK: u8 = 0x0f;
+const W5100_SN_MR_PROTO_MASK: u8 = 0x0f;
 const _W5100_SN_MR_MF: u8 = 0x40;
-const _W5100_SN_MR_CLOSED: u8 = 0x00;
-const _W5100_SN_MR_TCP: u8 = 0x01;
-const _W5100_SN_MR_UDP: u8 = 0x02;
-const _W5100_SN_MR_IPRAW: u8 = 0x03;
-const _W5100_SN_MR_MACRAW: u8 = 0x04;
+const W5100_SN_MR_CLOSED: u8 = 0x00;
+const W5100_SN_MR_TCP: u8 = 0x01;
+const W5100_SN_MR_UDP: u8 = 0x02;
+const W5100_SN_MR_IPRAW: u8 = 0x03;
+const W5100_SN_MR_MACRAW: u8 = 0x04;
 const _W5100_SN_MR_PPPOE: u8 = 0x05;
-const _W5100_SN_VIRTUAL_DNS: u8 = 0x08;
-const _W5100_SN_MR_TCP_DNS: u8 = _W5100_SN_VIRTUAL_DNS | _W5100_SN_MR_TCP;
-const _W5100_SN_MR_UDP_DNS: u8 = _W5100_SN_VIRTUAL_DNS | _W5100_SN_MR_UDP;
-const _W5100_SN_MR_IPRAW_DNS: u8 = _W5100_SN_VIRTUAL_DNS | _W5100_SN_MR_IPRAW;
+const W5100_SN_VIRTUAL_DNS: u8 = 0x08;
+const W5100_SN_MR_TCP_DNS: u8 = W5100_SN_VIRTUAL_DNS | W5100_SN_MR_TCP;
+const W5100_SN_MR_UDP_DNS: u8 = W5100_SN_VIRTUAL_DNS | W5100_SN_MR_UDP;
+const W5100_SN_MR_IPRAW_DNS: u8 = W5100_SN_VIRTUAL_DNS | W5100_SN_MR_IPRAW;
 
 // _W5100 socket status constants
-const _W5100_SN_SR_CLOSED: u8 = 0x00;
-const _W5100_SN_SR_SOCK_INIT: u8 = 0x13;
+const W5100_SN_SR_CLOSED: u8 = 0x00;
+const _W5100_SN_SR_SOCK_ARP: u8 = 0x01;
+const W5100_SN_SR_SOCK_INIT: u8 = 0x13;
+const W5100_SN_SR_SOCK_LISTEN: u8 = 0x14;
 const _W5100_SN_SR_SOCK_SYNSENT: u8 = 0x15;
-const _W5100_SN_SR_ESTABLISHED: u8 = 0x17;
-const _W5100_SN_SR_SOCK_UDP: u8 = 0x22;
-const _W5100_SN_SR_SOCK_IPRAW: u8 = 0x32;
-const _W5100_SN_SR_SOCK_MACRAW: u8 = 0x42;
+const _W5100_SN_SR_SOCK_SYNRECV: u8 = 0x16;
+const W5100_SN_SR_SOCK_ESTABLISHED: u8 = 0x17;
+const _W5100_SN_SR_SOCK_FIN_WAIT: u8 = 0x18;
+const _W5100_SN_SR_SOCK_CLOSING: u8 = 0x1a;
+const _W5100_SN_SR_SOCK_TIME_WAIT: u8 = 0x1b;
+const _W5100_SN_SR_SOCK_CLOSE_WAIT: u8 = 0x1c;
+const _W5100_SN_SR_SOCK_LAST_ACK: u8 = 0x1d;
+const W5100_SN_SR_SOCK_UDP: u8 = 0x22;
+const W5100_SN_SR_SOCK_IPRAW: u8 = 0x32;
+const W5100_SN_SR_SOCK_MACRAW: u8 = 0x42;
+const W5100_SN_SR_SOCK_PPPOE: u8 = 0x5f;
 
-const _W5100_S0_BASE: usize = 0x0400;
-const _W5100_S3_MAX: usize = 0x07ff;
-const _W5100_TX_BASE: usize = 0x4000;
-const _W5100_RX_BASE: usize = 0x6000;
-const _W5100_MEM_SIZE: usize = 0x8000;
+const W5100_S0_BASE: usize = 0x0400;
+const W5100_S3_MAX: usize = 0x07ff;
+const W5100_TX_BASE: usize = 0x4000;
+const W5100_RX_BASE: usize = 0x6000;
+const W5100_MEM_SIZE: usize = 0x8000;
 
 // _W5100 socket command constants
-const _W5100_SN_CR_OPEN: u8 = 0x01;
-const _W5100_SN_CR_LISTEN: u8 = 0x02;
-const _W5100_SN_CR_CONNECT: u8 = 0x04;
-const _W5100_SN_CR_DISCONNECT: u8 = 0x08;
-const _W5100_SN_CR_CLOSE: u8 = 0x10;
-const _W5100_SN_CR_SEND: u8 = 0x20;
-const _W5100_SN_CR_RECV: u8 = 0x40;
+const W5100_SN_CR_OPEN: u8 = 0x01;
+const W5100_SN_CR_LISTEN: u8 = 0x02;
+const W5100_SN_CR_CONNECT: u8 = 0x04;
+const W5100_SN_CR_DISCONNECT: u8 = 0x08;
+const W5100_SN_CR_CLOSE: u8 = 0x10;
+const W5100_SN_CR_SEND: u8 = 0x20;
+const W5100_SN_CR_RECV: u8 = 0x40;
 
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
@@ -144,6 +153,7 @@ use serde::{Deserialize, Serialize};
 enum Proto {
     None,
     Tcp(TcpStream),
+    _TcpListener(TcpListener),
 }
 
 #[derive(Debug, Default)]
@@ -172,12 +182,17 @@ impl Socket {
             let _ = socket.shutdown(Shutdown::Both);
         }
         self.fd = Proto::None;
-        self.status = _W5100_SN_SR_CLOSED;
+        self.status = W5100_SN_SR_CLOSED;
+    }
+
+    fn set_fd(&mut self, proto: Proto) {
+        self.fd = proto
     }
 
     fn is_open(&self) -> bool {
         !matches!(self.fd, Proto::None)
-            && ((self.status == _W5100_SN_SR_ESTABLISHED) || (self.status == _W5100_SN_SR_SOCK_UDP))
+            && ((self.status == W5100_SN_SR_SOCK_ESTABLISHED)
+                || (self.status == W5100_SN_SR_SOCK_UDP))
     }
 }
 
@@ -240,31 +255,31 @@ impl Uthernet2 {
         for i in 0..4 {
             self.reset_rxtx_buffers(i);
             let addr = 0x400 + (i << 8);
-            self.mem[addr + _W5100_SN_DHAR0] = 0xFF;
-            self.mem[addr + _W5100_SN_DHAR1] = 0xFF;
-            self.mem[addr + _W5100_SN_DHAR2] = 0xFF;
-            self.mem[addr + _W5100_SN_DHAR3] = 0xFF;
-            self.mem[addr + _W5100_SN_DHAR4] = 0xFF;
-            self.mem[addr + _W5100_SN_DHAR5] = 0xFF;
-            self.mem[addr + _W5100_SN_TTL] = 0x80;
+            self.mem[addr + W5100_SN_DHAR0] = 0xFF;
+            self.mem[addr + W5100_SN_DHAR1] = 0xFF;
+            self.mem[addr + W5100_SN_DHAR2] = 0xFF;
+            self.mem[addr + W5100_SN_DHAR3] = 0xFF;
+            self.mem[addr + W5100_SN_DHAR4] = 0xFF;
+            self.mem[addr + W5100_SN_DHAR5] = 0xFF;
+            self.mem[addr + W5100_SN_TTL] = 0x80;
         }
 
-        self.mem[_W5100_RTR0] = 0x07;
-        self.mem[_W5100_RTR1] = 0xD0;
-        self.mem[_W5100_RCR] = 0x08;
+        self.mem[W5100_RTR0] = 0x07;
+        self.mem[W5100_RTR1] = 0xD0;
+        self.mem[W5100_RCR] = 0x08;
 
-        self.set_receive_size(_W5100_RMSR, 0x55);
-        self.set_transmit_size(_W5100_TMSR, 0x55);
+        self.set_receive_size(W5100_RMSR, 0x55);
+        self.set_transmit_size(W5100_TMSR, 0x55);
 
         // Always use Virtual DNS. Only supports UDP/TCP-based transports protocol
 
-        self.mem[_W5100_PTIMER] = 0x0;
+        self.mem[W5100_PTIMER] = 0x0;
     }
 
     fn auto_increment(&mut self) {
         // If auto increment mode is enabled, increment the address
         // Auto-increment is only available if indirect bus i/f mode is enabled
-        if self.mode & (_W5100_MR_IND as usize) > 0 && self.mode & (_W5100_MR_AI as usize) > 0 {
+        if self.mode & (W5100_MR_IND as usize) > 0 && self.mode & (W5100_MR_AI as usize) > 0 {
             self.addr += 1;
 
             if self.addr == 0x6000 || self.addr == 0x8000 {
@@ -276,7 +291,7 @@ impl Uthernet2 {
     /* Documented from
      *
      * http://dserver.macgui.com/Uthernet%20II%20manual%2017%20Nov%2018.pdf
-     * https://www.wiznet.io/wp-content/uploads/wiznethome/Chip/_W5100/Document/_W5100_DS_V128E.pdf
+     * https://www.wiznet.io/wp-content/uploads/wiznethome/Chip/_W5100/Document/W5100_DS_V128E.pdf
 
     | Function                                  | Address          | Len |
     |-------------------------------------------|------------------|-----|
@@ -316,12 +331,12 @@ impl Uthernet2 {
     */
     fn read_value_at(&mut self, addr: usize) -> u8 {
         let eaddr = addr & 0x7fff;
-        if eaddr == _W5100_MR {
+        if eaddr == W5100_MR {
             self.mode as u8
-        } else if (_W5100_S0_BASE..=_W5100_S3_MAX).contains(&eaddr) {
+        } else if (W5100_S0_BASE..=W5100_S3_MAX).contains(&eaddr) {
             self.read_socket_register(eaddr)
-        } else if (_W5100_GAR0..=_W5100_UPORT1).contains(&eaddr)
-            || (_W5100_TX_BASE.._W5100_MEM_SIZE).contains(&eaddr)
+        } else if (W5100_GAR0..=W5100_UPORT1).contains(&eaddr)
+            || (W5100_TX_BASE..W5100_MEM_SIZE).contains(&eaddr)
         {
             self.mem[eaddr]
         } else {
@@ -341,13 +356,13 @@ impl Uthernet2 {
         let loc = addr & 0xff;
 
         match loc {
-            _W5100_SN_TX_FSR0 => value = self.get_transmit_free_size_register(unit, 8),
-            _W5100_SN_TX_FSR1 => value = self.get_transmit_free_size_register(unit, 0),
-            _W5100_SN_RX_RSR0 => {
+            W5100_SN_TX_FSR0 => value = self.get_transmit_free_size_register(unit, 8),
+            W5100_SN_TX_FSR1 => value = self.get_transmit_free_size_register(unit, 0),
+            W5100_SN_RX_RSR0 => {
                 self.receive_one_packet(unit);
                 value = self.mem[addr];
             }
-            _W5100_SN_RX_RSR1 => {
+            W5100_SN_RX_RSR1 => {
                 self.receive_one_packet(unit);
                 value = self.mem[addr];
             }
@@ -359,8 +374,8 @@ impl Uthernet2 {
     fn receive_one_packet(&mut self, i: usize) {
         let socket = &mut self.socket[i];
         match socket.status {
-            _W5100_SN_SR_ESTABLISHED => self.receive_one_packet_from_socket(i),
-            _W5100_SN_SR_CLOSED => {
+            W5100_SN_SR_SOCK_ESTABLISHED => self.receive_one_packet_from_socket(i),
+            W5100_SN_SR_CLOSED => {
                 u2_debug!("Received Socket #{i} reading from a closed socket")
             }
             _ => {
@@ -375,8 +390,8 @@ impl Uthernet2 {
         if socket.is_open() {
             if let Proto::Tcp(stream) = &mut socket.fd {
                 let rsr = u16::from_be_bytes([
-                    self.mem[base_addr + _W5100_SN_RX_RSR0],
-                    self.mem[base_addr + _W5100_SN_RX_RSR1],
+                    self.mem[base_addr + W5100_SN_RX_RSR0],
+                    self.mem[base_addr + W5100_SN_RX_RSR1],
                 ]) as usize;
                 let free_available = socket.receive_size - rsr;
                 if free_available > 32 {
@@ -404,8 +419,8 @@ impl Uthernet2 {
         let base_addr = self.get_base_socket_addr(i);
         let socket = &mut self.socket[i];
         let mut rsr = u16::from_be_bytes([
-            self.mem[base_addr + _W5100_SN_RX_RSR0],
-            self.mem[base_addr + _W5100_SN_RX_RSR1],
+            self.mem[base_addr + W5100_SN_RX_RSR0],
+            self.mem[base_addr + W5100_SN_RX_RSR1],
         ]) as usize;
         for item in data {
             self.mem[socket.receive_addr + socket.receive_pointer] = *item;
@@ -413,8 +428,8 @@ impl Uthernet2 {
             rsr += 1;
         }
         let size = u16::to_be_bytes(rsr as u16);
-        self.mem[base_addr + _W5100_SN_RX_RSR0] = size[0];
-        self.mem[base_addr + _W5100_SN_RX_RSR1] = size[1];
+        self.mem[base_addr + W5100_SN_RX_RSR0] = size[0];
+        self.mem[base_addr + W5100_SN_RX_RSR1] = size[1];
     }
 
     fn get_transmit_free_size_register(&self, i: usize, shift: usize) -> u8 {
@@ -430,12 +445,12 @@ impl Uthernet2 {
         let size = socket.transmit_size;
 
         let sn_tx_rd = u16::from_be_bytes([
-            self.mem[base_addr + _W5100_SN_TX_RD0],
-            self.mem[base_addr + _W5100_SN_TX_RD1],
+            self.mem[base_addr + W5100_SN_TX_RD0],
+            self.mem[base_addr + W5100_SN_TX_RD1],
         ]);
         let sn_tx_wr = u16::from_be_bytes([
-            self.mem[base_addr + _W5100_SN_TX_WR0],
-            self.mem[base_addr + _W5100_SN_TX_WR1],
+            self.mem[base_addr + W5100_SN_TX_WR0],
+            self.mem[base_addr + W5100_SN_TX_WR1],
         ]);
 
         let data_present = if sn_tx_rd > sn_tx_wr {
@@ -451,11 +466,11 @@ impl Uthernet2 {
         let eaddr = addr & 0x7fff;
         if eaddr == 0x0000 {
             self.set_mode_register(value);
-        } else if (_W5100_GAR0..=_W5100_UPORT1).contains(&eaddr) {
+        } else if (W5100_GAR0..=W5100_UPORT1).contains(&eaddr) {
             self.write_common_register(eaddr, value);
-        } else if (_W5100_S0_BASE..=_W5100_S3_MAX).contains(&eaddr) {
+        } else if (W5100_S0_BASE..=W5100_S3_MAX).contains(&eaddr) {
             self.write_socket_register(eaddr, value);
-        } else if (_W5100_TX_BASE.._W5100_MEM_SIZE).contains(&eaddr) {
+        } else if (W5100_TX_BASE..W5100_MEM_SIZE).contains(&eaddr) {
             self.mem[eaddr] = value;
             //u2_debug!("Write to memory addr = 0x{eaddr:04X} value = 0x{value:02X}");
         }
@@ -467,7 +482,7 @@ impl Uthernet2 {
     }
 
     fn set_mode_register(&mut self, value: u8) {
-        if value & _W5100_MR_RST == 0 {
+        if value & W5100_MR_RST == 0 {
             self.mode = value as usize;
         } else {
             self.reset();
@@ -478,8 +493,8 @@ impl Uthernet2 {
         // UDP/TCP mode forwarding completely ignores the Gateway Address,
         // Subnet mask Address, Source Hardware Address and Source IP Address registers
         match addr {
-            _W5100_TMSR => self.set_transmit_size(addr, value),
-            _W5100_RMSR => self.set_receive_size(addr, value),
+            W5100_TMSR => self.set_transmit_size(addr, value),
+            W5100_RMSR => self.set_receive_size(addr, value),
             _ => {}
         };
         //u2_debug!("Write to memory addr = 0x{addr:04X} value = 0x{value:02X}");
@@ -490,8 +505,8 @@ impl Uthernet2 {
 
         self.mem[addr] = value;
 
-        let mut base_address = _W5100_TX_BASE;
-        let end = _W5100_RX_BASE;
+        let mut base_address = W5100_TX_BASE;
+        let end = W5100_RX_BASE;
         let mut tx_size = value;
 
         for socket in self.socket.iter_mut() {
@@ -516,8 +531,8 @@ impl Uthernet2 {
 
         self.mem[addr] = value;
 
-        let mut base_address = _W5100_RX_BASE;
-        let end = _W5100_MEM_SIZE;
+        let mut base_address = W5100_RX_BASE;
+        let end = W5100_MEM_SIZE;
         let mut rx_size = value;
 
         for socket in self.socket.iter_mut() {
@@ -543,8 +558,8 @@ impl Uthernet2 {
         let loc = addr & 0xff;
 
         match loc {
-            _W5100_SN_MR => self.set_socket_mode_register(unit, value),
-            _W5100_SN_CR => self.set_command_register(unit, addr, value),
+            W5100_SN_MR => self.set_socket_mode_register(unit, value),
+            W5100_SN_CR => self.set_command_register(unit, addr, value),
             _ => {
                 //u2_debug!("Write to socket unit = {unit} addr = 0x{addr:04X} value = 0x{value:02X}")
             }
@@ -552,14 +567,14 @@ impl Uthernet2 {
     }
 
     fn set_socket_mode_register(&mut self, i: usize, value: u8) {
-        let protocol = value & _W5100_SN_MR_PROTO_MASK;
+        let protocol = value & W5100_SN_MR_PROTO_MASK;
 
         match protocol {
-            _W5100_SN_MR_CLOSED => u2_debug!("Socket #{i} mode: CLOSED"),
-            _W5100_SN_MR_TCP | _W5100_SN_MR_TCP_DNS => u2_debug!("Socket #{i} mode: TCP"),
-            _W5100_SN_MR_UDP | _W5100_SN_MR_UDP_DNS => u2_debug!("Socket #{i} mode: UDP"),
-            _W5100_SN_MR_IPRAW | _W5100_SN_MR_IPRAW_DNS => u2_debug!("Socket #{i} mode: IPRAW"),
-            _W5100_SN_MR_MACRAW => u2_debug!("Socket #{i} mode: MACRAW"),
+            W5100_SN_MR_CLOSED => u2_debug!("Socket #{i} mode: CLOSED"),
+            W5100_SN_MR_TCP | W5100_SN_MR_TCP_DNS => u2_debug!("Socket #{i} mode: TCP"),
+            W5100_SN_MR_UDP | W5100_SN_MR_UDP_DNS => u2_debug!("Socket #{i} mode: UDP"),
+            W5100_SN_MR_IPRAW | W5100_SN_MR_IPRAW_DNS => u2_debug!("Socket #{i} mode: IPRAW"),
+            W5100_SN_MR_MACRAW => u2_debug!("Socket #{i} mode: MACRAW"),
             _ => u2_debug!("Socker #{i} mode: Unknown = {protocol:02X}"),
         }
     }
@@ -567,11 +582,16 @@ impl Uthernet2 {
     fn set_command_register(&mut self, i: usize, addr: usize, value: u8) {
         self.mem[addr] = 0;
         match value {
-            _W5100_SN_CR_OPEN => self.open_socket(i),
-            _W5100_SN_CR_CONNECT => self.connect_socket(i),
-            _W5100_SN_CR_CLOSE | _W5100_SN_CR_DISCONNECT => self.close_socket(i),
-            _W5100_SN_CR_SEND => self.send_data(i),
-            _W5100_SN_CR_RECV => self.update_rsr(i),
+            W5100_SN_CR_OPEN => self.open_socket(i),
+            W5100_SN_CR_LISTEN => {
+                //u2_debug!("LISTEN command received on #{i}: Not supported yet");
+                self.listen_socket(i);
+            }
+
+            W5100_SN_CR_CONNECT => self.connect_socket(i),
+            W5100_SN_CR_CLOSE | W5100_SN_CR_DISCONNECT => self.close_socket(i),
+            W5100_SN_CR_SEND => self.send_data(i),
+            W5100_SN_CR_RECV => self.update_rsr(i),
             _ => u2_debug!("Unknown Command received on #{i} Command: 0x{value:02X}"),
         }
     }
@@ -581,32 +601,32 @@ impl Uthernet2 {
         let socket = &mut self.socket[i];
         socket.receive_pointer = 0;
 
-        self.mem[base_addr + _W5100_SN_TX_RD0] = 0x00;
-        self.mem[base_addr + _W5100_SN_TX_RD1] = 0x00;
-        self.mem[base_addr + _W5100_SN_TX_WR0] = 0x00;
-        self.mem[base_addr + _W5100_SN_TX_WR1] = 0x00;
-        self.mem[base_addr + _W5100_SN_RX_RD0] = 0x00;
-        self.mem[base_addr + _W5100_SN_RX_RD1] = 0x00;
-        self.mem[base_addr + _W5100_SN_RX_RSR0] = 0x00;
-        self.mem[base_addr + _W5100_SN_RX_RSR1] = 0x00;
+        self.mem[base_addr + W5100_SN_TX_RD0] = 0x00;
+        self.mem[base_addr + W5100_SN_TX_RD1] = 0x00;
+        self.mem[base_addr + W5100_SN_TX_WR0] = 0x00;
+        self.mem[base_addr + W5100_SN_TX_WR1] = 0x00;
+        self.mem[base_addr + W5100_SN_RX_RD0] = 0x00;
+        self.mem[base_addr + W5100_SN_RX_RD1] = 0x00;
+        self.mem[base_addr + W5100_SN_RX_RSR0] = 0x00;
+        self.mem[base_addr + W5100_SN_RX_RSR1] = 0x00;
     }
 
     fn get_base_socket_addr(&self, i: usize) -> usize {
-        _W5100_S0_BASE + (i << 8)
+        W5100_S0_BASE + (i << 8)
     }
 
     fn clear_socket_fd(&mut self, i: usize) {
         let base_addr = self.get_base_socket_addr(i);
         let socket = &mut self.socket[i];
         socket.clear_fd();
-        self.mem[base_addr + _W5100_SN_SR] = socket.status;
+        self.mem[base_addr + W5100_SN_SR] = socket.status;
     }
 
     fn set_socket_status(&mut self, i: usize, status: u8) {
         let base_addr = self.get_base_socket_addr(i);
         let mut socket = &mut self.socket[i];
         socket.status = status;
-        self.mem[base_addr + _W5100_SN_SR] = status;
+        self.mem[base_addr + W5100_SN_SR] = status;
     }
 
     fn get_socket_status(&self, i: usize) -> u8 {
@@ -619,21 +639,21 @@ impl Uthernet2 {
 
         let base_addr = self.get_base_socket_addr(i);
         let mode_register = self.mem[base_addr];
-        let protocol = mode_register & _W5100_SN_MR_PROTO_MASK;
+        let protocol = mode_register & W5100_SN_MR_PROTO_MASK;
 
         self.clear_socket_fd(i);
 
         // Open the socket
         match protocol {
-            _W5100_SN_MR_IPRAW | _W5100_SN_MR_IPRAW_DNS => {
-                self.set_socket_status(i, _W5100_SN_SR_SOCK_IPRAW)
+            W5100_SN_MR_IPRAW | W5100_SN_MR_IPRAW_DNS => {
+                self.set_socket_status(i, W5100_SN_SR_SOCK_IPRAW)
             }
-            _W5100_SN_MR_MACRAW => self.set_socket_status(i, _W5100_SN_SR_SOCK_MACRAW),
-            _W5100_SN_MR_TCP | _W5100_SN_MR_TCP_DNS => {
-                self.set_socket_status(i, _W5100_SN_SR_SOCK_INIT);
+            W5100_SN_MR_MACRAW => self.set_socket_status(i, W5100_SN_SR_SOCK_MACRAW),
+            W5100_SN_MR_TCP | W5100_SN_MR_TCP_DNS => {
+                self.set_socket_status(i, W5100_SN_SR_SOCK_INIT);
             }
-            _W5100_SN_MR_UDP | _W5100_SN_MR_UDP_DNS => {
-                self.set_socket_status(i, _W5100_SN_SR_SOCK_UDP)
+            W5100_SN_MR_UDP | W5100_SN_MR_UDP_DNS => {
+                self.set_socket_status(i, W5100_SN_SR_SOCK_UDP)
             }
             _ => {
                 u2_debug!("Open Socket with unknown mode 0x{protocol:02X}")
@@ -642,7 +662,7 @@ impl Uthernet2 {
 
         // Resolve the DNS for TCP/UDP DNS
         match protocol {
-            _W5100_SN_MR_TCP_DNS | _W5100_SN_MR_UDP_DNS => self.resolve_dns(i),
+            W5100_SN_MR_TCP_DNS | W5100_SN_MR_UDP_DNS => self.resolve_dns(i),
             _ => {}
         }
 
@@ -651,7 +671,7 @@ impl Uthernet2 {
 
     fn clear_socket_dest(&mut self, i: usize) {
         let base_addr = self.get_base_socket_addr(i);
-        let dest = &mut self.mem[base_addr + _W5100_SN_DIPR0..=base_addr + _W5100_SN_DIPR3];
+        let dest = &mut self.mem[base_addr + W5100_SN_DIPR0..=base_addr + W5100_SN_DIPR3];
 
         // Clear the destination
         for item in dest[0..4].iter_mut() {
@@ -662,19 +682,19 @@ impl Uthernet2 {
     fn resolve_dns(&mut self, i: usize) {
         let base_addr = self.get_base_socket_addr(i);
         self.clear_socket_dest(i);
-        let length = self.mem[base_addr + _W5100_SN_DNS_NAME_LEN] as usize;
+        let length = self.mem[base_addr + W5100_SN_DNS_NAME_LEN] as usize;
 
-        if length <= _W5100_SN_DNS_NAME_CPTY {
+        if length <= W5100_SN_DNS_NAME_CPTY {
             let name = String::from_utf8_lossy(
-                &self.mem[base_addr + _W5100_SN_DNS_NAME_BEGIN
-                    ..base_addr + _W5100_SN_DNS_NAME_BEGIN + length],
+                &self.mem[base_addr + W5100_SN_DNS_NAME_BEGIN
+                    ..base_addr + W5100_SN_DNS_NAME_BEGIN + length],
             );
 
             u2_debug!("Resolving DNS name={name} ...");
 
             let port = u16::from_be_bytes([
-                self.mem[base_addr + _W5100_SN_DPORT0],
-                self.mem[base_addr + _W5100_SN_DPORT1],
+                self.mem[base_addr + W5100_SN_DPORT0],
+                self.mem[base_addr + W5100_SN_DPORT1],
             ]);
 
             let resolve_name = format!("{name}:{port}");
@@ -686,8 +706,8 @@ impl Uthernet2 {
                     if let IpAddr::V4(ip) = addr.ip() {
                         let octets = ip.octets().to_vec();
 
-                        let dest = &mut self.mem
-                            [base_addr + _W5100_SN_DIPR0..=base_addr + _W5100_SN_DIPR3];
+                        let dest =
+                            &mut self.mem[base_addr + W5100_SN_DIPR0..=base_addr + W5100_SN_DIPR3];
                         dest[0] = octets[0];
                         dest[1] = octets[1];
                         dest[2] = octets[2];
@@ -702,15 +722,15 @@ impl Uthernet2 {
         let base_addr = self.get_base_socket_addr(i);
 
         // Check that the socket created is a TCP socket. If not close the socket
-        if self.get_socket_status(i) != _W5100_SN_SR_SOCK_INIT {
+        if self.get_socket_status(i) != W5100_SN_SR_SOCK_INIT {
             self.clear_socket_fd(i);
             return;
         }
 
-        let dest = &self.mem[base_addr + _W5100_SN_DIPR0..=base_addr + _W5100_SN_DIPR3];
+        let dest = &self.mem[base_addr + W5100_SN_DIPR0..=base_addr + W5100_SN_DIPR3];
         let port_bytes = [
-            self.mem[base_addr + _W5100_SN_DPORT0],
-            self.mem[base_addr + _W5100_SN_DPORT1],
+            self.mem[base_addr + W5100_SN_DPORT0],
+            self.mem[base_addr + W5100_SN_DPORT1],
         ];
         let port = u16::from_be_bytes(port_bytes);
         let dest_string = format!("{}.{}.{}.{}:{port}", dest[0], dest[1], dest[2], dest[3]);
@@ -718,13 +738,78 @@ impl Uthernet2 {
 
         if let Ok(stream) = TcpStream::connect(&dest_string) {
             u2_debug!("Connect Socket on #{i} to {dest_string} - OK");
-            stream.set_nonblocking(true).unwrap();
-            self.socket[i].fd = Proto::Tcp(stream);
-            self.set_socket_status(i, _W5100_SN_SR_ESTABLISHED);
+            stream
+                .set_nonblocking(true)
+                .expect("Cannot set non-blocking stream");
+            self.socket[i].set_fd(Proto::Tcp(stream));
+            self.set_socket_status(i, W5100_SN_SR_SOCK_ESTABLISHED);
         } else {
             u2_debug!("Connect Socket on #{i} to {dest_string} FAILED");
             self.clear_socket_fd(i);
         }
+    }
+
+    fn listen_socket(&mut self, i: usize) {
+        let base_addr = self.get_base_socket_addr(i);
+
+        // Check if the TCP socket is in listening mode
+        if self.get_socket_status(i) == W5100_SN_SR_SOCK_LISTEN {
+            if let Some(stream) = self.accept_socket(i) {
+                let socket = &mut self.socket[i];
+                socket.set_fd(Proto::Tcp(stream));
+            }
+            return;
+        }
+
+        // Check that the socket created is a TCP socket. If not close the socket
+        if self.get_socket_status(i) != W5100_SN_SR_SOCK_INIT {
+            self.clear_socket_fd(i);
+            return;
+        }
+
+        let src = &self.mem[base_addr + W5100_SIPR0..=base_addr + W5100_SIPR3];
+        let port_bytes = [
+            self.mem[base_addr + _W5100_SN_PORT0],
+            self.mem[base_addr + _W5100_SN_PORT1],
+        ];
+        let port = u16::from_be_bytes(port_bytes);
+
+        let listen_string = format!("{}.{}.{}.{}:{port}", src[0], src[1], src[2], src[3]);
+        u2_debug!("Listen Socket on #{i} to {listen_string} ...");
+
+        if let Ok(listener) = TcpListener::bind(&listen_string) {
+            u2_debug!("Listen Socket on #{i} to {listen_string} - OK");
+            listener
+                .set_nonblocking(true)
+                .expect("Cannot set non-blocking listener");
+            self.socket[i].set_fd(Proto::_TcpListener(listener));
+            self.set_socket_status(i, W5100_SN_SR_SOCK_LISTEN);
+        } else {
+            u2_debug!("Listen Socket on #{i} to {listen_string} FAILED");
+            self.clear_socket_fd(i);
+        }
+    }
+
+    fn accept_socket(&mut self, i: usize) -> Option<TcpStream> {
+        let socket = &mut self.socket[i];
+
+        if let Proto::_TcpListener(listener) = &mut socket.fd {
+            let listener_iter = listener.incoming();
+            for stream in listener_iter {
+                match stream {
+                    Ok(s) => {
+                        self.set_socket_status(i, W5100_SN_SR_SOCK_ESTABLISHED);
+                        return Some(s);
+                    }
+                    Err(ref e) if e.kind() == ErrorKind::WouldBlock => return None,
+                    Err(e) => {
+                        u2_debug!("Couldn't get client on #{i}: {e:?}");
+                        return None;
+                    }
+                }
+            }
+        }
+        None
     }
 
     fn close_socket(&mut self, i: usize) {
@@ -741,13 +826,13 @@ impl Uthernet2 {
         let size = socket.transmit_size;
         let mask = size - 1;
         let sn_tx_rr = (u16::from_be_bytes([
-            self.mem[base_addr + _W5100_SN_TX_RD0],
-            self.mem[base_addr + _W5100_SN_TX_RD1],
+            self.mem[base_addr + W5100_SN_TX_RD0],
+            self.mem[base_addr + W5100_SN_TX_RD1],
         ]) as usize)
             & mask;
         let sn_tx_wr = (u16::from_be_bytes([
-            self.mem[base_addr + _W5100_SN_TX_WR0],
-            self.mem[base_addr + _W5100_SN_TX_WR1],
+            self.mem[base_addr + W5100_SN_TX_WR0],
+            self.mem[base_addr + W5100_SN_TX_WR1],
         ]) as usize)
             & mask;
 
@@ -766,11 +851,11 @@ impl Uthernet2 {
         }
 
         // Move read pointer to writer
-        self.mem[base_addr + _W5100_SN_TX_RD0] = ((sn_tx_wr >> 8) & 0xff) as u8;
-        self.mem[base_addr + _W5100_SN_TX_RD1] = (sn_tx_wr & 0xff) as u8;
+        self.mem[base_addr + W5100_SN_TX_RD0] = ((sn_tx_wr >> 8) & 0xff) as u8;
+        self.mem[base_addr + W5100_SN_TX_RD1] = (sn_tx_wr & 0xff) as u8;
 
         match socket.status {
-            _W5100_SN_SR_ESTABLISHED => self.send_data_to_socket(i, &data),
+            W5100_SN_SR_SOCK_ESTABLISHED => self.send_data_to_socket(i, &data),
             _ => {
                 u2_debug!("Send data Socket#{i} Unknown mode: 0x{:02X}", socket.status)
             }
@@ -820,8 +905,8 @@ impl Uthernet2 {
         let mask = size - 1;
 
         let sn_rx_rd = (u16::from_be_bytes([
-            self.mem[base_addr + _W5100_SN_RX_RD0],
-            self.mem[base_addr + _W5100_SN_RX_RD1],
+            self.mem[base_addr + W5100_SN_RX_RD0],
+            self.mem[base_addr + W5100_SN_RX_RD1],
         ]) as usize)
             & mask;
         let sn_rx_wr = socket.receive_pointer & mask;
@@ -832,8 +917,8 @@ impl Uthernet2 {
         };
 
         let rsr_to_update = u16::to_be_bytes(data_present as u16);
-        self.mem[base_addr + _W5100_SN_RX_RSR0] = rsr_to_update[0];
-        self.mem[base_addr + _W5100_SN_RX_RSR1] = rsr_to_update[1];
+        self.mem[base_addr + W5100_SN_RX_RSR0] = rsr_to_update[0];
+        self.mem[base_addr + W5100_SN_RX_RSR1] = rsr_to_update[1];
     }
 }
 

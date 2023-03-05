@@ -74,7 +74,6 @@ impl AudioFilter {
             *item /= dc
         }
         */
-        
         /*
          * Constants are generated using the python script below
          * 
@@ -90,7 +89,6 @@ impl AudioFilter {
          *    h *= np.kaiser(N, beta)
          *    h /= np.sum(h)
          */
-        
         let filter = vec! [
               3.18392625e-04,  3.14843915e-04,  3.07326879e-04,  2.95541700e-04,
               2.79204769e-04,  2.58052033e-04,  2.31842351e-04,  2.00360845e-04,
