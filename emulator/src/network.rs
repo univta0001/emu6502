@@ -891,6 +891,10 @@ impl Uthernet2 {
                             self.clear_socket_fd(i);
                         }
                     }
+                } else if let Ok(size) = result {
+                    if size == 0 {
+                        self.clear_socket_fd(i);
+                    }
                 }
             }
         }
