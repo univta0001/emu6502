@@ -28,7 +28,7 @@ const AY_LEVEL: [u16; 16] = [
 struct AudioFilter {
     //buffer: Vec<Channel>,
     //buffer_pointer: usize,
-    filter_tap: [f32;2],
+    filter_tap: [f32; 2],
 }
 
 impl AudioFilter {
@@ -38,7 +38,7 @@ impl AudioFilter {
         Self {
             //buffer,
             //buffer_pointer: 0,
-            filter_tap: [0.0f32;2]
+            filter_tap: [0.0f32; 2],
         }
     }
 
@@ -173,7 +173,15 @@ impl AudioFilter {
         let y = c1 * self.filter_tap[0] - c2 * self.filter_tap[1] + (value as f32) / 32768.0;
         self.filter_tap[1] = self.filter_tap[0];
         self.filter_tap[0] = y;
-        y
+
+        let mut return_value = y / 4000.0;
+        if return_value < -1.0 {
+            return_value = -1.0;
+        } else if return_value > 1.0 {
+            return_value = 1.0;
+        }
+
+        return_value
     }
 }
 
@@ -337,7 +345,7 @@ impl Tick for Audio {
 
         let beep = if self.filter_enabled {
             let response = self.audio_filter.filter_response(self.data.phase);
-            self.dc_filter((response * 8.192) as Channel)
+            self.dc_filter((response * 32767.0) as Channel)
         } else {
             self.data.phase
         };
