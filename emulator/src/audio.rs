@@ -347,7 +347,7 @@ impl Tick for Audio {
             let response = self.audio_filter.filter_response(self.data.phase);
             self.dc_filter((response * 32767.0) as Channel)
         } else {
-            self.data.phase
+            self.dc_filter(self.data.phase)
         };
 
         /*
