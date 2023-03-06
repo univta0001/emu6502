@@ -22,24 +22,23 @@ const AY_LEVEL: [u16; 16] = [
     0x9204, 0xaff1, 0xd921, 0xffff,
 ];
 
-const CUTOFF_FREQ: f32 = 11025.0;
+//const CUTOFF_FREQ: f32 = 11025.0;
 
 #[derive(Debug)]
 struct AudioFilter {
-    buffer: Vec<Channel>,
-    buffer_pointer: usize,
-    filter: Vec<f32>,
+    //buffer: Vec<Channel>,
+    //buffer_pointer: usize,
+    filter_tap: [f32;2],
 }
 
 impl AudioFilter {
     pub fn new() -> Self {
-        let filter = Self::generate_coefficients(CPU_6502_MHZ, CUTOFF_FREQ);
-        let buffer = vec![0; filter.len()];
-
+        //let filter = Self::generate_coefficients(CPU_6502_MHZ, CUTOFF_FREQ);
+        //let buffer = vec![0; filter.len()];
         Self {
-            buffer,
-            buffer_pointer: 0,
-            filter,
+            //buffer,
+            //buffer_pointer: 0,
+            filter_tap: [0.0f32;2]
         }
     }
 
@@ -47,36 +46,12 @@ impl AudioFilter {
      *  For sampling rate of 1021800 Hz, cutoff freq = 11025.0 Hz, 209 taps is required
      *  Ref: www.fiiir.com
      */
+    /*
     #[rustfmt::skip]
-    fn generate_coefficients(_sample_freq: f32, _cutoff_freq: f32) -> Vec<f32> {
-        /*
-        let filter_length = 289;
-        let omega = 2.0 * std::f32::consts::PI * _cutoff_freq / _sample_freq;
-        let mut dc = 0.0;
-        let order = filter_length - 1;
-        let mut filter = vec![0.0; order + 1];
-
-        for (i, item) in filter.iter_mut().enumerate() {
-            let j: isize = i as isize;
-            *item = if j == order as isize / 2 {
-                omega
-            } else {
-                let value = f32::sin(omega * (j - (order as isize) / 2) as f32)
-                    / (j - (order as isize) / 2) as f32;
-                value
-                    * (0.54 - 0.46 * f32::cos(2.0 * std::f32::consts::PI * j as f32 / order as f32))
-            };
-            dc += *item
-        }
-
-        // Normalize filter coefficients
-        for item in filter.iter_mut() {
-            *item /= dc
-        }
-        */
+    fn _generate_coefficients(_sample_freq: f32, _cutoff_freq: f32) -> Vec<f32> {
         /*
          * Constants are generated using the python script below
-         * 
+         *
          *    N = math.ceil((A - 7.95) / (2.285 * 2 * math.pi * b / fs)) + 1
          *
          *    fs = 1021800                                     # Sampling rate.
@@ -154,7 +129,7 @@ impl AudioFilter {
         self.filter = value;
     }
 
-    fn filter(&mut self) -> Channel {
+    fn _filter(&mut self) -> Channel {
         let output = self
             .filter
             .iter()
@@ -165,9 +140,40 @@ impl AudioFilter {
         output as Channel
     }
 
-    fn add_to_buffer(&mut self, value: Channel) {
+    fn _add_to_buffer(&mut self, value: Channel) {
         self.buffer[self.buffer_pointer] = value;
         self.buffer_pointer = (self.buffer_pointer + 1) % self.buffer.len();
+    }
+
+    */
+
+    fn filter_response(&mut self, value: Channel) -> f32 {
+        /*
+            Model the speaker frequency response of natural frequency of 3880 Hz
+            with dampling of -2000
+
+            Based on KansasFest 2022 11 Apple II Audio From the Ground Up - Kris Kennaway
+
+            The returned valued has to be normalized by 4000.0 (experimental determined)
+
+            sample_rate = 1021800
+            damping = -2000
+            freq = 3880
+            dt = np.float64(1 / sample_rate)
+            w = np.float64(freq * 2 * np.pi * dt)
+            d = damping * dt
+            e = np.exp(d)
+            c1 = np.float32(2 * e * np.cos(w))
+            c2 = np.float32(e * e)
+        */
+
+        let c1 = 1.9955211;
+        let c2 = 0.996093;
+
+        let y = c1 * self.filter_tap[0] - c2 * self.filter_tap[1] + (value as f32) / 32768.0;
+        self.filter_tap[1] = self.filter_tap[0];
+        self.filter_tap[0] = y;
+        y
     }
 }
 
@@ -214,7 +220,7 @@ impl Audio {
             mboard: vec![Mockingboard::default()],
             audio_active: false,
             audio_filter: Default::default(),
-            filter_enabled: false,
+            filter_enabled: true,
         }
     }
 
@@ -328,17 +334,28 @@ impl Tick for Audio {
         self.fcycles += 1.0;
         self.mboard.iter_mut().for_each(|mb| mb.tick());
         self.audio_active = false;
-        let mut beep = self.dc_filter(self.data.phase);
+
+        let beep = if self.filter_enabled {
+            let response = self.audio_filter.filter_response(self.data.phase);
+            self.dc_filter((response * 8.192) as Channel)
+        } else {
+            self.data.phase
+        };
+
+        /*
         if self.filter_enabled {
             self.audio_filter.add_to_buffer(beep);
         }
+        */
 
         if self.fcycles >= (self.fcycles_per_sample) {
             self.fcycles -= self.fcycles_per_sample;
 
+            /*
             if self.filter_enabled {
                 beep = self.audio_filter.filter();
             }
+            */
 
             let mut left_phase: HigherChannel = 0;
             let mut right_phase: HigherChannel = 0;

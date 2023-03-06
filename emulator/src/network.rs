@@ -791,8 +791,8 @@ impl Uthernet2 {
         let socket = &mut self.socket[i];
 
         if let Proto::TcpListener(listener) = &mut socket.socket_handle {
-            let listener_iter = listener.incoming();
-            for stream in listener_iter {
+            let mut listener_iter = listener.incoming();
+            if let Some(stream) = listener_iter.next() {
                 match stream {
                     Ok(s) => {
                         self.set_socket_status(i, W5100_SN_SR_SOCK_ESTABLISHED);

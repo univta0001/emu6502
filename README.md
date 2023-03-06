@@ -44,3 +44,4 @@ Features in the emulator
 - [NTSC Emulation](https://observablehq.com/@zellyn/apple-ii-ntsc-emulation-openemulator-explainer) A good explanation on NTSC emulation by Openemulator by Zellyn Hunter
 - [Accurapple](https://gitlab.com/wiz21/accurapple/-/blob/main/additional/floppy.ipynb)
 A good analysis on the handling of Flux tracks in Woz 2.1
+- [Apple 2 speaker from ground up](https://www.kansasfest.org/wp-content/uploads/2022/08/KFest2022-Kennaway-a2-audio.pdf)
