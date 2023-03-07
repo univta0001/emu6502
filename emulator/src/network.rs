@@ -3,7 +3,7 @@ use crate::mmu::Mmu;
 use crate::video::Video;
 use std::io::ErrorKind;
 use std::io::{Read, Write};
-use std::net::{IpAddr, TcpListener, TcpStream, ToSocketAddrs};
+use std::net::{IpAddr, Shutdown, TcpListener, TcpStream, ToSocketAddrs};
 
 #[cfg(feature = "serde_support")]
 use crate::marshal::{as_hex, from_hex_32k};
@@ -35,8 +35,8 @@ const _W5100_SHAR3: usize = 0x0c;
 const _W5100_SHAR4: usize = 0x0d;
 const _W5100_SHAR5: usize = 0x0e;
 const W5100_SIPR0: usize = 0x0f;
-const _W5100_SIPR1: usize = 0x10;
-const _W5100_SIPR2: usize = 0x11;
+const W5100_SIPR1: usize = 0x10;
+const W5100_SIPR2: usize = 0x11;
 const W5100_SIPR3: usize = 0x12;
 const _W5100_IR: usize = 0x15;
 const _W5100_IMR: usize = 0x16;
@@ -65,8 +65,8 @@ const W5100_SN_MR: usize = 0x00;
 const W5100_SN_CR: usize = 0x01;
 const _W5100_SN_IR: usize = 0x02;
 const W5100_SN_SR: usize = 0x03;
-const _W5100_SN_PORT0: usize = 0x04;
-const _W5100_SN_PORT1: usize = 0x05;
+const W5100_SN_PORT0: usize = 0x04;
+const W5100_SN_PORT1: usize = 0x05;
 const W5100_SN_DHAR0: usize = 0x06;
 const W5100_SN_DHAR1: usize = 0x07;
 const W5100_SN_DHAR2: usize = 0x08;
@@ -146,6 +146,20 @@ const W5100_SN_CR_CLOSE: u8 = 0x10;
 const W5100_SN_CR_SEND: u8 = 0x20;
 const W5100_SN_CR_RECV: u8 = 0x40;
 
+macro_rules! u2_debug {
+    () => {
+        if U2_DEBUG {
+            eprintln!()
+        }
+    };
+    ($($arg:tt)*) => {{
+        if U2_DEBUG {
+            eprint!("{LABEL} - ");
+            eprintln!($($arg)*);
+        }
+    }};
+}
+
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
 
@@ -178,6 +192,9 @@ impl Default for Proto {
 
 impl Socket {
     fn clear_socket_handle(&mut self) {
+        if let Proto::Tcp(stream) = &mut self.socket_handle {
+            let _ = stream.shutdown(Shutdown::Both);
+        }
         self.socket_handle = Proto::None;
         self.status = W5100_SN_SR_CLOSED;
     }
@@ -190,6 +207,12 @@ impl Socket {
         !matches!(self.socket_handle, Proto::None)
             && ((self.status == W5100_SN_SR_SOCK_ESTABLISHED)
                 || (self.status == W5100_SN_SR_SOCK_UDP))
+    }
+}
+
+impl Drop for Socket {
+    fn drop(&mut self) {
+        self.clear_socket_handle();
     }
 }
 
@@ -206,20 +229,6 @@ pub struct Uthernet2 {
     mem: Vec<u8>,
 
     socket: Vec<Socket>,
-}
-
-macro_rules! u2_debug {
-    () => {
-        if U2_DEBUG {
-            eprintln!()
-        }
-    };
-    ($($arg:tt)*) => {{
-        if U2_DEBUG {
-            eprint!("{LABEL} - ");
-            eprintln!($($arg)*);
-        }
-    }};
 }
 
 impl Default for Uthernet2 {
@@ -370,13 +379,15 @@ impl Uthernet2 {
 
     fn receive_one_packet(&mut self, i: usize) {
         let socket = &mut self.socket[i];
-        match socket.status {
-            W5100_SN_SR_SOCK_ESTABLISHED => self.receive_one_packet_from_socket(i),
-            W5100_SN_SR_CLOSED => {
-                u2_debug!("Received Socket #{i} reading from a closed socket")
-            }
-            _ => {
-                u2_debug!("Received Socket #{i} Unknown mode: 0x{:02X}", socket.status)
+        if socket.is_open() {
+            match socket.status {
+                W5100_SN_SR_SOCK_ESTABLISHED => self.receive_one_packet_from_socket(i),
+                W5100_SN_SR_CLOSED => {
+                    u2_debug!("Received Socket #{i} reading from a closed socket")
+                }
+                _ => {
+                    u2_debug!("Received Socket #{i} Unknown mode: 0x{:02X}", socket.status)
+                }
             }
         }
     }
@@ -397,14 +408,15 @@ impl Uthernet2 {
                     if let Ok(size) = result {
                         //u2_debug!("Read bytes received from peer = 0x{size:02X}");
                         if size == 0 {
-                            self.clear_socket_handle(i);
+                            self.clear_socket(i);
                         } else {
                             self.write_data_for_protocol(i, &buffer[0..size]);
                         }
                     } else if let Err(error) = result {
+                        //u2_debug!("Read bytes received error = {error:?}");
                         if !(matches!(error.kind(), ErrorKind::WouldBlock)) {
                             u2_debug!("Read bytes received from peer ERROR - Closing socket");
-                            self.clear_socket_handle(i);
+                            self.clear_socket(i);
                         }
                     }
                 }
@@ -612,7 +624,7 @@ impl Uthernet2 {
         W5100_S0_BASE + (i << 8)
     }
 
-    fn clear_socket_handle(&mut self, i: usize) {
+    fn clear_socket(&mut self, i: usize) {
         let base_addr = self.get_base_socket_addr(i);
         let socket = &mut self.socket[i];
         socket.clear_socket_handle();
@@ -621,7 +633,7 @@ impl Uthernet2 {
 
     fn set_socket_status(&mut self, i: usize, status: u8) {
         let base_addr = self.get_base_socket_addr(i);
-        let mut socket = &mut self.socket[i];
+        let socket = &mut self.socket[i];
         socket.status = status;
         self.mem[base_addr + W5100_SN_SR] = status;
     }
@@ -637,8 +649,6 @@ impl Uthernet2 {
         let base_addr = self.get_base_socket_addr(i);
         let mode_register = self.mem[base_addr];
         let protocol = mode_register & W5100_SN_MR_PROTO_MASK;
-
-        self.clear_socket_handle(i);
 
         // Open the socket
         match protocol {
@@ -720,7 +730,7 @@ impl Uthernet2 {
 
         // Check that the socket created is a TCP socket. If not close the socket
         if self.get_socket_status(i) != W5100_SN_SR_SOCK_INIT {
-            self.clear_socket_handle(i);
+            self.clear_socket(i);
             return;
         }
 
@@ -742,7 +752,7 @@ impl Uthernet2 {
             self.set_socket_status(i, W5100_SN_SR_SOCK_ESTABLISHED);
         } else {
             u2_debug!("Connect Socket on #{i} to {dest_string} FAILED");
-            self.clear_socket_handle(i);
+            self.clear_socket(i);
         }
     }
 
@@ -760,14 +770,19 @@ impl Uthernet2 {
 
         // Check that the socket created is a TCP socket. If not close the socket
         if self.get_socket_status(i) != W5100_SN_SR_SOCK_INIT {
-            self.clear_socket_handle(i);
+            self.clear_socket(i);
             return;
         }
 
-        let src = &self.mem[base_addr + W5100_SIPR0..=base_addr + W5100_SIPR3];
+        let src = [
+            self.mem[base_addr + W5100_SIPR0],
+            self.mem[base_addr + W5100_SIPR1],
+            self.mem[base_addr + W5100_SIPR2],
+            self.mem[base_addr + W5100_SIPR3],
+        ];
         let port_bytes = [
-            self.mem[base_addr + _W5100_SN_PORT0],
-            self.mem[base_addr + _W5100_SN_PORT1],
+            self.mem[base_addr + W5100_SN_PORT0],
+            self.mem[base_addr + W5100_SN_PORT1],
         ];
         let port = u16::from_be_bytes(port_bytes);
 
@@ -783,7 +798,7 @@ impl Uthernet2 {
             self.set_socket_status(i, W5100_SN_SR_SOCK_LISTEN);
         } else {
             u2_debug!("Listen Socket on #{i} to {listen_string} FAILED");
-            self.clear_socket_handle(i);
+            self.clear_socket(i);
         }
     }
 
@@ -811,7 +826,7 @@ impl Uthernet2 {
 
     fn close_socket(&mut self, i: usize) {
         u2_debug!("Close Socket on #{i}");
-        self.clear_socket_handle(i);
+        self.clear_socket(i);
     }
 
     fn send_data(&mut self, i: usize) {
@@ -872,7 +887,7 @@ impl Uthernet2 {
                         if let Err(error) = result {
                             match error.kind() {
                                 ErrorKind::WouldBlock => {},
-                                _ => self.clear_socket_handle(i),
+                                _ => self.clear_socket(i),
                             }
                         }
                     }
@@ -885,7 +900,7 @@ impl Uthernet2 {
                 if result.is_err() {
                     if let Err(error) = result {
                         if !(matches!(error.kind(), ErrorKind::WouldBlock)) {
-                            self.clear_socket_handle(i);
+                            self.clear_socket(i);
                         }
                     }
                 }
