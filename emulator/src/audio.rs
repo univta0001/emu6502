@@ -154,7 +154,7 @@ impl AudioFilter {
 
             Based on KansasFest 2022 11 Apple II Audio From the Ground Up - Kris Kennaway
 
-            The returned valued has to be normalized by 4000.0 (experimental determined)
+            The returned valued has to be normalized by 14000.0 (experimental determined)
 
             sample_rate = 1021800
             damping = -2000
@@ -174,7 +174,7 @@ impl AudioFilter {
         self.filter_tap[1] = self.filter_tap[0];
         self.filter_tap[0] = y;
 
-        let mut return_value = y / 4000.0;
+        let mut return_value = y / 14000.0;
         if return_value < -1.0 {
             return_value = -1.0;
         } else if return_value > 1.0 {
