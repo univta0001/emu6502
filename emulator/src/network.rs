@@ -163,8 +163,9 @@ macro_rules! u2_debug {
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 enum Proto {
+    #[default]
     None,
     Tcp(TcpStream),
     TcpListener(TcpListener),
@@ -182,12 +183,6 @@ struct Socket {
     receive_size: usize,
     receive_pointer: usize,
     status: u8,
-}
-
-impl Default for Proto {
-    fn default() -> Self {
-        Proto::None
-    }
 }
 
 impl Socket {

@@ -141,7 +141,14 @@ impl Tone {
     }
 
     fn set_period(&mut self, fine: u8, coarse: u8) {
-        self.period = ((coarse & 0xf) as u16) * 256 + (fine as u16);
+        let mut period = ((coarse & 0xf) as u16) * 256 + (fine as u16);
+        if period == 0 {
+            period = 1
+        }
+        if self.count >= (period * 2) as usize {
+            self.count %= (period * 2) as usize;
+        }
+        self.period = period;
     }
 
     fn set_volume(&mut self, val: u8) {
