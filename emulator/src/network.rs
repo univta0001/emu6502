@@ -3,7 +3,7 @@ use crate::mmu::Mmu;
 use crate::video::Video;
 use std::io::ErrorKind;
 use std::io::{Read, Write};
-use std::net::{IpAddr, Shutdown, TcpListener, TcpStream, ToSocketAddrs};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, Shutdown, TcpListener, TcpStream, ToSocketAddrs};
 
 #[cfg(feature = "serde_support")]
 use crate::marshal::{as_hex, from_hex_32k};
@@ -735,18 +735,21 @@ impl Uthernet2 {
             self.mem[base_addr + W5100_SN_DPORT1],
         ];
         let port = u16::from_be_bytes(port_bytes);
-        let dest_string = format!("{}.{}.{}.{}:{port}", dest[0], dest[1], dest[2], dest[3]);
-        u2_debug!("Connect Socket on #{i} to {dest_string} ...");
+        let sock_addr = SocketAddr::new(
+            IpAddr::V4(Ipv4Addr::new(dest[0], dest[1], dest[2], dest[3])),
+            port,
+        );
+        u2_debug!("Connect Socket on #{i} to {sock_addr:?} ...");
 
-        if let Ok(stream) = TcpStream::connect(&dest_string) {
-            u2_debug!("Connect Socket on #{i} to {dest_string} - OK");
+        if let Ok(stream) = TcpStream::connect(sock_addr) {
+            u2_debug!("Connect Socket on #{i} to {sock_addr:?} - OK");
             stream
                 .set_nonblocking(true)
                 .expect("Cannot set non-blocking stream");
             self.socket[i].set_socket_handle(Proto::Tcp(stream));
             self.set_socket_status(i, W5100_SN_SR_SOCK_ESTABLISHED);
         } else {
-            u2_debug!("Connect Socket on #{i} to {dest_string} FAILED");
+            u2_debug!("Connect Socket on #{i} to {sock_addr:?} FAILED");
             self.clear_socket(i);
         }
     }
