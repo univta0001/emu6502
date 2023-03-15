@@ -150,7 +150,7 @@ impl AudioFilter {
     fn filter_response(&mut self, value: Channel) -> f32 {
         /*
             Model the speaker frequency response of natural frequency of 3880 Hz
-            with dampling of -2000
+            with dampling of -2000 / -1210
 
             Based on KansasFest 2022 11 Apple II Audio From the Ground Up - Kris Kennaway
 
@@ -167,14 +167,17 @@ impl AudioFilter {
             c2 = np.float32(e * e)
         */
 
-        let c1 = 1.9955211;
-        let c2 = 0.996093;
+        //let c1 = 1.9955211;
+        //let c2 = 0.996093;
+
+        let c1 = 1.9970645;
+        let c2 = 0.9976344;
 
         let y = c1 * self.filter_tap[0] - c2 * self.filter_tap[1] + (value as f32) / 32768.0;
         self.filter_tap[1] = self.filter_tap[0];
         self.filter_tap[0] = y;
 
-        let mut return_value = y / 14000.0;
+        let mut return_value = y / 4000.0;
         if return_value < -1.0 {
             return_value = -1.0;
         } else if return_value > 1.0 {
