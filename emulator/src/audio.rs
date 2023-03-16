@@ -360,7 +360,7 @@ impl Tick for Audio {
         */
 
         if self.fcycles >= (self.fcycles_per_sample) {
-            self.fcycles -= self.fcycles_per_sample;
+            self.fcycles -= self.fcycles_per_sample.floor();
 
             /*
             if self.filter_enabled {
