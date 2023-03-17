@@ -167,11 +167,11 @@ impl AudioFilter {
             c2 = np.float32(e * e)
         */
 
-        //let c1 = 1.9955211;
-        //let c2 = 0.996093;
+        let c1 = 1.9955211;
+        let c2 = 0.996093;
 
-        let c1 = 1.9970645;
-        let c2 = 0.9976344;
+        //let c1 = 1.9970645;
+        //let c2 = 0.9976344;
 
         let y = c1 * self.filter_tap[0] - c2 * self.filter_tap[1] + (value as f32) / 32768.0;
         self.filter_tap[1] = self.filter_tap[0];
