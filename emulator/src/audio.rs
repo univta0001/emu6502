@@ -165,6 +165,9 @@ impl AudioFilter {
             e = np.exp(d)
             c1 = np.float32(2 * e * np.cos(w))
             c2 = np.float32(e * e)
+
+            tm = atan(w /d) / w
+            y(tm) =np.exp(-d*tm) / math.sqrt(d*d+w*w)
         */
 
         let c1 = 1.9955211;

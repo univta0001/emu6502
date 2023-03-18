@@ -250,7 +250,7 @@ impl Uthernet2 {
 
     pub fn reset(&mut self) {
         self.mode = 0;
-        self.mem = vec![0; 0x8000];
+        //self.mem = vec![0; 0x8000];
 
         // Initialize the 4 sockets in _W5100
         for i in 0..4 {
@@ -499,6 +499,7 @@ impl Uthernet2 {
         match addr {
             W5100_TMSR => self.set_transmit_size(addr, value),
             W5100_RMSR => self.set_receive_size(addr, value),
+            W5100_SIPR0..=W5100_SIPR3 => self.mem[addr] = value,
             _ => {}
         };
         //u2_debug!("Write to memory addr = 0x{addr:04X} value = 0x{value:02X}");
@@ -773,10 +774,10 @@ impl Uthernet2 {
         }
 
         let src = [
-            self.mem[base_addr + W5100_SIPR0],
-            self.mem[base_addr + W5100_SIPR1],
-            self.mem[base_addr + W5100_SIPR2],
-            self.mem[base_addr + W5100_SIPR3],
+            self.mem[W5100_SIPR0],
+            self.mem[W5100_SIPR1],
+            self.mem[W5100_SIPR2],
+            self.mem[W5100_SIPR3],
         ];
         let port_bytes = [
             self.mem[base_addr + W5100_SN_PORT0],
