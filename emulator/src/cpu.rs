@@ -38,7 +38,7 @@ bitflags! {
     ///  | +--------------- Overflow Flag
     ///  +----------------- Negative Flag
     ///
-    #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
+    #[derive(Debug, Copy, Clone)]
     pub struct CpuFlags: u8 {
         const CARRY             = 0b00000001;
         const ZERO              = 0b00000010;
@@ -48,6 +48,18 @@ bitflags! {
         const UNUSED            = 0b00100000;
         const OVERFLOW          = 0b01000000;
         const NEGATIVE          = 0b10000000;
+    }
+}
+
+impl serde::Serialize for CpuFlags {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        bitflags_serde_legacy::serialize(self, "bits", serializer)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for CpuFlags {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        bitflags_serde_legacy::deserialize("bits", deserializer)
     }
 }
 
@@ -1144,7 +1156,7 @@ impl CPU {
     fn plp(&mut self) {
         self.tick();
         self.tick();
-        self.status.bits = self.stack_pop();
+        *self.status.0.bits_mut() = self.stack_pop();
         self.status.remove(CpuFlags::BREAK);
         self.status.insert(CpuFlags::UNUSED);
     }
@@ -1278,7 +1290,7 @@ impl CPU {
         let mut flag = self.status;
         flag.set(CpuFlags::BREAK, interrupt.b_flag_mask & 0b00010000 > 0);
         flag.insert(CpuFlags::UNUSED);
-        self.stack_push(flag.bits);
+        self.stack_push(flag.bits());
         self.status.insert(CpuFlags::INTERRUPT_DISABLE);
 
         if self.m65c02 {
@@ -2010,7 +2022,7 @@ impl CPU {
             0x40 => {
                 self.tick();
                 self.tick();
-                self.status.bits = self.stack_pop();
+                *self.status.0.bits_mut() = self.stack_pop();
                 self.program_counter = self.stack_pop_u16();
                 self.status.remove(CpuFlags::BREAK | CpuFlags::UNUSED);
             }
