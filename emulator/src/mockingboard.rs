@@ -268,6 +268,7 @@ impl AY8910 {
         }
 
         self.envelope.reset();
+        self.reg = vec![0; 16];
     }
 
     fn read_register(&self) -> u8 {
@@ -400,6 +401,7 @@ struct W65C22 {
     ay8910: AY8910,
     irq_happen: usize,
     enabled: bool,
+    latch_addr_valid: bool,
 }
 
 impl W65C22 {
@@ -425,6 +427,7 @@ impl W65C22 {
             ay8910: AY8910::new(name),
             irq_happen: 0,
             enabled: false,
+            latch_addr_valid: false,
         }
     }
 
@@ -490,6 +493,7 @@ impl W65C22 {
         self.ay8910.reset();
         self.state = AY_INACTIVE;
         self.enabled = false;
+        self.latch_addr_valid = false;
     }
 
     fn poll_irq(&mut self) -> Option<usize> {
@@ -504,13 +508,23 @@ impl W65C22 {
 
     fn ay8910_write(&mut self, value: u8) {
         if value & 0x07 == AY_RESET {
-            self.ay8910.reset()
+            self.ay8910.reset();
+            self.latch_addr_valid = false;
         } else if self.state == AY_INACTIVE {
             match value & 0x07 {
-                AY_READ_DATA => self.ora = self.ay8910.read_register() & (self.ddra ^ 0xff),
-                AY_WRITE_DATA => self.ay8910.write_register(self.ora),
+                AY_READ_DATA => {
+                    if self.latch_addr_valid {
+                        self.ora = self.ay8910.read_register() & (self.ddra ^ 0xff)
+                    }
+                }
+                AY_WRITE_DATA => {
+                    if self.latch_addr_valid {
+                        self.ay8910.write_register(self.ora)
+                    }
+                }
                 AY_SET_PSG_REG => {
                     if self.ora <= 0x0f {
+                        self.latch_addr_valid = true;
                         self.ay8910.set_register(self.ora & 0xf);
                     }
                 }
@@ -538,7 +552,7 @@ impl W65C22 {
             // ORB
             0x10 | 0x00 => {
                 if write_flag {
-                    //eprintln!("Write ORA {:02X} with {:02X}", addr, value);
+                    //eprintln!("Write ORB {:02X} with {:02X}", addr, value);
                     self.orb = value & self.ddrb;
                     self.ay8910_write(value & 0xf);
                 } else {
@@ -820,7 +834,6 @@ impl Card for Mockingboard {
         write_flag: bool,
     ) -> u8 {
         let map_addr: u8 = (addr & 0xff) as u8;
-
         if map_addr < 0x80 {
             self.w65c22[0].io_access(map_addr, value, write_flag)
         } else {
