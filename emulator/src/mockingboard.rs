@@ -945,7 +945,7 @@ mod test {
         w65c22.tick(cycles);
 
         // Run for 3 cycles
-        for _ in 0..2 {
+        for _ in 0..3 {
             cycles += 1;
             w65c22.tick(cycles);
         }
