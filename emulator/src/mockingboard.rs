@@ -997,4 +997,33 @@ mod test {
             "Detect Mockingboard value should be 0xf8"
         );
     }
+
+    #[test]
+    fn ay8910_invalidate_latch_after_reset() {
+        let mut w65c22 = W65C22::new("#1");
+        w65c22.reset();
+
+        w65c22.io_access(0x01, 0x00, true);
+        w65c22.io_access(0x00, AY_SET_PSG_REG, true);
+        w65c22.io_access(0x03, 0xff, true);
+        w65c22.io_access(0x01, 0x42, true);
+
+        // AY8910 reset should invalidate all latch address
+        // and clear all the registers
+        w65c22.io_access(0x00, AY_RESET, true);
+
+        w65c22.io_access(0x00, AY_WRITE_DATA, true);
+        w65c22.io_access(0x03, 0x00, true);
+
+        // Read back on the register value
+        w65c22.io_access(0x01, 0x00, true);
+        w65c22.io_access(0x00, AY_SET_PSG_REG, true);
+        w65c22.io_access(0x00, AY_READ_DATA, true);
+
+        assert_eq!(
+            w65c22.io_access(0x01, 00, false), 0x00,
+            "Expecting 0x0 when reading AY current register"
+        );
+    }
+
 }
