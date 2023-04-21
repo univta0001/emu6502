@@ -2963,7 +2963,7 @@ mod test {
         cpu.bus.disable_video = true;
         cpu.bus.disable_disk = true;
         cpu.load_and_run(&[0xa9, 0xff, 0x48, 0x28, 0x00]);
-        assert_eq!(cpu.status.bits, 0xef);
+        assert_eq!(cpu.status.bits(), 0xef);
     }
 
     #[test]
@@ -2976,7 +2976,7 @@ mod test {
         cpu.bus.disable_video = true;
         cpu.bus.disable_disk = true;
         cpu.load_and_run(&[0xa9, 0x04, 0x48, 0x28, 0x00]);
-        assert_eq!(cpu.status.bits, 0x24);
+        assert_eq!(cpu.status.bits(), 0x24);
     }
 
     #[test]
