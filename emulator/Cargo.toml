@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 bitflags = "2.2.1"
-flate2 = { version = "1.0.25", optional = true }
+flate2 = { version = "1.0.26", optional = true }
 instant = { version = "0.1.12", features = ["wasm-bindgen"], optional = true }
 serde = { version = "1.0.160", features = ["derive"],  optional = true }
 iz80 = { path = "iz80", optional = true }
