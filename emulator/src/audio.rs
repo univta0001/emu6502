@@ -347,7 +347,6 @@ impl Tick for Audio {
     fn tick(&mut self) {
         self.fcycles += 1.0;
         self.mboard.iter_mut().for_each(|mb| mb.tick());
-        self.audio_active = false;
 
         let beep = if self.filter_enabled {
             let response = self.audio_filter.filter_response(self.data.phase);
@@ -370,6 +369,9 @@ impl Tick for Audio {
                 beep = self.audio_filter.filter();
             }
             */
+            if beep == 0 {
+                self.audio_active = false;
+            }
 
             let mut left_phase: HigherChannel = 0;
             let mut right_phase: HigherChannel = 0;

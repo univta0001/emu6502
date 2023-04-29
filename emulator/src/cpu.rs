@@ -1349,13 +1349,13 @@ impl CPU {
         F: FnMut(&mut CPU),
     {
         loop {
-            if !self.step_cpu_with_callback(&mut callback) {
+            if !self.step_with_callback(&mut callback) {
                 break;
             }
         }
     }
 
-    pub fn step_cpu_with_callback<F>(&mut self, mut callback: F) -> bool
+    pub fn step_with_callback<F>(&mut self, mut callback: F) -> bool
     where
         F: FnMut(&mut CPU),
     {
