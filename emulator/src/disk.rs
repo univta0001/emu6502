@@ -1206,12 +1206,12 @@ impl DiskDrive {
         let disk = self.drive.swap_remove(0);
         let track = disk.track;
         self.drive.push(disk);
-        let mut disk = &mut self.drive[self.drive_select];
+        let disk = &mut self.drive[self.drive_select];
         disk.track = track;
     }
 
     fn set_phase(&mut self, phase: usize, flag: bool) {
-        let mut disk = &mut self.drive[self.drive_select];
+        let disk = &mut self.drive[self.drive_select];
 
         // Do nothing if motor is not on
         if !disk.motor_status {
@@ -2195,7 +2195,7 @@ impl Tick for DiskDrive {
         if self.pending_ticks > 0 {
             self.pending_ticks -= 1;
             if self.pending_ticks == 0 {
-                let mut disk = &mut self.drive[self.drive_select];
+                let disk = &mut self.drive[self.drive_select];
                 disk.motor_status = false;
                 self.fast_disk_timer = 0;
 

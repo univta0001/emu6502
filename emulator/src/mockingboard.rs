@@ -215,7 +215,7 @@ impl AY8910 {
     }
 
     fn update_envelope(&mut self) {
-        let mut item = &mut self.envelope;
+        let item = &mut self.envelope;
         if item.period == 0 {
             return;
         }
