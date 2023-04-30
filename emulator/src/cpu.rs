@@ -326,6 +326,56 @@ pub const OPCODES: [OpCode; 256] = [
     OpCode::new(0xff, "BBS7", 3, 5, AddressingMode::ZeroPage_Relative, true),
 ];
 
+#[derive(Default, Debug, Copy, Clone, PartialEq)]
+#[allow(non_camel_case_types)]
+pub enum CpuSpeed {
+    #[default]
+    SPEED_DEFAULT,
+    SPEED_FASTEST,
+    SPEED_2_8MHZ,
+    SPEED_4MHZ,
+}
+
+#[cfg(feature = "serde_support")]
+fn serialize_cpu_speed<S: Serializer>(v: &CpuSpeed, serializer: S) -> Result<S::Ok, S::Error> {
+    let value = match v {
+        CpuSpeed::SPEED_FASTEST => 1,
+        CpuSpeed::SPEED_2_8MHZ => 2,
+        CpuSpeed::SPEED_4MHZ => 3,
+        _ => 0,
+    };
+    usize::serialize(&value, serializer)
+}
+
+#[cfg(feature = "serde_support")]
+fn deserialize_cpu_speed<'de, D: Deserializer<'de>>(deserializer: D) -> Result<CpuSpeed, D::Error> {
+    #[derive(Serialize, Deserialize)]
+    #[serde(untagged)]
+    enum UsizeOrBool {
+        Bool(bool),
+        Usize(usize),
+    }
+
+    let value = match UsizeOrBool::deserialize(deserializer)? {
+        UsizeOrBool::Bool(value) => {
+            if value {
+                CpuSpeed::SPEED_FASTEST
+            } else {
+                CpuSpeed::SPEED_DEFAULT
+            }
+        }
+
+        UsizeOrBool::Usize(value) => match value {
+            1 => CpuSpeed::SPEED_FASTEST,
+            2 => CpuSpeed::SPEED_2_8MHZ,
+            3 => CpuSpeed::SPEED_4MHZ,
+            _ => CpuSpeed::SPEED_DEFAULT,
+        },
+    };
+
+    Ok(value)
+}
+
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize, Derivative))]
 #[cfg_attr(feature = "serde_support", derivative(Debug))]
 pub struct CPU {
@@ -337,7 +387,16 @@ pub struct CPU {
     pub stack_pointer: u8,
     pub bus: Bus,
     pub m65c02: bool,
-    pub full_speed: bool,
+
+    #[cfg_attr(
+        feature = "serde_support",
+        serde(
+            serialize_with = "serialize_cpu_speed",
+            deserialize_with = "deserialize_cpu_speed"
+        )
+    )]
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    pub full_speed: CpuSpeed,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub m65c02_rockwell_disable: bool,
@@ -473,7 +532,7 @@ impl CPU {
             alt_cpu: false,
             self_test: false,
             bench_test: false,
-            full_speed: false,
+            full_speed: Default::default(),
             #[cfg(feature = "z80")]
             z80cpu: default_z80cpu(),
         }

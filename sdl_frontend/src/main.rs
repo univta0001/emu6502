@@ -5,7 +5,7 @@ use emu6502::bus::IODevice;
 use emu6502::video::DisplayMode;
 //use emu6502::bus::Mem;
 //use emu6502::trace::trace;
-use emu6502::cpu::{CpuStats, CPU};
+use emu6502::cpu::{CpuSpeed, CpuStats, CPU};
 use emu6502::mockingboard::Mockingboard;
 use emu6502::trace::{adjust_disassemble_addr, disassemble_addr};
 use image::codecs::png::PngEncoder;
@@ -66,7 +66,9 @@ struct EventParam<'a> {
     reload_cpu: &'a mut bool,
     save_screenshot: &'a mut bool,
     display_mode: &'a [DisplayMode; 6],
+    speed_mode: &'a [CpuSpeed; 4],
     display_index: &'a mut usize,
+    speed_index: &'a mut usize,
     clipboard_text: &'a mut String,
 }
 
@@ -428,7 +430,9 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             keycode: Some(Keycode::F9),
             ..
         } => {
-            cpu.full_speed = !cpu.full_speed;
+            let speed_mode = *event_param.speed_mode;
+            *event_param.speed_index = (*event_param.speed_index + 1) % speed_mode.len();
+            cpu.full_speed = speed_mode[*event_param.speed_index];
         }
 
         Event::KeyDown {
@@ -691,7 +695,7 @@ Function Keys:
     F6                 Toggle Display Mode (Default, NTSC, RGB, Mono)
     F7                 Disable / Enable Joystick jitter
     F8                 Disable / Enable 50/60 Hz video
-    F9                 Disable / Enable full speed emulation
+    F9                 Toggle speed emulation(1 MHz, 2.8 MHz, 4 MHz, Fastest)
     F10                Load Hard Disk 1 file
     F11                Load Hard Disk 2 file
     F12 / Break        Reset"#
@@ -1041,7 +1045,7 @@ fn update_video<T: RenderTarget>(
     canvas.present();
 }
 
-fn initialize_new_cpu(cpu: &mut CPU, display_index: &mut usize) {
+fn initialize_new_cpu(cpu: &mut CPU, display_index: &mut usize, speed_index: &mut usize) {
     let mmu = &mut cpu.bus.mem;
     let disp = &mut cpu.bus.video;
     disp.video_main[0x400..0xc00].clone_from_slice(&mmu.cpu_memory[0x400..0xc00]);
@@ -1057,6 +1061,14 @@ fn initialize_new_cpu(cpu: &mut CPU, display_index: &mut usize) {
         DisplayMode::MONO_GREEN => *display_index = 4,
         DisplayMode::MONO_AMBER => *display_index = 5,
         _ => *display_index = 0,
+    }
+
+    // Restore speed
+    match cpu.full_speed {
+        CpuSpeed::SPEED_FASTEST => *speed_index = 1,
+        CpuSpeed::SPEED_2_8MHZ => *speed_index = 2,
+        CpuSpeed::SPEED_4MHZ => *speed_index = 3,
+        _ => *speed_index = 0,
     }
 
     // Update NTSC details
@@ -1393,6 +1405,17 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         DisplayMode::MONO_AMBER,
     ];
 
+    let mut speed_index = 0;
+    let speed_mode = [
+        CpuSpeed::SPEED_DEFAULT,
+        CpuSpeed::SPEED_2_8MHZ,
+        CpuSpeed::SPEED_4MHZ,
+        CpuSpeed::SPEED_FASTEST,
+    ];
+
+    let speed_numerator = [1, 10, 10, 1];
+    let speed_denominator = [1, 28, 40, 1];
+
     cpu.reset();
     cpu.setup_emulator();
 
@@ -1436,7 +1459,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
             if dcyc >= cpu_cycles {
                 let normal_disk_speed = _cpu.bus.is_normal_speed();
-                let normal_cpu_speed = normal_disk_speed && !_cpu.full_speed;
+                let normal_cpu_speed =
+                    normal_disk_speed && _cpu.full_speed != CpuSpeed::SPEED_FASTEST;
 
                 // Update video, audio and events at multiple of 60Hz or 50Hz
                 if normal_cpu_speed || video_time.elapsed().as_micros() >= cpu_period as u128 {
@@ -1455,6 +1479,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                             save_screenshot: &mut save_screenshot,
                             display_mode: &display_mode,
                             display_index: &mut display_index,
+                            speed_mode: &speed_mode,
+                            speed_index: &mut speed_index,
                             clipboard_text: &mut clipboard_text,
                         };
 
@@ -1478,7 +1504,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 let video_cpu_update = t.elapsed().as_micros();
 
                 if normal_cpu_speed {
-                    let adj_ms = cpu_period as usize;
+                    let adj_ms = cpu_period as usize * speed_numerator[speed_index]
+                        / speed_denominator[speed_index];
                     let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
 
                     if adj_time > 0 {
@@ -1502,7 +1529,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 match result {
                     Ok(mut new_cpu) => {
                         previous_cycles = new_cpu.bus.get_cycles();
-                        initialize_new_cpu(&mut new_cpu, &mut display_index);
+                        initialize_new_cpu(&mut new_cpu, &mut display_index, &mut speed_index);
                         cpu = new_cpu
                     }
                     Err(message) => {
