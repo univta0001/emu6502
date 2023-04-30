@@ -933,7 +933,7 @@ fn load_serialized_image() -> Result<CPU, String> {
     Ok(new_cpu)
 }
 
-fn update_audio(cpu: &mut CPU, audio_device: &sdl2::audio::AudioQueue<i16>) {
+fn update_audio(cpu: &mut CPU, audio_device: &sdl2::audio::AudioQueue<i16>, normal_speed: bool) {
     let snd = &mut cpu.bus.audio;
 
     let video_50hz = cpu.bus.video.is_video_50hz();
@@ -946,7 +946,22 @@ fn update_audio(cpu: &mut CPU, audio_device: &sdl2::audio::AudioQueue<i16>) {
     snd.update_cycles(video_50hz);
 
     if audio_device.size() < audio_sample_size * 2 * 8 {
-        let _ = audio_device.queue_audio(snd.get_buffer());
+
+        //let mut return_buffer = Vec::new();
+        let buffer = if normal_speed || snd.get_buffer().len() < (audio_sample_size * 2) as usize {
+            snd.get_buffer()
+        } else {
+            /*
+            let step_size = snd.get_buffer().len() / ((audio_sample_size*2) as usize);
+            for item in snd.get_buffer().iter().step_by(step_size) {
+                return_buffer.push(*item)
+            }
+            &return_buffer
+            */
+            &snd.get_buffer()[0..(audio_sample_size*2) as usize]
+        };
+
+        let _ = audio_device.queue_audio(buffer);
         snd.clear_buffer();
     } else {
         snd.clear_buffer();
@@ -1380,8 +1395,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         DisplayMode::MONO_AMBER,
     ];
 
-    let mut video_update_override = false;
-
     cpu.reset();
     cpu.setup_emulator();
 
@@ -1424,60 +1437,59 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             }
 
             if dcyc >= cpu_cycles {
-                // Update video only at multiple of 60Hz or 50Hz
-                if video_update_override || video_time.elapsed().as_micros() >= cpu_period as u128 {
-                    update_audio(_cpu, &audio_device);
+                let normal_disk_speed = _cpu.bus.is_normal_speed();
+                let normal_cpu_speed = normal_disk_speed && !_cpu.full_speed;
+
+                // Update video, audio and events at multiple of 60Hz or 50Hz
+                if normal_cpu_speed || video_time.elapsed().as_micros() >= cpu_period as u128 
+                {
+                    update_audio(_cpu, &audio_device, normal_cpu_speed);
                     update_video(_cpu, &mut save_screenshot, &mut canvas, &mut texture);
                     video_time = Instant::now();
-                }
 
-                for event_value in _event_pump.poll_iter() {
-                    let mut event_param = EventParam {
-                        video_subsystem: &video_subsystem,
-                        game_controller: &game_controller,
-                        gamepads: &mut gamepads,
-                        key_caps: &mut key_caps,
-                        estimated_mhz: &mut estimated_mhz,
-                        reload_cpu: &mut reload_cpu,
-                        save_screenshot: &mut save_screenshot,
-                        display_mode: &display_mode,
-                        display_index: &mut display_index,
-                        clipboard_text: &mut clipboard_text,
-                    };
+                    for event_value in _event_pump.poll_iter() {
+                        let mut event_param = EventParam {
+                            video_subsystem: &video_subsystem,
+                            game_controller: &game_controller,
+                            gamepads: &mut gamepads,
+                            key_caps: &mut key_caps,
+                            estimated_mhz: &mut estimated_mhz,
+                            reload_cpu: &mut reload_cpu,
+                            save_screenshot: &mut save_screenshot,
+                            display_mode: &display_mode,
+                            display_index: &mut display_index,
+                            clipboard_text: &mut clipboard_text,
+                        };
 
-                    handle_event(_cpu, event_value, &mut event_param);
-                }
+                        handle_event(_cpu, event_value, &mut event_param);
+                    }
 
-                // Update mouse state
-                let mouse_state = _event_pump.mouse_state();
-                let buttons = [mouse_state.left(), mouse_state.right()];
-                _cpu.bus
-                    .set_mouse_state(mouse_state.x(), mouse_state.y(), &buttons);
+                    // Update mouse state
+                    let mouse_state = _event_pump.mouse_state();
+                    let buttons = [mouse_state.left(), mouse_state.right()];
+                    _cpu.bus
+                        .set_mouse_state(mouse_state.x(), mouse_state.y(), &buttons);
 
-                // Update keyboard akd state
-                if _event_pump.keyboard_state().pressed_scancodes().count() > 0 {
-                    _cpu.bus.any_key_down = true;
-                } else {
-                    _cpu.bus.any_key_down = false;
+                    // Update keyboard akd state
+                    if _event_pump.keyboard_state().pressed_scancodes().count() > 0 {
+                        _cpu.bus.any_key_down = true;
+                    } else {
+                        _cpu.bus.any_key_down = false;
+                    }
                 }
 
                 let video_cpu_update = t.elapsed().as_micros();
                 //let adj_ms = dcyc * 1_000_000 / CPU_6502_MHZ;
-                let adj_ms = dcyc * cpu_period / cpu_cycles;
+                let adj_ms = cpu_period as usize;
                 let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
 
-                let normal_speed = _cpu.bus.is_normal_speed();
-
-                if adj_time > 0 && normal_speed && !_cpu.full_speed {
-                    spin_sleep::sleep(std::time::Duration::from_micros(adj_time as u64));
+                if adj_time > 0 && normal_cpu_speed {
+                    spin_sleep::sleep(std::time::Duration::from_micros(adj_time as u64))
                 }
 
                 let elapsed = t.elapsed().as_micros();
                 estimated_mhz = (dcyc as f32) / elapsed as f32;
-
                 dcyc -= cpu_cycles;
-
-                video_update_override = !video_update_override;
                 t = Instant::now();
             }
         });
