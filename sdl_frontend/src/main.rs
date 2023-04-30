@@ -945,7 +945,6 @@ fn update_audio(cpu: &mut CPU, audio_device: &sdl2::audio::AudioQueue<i16>, norm
     snd.update_cycles(video_50hz);
 
     if audio_device.size() < audio_sample_size * 2 * 8 {
-
         //let mut return_buffer = Vec::new();
         let buffer = if normal_speed || snd.get_buffer().len() < (audio_sample_size * 2) as usize {
             snd.get_buffer()
@@ -957,7 +956,7 @@ fn update_audio(cpu: &mut CPU, audio_device: &sdl2::audio::AudioQueue<i16>, norm
             }
             &return_buffer
             */
-            &snd.get_buffer()[0..(audio_sample_size*2) as usize]
+            &snd.get_buffer()[0..(audio_sample_size * 2) as usize]
         };
 
         let _ = audio_device.queue_audio(buffer);
@@ -1440,8 +1439,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 let normal_cpu_speed = normal_disk_speed && !_cpu.full_speed;
 
                 // Update video, audio and events at multiple of 60Hz or 50Hz
-                if normal_cpu_speed || video_time.elapsed().as_micros() >= cpu_period as u128 
-                {
+                if normal_cpu_speed || video_time.elapsed().as_micros() >= cpu_period as u128 {
                     update_audio(_cpu, &audio_device, normal_cpu_speed);
                     update_video(_cpu, &mut save_screenshot, &mut canvas, &mut texture);
                     video_time = Instant::now();
@@ -1478,12 +1476,14 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 }
 
                 let video_cpu_update = t.elapsed().as_micros();
-                //let adj_ms = dcyc * 1_000_000 / CPU_6502_MHZ;
-                let adj_ms = cpu_period as usize;
-                let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
 
-                if adj_time > 0 && normal_cpu_speed {
-                    spin_sleep::sleep(std::time::Duration::from_micros(adj_time as u64))
+                if normal_cpu_speed {
+                    let adj_ms = cpu_period as usize;
+                    let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
+
+                    if adj_time > 0 {
+                        spin_sleep::sleep(std::time::Duration::from_micros(adj_time as u64))
+                    }
                 }
 
                 let elapsed = t.elapsed().as_micros();

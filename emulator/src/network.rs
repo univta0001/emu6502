@@ -3,7 +3,7 @@ use crate::mmu::Mmu;
 use crate::video::Video;
 use std::io::ErrorKind;
 use std::io::{Read, Write};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, Shutdown, TcpListener, TcpStream, ToSocketAddrs};
+use std::net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 
 #[cfg(feature = "serde_support")]
 use crate::marshal::{as_hex, from_hex_32k};

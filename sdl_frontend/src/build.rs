@@ -1,7 +1,7 @@
 use std::process::Command;
 
 fn main() {
-    embed_resource::compile("res/emu6502.rc",embed_resource::NONE);
+    embed_resource::compile("res/emu6502.rc", embed_resource::NONE);
 
     let result = Command::new("git").args(["rev-parse", "HEAD"]).output();
     let git_hash = if let Ok(output) = result {

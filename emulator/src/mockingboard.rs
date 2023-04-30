@@ -1021,9 +1021,9 @@ mod test {
         w65c22.io_access(0x00, AY_READ_DATA, true);
 
         assert_eq!(
-            w65c22.io_access(0x01, 00, false), 0x00,
+            w65c22.io_access(0x01, 00, false),
+            0x00,
             "Expecting 0x0 when reading AY current register"
         );
     }
-
 }
