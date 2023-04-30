@@ -429,7 +429,6 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             ..
         } => {
             cpu.full_speed = !cpu.full_speed;
-            cpu.bus.full_speed = cpu.full_speed;
         }
 
         Event::KeyDown {

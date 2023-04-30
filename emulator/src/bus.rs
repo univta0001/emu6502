@@ -126,9 +126,6 @@ pub struct Bus {
     pub is_apple2c: bool,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
-    pub full_speed: bool,
-
-    #[cfg_attr(feature = "serde_support", serde(default))]
     pub any_key_down: bool,
 
     #[cfg(not(target_os = "wasi"))]
@@ -228,7 +225,6 @@ impl Bus {
             halt_cpu: false,
             io_slot: default_io_slot(),
             extended_rom: 0,
-            full_speed: false,
             any_key_down: false,
             #[cfg(not(target_os = "wasi"))]
             uthernet2: Uthernet2::new(),
