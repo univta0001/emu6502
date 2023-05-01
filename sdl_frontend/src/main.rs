@@ -428,10 +428,16 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
 
         Event::KeyDown {
             keycode: Some(Keycode::F9),
+            keymod,
             ..
         } => {
             let speed_mode = *event_param.speed_mode;
-            *event_param.speed_index = (*event_param.speed_index + 1) % speed_mode.len();
+            if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
+                *event_param.speed_index =
+                    (*event_param.speed_index + speed_mode.len() - 1) % speed_mode.len();
+            } else {
+                *event_param.speed_index = (*event_param.speed_index + 1) % speed_mode.len();
+            }
             cpu.full_speed = speed_mode[*event_param.speed_index];
         }
 
@@ -458,7 +464,13 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                 cpu.bus.audio.set_filter_enabled(mode);
             } else {
                 let display_mode = *event_param.display_mode;
-                *event_param.display_index = (*event_param.display_index + 1) % display_mode.len();
+                if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
+                    *event_param.display_index =
+                        (*event_param.display_index + display_mode.len() - 1) % display_mode.len();
+                } else {
+                    *event_param.display_index =
+                        (*event_param.display_index + 1) % display_mode.len();
+                }
                 cpu.bus
                     .video
                     .set_display_mode(display_mode[*event_param.display_index]);
@@ -1468,6 +1480,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     update_video(_cpu, &mut save_screenshot, &mut canvas, &mut texture);
                     video_time = Instant::now();
 
+                    _cpu.bus.video.skip_update = false;
+
                     for event_value in _event_pump.poll_iter() {
                         let mut event_param = EventParam {
                             video_subsystem: &video_subsystem,
@@ -1499,6 +1513,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     } else {
                         _cpu.bus.any_key_down = false;
                     }
+                } else {
+                    _cpu.bus.video.skip_update = true;
                 }
 
                 let video_cpu_update = t.elapsed().as_micros();

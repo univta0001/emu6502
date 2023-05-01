@@ -131,6 +131,9 @@ pub struct Video {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     scanline: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    pub skip_update: bool,
 }
 
 impl Tick for Video {
@@ -141,7 +144,9 @@ impl Tick for Video {
             self.cycles %= self.cycle_field;
         }
 
-        self.update_video();
+        if !self.skip_update {
+            self.update_video();
+        }
     }
 }
 
@@ -718,6 +723,7 @@ impl Video {
             chroma_hgr,
             chroma_dhgr,
             scanline: false,
+            skip_update: false,
         }
     }
 
