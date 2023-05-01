@@ -51,12 +51,14 @@ bitflags! {
     }
 }
 
+#[cfg(feature = "serde_support")]
 impl serde::Serialize for CpuFlags {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         bitflags_serde_legacy::serialize(self, "bits", serializer)
     }
 }
 
+#[cfg(feature = "serde_support")]
 impl<'de> serde::Deserialize<'de> for CpuFlags {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         bitflags_serde_legacy::deserialize("bits", deserializer)
