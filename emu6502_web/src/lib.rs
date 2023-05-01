@@ -1,6 +1,6 @@
 use emu6502::bus::Bus;
 use emu6502::bus::IODevice;
-use emu6502::cpu::CPU;
+use emu6502::cpu::{CpuSpeed, CPU};
 use emu6502::mockingboard::Mockingboard;
 use wasm_bindgen::prelude::*;
 
@@ -115,7 +115,7 @@ impl Emulator {
     }
 
     pub fn step_cpu(&mut self) {
-        self.cpu.step_cpu_with_callback(|_| {});
+        self.cpu.step_with_callback(|_| {});
     }
 
     pub fn cpu_cycles(&self) -> u32 {
@@ -161,7 +161,11 @@ impl Emulator {
     }
 
     pub fn full_speed(&mut self, state: bool) {
-        self.cpu.full_speed = state;
+        if state {
+            self.cpu.full_speed = CpuSpeed::SPEED_FASTEST;
+        } else {
+            self.cpu.full_speed = CpuSpeed::SPEED_DEFAULT;
+        }
     }
 
     pub fn toggle_joystick(&mut self) {
