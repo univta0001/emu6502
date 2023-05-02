@@ -57,7 +57,7 @@ struct Disk {
     raw_data: Vec<u8>,
 
     write_protect: bool,
-    filename: String,
+    filename: Option<String>,
     loaded: bool,
     error: u8,
     offset: usize,
@@ -72,7 +72,7 @@ impl Disk {
         Disk {
             raw_data: vec![0u8; 0],
             write_protect: false,
-            filename: "".to_owned(),
+            filename: None,
             loaded: false,
             error: 0,
             offset: 0,
@@ -132,14 +132,14 @@ impl HardDisk {
         let filename = filename_path.as_ref();
         if let Ok(real_path) = self.absolute_path(filename) {
             let disk = &mut self.drive[self.drive_select];
-            disk.filename = real_path.display().to_string().replace("\\\\", "\\");
+            disk.filename = Some(real_path.display().to_string().replace("\\\\", "\\"));
         } else {
             let disk = &mut self.drive[self.drive_select];
-            disk.filename = filename.display().to_string().replace("\\\\", "");
+            disk.filename = Some(filename.display().to_string().replace("\\\\", ""));
         }
     }
 
-    pub fn get_disk_filename(&self, drive: usize) -> String {
+    pub fn get_disk_filename(&self, drive: usize) -> Option<String> {
         let disk = &self.drive[drive];
         disk.filename.to_owned()
     }
@@ -170,7 +170,7 @@ impl HardDisk {
         let disk = &mut self.drive[drive_select];
         disk.loaded = false;
         disk.write_protect = false;
-        disk.filename = "".to_owned();
+        disk.filename = None;
         disk.raw_data = vec![0u8; 0];
         disk.data_len = 0;
         disk.error = 0;
@@ -395,31 +395,32 @@ impl Card for HardDisk {
                             if self.enable_save {
                                 // Try to write the block to disk
                                 // If failed, don't update the memory copy
-                                if let Ok(metadata) = std::fs::metadata(&disk.filename) {
-                                    //eprintln!("start={:08x} end={:08x} len={:08x}",start,end,metadata.len());
-                                    if start as u64 > metadata.len()
-                                        || end as u64 > metadata.len()
-                                        || metadata.len() == 0
-                                    {
-                                        disk.error = 1;
-                                        return DeviceStatus::DeviceIoError as u8;
+                                if let Some(filename) = &disk.filename {
+                                    if let Ok(metadata) = std::fs::metadata(filename) {
+                                        //eprintln!("start={:08x} end={:08x} len={:08x}",start,end,metadata.len());
+                                        if start as u64 > metadata.len()
+                                            || end as u64 > metadata.len()
+                                            || metadata.len() == 0
+                                        {
+                                            disk.error = 1;
+                                            return DeviceStatus::DeviceIoError as u8;
+                                        }
                                     }
-                                }
 
-                                if let Ok(mut f) =
-                                    OpenOptions::new().write(true).open(&disk.filename)
-                                {
-                                    let result = f
-                                        .seek(SeekFrom::Start(start as u64))
-                                        .and_then(|_| f.write_all(&buf));
-                                    if result.is_err() {
+                                    if let Ok(mut f) = OpenOptions::new().write(true).open(filename)
+                                    {
+                                        let result = f
+                                            .seek(SeekFrom::Start(start as u64))
+                                            .and_then(|_| f.write_all(&buf));
+                                        if result.is_err() {
+                                            disk.error = 1;
+                                            return DeviceStatus::DeviceIoError as u8;
+                                        }
+                                    } else {
+                                        eprintln!("Unable to open {}", filename);
                                         disk.error = 1;
                                         return DeviceStatus::DeviceIoError as u8;
                                     }
-                                } else {
-                                    eprintln!("Unable to open {}", &disk.filename);
-                                    disk.error = 1;
-                                    return DeviceStatus::DeviceIoError as u8;
                                 }
                             }
 

@@ -817,12 +817,12 @@ fn is_harddisk_loaded(cpu: &CPU, drive: usize) -> bool {
 
 #[cfg(feature = "serde_support")]
 fn get_disk_filename(cpu: &CPU, drive: usize) -> Option<String> {
-    Some(cpu.bus.disk.get_disk_filename(drive))
+    cpu.bus.disk.get_disk_filename(drive)
 }
 
 #[cfg(feature = "serde_support")]
 fn get_harddisk_filename(cpu: &CPU, drive: usize) -> Option<String> {
-    Some(cpu.bus.harddisk.get_disk_filename(drive))
+    cpu.bus.harddisk.get_disk_filename(drive)
 }
 
 fn draw_circle<T: RenderTarget>(

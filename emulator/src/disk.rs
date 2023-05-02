@@ -123,7 +123,7 @@ pub struct Disk {
     motor_status: bool,
     modified: bool,
     po_mode: bool,
-    filename: String,
+    filename: Option<String>,
     loaded: bool,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
@@ -516,18 +516,20 @@ where
 }
 
 fn save_dsk_woz_to_disk(disk: &mut Disk) -> io::Result<()> {
-    let path = Path::new(&disk.filename);
-    if let Some(file_stem) = path.file_stem() {
-        let stem_path = Path::new(file_stem);
-        if let Some(path_ext) = path.extension() {
-            if check_file_extension(path_ext, stem_path, "dsk")
-                || check_file_extension(path_ext, stem_path, "po")
-            {
-                convert_woz_to_dsk(disk)?;
-            } else if check_file_extension(path_ext, stem_path, "nib") {
-                convert_woz_to_nib(disk)?;
-            } else if check_file_extension(path_ext, stem_path, "woz") {
-                save_woz_file(disk)?;
+    if let Some(filename) = &disk.filename {
+        let path = Path::new(filename);
+        if let Some(file_stem) = path.file_stem() {
+            let stem_path = Path::new(file_stem);
+            if let Some(path_ext) = path.extension() {
+                if check_file_extension(path_ext, stem_path, "dsk")
+                    || check_file_extension(path_ext, stem_path, "po")
+                {
+                    convert_woz_to_dsk(disk)?;
+                } else if check_file_extension(path_ext, stem_path, "nib") {
+                    convert_woz_to_nib(disk)?;
+                } else if check_file_extension(path_ext, stem_path, "woz") {
+                    save_woz_file(disk)?;
+                }
             }
         }
     }
@@ -622,138 +624,144 @@ fn decompress_array_gz(data: &[u8]) -> io::Result<Vec<u8>> {
 
 // It is assumed that the woz structure is the same when saving back
 fn save_woz_file(disk: &mut Disk) -> io::Result<()> {
-    let path = Path::new(&disk.filename);
+    if let Some(filename) = &disk.filename {
+        let path = Path::new(filename);
 
-    #[cfg(feature = "flate")]
-    let dsk: Vec<u8> = if path
-        .extension()
-        .unwrap()
-        .eq_ignore_ascii_case(OsStr::new("gz"))
-    {
-        let data = std::fs::read(path)?;
-        decompress_array_gz(&data)?
-    } else {
-        std::fs::read(path)?
-    };
-
-    #[cfg(not(feature = "flate"))]
-    let dsk: Vec<u8> = std::fs::read(path)?;
-
-    if dsk.len() <= 12 {
-        return Err(std::io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "Invalid WOZ1/WOZ2 file",
-        ));
-    }
-
-    // Check for WOZ format
-    let header = read_woz_u32(&dsk, 0);
-    let header_newline = read_woz_u32(&dsk, 4);
-
-    if header != WOZ_WOZ2_HEADER
-        && header != WOZ_WOZ1_HEADER
-        && header_newline != WOZ_NEWLINE_HEADER
-    {
-        return Err(std::io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "Invalid woz2 file",
-        ));
-    }
-
-    let woz1 = header == WOZ_WOZ1_HEADER;
-
-    let mut woz_offset = 12;
-    let mut newdsk = Vec::from(&dsk[0..woz_offset]);
-    let mut trks = false;
-    let mut tmap = false;
-    let mut info = false;
-    let mut chunk_size;
-
-    //remove_unused_disk_tracks(disk);
-
-    while woz_offset < dsk.len() {
-        let chunk_id = read_woz_u32(&dsk, woz_offset);
-        chunk_size = read_woz_u32(&dsk, woz_offset + 4);
-        woz_offset += 8;
-
-        match chunk_id {
-            WOZ_INFO_CHUNK => {
-                info = true;
-                newdsk.extend_from_slice(&dsk[woz_offset - 8..woz_offset + chunk_size as usize]);
-                woz_offset += chunk_size as usize
-            }
-
-            WOZ_TMAP_CHUNK => {
-                tmap = true;
-                newdsk.extend_from_slice(&dsk[woz_offset - 8..woz_offset]);
-                newdsk.extend_from_slice(&disk.tmap_data);
-                woz_offset += chunk_size as usize;
-            }
-
-            WOZ_TRKS_CHUNK => {
-                trks = true;
-
-                if woz1 {
-                    create_woz1_trk(&dsk, woz_offset, disk, &mut newdsk);
-                } else {
-                    create_woz2_trk(&dsk, woz_offset, disk, &mut newdsk);
-                }
-
-                //break;
-                woz_offset += chunk_size as usize;
-            }
-
-            _ => {
-                newdsk.extend_from_slice(&dsk[woz_offset - 8..woz_offset + chunk_size as usize]);
-                woz_offset += chunk_size as usize
-            }
-        }
-    }
-
-    if !info || !tmap || !trks {
-        return Err(std::io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "Unable to find INFO or TRKS or TMAP in WOZ file",
-        ));
-    }
-
-    // Calculate checksum for WOZ file
-    let crc32_value = crc32(0, &newdsk[12..]);
-    newdsk[8] = (crc32_value & 0xff) as u8;
-    newdsk[9] = ((crc32_value >> 8) & 0xff) as u8;
-    newdsk[10] = ((crc32_value >> 16) & 0xff) as u8;
-    newdsk[11] = ((crc32_value >> 24) & 0xff) as u8;
-
-    // Write to new file
-
-    #[cfg(feature = "flate")]
-    {
-        let path = Path::new(&disk.filename);
-        let mut gz_compress = false;
-        if path
+        #[cfg(feature = "flate")]
+        let dsk: Vec<u8> = if path
             .extension()
             .unwrap()
             .eq_ignore_ascii_case(OsStr::new("gz"))
         {
-            gz_compress = true;
+            let data = std::fs::read(path)?;
+            decompress_array_gz(&data)?
+        } else {
+            std::fs::read(path)?
+        };
+
+        #[cfg(not(feature = "flate"))]
+        let dsk: Vec<u8> = std::fs::read(path)?;
+
+        if dsk.len() <= 12 {
+            return Err(std::io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Invalid WOZ1/WOZ2 file",
+            ));
         }
 
-        if !gz_compress {
+        // Check for WOZ format
+        let header = read_woz_u32(&dsk, 0);
+        let header_newline = read_woz_u32(&dsk, 4);
+
+        if header != WOZ_WOZ2_HEADER
+            && header != WOZ_WOZ1_HEADER
+            && header_newline != WOZ_NEWLINE_HEADER
+        {
+            return Err(std::io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Invalid woz2 file",
+            ));
+        }
+
+        let woz1 = header == WOZ_WOZ1_HEADER;
+
+        let mut woz_offset = 12;
+        let mut newdsk = Vec::from(&dsk[0..woz_offset]);
+        let mut trks = false;
+        let mut tmap = false;
+        let mut info = false;
+        let mut chunk_size;
+
+        //remove_unused_disk_tracks(disk);
+
+        while woz_offset < dsk.len() {
+            let chunk_id = read_woz_u32(&dsk, woz_offset);
+            chunk_size = read_woz_u32(&dsk, woz_offset + 4);
+            woz_offset += 8;
+
+            match chunk_id {
+                WOZ_INFO_CHUNK => {
+                    info = true;
+                    newdsk
+                        .extend_from_slice(&dsk[woz_offset - 8..woz_offset + chunk_size as usize]);
+                    woz_offset += chunk_size as usize
+                }
+
+                WOZ_TMAP_CHUNK => {
+                    tmap = true;
+                    newdsk.extend_from_slice(&dsk[woz_offset - 8..woz_offset]);
+                    newdsk.extend_from_slice(&disk.tmap_data);
+                    woz_offset += chunk_size as usize;
+                }
+
+                WOZ_TRKS_CHUNK => {
+                    trks = true;
+
+                    if woz1 {
+                        create_woz1_trk(&dsk, woz_offset, disk, &mut newdsk);
+                    } else {
+                        create_woz2_trk(&dsk, woz_offset, disk, &mut newdsk);
+                    }
+
+                    //break;
+                    woz_offset += chunk_size as usize;
+                }
+
+                _ => {
+                    newdsk
+                        .extend_from_slice(&dsk[woz_offset - 8..woz_offset + chunk_size as usize]);
+                    woz_offset += chunk_size as usize
+                }
+            }
+        }
+
+        if !info || !tmap || !trks {
+            return Err(std::io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Unable to find INFO or TRKS or TMAP in WOZ file",
+            ));
+        }
+
+        // Calculate checksum for WOZ file
+        let crc32_value = crc32(0, &newdsk[12..]);
+        newdsk[8] = (crc32_value & 0xff) as u8;
+        newdsk[9] = ((crc32_value >> 8) & 0xff) as u8;
+        newdsk[10] = ((crc32_value >> 16) & 0xff) as u8;
+        newdsk[11] = ((crc32_value >> 24) & 0xff) as u8;
+
+        // Write to new file
+
+        #[cfg(feature = "flate")]
+        {
+            if let Some(filename) = &disk.filename {
+                let path = Path::new(filename);
+                let mut gz_compress = false;
+                if path
+                    .extension()
+                    .unwrap()
+                    .eq_ignore_ascii_case(OsStr::new("gz"))
+                {
+                    gz_compress = true;
+                }
+
+                if !gz_compress {
+                    let mut file = File::create(filename)?;
+                    file.write_all(&newdsk)?;
+                } else {
+                    let mut file = GzEncoder::new(
+                        io::BufWriter::new(File::create(filename)?),
+                        Compression::best(),
+                    );
+                    file.write_all(&newdsk)?;
+                }
+            }
+        }
+
+        #[cfg(not(feature = "flate"))]
+        {
             let mut file = File::create(&disk.filename)?;
             file.write_all(&newdsk)?;
-        } else {
-            let mut file = GzEncoder::new(
-                io::BufWriter::new(File::create(&disk.filename)?),
-                Compression::best(),
-            );
-            file.write_all(&newdsk)?;
         }
-    }
-
-    #[cfg(not(feature = "flate"))]
-    {
-        let mut file = File::create(&disk.filename)?;
-        file.write_all(&newdsk)?;
     }
 
     //expand_unused_disk_tracks(disk);
@@ -886,24 +894,26 @@ fn convert_woz_to_dsk(disk: &mut Disk) -> io::Result<()> {
 
     #[cfg(feature = "flate")]
     {
-        let path = Path::new(&disk.filename);
-        let mut gz_compress = false;
-        if path
-            .extension()
-            .unwrap()
-            .eq_ignore_ascii_case(OsStr::new("gz"))
-        {
-            gz_compress = true;
-        }
-        if !gz_compress {
-            let mut file = File::create(&disk.filename)?;
-            file.write_all(&data)?;
-        } else {
-            let mut file = GzEncoder::new(
-                io::BufWriter::new(File::create(&disk.filename)?),
-                Compression::best(),
-            );
-            file.write_all(&data)?;
+        if let Some(filename) = &disk.filename {
+            let path = Path::new(filename);
+            let mut gz_compress = false;
+            if path
+                .extension()
+                .unwrap()
+                .eq_ignore_ascii_case(OsStr::new("gz"))
+            {
+                gz_compress = true;
+            }
+            if !gz_compress {
+                let mut file = File::create(filename)?;
+                file.write_all(&data)?;
+            } else {
+                let mut file = GzEncoder::new(
+                    io::BufWriter::new(File::create(filename)?),
+                    Compression::best(),
+                );
+                file.write_all(&data)?;
+            }
         }
     }
 
@@ -928,25 +938,27 @@ fn convert_woz_to_nib(disk: &mut Disk) -> io::Result<()> {
     // Write to new file
     #[cfg(feature = "flate")]
     {
-        let path = Path::new(&disk.filename);
-        let mut gz_compress = false;
-        if path
-            .extension()
-            .unwrap()
-            .eq_ignore_ascii_case(OsStr::new("gz"))
-        {
-            gz_compress = true;
-        }
+        if let Some(filename) = &disk.filename {
+            let path = Path::new(filename);
+            let mut gz_compress = false;
+            if path
+                .extension()
+                .unwrap()
+                .eq_ignore_ascii_case(OsStr::new("gz"))
+            {
+                gz_compress = true;
+            }
 
-        if !gz_compress {
-            let mut file = File::create(&disk.filename)?;
-            file.write_all(&data)?;
-        } else {
-            let mut file = GzEncoder::new(
-                io::BufWriter::new(File::create(&disk.filename)?),
-                Compression::best(),
-            );
-            file.write_all(&data)?;
+            if !gz_compress {
+                let mut file = File::create(filename)?;
+                file.write_all(&data)?;
+            } else {
+                let mut file = GzEncoder::new(
+                    io::BufWriter::new(File::create(filename)?),
+                    Compression::best(),
+                );
+                file.write_all(&data)?;
+            }
         }
     }
 
@@ -1801,14 +1813,14 @@ impl DiskDrive {
         let filename = filename_path.as_ref();
         if let Ok(real_path) = self.absolute_path(filename) {
             let disk = &mut self.drive[self.drive_select];
-            disk.filename = real_path.display().to_string().replace("\\\\", "\\");
+            disk.filename = Some(real_path.display().to_string().replace("\\\\", "\\"));
         } else {
             let disk = &mut self.drive[self.drive_select];
-            disk.filename = filename.display().to_string().replace("\\\\", "");
+            disk.filename = Some(filename.display().to_string().replace("\\\\", ""));
         }
     }
 
-    pub fn get_disk_filename(&self, drive: usize) -> String {
+    pub fn get_disk_filename(&self, drive: usize) -> Option<String> {
         let disk = &self.drive[drive];
         disk.filename.to_owned()
     }
@@ -1829,7 +1841,7 @@ impl DiskDrive {
         disk.head_mask = 0x80;
         disk.head_bit = 0;
         disk.write_protect = false;
-        disk.filename = "".to_owned();
+        disk.filename = None;
         disk.modified = false;
         disk.po_mode = false;
         disk.last_track = 0;
@@ -2242,7 +2254,7 @@ impl Disk {
             motor_status: false,
             modified: false,
             po_mode: false,
-            filename: "".to_owned(),
+            filename: None,
             loaded: false,
             disk_rom13: false,
             force_disk_rom13: false,
