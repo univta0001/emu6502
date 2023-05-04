@@ -3,7 +3,7 @@
 [package]
 name = "emu6502_web"
 description = "Apple ][+/2e Emulator in Rust"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

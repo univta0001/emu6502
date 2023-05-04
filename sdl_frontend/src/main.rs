@@ -704,10 +704,10 @@ Function Keys:
     F3                 Swap Disk 1 and Disk 2
     F4                 Disable / Enable Joystick
     F5                 Disable / Enable Fask Disk emulation
-    F6                 Toggle Display Mode (Default, NTSC, RGB, Mono)
+    F6 / Shift-F6      Toggle Display Mode (Default, NTSC, RGB, Mono)
     F7                 Disable / Enable Joystick jitter
     F8                 Disable / Enable 50/60 Hz video
-    F9                 Toggle speed emulation(1 MHz, 2.8 MHz, 4 MHz, Fastest)
+    F9 / Shift-F9      Toggle speed emulation(1 MHz, 2.8 MHz, 4 MHz, Fastest)
     F10                Load Hard Disk 1 file
     F11                Load Hard Disk 2 file
     F12 / Break        Reset"#
