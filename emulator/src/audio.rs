@@ -180,7 +180,7 @@ impl AudioFilter {
         self.filter_tap[1] = self.filter_tap[0];
         self.filter_tap[0] = y;
 
-        let mut return_value = y / 4000.0;
+        let mut return_value = y / 16000.0;
         if return_value < -1.0 {
             return_value = -1.0;
         } else if return_value > 1.0 {
@@ -350,7 +350,7 @@ impl Tick for Audio {
 
         let beep = if self.filter_enabled {
             let response = self.audio_filter.filter_response(self.data.phase);
-            self.dc_filter((response * 32767.0) as Channel)
+            self.dc_filter((response * 32767.0) as Channel * 4)
         } else {
             self.dc_filter(self.data.phase)
         };
