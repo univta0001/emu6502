@@ -375,25 +375,22 @@ impl Tick for Audio {
 
             let mut left_phase: HigherChannel = 0;
             let mut right_phase: HigherChannel = 0;
-            let mut tone_count = 1;
 
             // Update left channel
-            tone_count += self.update_phase(&mut left_phase, 0);
+            let tone_count = self.update_phase(&mut left_phase, 0) + 1;
+            let left_phase =
+                left_phase.saturating_add(beep as HigherChannel) / (tone_count as HigherChannel);
 
             // Update right channel
-            tone_count += self.update_phase(&mut right_phase, 1);
-
-            left_phase = left_phase.saturating_add(beep as HigherChannel);
-            right_phase = right_phase.saturating_add(beep as HigherChannel);
-
-            //let ratio = (3 * self.mboard.len() + 1) as HigherChannel;
-            let ratio = tone_count as HigherChannel;
+            let tone_count = self.update_phase(&mut right_phase, 1) + 1;
+            let right_phase =
+                right_phase.saturating_add(beep as HigherChannel) / (tone_count as HigherChannel);
 
             // Left audio
-            self.data.sample.push((left_phase / ratio) as Channel);
+            self.data.sample.push(left_phase as Channel);
 
             // Right audio
-            self.data.sample.push((right_phase / ratio) as Channel);
+            self.data.sample.push(right_phase as Channel);
         }
     }
 }
