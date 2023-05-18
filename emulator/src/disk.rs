@@ -759,8 +759,10 @@ fn save_woz_file(disk: &mut Disk) -> io::Result<()> {
 
         #[cfg(not(feature = "flate"))]
         {
-            let mut file = File::create(&disk.filename)?;
-            file.write_all(&newdsk)?;
+            if let Some(filename) = &disk.filename {
+                let mut file = File::create(filename)?;
+                file.write_all(&newdsk)?;
+            }
         }
     }
 
@@ -919,8 +921,10 @@ fn convert_woz_to_dsk(disk: &mut Disk) -> io::Result<()> {
 
     #[cfg(not(feature = "flate"))]
     {
-        let mut file = File::create(&disk.filename)?;
-        file.write_all(&data)?;
+        if let Some(filename) = &disk.filename {
+            let mut file = File::create(filename)?;
+            file.write_all(&data)?;
+        }
     }
 
     Ok(())
@@ -964,8 +968,10 @@ fn convert_woz_to_nib(disk: &mut Disk) -> io::Result<()> {
 
     #[cfg(not(feature = "flate"))]
     {
-        let mut file = File::create(&disk.filename)?;
-        file.write_all(&data)?;
+        if let Some(filename) = &disk.filename {
+            let mut file = File::create(filename)?;
+            file.write_all(&data)?;
+        }
     }
 
     Ok(())
