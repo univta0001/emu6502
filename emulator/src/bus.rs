@@ -987,83 +987,87 @@ impl Mem for Bus {
     }
 
     fn unclocked_addr_read(&mut self, addr: u16) -> u8 {
-        match addr {
-            0x0..=0xbfff | ROM_START..=ROM_END => self.mem.unclocked_addr_read(addr),
+        if (0xc000..0xd000).contains(&addr) {
+            match addr {
+                // Unused slots should be random values
+                0xc100..=0xc2ff | 0xc400..=0xc7ff => self.iodevice_rom_access(addr, 0, false),
 
-            // Unused slots should be random values
-            0xc100..=0xc2ff | 0xc400..=0xc7ff => self.iodevice_rom_access(addr, 0, false),
+                0xc300..=0xc3ff => {
+                    // Implement no slot clock
+                    if self.noslotclock.is_clock_register_enabled() {
+                        return self.noslotclock.io_access(addr, 0, false);
+                    } else {
+                        self.noslotclock.io_access(addr, 0, false);
+                    }
 
-            0xc300..=0xc3ff => {
-                // Implement no slot clock
-                if self.noslotclock.is_clock_register_enabled() {
-                    return self.noslotclock.io_access(addr, 0, false);
-                } else {
-                    self.noslotclock.io_access(addr, 0, false);
+                    if !self.slotc3rom {
+                        self.intc8rom = true;
+                    }
+
+                    if !self.video.is_apple2e() {
+                        self.iodevice_rom_access(addr, 0, false)
+                    } else if self.intcxrom || !self.slotc3rom {
+                        self.mem_read(addr)
+                    } else {
+                        self.iodevice_rom_access(addr, 0, false)
+                    }
                 }
 
-                if !self.slotc3rom {
-                    self.intc8rom = true;
+                0xc000..=0xc0ff => self.io_access(addr, 0, false),
+                0xc800..=0xcfff => {
+                    if addr == 0xcfff {
+                        self.intc8rom = false;
+                    }
+                    if self.intcxrom || self.intc8rom || self.is_apple2c {
+                        self.mem_read(addr)
+                    } else {
+                        self.iodevice_rom_access(addr, 0, false)
+                    }
                 }
 
-                if !self.video.is_apple2e() {
-                    self.iodevice_rom_access(addr, 0, false)
-                } else if self.intcxrom || !self.slotc3rom {
-                    self.mem_read(addr)
-                } else {
-                    self.iodevice_rom_access(addr, 0, false)
-                }
+                _ => unreachable!("Addr should be unreachable: {:04x}", addr),
             }
-
-            0xc000..=0xc0ff => self.io_access(addr, 0, false),
-            0xc800..=0xcfff => {
-                if addr == 0xcfff {
-                    self.intc8rom = false;
-                }
-                if self.intcxrom || self.intc8rom || self.is_apple2c {
-                    self.mem_read(addr)
-                } else {
-                    self.iodevice_rom_access(addr, 0, false)
-                }
-            }
+        } else {
+            self.mem.unclocked_addr_read(addr)
         }
     }
 
     fn unclocked_addr_write(&mut self, addr: u16, data: u8) {
-        match addr {
-            0x0..=0x3ff | 0xc00..=0x1fff | 0x6000..=0xbfff | ROM_START..=ROM_END => {
-                self.mem.unclocked_addr_write(addr, data);
+        if (0xc000..0xd000).contains(&addr) {
+            match addr {
+                0xc000..=0xc0ff => {
+                    let _write = self.io_access(addr, data, true);
+                }
+
+                0xc100..=0xc7ff => {
+                    self.iodevice_rom_access(addr, data, true);
+                }
+
+                0xc800..=0xcffe => {
+                    /*
+                    eprintln!(
+                        "UNIMP WRITE to addr 0x{:04x} with value 0x{:02x}",
+                        addr, data
+                    );
+                    */
+                }
+
+                0xcfff => {
+                    self.intc8rom = false;
+                }
+
+                _ => unreachable!("Addr should be unreachable: {:04x}", addr),
             }
+        } else {
+            self.mem.unclocked_addr_write(addr, data);
 
-            0x400..=0xbff | 0x2000..=0x5fff => {
-                self.mem.unclocked_addr_write(addr, data);
-
+            if (0x400..0xc00).contains(&addr) || (0x2000..0x6000).contains(&addr) {
                 // Shadow it to the video ram
                 let aux_memory = self.mem.is_aux_memory(addr, true);
                 let aux_bank = self.mem.aux_bank();
                 if aux_bank == 0 {
                     self.video.update_shadow_memory(aux_memory, addr, data);
                 }
-            }
-
-            0xc000..=0xc0ff => {
-                let _write = self.io_access(addr, data, true);
-            }
-
-            0xc100..=0xc7ff => {
-                self.iodevice_rom_access(addr, data, true);
-            }
-
-            0xc800..=0xcffe => {
-                /*
-                eprintln!(
-                    "UNIMP WRITE to addr 0x{:04X} with value 0x{:02x}",
-                    addr, data
-                );
-                */
-            }
-
-            0xcfff => {
-                self.intc8rom = false;
             }
         }
     }
