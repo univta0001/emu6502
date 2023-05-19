@@ -912,7 +912,7 @@ fn replace_quoted_hex_values(string: &str) -> String {
                 i += 1;
             }
 
-            if hex_string.len() > 0 {
+            if !hex_string.is_empty() {
                 result.push_str(&hex_string);
             }
         }
