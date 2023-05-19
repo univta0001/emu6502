@@ -927,11 +927,7 @@ impl Video {
 
             0xc021 => {
                 if write_flag {
-                    if _value & 0x80 > 0 {
-                        self.mono_mode = true;
-                    } else {
-                        self.mono_mode = false;
-                    }
+                    self.mono_mode = _value & 0x80 > 0;
                 } else if self.mono_mode {
                     value |= 0x80;
                 }
@@ -939,11 +935,7 @@ impl Video {
 
             0xc029 => {
                 if write_flag {
-                    if _value & 0x20 > 0 {
-                        self.mono_mode = true;
-                    } else {
-                        self.mono_mode = false;
-                    }
+                    self.mono_mode = _value & 0x20 > 0;
                 } else if self.mono_mode {
                     value |= 0x20;
                 }

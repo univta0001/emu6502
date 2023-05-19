@@ -913,27 +913,14 @@ impl Bus {
                         self.mem.prewrite = false;
                     }
 
-                    if off_mode {
-                        self.mem.readbsr = true;
-                    } else {
-                        self.mem.readbsr = false;
-                    }
+                    self.mem.readbsr = off_mode;
                 } else {
                     self.mem.writebsr = false;
                     self.mem.prewrite = false;
-
-                    if off_mode {
-                        self.mem.readbsr = false;
-                    } else {
-                        self.mem.readbsr = true;
-                    }
+                    self.mem.readbsr = !off_mode;
                 }
 
-                if bank1_mode {
-                    self.mem.bank1 = true;
-                } else {
-                    self.mem.bank1 = false;
-                }
+                self.mem.bank1 = bank1_mode;
                 0
             }
 

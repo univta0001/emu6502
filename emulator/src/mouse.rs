@@ -175,11 +175,7 @@ impl Mouse {
 
     fn set_mouse(&mut self, mmu: &mut Mmu, slot: u16, value: u8) {
         //eprintln!("SetMouse = {:02x}", value);
-        if value & 0x1 > 0 {
-            self.enabled = true;
-        } else {
-            self.enabled = false;
-        }
+        self.enabled = value & 0x1 > 0;
         self.mode = value;
 
         // Update mode

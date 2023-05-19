@@ -1443,11 +1443,7 @@ impl DiskDrive {
             disk.disk_rom13 = true;
         }
 
-        if no_of_tracks > 35 {
-            disk.track_40 = true;
-        } else {
-            disk.track_40 = false;
-        }
+        disk.track_40 = no_of_tracks > 35;
 
         if self.override_optimal_timing != 0 {
             disk.optimal_timing = self.override_optimal_timing;

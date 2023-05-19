@@ -118,19 +118,11 @@ impl Mmu {
 
         if self._80storeon && self.aux_bank == 0 {
             if (0x400..0x800).contains(&addr) {
-                if self.video_page2 {
-                    aux_flag = true
-                } else {
-                    aux_flag = false
-                }
+                aux_flag = self.video_page2;
             }
 
             if self.video_hires && (0x2000..0x4000).contains(&addr) {
-                if self.video_page2 {
-                    aux_flag = true
-                } else {
-                    aux_flag = false;
-                }
+                aux_flag = self.video_page2;
             }
         }
         aux_flag

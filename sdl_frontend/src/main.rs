@@ -1508,11 +1508,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         .set_mouse_state(mouse_state.x(), mouse_state.y(), &buttons);
 
                     // Update keyboard akd state
-                    if _event_pump.keyboard_state().pressed_scancodes().count() > 0 {
-                        _cpu.bus.any_key_down = true;
-                    } else {
-                        _cpu.bus.any_key_down = false;
-                    }
+                    _cpu.bus.any_key_down =
+                        _event_pump.keyboard_state().pressed_scancodes().count() > 0;
                 } else {
                     _cpu.bus.video.skip_update = true;
                 }

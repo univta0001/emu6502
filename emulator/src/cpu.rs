@@ -1397,12 +1397,7 @@ impl CPU {
         if self.is_apple2e() {
             self.bus.video.set_apple2e(true);
         }
-
-        if self.is_apple2e_enh() || self.is_apple2c() {
-            self.m65c02 = true;
-        } else {
-            self.m65c02 = false;
-        }
+        self.m65c02 = self.is_apple2e_enh() || self.is_apple2c();
     }
 
     pub fn run_with_callback<F>(&mut self, mut callback: F)
