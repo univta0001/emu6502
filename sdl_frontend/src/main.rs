@@ -883,7 +883,7 @@ fn register_device(cpu: &mut CPU, device: &str, slot: usize, mboard: &mut usize)
     *mboard += 1;
 }
 
-fn replace_hex_values(string: &str) -> String {
+fn replace_quoted_hex_values(string: &str) -> String {
     let mut result = String::new();
     let chars: Vec<_> = string.chars().collect();
     let mut i = 0;
@@ -898,18 +898,24 @@ fn replace_hex_values(string: &str) -> String {
                     i += 1;
                 }
 
-                if chars[i] == '\'' && i - start >= 5 && i - start <= 7 {
+                if i < chars.len() && chars[i] == '\'' && i - start >= 5 && i - start <= 7 {
                     result.push_str(&hex_value);
-                } else {
-                    result.push_str(&String::from_iter(&chars[start..=i]));
+                    i += 1;
+                    continue;
                 }
+            }
+
+            if i < chars.len() {
+                result.push_str(&String::from_iter(&chars[start..=i]));
+            } else {
+                result.push_str(&String::from_iter(&chars[start..]));
             }
         } else {
             result.push(chars[i]);
         }
         i += 1;
     }
-   result
+    result
 }
 
 fn save_serialized_image(cpu: &CPU) {
@@ -925,7 +931,7 @@ fn save_serialized_image(cpu: &CPU) {
         .to_string();
     */
 
-    let yaml_output = replace_hex_values(&yaml_output);
+    let yaml_output = replace_quoted_hex_values(&yaml_output);
 
     let result = FileDialog::new()
         .add_filter("Save state", &["yaml"])
