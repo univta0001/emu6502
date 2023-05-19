@@ -888,31 +888,35 @@ fn replace_quoted_hex_values(string: &str) -> String {
     let chars: Vec<_> = string.chars().collect();
     let mut i = 0;
     while i < chars.len() {
+        result.push(chars[i]);
         if chars[i] == '\'' {
-            let start = i;
+            let mut hex_string = String::new();
+
             i += 1;
-            if i < chars.len() && chars[i].is_ascii_hexdigit() {
-                let mut hex_value = String::new();
-                while i < chars.len() && chars[i].is_ascii_hexdigit() {
-                    hex_value.push(chars[i]);
-                    i += 1;
+            while i < chars.len() {
+                hex_string.push(chars[i]);
+
+                if chars[i] == '\'' && (hex_string.len() == 5 || hex_string.len() == 7) {
+                    result.pop();
+                    result.push_str(&hex_string[..hex_string.len() - 1]);
+                    hex_string.clear();
+                    break;
                 }
 
-                if i < chars.len() && chars[i] == '\'' && i - start >= 5 && i - start <= 7 {
-                    result.push_str(&hex_value);
-                    i += 1;
-                    continue;
+                if !chars[i].is_ascii_hexdigit() {
+                    result.push_str(&hex_string);
+                    hex_string.clear();
+                    break;
                 }
+
+                i += 1;
             }
 
-            if i < chars.len() {
-                result.push_str(&String::from_iter(&chars[start..=i]));
-            } else {
-                result.push_str(&String::from_iter(&chars[start..]));
+            if hex_string.len() > 0 {
+                result.push_str(&hex_string);
             }
-        } else {
-            result.push(chars[i]);
         }
+
         i += 1;
     }
     result
