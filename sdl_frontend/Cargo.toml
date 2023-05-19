@@ -16,7 +16,7 @@ sdl2 = { version = "0.35.2", features = ['bundled', 'static-link'] }
 serde_yaml = { version = "0.9.21", optional = true }
 image = { version = "0.24.6", default-features = false, features = ['jpeg','png'] }
 spin_sleep = "1.1.1"
-regex = { version = "1.8.1", optional = true }
+#regex = { version = "1.8.1", optional = true }
 
 #[target.x86_64-pc-windows-msvc.dependencies]
 #winapi = "0.3.9"
@@ -27,9 +27,10 @@ cc = "1.0.79"
 
 [features]
 #default = [ ]
-default = ["serde_support", "z80", "flate", "regex"]
+default = ["serde_support", "z80", "flate"]
+#default = ["serde_support", "z80", "flate", "regex"]
 serde_support = ["dep:serde_yaml", "emu6502/serde_support"]
-regex = ["dep:regex"]
+#regex = ["dep:regex"]
 z80 = ["emu6502/z80"]
 flate = ["emu6502/flate"]
 

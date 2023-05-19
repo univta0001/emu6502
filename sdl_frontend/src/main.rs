@@ -883,16 +883,49 @@ fn register_device(cpu: &mut CPU, device: &str, slot: usize, mboard: &mut usize)
     *mboard += 1;
 }
 
+fn replace_hex_values(string: &str) -> String {
+    let mut result = String::new();
+    let chars: Vec<_> = string.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '\'' {
+            let start = i;
+            i += 1;
+            if i < chars.len() && chars[i].is_ascii_hexdigit() {
+                let mut hex_value = String::new();
+                while i < chars.len() && chars[i].is_ascii_hexdigit() {
+                    hex_value.push(chars[i]);
+                    i += 1;
+                }
+
+                if chars[i] == '\'' && i - start >= 5 && i - start <= 7 {
+                    result.push_str(&hex_value);
+                } else {
+                    result.push_str(&String::from_iter(&chars[start..=i]));
+                }
+            }
+        } else {
+            result.push(chars[i]);
+        }
+        i += 1;
+    }
+   result
+}
+
 fn save_serialized_image(cpu: &CPU) {
     let output = serde_yaml::to_string(&cpu).unwrap();
     let yaml_output = output.replace("\"\"", "''").replace('"', "");
 
+    /*
     #[cfg(feature = "regex")]
     let re = regex::Regex::new(r"'([0-9A-F]{4,6})'").unwrap();
     #[cfg(feature = "regex")]
     let yaml_output = re
         .replace_all(&yaml_output, |caps: &regex::Captures| (caps[1]).to_string())
         .to_string();
+    */
+
+    let yaml_output = replace_hex_values(&yaml_output);
 
     let result = FileDialog::new()
         .add_filter("Save state", &["yaml"])
