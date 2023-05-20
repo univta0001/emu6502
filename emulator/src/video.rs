@@ -837,9 +837,9 @@ impl Video {
             // 000000cd eabab000 -> 000abcde
             let row = ((addr & 0x18) | ((addr >> 7) & 0x06) | ((addr & 0x80) >> 7)) * 8;
             if row < 192 {
-                for i in 0..8 {
-                    self.video_reparse[row as usize + i] = 1;
-                }
+                let start = row as usize;
+                let end = start + 8;
+                self.video_reparse[start..end].fill(1);
             }
         } else if (0x2000..=0x5fff).contains(&addr) {
             // 000fghcd eabab000 -> abcdefgh
