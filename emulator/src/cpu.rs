@@ -1268,7 +1268,7 @@ impl CPU {
         self.update_zero_and_negative_flags(compare_with.wrapping_sub(data));
     }
 
-    fn branch(&mut self, _: &OpCode, condition: bool) {
+    fn branch(&mut self, condition: bool) {
         let addr = self.get_immediate_addr();
 
         self.tick();
@@ -2085,42 +2085,42 @@ impl CPU {
 
             /* BNE */
             0xd0 => {
-                self.branch(opcode, !self.status.contains(CpuFlags::ZERO));
+                self.branch(!self.status.contains(CpuFlags::ZERO));
             }
 
             /* BVS */
             0x70 => {
-                self.branch(opcode, self.status.contains(CpuFlags::OVERFLOW));
+                self.branch(self.status.contains(CpuFlags::OVERFLOW));
             }
 
             /* BVC */
             0x50 => {
-                self.branch(opcode, !self.status.contains(CpuFlags::OVERFLOW));
+                self.branch(!self.status.contains(CpuFlags::OVERFLOW));
             }
 
             /* BPL */
             0x10 => {
-                self.branch(opcode, !self.status.contains(CpuFlags::NEGATIVE));
+                self.branch(!self.status.contains(CpuFlags::NEGATIVE));
             }
 
             /* BMI */
             0x30 => {
-                self.branch(opcode, self.status.contains(CpuFlags::NEGATIVE));
+                self.branch(self.status.contains(CpuFlags::NEGATIVE));
             }
 
             /* BEQ */
             0xf0 => {
-                self.branch(opcode, self.status.contains(CpuFlags::ZERO));
+                self.branch(self.status.contains(CpuFlags::ZERO));
             }
 
             /* BCS */
             0xb0 => {
-                self.branch(opcode, self.status.contains(CpuFlags::CARRY));
+                self.branch(self.status.contains(CpuFlags::CARRY));
             }
 
             /* BCC */
             0x90 => {
-                self.branch(opcode, !self.status.contains(CpuFlags::CARRY));
+                self.branch(!self.status.contains(CpuFlags::CARRY));
             }
 
             /* BIT */
@@ -2368,7 +2368,7 @@ impl CPU {
             /* BRA */
             0x80 => {
                 if self.m65c02 {
-                    self.branch(opcode, true);
+                    self.branch(true);
                 } else {
                     self.tick();
                 }
