@@ -85,7 +85,7 @@ pub struct Video {
 
     #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
     #[cfg_attr(feature = "serde_support", serde(default = "default_video_reparse"))]
-    video_reparse: Vec<usize>,
+    video_reparse: Vec<u8>,
 
     #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
     #[cfg_attr(feature = "serde_support", serde(default = "default_video_dirty"))]
@@ -838,8 +838,9 @@ impl Video {
             let row = ((addr & 0x18) | ((addr >> 7) & 0x06) | ((addr & 0x80) >> 7)) * 8;
             if row < 192 {
                 let start = row as usize;
-                let end = start + 8;
-                self.video_reparse[start..end].fill(1);
+                for i in start..start + 8 {
+                    self.video_reparse[i] = 1;
+                }
             }
         } else if (0x2000..=0x5fff).contains(&addr) {
             // 000fghcd eabab000 -> abcdefgh
@@ -2866,7 +2867,7 @@ fn default_video_cache() -> Vec<u32> {
 }
 
 #[cfg(feature = "serde_support")]
-fn default_video_reparse() -> Vec<usize> {
+fn default_video_reparse() -> Vec<u8> {
     vec![0x00; 192]
 }
 
