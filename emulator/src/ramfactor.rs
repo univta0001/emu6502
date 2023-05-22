@@ -21,7 +21,7 @@ use std::collections::BTreeMap;
 #[cfg(all(feature = "serde_support", feature = "flate"))]
 use std::io::{Read, Write};
 
-#[cfg(all(feature = "serde_support"))]
+#[cfg(feature = "serde_support")]
 use crate::marshal::hex_to_u8;
 
 const ROM: [u8; 8192] = [
