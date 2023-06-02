@@ -14,7 +14,6 @@ iz80 = { path = "iz80", optional = true }
 derivative = { version = "2.2.0", optional = true }
 time = { version = "0.3.21", features = ["local-offset","wasm-bindgen"] }
 fastrand = "1.9.0"
-num-integer = "0.1.45"
 bitflags-serde-legacy = "0.1.1"
 
 [dev-dependencies]
