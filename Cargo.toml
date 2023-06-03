@@ -4,6 +4,7 @@ members = [
     "sdl_frontend",
     "self_test",
 ]
+resolver = "2"
 
 [profile.test]
 opt-level = 3
