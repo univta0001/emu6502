@@ -1068,14 +1068,10 @@ fn update_video<T: RenderTarget>(
     }
     disp.clear_video_dirty();
 
-    let mut harddisk_on = false;
+    let harddisk_on;
     let disk_is_on = {
-        let disk_status = cpu.bus.disk.is_motor_on();
-        let harddisk_status = cpu.bus.harddisk.is_busy();
-        if harddisk_status {
-            harddisk_on = true;
-        }
-        disk_status || harddisk_status
+        harddisk_on = cpu.bus.harddisk.is_busy();
+        cpu.bus.disk.is_motor_on() || harddisk_on
     };
 
     if disk_is_on {
@@ -1089,7 +1085,7 @@ fn update_video<T: RenderTarget>(
         } else {
             canvas.set_draw_color(Color::RGBA(255, 0, 0, 128));
         }
-        let _result = draw_circle(canvas, 560 - 4, 4, 2);
+        let _ = draw_circle(canvas, 560 - 4, 4, 2);
     } else {
         let rect = Rect::new(552, 0, 8, 8);
         texture
