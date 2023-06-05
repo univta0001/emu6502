@@ -1948,7 +1948,7 @@ impl DiskDrive {
                     (last_head * track_bits) / last_track_bits
                 };
 
-                let (head, remainder) = (new_bit / 8 , new_bit % 8);
+                let (head, remainder) = (new_bit / 8, new_bit % 8);
                 disk.head = head;
                 disk.head_mask = 1 << (7 - remainder);
                 disk.head_bit = remainder;
@@ -2009,7 +2009,7 @@ impl DiskDrive {
 
                 if disk.head * 8 + disk.head_bit >= track_bits {
                     let wrapped = (disk.head * 8 + disk.head_bit) % track_bits;
-                    let (head, remainder) = (wrapped / 8 , wrapped % 8);
+                    let (head, remainder) = (wrapped / 8, wrapped % 8);
                     disk.head = head;
                     disk.head_mask = 1 << (7 - remainder);
                     disk.head_bit = remainder;
@@ -2098,7 +2098,7 @@ impl DiskDrive {
 
             if disk.head * 8 + disk.head_bit >= track_bits {
                 let wrapped = (disk.head * 8 + disk.head_bit) % track_bits;
-                let (head, remainder) = (wrapped / 8 , wrapped % 8);
+                let (head, remainder) = (wrapped / 8, wrapped % 8);
                 disk.head = head;
                 disk.head_mask = 1 << (7 - remainder);
                 disk.head_bit = remainder;

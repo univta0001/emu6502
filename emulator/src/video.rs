@@ -110,6 +110,12 @@ pub struct Video {
     #[cfg_attr(feature = "serde_support", serde(default = "default_cycle_field"))]
     cycle_field: usize,
 
+    #[cfg_attr(
+        feature = "serde_support",
+        serde(deserialize_with = "deserialize_cycles")
+    )]
+    cycles: usize,
+
     graphics_mode: bool,
     mixed_mode: bool,
     lores_mode: bool,
@@ -117,7 +123,6 @@ pub struct Video {
     video_page2: bool,
     dhires_mode: bool,
     altchar: bool,
-    cycles: usize,
     blink: bool,
     blink_time: u128,
     video_latch: u8,
@@ -139,7 +144,7 @@ impl Tick for Video {
         self.cycles += 1;
 
         if self.cycles >= self.cycle_field {
-            self.cycles %= self.cycle_field;
+            self.cycles -= self.cycle_field;
         }
 
         if !self.skip_update {
@@ -3038,5 +3043,11 @@ fn deserialize_display_mode<'de, D: Deserializer<'de>>(
         5 => DisplayMode::MONO_AMBER,
         _ => DisplayMode::DEFAULT,
     };
+    Ok(value)
+}
+
+#[cfg(feature = "serde_support")]
+fn deserialize_cycles<'de, D: Deserializer<'de>>(deserializer: D) -> Result<usize, D::Error> {
+    let value = usize::deserialize(deserializer)? % default_cycle_field();
     Ok(value)
 }
