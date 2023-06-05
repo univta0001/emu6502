@@ -139,7 +139,7 @@ impl Tick for Video {
         self.cycles += 1;
 
         if self.cycles >= self.cycle_field {
-            self.cycles -= self.cycle_field;
+            self.cycles %= self.cycle_field;
         }
 
         if !self.skip_update {
