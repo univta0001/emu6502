@@ -55,6 +55,8 @@ const AUDIO_SAMPLE_SIZE_50HZ: u32 = AUDIO_SAMPLE_RATE / 50;
 const NTSC_LUMA_BANDWIDTH: f32 = 2300000.0;
 const NTSC_CHROMA_BANDWIDTH: f32 = 600000.0;
 
+const DSK_PO_SIZE: u64 = 143360;
+
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 struct EventParam<'a> {
@@ -725,6 +727,13 @@ where
             || ext.eq_ignore_ascii_case(OsStr::new("hdv"))
         {
             load_harddisk(cpu, path_ref, drive)?;
+        } else if ext.eq_ignore_ascii_case(OsStr::new("po")) {
+            let size = std::fs::metadata(path_ref)?.len();
+            if size > DSK_PO_SIZE {
+                load_harddisk(cpu, path_ref, drive)?;
+            } else {
+                load_disk(cpu, path_ref, drive)?;
+            }
         } else {
             load_disk(cpu, path_ref, drive)?;
         }
@@ -786,7 +795,7 @@ where
 
 fn open_harddisk_dialog(cpu: &mut CPU, drive: usize) {
     let result = FileDialog::new()
-        .add_filter("Disk image", &["hdv", "2mg"])
+        .add_filter("Disk image", &["hdv", "2mg", "po"])
         .pick_file();
 
     if let Some(file_path) = result {
