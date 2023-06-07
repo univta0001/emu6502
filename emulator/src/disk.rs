@@ -2348,7 +2348,7 @@ impl Card for DiskDrive {
             LOC_DRIVEWRITEMODE => {
                 self.q7 = true;
             }
-            _ => todo!(),
+            _ => unreachable!(),
         }
 
         self.request_fast_disk();
