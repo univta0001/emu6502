@@ -68,7 +68,7 @@ struct EventParam<'a> {
     reload_cpu: &'a mut bool,
     save_screenshot: &'a mut bool,
     display_mode: &'a [DisplayMode; 6],
-    speed_mode: &'a [CpuSpeed; 4],
+    speed_mode: &'a [CpuSpeed; 5],
     display_index: &'a mut usize,
     speed_index: &'a mut usize,
     clipboard_text: &'a mut String,
@@ -709,7 +709,7 @@ Function Keys:
     F6 / Shift-F6      Toggle Display Mode (Default, NTSC, RGB, Mono)
     F7                 Disable / Enable Joystick jitter
     F8                 Disable / Enable 50/60 Hz video
-    F9 / Shift-F9      Toggle speed emulation(1 MHz, 2.8 MHz, 4 MHz, Fastest)
+    F9 / Shift-F9      Toggle speed (1 MHz, 2.8 MHz, 4 MHz, 8 MHz, Fastest)
     F10                Load Hard Disk 1 file
     F11                Load Hard Disk 2 file
     F12 / Break        Reset"#
@@ -1128,6 +1128,7 @@ fn initialize_new_cpu(cpu: &mut CPU, display_index: &mut usize, speed_index: &mu
         CpuSpeed::SPEED_FASTEST => *speed_index = 1,
         CpuSpeed::SPEED_2_8MHZ => *speed_index = 2,
         CpuSpeed::SPEED_4MHZ => *speed_index = 3,
+        CpuSpeed::SPEED_8MHZ => *speed_index = 4,
         _ => *speed_index = 0,
     }
 
@@ -1470,11 +1471,12 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         CpuSpeed::SPEED_DEFAULT,
         CpuSpeed::SPEED_2_8MHZ,
         CpuSpeed::SPEED_4MHZ,
+        CpuSpeed::SPEED_8MHZ,
         CpuSpeed::SPEED_FASTEST,
     ];
 
-    let speed_numerator = [1, 10, 10, 1];
-    let speed_denominator = [1, 28, 40, 1];
+    let speed_numerator = [1, 10, 10, 10, 1];
+    let speed_denominator = [1, 28, 40, 80, 1];
 
     cpu.reset();
     cpu.setup_emulator();

@@ -336,6 +336,7 @@ pub enum CpuSpeed {
     SPEED_FASTEST,
     SPEED_2_8MHZ,
     SPEED_4MHZ,
+    SPEED_8MHZ,
 }
 
 #[cfg(feature = "serde_support")]
@@ -344,6 +345,7 @@ fn serialize_cpu_speed<S: Serializer>(v: &CpuSpeed, serializer: S) -> Result<S::
         CpuSpeed::SPEED_FASTEST => 1,
         CpuSpeed::SPEED_2_8MHZ => 2,
         CpuSpeed::SPEED_4MHZ => 3,
+        CpuSpeed::SPEED_8MHZ => 4,
         _ => 0,
     };
     usize::serialize(&value, serializer)
