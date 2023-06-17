@@ -2486,11 +2486,11 @@ impl CPU {
         }
 
         if self.self_test && self.program_counter == program_counter_state {
-            if self.bus.addr_read(0x200) == 0xf0 || self.bus.addr_read(0x202) == 0xf0 {
+            if self.bus.mem_read(0x200) == 0xf0 || self.bus.mem_read(0x202) == 0xf0 {
                 eprintln!("Successful Self Test");
             } else {
-                let status1 = self.bus.addr_read(0x200);
-                let status2 = self.bus.addr_read(0x202);
+                let status1 = self.bus.mem_read(0x200);
+                let status2 = self.bus.mem_read(0x202);
                 eprintln!(
                     "Failed Self Test. PC={:04x} ST=[{:?}] {:02x} {:02x}",
                     self.program_counter, self.status, status1, status2,
