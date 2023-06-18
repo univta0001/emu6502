@@ -198,7 +198,7 @@ pub const OPCODES: [OpCode; 256] = [
     OpCode::new(0x7d, "ADC", 3, 4, AddressingMode::Absolute_X, false),
     OpCode::new(0x7e, "ROR", 3, 7, AddressingMode::Absolute_X, false),
     OpCode::new(0x7f, "BBR7", 3, 5, AddressingMode::ZeroPage_Relative, true),
-    OpCode::new(0x80, "BRA", 2, 2, AddressingMode::NoneAddressing, true),
+    OpCode::new(0x80, "BRA", 2, 3, AddressingMode::NoneAddressing, true),
     OpCode::new(0x81, "STA", 2, 6, AddressingMode::Indirect_X, false),
     OpCode::new(0x82, "???", 2, 2, AddressingMode::Immediate, false),
     OpCode::new(0x83, "???", 1, 1, AddressingMode::NoneAddressing, true),
@@ -2879,9 +2879,8 @@ mod test {
             cycles[i] = OPCODES[i].cycles;
         }
 
-        // Add cycle for instruction JMP 0x6c, BRA 0x80
+        // Add cycle for instruction JMP 0x6c
         cycles[0x6c] += 1;
-        cycles[0x80] += 1;
 
         let bus = Bus::default();
         let mut cpu = CPU::new(bus);
