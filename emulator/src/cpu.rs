@@ -194,7 +194,7 @@ pub const OPCODES: [OpCode; 256] = [
     OpCode::new(0x79, "ADC", 3, 4, AddressingMode::Absolute_Y, false),
     OpCode::new(0x7a, "PLY", 1, 4, AddressingMode::NoneAddressing, true),
     OpCode::new(0x7b, "???", 1, 1, AddressingMode::NoneAddressing, true),
-    OpCode::new(0x7c, "JMP", 3, 6, AddressingMode::Indirect_Absolute_X, false),
+    OpCode::new(0x7c, "JMP", 3, 6, AddressingMode::Indirect_Absolute_X, true),
     OpCode::new(0x7d, "ADC", 3, 4, AddressingMode::Absolute_X, false),
     OpCode::new(0x7e, "ROR", 3, 7, AddressingMode::Absolute_X, false),
     OpCode::new(0x7f, "BBR7", 3, 5, AddressingMode::ZeroPage_Relative, true),

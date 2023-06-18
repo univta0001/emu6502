@@ -523,6 +523,7 @@ mod test {
 
         let mut cpu = CPU::new(bus);
         cpu.program_counter = 0x1000;
+        cpu.m65c02 = true;
         let mut result: Vec<String> = vec![];
         cpu.run_with_callback(|cpu| {
             let mut s = String::new();
