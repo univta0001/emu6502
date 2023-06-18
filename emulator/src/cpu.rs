@@ -1197,6 +1197,8 @@ impl CPU {
             self.tick();
             let data = self.stack_pop();
             self.set_register_x(data);
+        } else {
+            self.tick();
         }
     }
 
@@ -1206,6 +1208,8 @@ impl CPU {
             self.tick();
             let data = self.stack_pop();
             self.set_register_y(data);
+        } else {
+            self.tick();
         }
     }
 
@@ -2451,27 +2455,43 @@ impl CPU {
 
             /* STZ zeropage */
             0x64 => {
-                let addr = self.get_zeropage_addr();
-                self.stz(addr);
+                if self.m65c02 {
+                    let addr = self.get_zeropage_addr();
+                    self.stz(addr);
+                } else {
+                    self.tick();
+                }
             }
 
             /* STZ zeropage,X */
             0x74 => {
-                let addr = self.get_zeropage_x_addr();
-                self.stz(addr);
+                if self.m65c02 {
+                    let addr = self.get_zeropage_x_addr();
+                    self.stz(addr);
+                } else {
+                    self.tick();
+                }
             }
 
             /* STZ absolute */
             0x9c => {
-                let addr = self.get_absolute_addr();
-                self.stz(addr);
+                if self.m65c02 {
+                    let addr = self.get_absolute_addr();
+                    self.stz(addr);
+                } else {
+                    self.tick();
+                }
             }
 
             /* STZ absolute,X */
             0x9e => {
-                let addr = self.get_absolute_x_addr(opcode);
-                self.tick();
-                self.stz(addr);
+                if self.m65c02 {
+                    let addr = self.get_absolute_x_addr(opcode);
+                    self.tick();
+                    self.stz(addr);
+                } else {
+                    self.tick();
+                }
             }
 
             /* JMP Indirect Absolute X */
@@ -2481,6 +2501,8 @@ impl CPU {
                     let address = self.next_word();
                     let ptr = address.wrapping_add(self.register_x as u16);
                     self.program_counter = self.bus.addr_read_u16(ptr);
+                } else {
+                    self.tick();
                 }
             }
         }
