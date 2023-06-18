@@ -2809,6 +2809,129 @@ mod test {
     //use crate::trace::disassemble;
 
     #[test]
+    fn test_opcode_6502_cycles() {
+        let mut cycles = vec![0; 256];
+        let add_cycle = [0x10, 0x50, 0x90, 0xd0];
+        for i in 0..cycles.len() {
+            cycles[i] = OPCODES[i].cycles;
+        }
+
+        let bus = Bus::default();
+        let mut cpu = CPU::new(bus);
+        for i in 1..cycles.len() {
+            let mut v = vec![0; 8];
+
+            cpu.bus.set_cycles(0);
+            cpu.status = CpuFlags::from_bits_truncate(0b00100100);
+
+            for j in 0..0x1000 {
+                cpu.bus.mem_write(j, 0);
+            }
+
+            // Skip 65c02 instructions
+            if OPCODES[i].m65c02 {
+                continue;
+            }
+
+            v[0] = i as u8;
+            cpu.load_and_run_offset(&v, 0x1000, 0x1000);
+            let offset = if add_cycle.contains(&i) { 1 } else { 0 };
+            assert_eq!(
+                cpu.bus.get_cycles(),
+                cycles[i] as usize + offset,
+                "Instruction {} 0x{:02x} should take {} cycles. Found {}",
+                OPCODES[i].mnemonic,
+                i,
+                cycles[i],
+                cpu.bus.get_cycles()
+            );
+        }
+
+        for i in 0..add_cycle.len() {
+            let mut v = vec![0; 8];
+            cpu.bus.set_cycles(0);
+            cpu.status.set(CpuFlags::NEGATIVE, true);
+            cpu.status.set(CpuFlags::OVERFLOW, true);
+            cpu.status.set(CpuFlags::CARRY, true);
+            cpu.status.set(CpuFlags::ZERO, true);
+            v[0] = add_cycle[i] as u8;
+            cpu.load_and_run(&v);
+            assert_eq!(
+                cpu.bus.get_cycles(),
+                2,
+                "Instruction {} 0x{:02x} should take 2 cycles. Found {}",
+                OPCODES[add_cycle[i]].mnemonic,
+                i,
+                cpu.bus.get_cycles()
+            );
+        }
+    }
+
+    #[test]
+    fn test_opcode_65c02_cycles() {
+        let mut cycles = vec![0; 256];
+        let add_cycle = [0x10, 0x50, 0x90, 0xd0];
+
+        // 65c02 instructions that run faster than 6502 by one cycle
+        let remove_cycle = [0x1e, 0x3e, 0x5e, 0x7e];
+
+        for i in 0..cycles.len() {
+            cycles[i] = OPCODES[i].cycles;
+        }
+
+        // Add cycle for instruction JMP 0x6c, BRA 0x80
+        cycles[0x6c] += 1;
+        cycles[0x80] += 1;
+
+        let bus = Bus::default();
+        let mut cpu = CPU::new(bus);
+        cpu.m65c02 = true;
+        for i in 1..cycles.len() {
+            let mut v = vec![0; 8];
+
+            cpu.bus.set_cycles(0);
+            cpu.status = CpuFlags::from_bits_truncate(0b00100100);
+
+            for j in 0..0x1000 {
+                cpu.bus.mem_write(j, 0);
+            }
+
+            v[0] = i as u8;
+            cpu.load_and_run_offset(&v, 0x1000, 0x1000);
+            let offset = if add_cycle.contains(&i) { 1 } else { 0 };
+            let reduce_offset = if remove_cycle.contains(&i) { 1 } else { 0 };
+            assert_eq!(
+                cpu.bus.get_cycles(),
+                cycles[i] as usize + offset - reduce_offset,
+                "Instruction {} 0x{:02x} should take {} cycles. Found {}",
+                OPCODES[i].mnemonic,
+                i,
+                cycles[i],
+                cpu.bus.get_cycles()
+            );
+        }
+
+        for i in 0..add_cycle.len() {
+            let mut v = vec![0; 8];
+            cpu.bus.set_cycles(0);
+            cpu.status.set(CpuFlags::NEGATIVE, true);
+            cpu.status.set(CpuFlags::OVERFLOW, true);
+            cpu.status.set(CpuFlags::CARRY, true);
+            cpu.status.set(CpuFlags::ZERO, true);
+            v[0] = add_cycle[i] as u8;
+            cpu.load_and_run(&v);
+            assert_eq!(
+                cpu.bus.get_cycles(),
+                2,
+                "Instruction {} 0x{:02x} should take 2 cycles. Found {}",
+                OPCODES[add_cycle[i]].mnemonic,
+                i,
+                cpu.bus.get_cycles()
+            );
+        }
+    }
+
+    #[test]
     fn functional_test_6502() {
         let function_test: Vec<u8> = std::fs::read("../6502_functional_test.bin").unwrap();
         let bus = Bus::new();
