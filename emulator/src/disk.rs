@@ -1986,16 +1986,19 @@ impl DiskDrive {
 
         //let mut rng = rand::thread_rng();
 
+        /*
         // Only add disk jitter for read operations
         let disk_jitter = if !self.q7 && fastrand::f32() < self.random_one_rate {
             0.0125
         } else {
             0.0
         };
+        */
 
         Self::update_track_if_changed(disk, tmap_track, track_bits, track_to_read, track_type);
         let read_pulse = Self::read_flux_data(disk);
-        let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
+        //let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
+        let optimal_timing = (disk.optimal_timing as f32) / 8.0;
         if self.lss_cycle >= optimal_timing {
             if track_type != TrackType::Flux {
                 disk.head_mask >>= 1;
@@ -2026,7 +2029,7 @@ impl DiskDrive {
                 }
             }
 
-            if self.bit_buffer & 0x0f != 0 {
+            if self.bit_buffer & 0x07 != 0 {
                 self.pulse = (self.bit_buffer & 0x2) >> 1;
             } else {
                 self.update_disk_bit_buffer(fastrand::f32())
