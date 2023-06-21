@@ -907,8 +907,10 @@ impl Bus {
                     if !write_flag {
                         if self.mem.prewrite {
                             self.mem.writebsr = true;
+                            self.mem.prewrite = false;
+                        } else {
+                            self.mem.prewrite = true;
                         }
-                        self.mem.prewrite = true;
                     } else {
                         self.mem.prewrite = false;
                     }
