@@ -3648,6 +3648,76 @@ mod test {
     }
 
     #[test]
+    fn bank_read_rom() {
+        let bus = Bus::new();
+        let mut cpu = CPU::new(bus);
+        cpu.reset();
+        let bank1_code = [0xAD, 0x81, 0xC0];
+        cpu.load_and_run(&bank1_code);
+        assert_eq!(
+            cpu.bus.mem.bank1 == false && cpu.bus.mem.readbsr,
+            false,
+            "Read ROM expected from 0xc081"
+        );
+        let bank1_code = [0xAD, 0x82, 0xC0];
+        cpu.load_and_run(&bank1_code);
+        assert_eq!(cpu.bus.mem.readbsr, false, "Read ROM expected from 0xc082");
+        let bank1_code = [0xAD, 0x85, 0xC0];
+        cpu.load_and_run(&bank1_code);
+        assert_eq!(cpu.bus.mem.readbsr, false, "Read ROM expected from 0xc085");
+        let bank1_code = [0xAD, 0x86, 0xC0];
+        cpu.load_and_run(&bank1_code);
+        assert_eq!(cpu.bus.mem.readbsr, false, "Read ROM expected from 0xc086");
+        let bank1_code = [0xAD, 0x89, 0xC0];
+        cpu.load_and_run(&bank1_code);
+        assert_eq!(
+            cpu.bus.mem.bank1 == true && cpu.bus.mem.readbsr == false,
+            true,
+            "Read ROM expected from 0xc089"
+        );
+        let bank1_code = [0xAD, 0x8A, 0xC0];
+        cpu.load_and_run(&bank1_code);
+        assert_eq!(cpu.bus.mem.readbsr, false, "Read ROM expected from 0xc08a");
+        let bank1_code = [0xAD, 0x8D, 0xC0];
+        cpu.load_and_run(&bank1_code);
+        assert_eq!(cpu.bus.mem.readbsr, false, "Read ROM expected from 0xc08d");
+        let bank1_code = [0xAD, 0x8E, 0xC0];
+        cpu.load_and_run(&bank1_code);
+        assert_eq!(cpu.bus.mem.readbsr, false, "Read ROM expected from 0xc08e");
+    }
+
+    #[test]
+    fn bank_read_ram() {
+        let bus = Bus::new();
+        let mut cpu = CPU::new(bus);
+        cpu.reset();
+        let bank1_code = [0xAD, 0x80, 0xC0];
+        cpu.load_and_run(&bank1_code);
+        assert_eq!(cpu.bus.mem.readbsr, true, "Read RAM expected from 0xc080");
+        let bank1_code = [0xAD, 0x83, 0xC0];
+        cpu.load_and_run(&bank1_code);
+        assert_eq!(cpu.bus.mem.readbsr, true, "Read RAM expected from 0xc083");
+        let bank1_code = [0xAD, 0x84, 0xC0];
+        cpu.load_and_run(&bank1_code);
+        assert_eq!(cpu.bus.mem.readbsr, true, "Read RAM expected from 0xc084");
+        let bank1_code = [0xAD, 0x87, 0xC0];
+        cpu.load_and_run(&bank1_code);
+        assert_eq!(cpu.bus.mem.readbsr, true, "Read RAM expected from 0xc087");
+        let bank1_code = [0xAD, 0x88, 0xC0];
+        cpu.load_and_run(&bank1_code);
+        assert_eq!(cpu.bus.mem.readbsr, true, "Read RAM expected from 0xc088");
+        let bank1_code = [0xAD, 0x8B, 0xC0];
+        cpu.load_and_run(&bank1_code);
+        assert_eq!(cpu.bus.mem.readbsr, true, "Read RAM expected from 0xc08b");
+        let bank1_code = [0xAD, 0x8C, 0xC0];
+        cpu.load_and_run(&bank1_code);
+        assert_eq!(cpu.bus.mem.readbsr, true, "Read RAM expected from 0xc08C");
+        let bank1_code = [0xAD, 0x8F, 0xC0];
+        cpu.load_and_run(&bank1_code);
+        assert_eq!(cpu.bus.mem.readbsr, true, "Read RAM expected from 0xc08F");
+    }
+
+    #[test]
     fn bank_1_writing() {
         let bus = Bus::new();
         let mut cpu = CPU::new(bus);
