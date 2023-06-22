@@ -1837,6 +1837,17 @@ impl DiskDrive {
 
     pub fn eject(&mut self, drive_select: usize) {
         let disk = &mut self.drive[drive_select];
+
+        // Check for modified flag, if it is modified needs to save back the file
+        if disk.modified {
+            if self.enable_save {
+                let save_status = save_dsk_woz_to_disk(disk);
+                if save_status.is_err() {
+                    eprintln!("Unable to save disk = {save_status:?}");
+                }
+            }
+        }
+
         disk.loaded = false;
         disk.head_mask = 0x80;
         disk.head_bit = 0;
