@@ -892,6 +892,7 @@ fn register_device(cpu: &mut CPU, device: &str, slot: usize, mboard: &mut usize)
     *mboard += 1;
 }
 
+#[cfg(feature = "serde_support")]
 fn replace_quoted_hex_values(string: &str) -> String {
     let mut result = String::new();
     let chars: Vec<_> = string.chars().collect();
@@ -1107,6 +1108,7 @@ fn update_video<T: RenderTarget>(
     canvas.present();
 }
 
+#[cfg(feature = "serde_support")]
 fn initialize_new_cpu(cpu: &mut CPU, display_index: &mut usize, speed_index: &mut usize) {
     let mmu = &mut cpu.bus.mem;
     let disp = &mut cpu.bus.video;

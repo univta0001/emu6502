@@ -1839,12 +1839,10 @@ impl DiskDrive {
         let disk = &mut self.drive[drive_select];
 
         // Check for modified flag, if it is modified needs to save back the file
-        if disk.modified {
-            if self.enable_save {
-                let save_status = save_dsk_woz_to_disk(disk);
-                if save_status.is_err() {
-                    eprintln!("Unable to save disk = {save_status:?}");
-                }
+        if disk.modified && self.enable_save {
+            let save_status = save_dsk_woz_to_disk(disk);
+            if save_status.is_err() {
+                eprintln!("Unable to save disk = {save_status:?}");
             }
         }
 
