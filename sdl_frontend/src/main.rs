@@ -931,6 +931,7 @@ fn replace_quoted_hex_values(string: &str) -> String {
     result
 }
 
+#[cfg(feature = "serde_support")]
 fn save_serialized_image(cpu: &CPU) {
     let output = serde_yaml::to_string(&cpu).unwrap();
     let yaml_output = output.replace("\"\"", "''").replace('"', "");
@@ -958,6 +959,7 @@ fn save_serialized_image(cpu: &CPU) {
     }
 }
 
+#[cfg(feature = "serde_support")]
 fn load_serialized_image() -> Result<CPU, String> {
     let result = FileDialog::new()
         .add_filter("Save state", &["yaml"])
