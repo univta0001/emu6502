@@ -84,9 +84,6 @@ pub struct Bus {
     pub paddle_trigger: usize,
     pub mem: Mmu,
     pub cycles: usize,
-    pub intcxrom: bool,
-    pub slotc3rom: bool,
-    pub intc8rom: bool,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub annunciator: [bool; 4],
@@ -210,9 +207,6 @@ impl Bus {
             ramfactor: RamFactor::new(),
             harddisk: HardDisk::new(),
             mouse: Mouse::new(),
-            intcxrom: false,
-            slotc3rom: false,
-            intc8rom: false,
             annunciator: [false; 4],
             is_apple2c: false,
             noslotclock: NoSlotClock::new(),
@@ -259,9 +253,6 @@ impl Bus {
     }
 
     pub fn reset(&mut self) {
-        self.intcxrom = false;
-        self.slotc3rom = false;
-        self.intc8rom = false;
         self.extended_rom = 0;
 
         self.mem.reset();
@@ -269,7 +260,7 @@ impl Bus {
         self.ramfactor.reset();
 
         if self.is_apple2c {
-            self.intcxrom = true;
+            self.mem.intcxrom = true;
         }
 
         if !self.disable_audio {
@@ -382,7 +373,7 @@ impl Bus {
     }
 
     fn iodevice_rom_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
-        if !self.intcxrom {
+        if !self.mem.intcxrom {
             if addr >= 0xc800 {
                 // Handle the extended rom separately
                 let slot = self.extended_rom as usize;
@@ -612,14 +603,14 @@ impl Bus {
 
             0x06 => {
                 if write_flag && !self.is_apple2c {
-                    self.intcxrom = false;
+                    self.mem.intcxrom = false;
                 }
                 self.get_keyboard_latch()
             }
 
             0x07 => {
                 if write_flag && !self.is_apple2c {
-                    self.intcxrom = true;
+                    self.mem.intcxrom = true;
                 }
                 self.get_keyboard_latch()
             }
@@ -640,14 +631,14 @@ impl Bus {
 
             0x0a => {
                 if write_flag && !self.is_apple2c {
-                    self.slotc3rom = false;
+                    self.mem.slotc3rom = false;
                 }
                 self.get_keyboard_latch()
             }
 
             0x0b => {
                 if write_flag && !self.is_apple2c {
-                    self.slotc3rom = true;
+                    self.mem.slotc3rom = true;
                 }
                 self.get_keyboard_latch()
             }
@@ -676,11 +667,11 @@ impl Bus {
 
             0x14 => self.get_io_status(self.mem.wrcardram),
 
-            0x15 => self.get_io_status(self.intcxrom),
+            0x15 => self.get_io_status(self.mem.intcxrom),
 
             0x16 => self.get_io_status(self.mem.altzp),
 
-            0x17 => self.get_io_status(self.slotc3rom),
+            0x17 => self.get_io_status(self.mem.slotc3rom),
 
             0x18 => self.get_io_status(self.mem._80storeon),
 
@@ -989,13 +980,13 @@ impl Mem for Bus {
                         self.noslotclock.io_access(addr, 0, false);
                     }
 
-                    if !self.slotc3rom {
-                        self.intc8rom = true;
+                    if !self.mem.slotc3rom {
+                        self.mem.intc8rom = true;
                     }
 
                     if !self.video.is_apple2e() {
                         self.iodevice_rom_access(addr, 0, false)
-                    } else if self.intcxrom || !self.slotc3rom {
+                    } else if self.mem.intcxrom || !self.mem.slotc3rom {
                         self.mem_read(addr)
                     } else {
                         self.iodevice_rom_access(addr, 0, false)
@@ -1005,9 +996,9 @@ impl Mem for Bus {
                 0xc000..=0xc0ff => self.io_access(addr, 0, false),
                 0xc800..=0xcfff => {
                     if addr == 0xcfff {
-                        self.intc8rom = false;
+                        self.mem.intc8rom = false;
                     }
-                    if self.intcxrom || self.intc8rom || self.is_apple2c {
+                    if self.mem.intcxrom || self.mem.intc8rom || self.is_apple2c {
                         self.mem_read(addr)
                     } else {
                         self.iodevice_rom_access(addr, 0, false)
@@ -1042,7 +1033,7 @@ impl Mem for Bus {
                 }
 
                 0xcfff => {
-                    self.intc8rom = false;
+                    self.mem.intc8rom = false;
                 }
 
                 _ => unreachable!("Addr should be unreachable: {:04x}", addr),

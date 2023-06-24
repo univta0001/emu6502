@@ -46,6 +46,10 @@ pub struct Mmu {
     )]
     pub aux_bank2_memory: Vec<u8>,
 
+    pub intcxrom: bool,
+    pub intc8rom: bool,
+    pub slotc3rom: bool,
+
     pub bank1: bool,
     pub readbsr: bool,
     pub writebsr: bool,
@@ -76,6 +80,10 @@ impl Mmu {
             bank2_memory: vec![0; 0x3000],
             aux_bank1_memory: vec![0; 0x3000],
             aux_bank2_memory: vec![0; 0x3000],
+
+            intcxrom: false,
+            intc8rom: false,
+            slotc3rom: false,
 
             bank1: false,
             readbsr: false,
