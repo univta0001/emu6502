@@ -1,4 +1,4 @@
-use crate::bus::Mem;
+use crate::bus::{Bus,Mem};
 use crate::cpu::AddressingMode;
 use crate::cpu::{OpCode, CPU, OPCODES};
 //use std::collections::HashMap;
@@ -225,12 +225,12 @@ fn dump_indirect_absolute_x_addr(output: &mut String, addr: u16, mem_addr: u16, 
     output.push(' ');
 }
 
-pub fn adjust_disassemble_addr(cpu: &mut CPU, addr: u16, step: i16) -> u16 {
+pub fn adjust_disassemble_addr(bus: &mut Bus, addr: u16, step: i16) -> u16 {
     let mut adj_addr = addr;
     match step.cmp(&0) {
         Ordering::Greater => {
             for _ in 0..step {
-                let code = cpu.bus.unclocked_addr_read(adj_addr);
+                let code = bus.unclocked_addr_read(adj_addr);
                 let ops = &OPCODES[code as usize];
                 adj_addr = adj_addr.wrapping_add(ops.len as u16);
             }
@@ -242,7 +242,7 @@ pub fn adjust_disassemble_addr(cpu: &mut CPU, addr: u16, step: i16) -> u16 {
                 let mut pc = addr.wrapping_sub(i as u16);
                 let mut m6502_invalid = false;
                 for _ in 0..neg_step {
-                    let code = cpu.bus.unclocked_addr_read(pc);
+                    let code = bus.unclocked_addr_read(pc);
                     let ops = &OPCODES[code as usize];
                     if ops.m65c02 {
                         m6502_invalid = true

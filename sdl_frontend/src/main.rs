@@ -525,7 +525,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
                     let mut output = String::new();
-                    let addr = adjust_disassemble_addr(cpu, cpu.program_counter, -10);
+                    let addr = adjust_disassemble_addr(&mut cpu.bus, cpu.program_counter, -10);
                     disassemble_addr(&mut output, cpu, addr, 20);
                     eprintln!(
                         "PC:{:04X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} S:{:02X}\n\n{}",
