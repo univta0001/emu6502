@@ -2582,7 +2582,6 @@ fn hex_to_u8(c: u8) -> std::io::Result<u8> {
 
 #[cfg(feature = "z80")]
 #[cfg(feature = "serde_support")]
-#[cfg(feature = "serde_support")]
 fn hex_get16(map: &BTreeMap<String, String>, key: &str) -> std::io::Result<u16> {
     let value = &map[key];
 
