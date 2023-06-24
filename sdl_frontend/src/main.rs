@@ -766,11 +766,10 @@ fn open_disk_dialog(cpu: &mut CPU, drive: usize) {
         )
         .pick_file();
 
-    if let Some(file_path) = result {
-        let result = load_disk(cpu, &file_path, drive);
-        if let Err(e) = result {
-            eprintln!("Unable to load disk {} : {e}", file_path.display());
-        }
+    let Some(file_path) = result else { return }; 
+    let result = load_disk(cpu, &file_path, drive);
+    if let Err(e) = result {
+        eprintln!("Unable to load disk {} : {e}", file_path.display());
     }
 }
 
@@ -798,11 +797,10 @@ fn open_harddisk_dialog(cpu: &mut CPU, drive: usize) {
         .add_filter("Disk image", &["hdv", "2mg", "po"])
         .pick_file();
 
-    if let Some(file_path) = result {
-        let result = load_harddisk(cpu, &file_path, drive);
-        if let Err(e) = result {
-            eprintln!("Unable to load hard disk {} : {e}", file_path.display());
-        }
+    let Some(file_path) = result else { return };
+    let result = load_harddisk(cpu, &file_path, drive);
+    if let Err(e) = result {
+        eprintln!("Unable to load hard disk {} : {e}", file_path.display());
     }
 }
 
