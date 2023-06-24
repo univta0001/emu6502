@@ -878,6 +878,7 @@ fn register_device(cpu: &mut CPU, device: &str, slot: usize, mboard: &mut usize)
             }
             cpu.bus
                 .register_device(IODevice::Mockingboard(*mboard), slot);
+            *mboard += 1;
         }
         "mouse" => cpu.bus.register_device(IODevice::Mouse, slot),
         "parallel" => cpu.bus.register_device(IODevice::Printer, slot),
@@ -888,8 +889,6 @@ fn register_device(cpu: &mut CPU, device: &str, slot: usize, mboard: &mut usize)
         "diskii13" => cpu.bus.register_device(IODevice::Disk13, slot),
         _ => {}
     }
-
-    *mboard += 1;
 }
 
 #[cfg(feature = "serde_support")]
