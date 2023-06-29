@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bitflags = "2.3.2"
+bitflags = "2.3.3"
 flate2 = { version = "1.0.26", optional = true }
 instant = { version = "0.1.12", features = ["wasm-bindgen"], optional = true }
 serde = { version = "1.0.164", features = ["derive"],  optional = true }
@@ -20,7 +20,7 @@ bitflags-serde-legacy = "0.1.1"
 regex = "1.8.4"
 criterion = { version = "0.5.1", features = ['html_reports'] }
 crossbeam-utils = "0.8.16"
-serde_json = "1.0.97"
+serde_json = "1.0.99"
 crossbeam-epoch = "0.9.15"
 ryu = "1.0.13"
 autocfg = "1.1.0"
