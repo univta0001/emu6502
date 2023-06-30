@@ -612,7 +612,7 @@ impl CPU {
         }
 
         // Implement false read for RMW ABS,X instructions to pass a2audit test
-        if matches!(op.code, 0x1e | 0x3e | 0x5e | 0x7e | 0xde | 0xfe) {
+        if matches!(op.code, 0x9d | 0x1e | 0x3e | 0x5e | 0x7e | 0xde | 0xfe) {
             self.bus.unclocked_addr_read(addr);
         }
 
@@ -655,11 +655,9 @@ impl CPU {
         let deref = deref_base.wrapping_add(self.register_y as u16);
         let page_crossed = self.page_cross(deref, deref_base);
 
-        if !self.m65c02 {
-            // Only implement false read for 6502
-            if op.code == 0x91 {
-                self.bus.unclocked_addr_read(deref);
-            }
+        // Only implement false read for STA (zp), Y. Required for mb_audit
+        if op.code == 0x91 {
+            self.bus.unclocked_addr_read(deref);
         }
 
         if page_crossed || indirect_y_force_tick(op) {
