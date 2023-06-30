@@ -335,13 +335,9 @@ impl Mmu {
             if !write_flag {
                 if self.prewrite {
                     self.writebsr = true;
-                } else {
-                    self.prewrite = true;
-                }
-            } else {
-                self.prewrite = false;
-            }
-
+                } 
+            } 
+            self.prewrite = !write_flag;
             self.readbsr = off_mode;
         } else {
             self.writebsr = false;
