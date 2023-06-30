@@ -612,13 +612,12 @@ impl CPU {
         }
 
         // Implement false read for RMW ABS,X instructions to pass a2audit test
-        if matches!(op.code, 0x9d | 0x1e | 0x3e | 0x5e | 0x7e | 0xde | 0xfe) {
-            self.bus.unclocked_addr_read(addr);
-        }
-
-        if page_crossed || absolute_x_force_tick(op, self.m65c02) {
+        if absolute_x_force_tick(op, self.m65c02) {
+            self.bus.addr_read(addr);
+        } else if page_crossed {
             self.tick();
         }
+
         addr
     }
 
