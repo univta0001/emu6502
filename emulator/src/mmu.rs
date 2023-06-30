@@ -324,6 +324,34 @@ impl Mmu {
             }
         }
     }
+
+    pub fn io_access(&mut self, addr: u16, _value: u8, write_flag: bool) -> u8 {
+        let io_addr = addr & 0xf;
+        let write_mode = (io_addr & 0x01) > 0;
+        let off_mode = (io_addr & 0x02) > 0;
+        let bank1_mode = (io_addr & 0x08) > 0;
+
+        if write_mode {
+            if !write_flag {
+                if self.prewrite {
+                    self.writebsr = true;
+                } else {
+                    self.prewrite = true;
+                }
+            } else {
+                self.prewrite = false;
+            }
+
+            self.readbsr = off_mode;
+        } else {
+            self.writebsr = false;
+            self.prewrite = false;
+            self.readbsr = !off_mode;
+        }
+
+        self.bank1 = bank1_mode;
+        0
+    }
 }
 
 impl Default for Mmu {

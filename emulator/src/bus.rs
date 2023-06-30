@@ -890,30 +890,7 @@ impl Bus {
             }
 
             0x80..=0x8f => {
-                let write_mode = (io_addr & 0x01) > 0;
-                let off_mode = (io_addr & 0x02) > 0;
-                let bank1_mode = (io_addr & 0x08) > 0;
-
-                if write_mode {
-                    if !write_flag {
-                        if self.mem.prewrite {
-                            self.mem.writebsr = true;
-                        } else {
-                            self.mem.prewrite = true;
-                        }
-                    } else {
-                        self.mem.prewrite = false;
-                    }
-
-                    self.mem.readbsr = off_mode;
-                } else {
-                    self.mem.writebsr = false;
-                    self.mem.prewrite = false;
-                    self.mem.readbsr = !off_mode;
-                }
-
-                self.mem.bank1 = bank1_mode;
-                0
+                self.mem.io_access(addr, value, write_flag)
             }
 
             0x90..=0xff => self.iodevice_io_access(addr, value, write_flag),
