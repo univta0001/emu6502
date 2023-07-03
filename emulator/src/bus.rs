@@ -889,9 +889,7 @@ impl Bus {
                 }
             }
 
-            0x80..=0x8f => {
-                self.mem.io_access(addr, value, write_flag)
-            }
+            0x80..=0x8f => self.mem.io_access(addr, value, write_flag),
 
             0x90..=0xff => self.iodevice_io_access(addr, value, write_flag),
 

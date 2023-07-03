@@ -332,9 +332,9 @@ impl Mmu {
         let bank1_mode = (io_addr & 0x08) > 0;
 
         if write_mode {
-            if !write_flag && self.prewrite { 
+            if !write_flag && self.prewrite {
                 self.writebsr = true;
-            } 
+            }
             self.prewrite = !write_flag;
             self.readbsr = off_mode;
         } else {

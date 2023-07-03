@@ -1,4 +1,4 @@
-use crate::bus::{Bus,Mem};
+use crate::bus::{Bus, Mem};
 use crate::cpu::AddressingMode;
 use crate::cpu::{OpCode, CPU, OPCODES};
 //use std::collections::HashMap;

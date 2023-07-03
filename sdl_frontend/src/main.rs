@@ -510,8 +510,12 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                #[cfg(feature = "serde_support")]
-                save_serialized_image(cpu);
+                if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
+                    dump_track_sector_info(cpu);
+                } else {
+                    #[cfg(feature = "serde_support")]
+                    save_serialized_image(cpu);
+                }
             } else {
                 cpu.bus.disk.swap_drive();
             }
@@ -691,6 +695,7 @@ ARGS:
 Function Keys:
     Ctrl-Shift-F1      Display emulation speed
     Ctrl-Shift-F2      Disassemble current instructions
+    Ctrl-Shift-F3      Dump track sector information
     Ctrl-F1            Eject Disk 1
     Ctrl-F2            Eject Disk 2
     Ctrl-F3            Save state in YAML file
@@ -766,7 +771,7 @@ fn open_disk_dialog(cpu: &mut CPU, drive: usize) {
         )
         .pick_file();
 
-    let Some(file_path) = result else { return }; 
+    let Some(file_path) = result else { return };
     let result = load_disk(cpu, &file_path, drive);
     if let Err(e) = result {
         eprintln!("Unable to load disk {} : {e}", file_path.display());
@@ -998,6 +1003,40 @@ fn load_serialized_image() -> Result<CPU, String> {
     }
 
     Ok(new_cpu)
+}
+
+fn dump_track_sector_info(cpu: &mut CPU) {
+    let mut slot = 0;
+    for i in 1..8 {
+        if cpu.bus.io_slot[i] == IODevice::Disk || cpu.bus.io_slot[i] == IODevice::Disk13 {
+            slot = i as u8;
+            break;
+        }
+    }
+
+    if slot == 0 {
+        return;
+    }
+
+    let is_prodos = cpu.bus.mem.unclocked_addr_read(0xbf00) == 0x4c;
+    if !is_prodos {
+        let dos33_slot = cpu.bus.mem.unclocked_addr_read(0xb7e9) / 16;
+        let dos33_track = cpu.bus.mem.unclocked_addr_read(0xb7ec);
+        let dos33_sector = cpu.bus.mem.unclocked_addr_read(0xb7ed);
+
+        if dos33_slot == slot && dos33_track < 40 && dos33_sector < 16 {
+            eprintln!("Dos 3.3 Track: {dos33_track:02x} Sector: {dos33_sector:02x}");
+        }
+    } else {
+        // Prodos Track, Sector, Slot information is at $D356, $D357 and $D359 in LC1
+        let prodos_slot = cpu.bus.mem.mem_bank1_read(0x0359) / 16;
+        let prodos_track = cpu.bus.mem.mem_bank1_read(0x0356);
+        let prodos_sector = cpu.bus.mem.mem_bank1_read(0x0357);
+
+        if prodos_slot == slot && prodos_track < 40 && prodos_sector < 16 {
+            eprintln!("Prodos Track: {prodos_track:02x} Sector: {prodos_sector:02x}");
+        }
+    }
 }
 
 fn update_audio(cpu: &mut CPU, audio_device: &sdl2::audio::AudioQueue<i16>, normal_speed: bool) {
