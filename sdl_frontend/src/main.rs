@@ -447,14 +447,20 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             keycode: Some(Keycode::F8),
             ..
         } => {
-            cpu.bus.toggle_video_freq();
+            cpu.bus.toggle_joystick_jitter();
         }
 
         Event::KeyDown {
             keycode: Some(Keycode::F7),
+            keymod,
             ..
         } => {
-            cpu.bus.toggle_joystick_jitter();
+            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                let mode = !cpu.bus.video.get_color_burst();
+                cpu.bus.video.set_color_burst(mode);
+            } else {
+                cpu.bus.toggle_video_freq();
+            }
         }
         Event::KeyDown {
             keycode: Some(Keycode::F6),
@@ -702,6 +708,7 @@ Function Keys:
     Ctrl-F4            Load state from YAML file
     Ctrl-F5            Disable / Enable video scanline mode
     Ctrl-F6            Disable / Enable audio filter
+    Ctrl-F7            Disable / Enable color burst for 60 Hz display
     Ctrl-F10           Eject Hard Disk 1
     Ctrl-F11           Eject Hard Disk 2
     Ctrl-PrintScreen   Save screenshot as screenshot.png
@@ -712,8 +719,8 @@ Function Keys:
     F4                 Disable / Enable Joystick
     F5                 Disable / Enable Fask Disk emulation
     F6 / Shift-F6      Toggle Display Mode (Default, NTSC, RGB, Mono)
-    F7                 Disable / Enable Joystick jitter
-    F8                 Disable / Enable 50/60 Hz video
+    F7                 Disable / Enable 50/60 Hz video
+    F8                 Disable / Enable Joystick jitter
     F9 / Shift-F9      Toggle speed (1 MHz, 2.8 MHz, 4 MHz, 8 MHz, Fastest)
     F10                Load Hard Disk 1 file
     F11                Load Hard Disk 2 file
