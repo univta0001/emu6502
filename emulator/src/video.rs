@@ -1638,14 +1638,36 @@ impl Video {
         if !self.vid80_mode {
             let x1offset = x1 * 7;
             let y1offset = y1 * 8 + yindex;
-            for xindex in x1offset..x1offset + 7 {
-                let color = if bitmap & shift == 0 {
-                    back_color
-                } else {
-                    fore_color
-                };
-                self.set_a2_pixel(xindex, y1offset, color);
-                shift >>= 1;
+            if self.graphics_mode
+                && !self.video_50hz
+                && !self.is_display_mode_mono()
+                && !self.mono_mode
+            {
+                let mut data = bitmap.reverse_bits() & 0x7f;
+                let mut color = back_color;
+                if !self.apple2e {
+                    data >>= 1;
+                }
+                if flash {
+                    data = !data;
+                    color = fore_color;
+                }
+                if !normal {
+                    color = fore_color;
+                }
+                self.draw_raw_hires_a2_row_col(y1offset, x1, data);
+                self.set_a2_pixel(x1offset, y1offset, color);
+                self.set_a2_pixel(x1offset + 6, y1offset, color);
+            } else {
+                for xindex in x1offset..x1offset + 7 {
+                    let color = if bitmap & shift == 0 {
+                        back_color
+                    } else {
+                        fore_color
+                    };
+                    self.set_a2_pixel(xindex, y1offset, color);
+                    shift >>= 1;
+                }
             }
         } else {
             let x1offset = x1 * 14 + offset;
