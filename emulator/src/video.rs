@@ -1589,6 +1589,14 @@ impl Video {
         }
     }
 
+    fn get_font_bitmap(&self, val: u8, offset: usize) -> u8 {
+        if self.apple2e {
+            CHAR_APPLE2E_ROM[val as usize * 8 + offset]
+        } else {
+            CHAR_APPLE2_ROM[val as usize * 8 + offset]
+        }
+    }
+
     fn draw_char_a2_y(&mut self, x1: usize, y1: usize, ch: u8, yindex: usize, offset: usize) {
         let val = if !self.altchar {
             if (0x40..0x80).contains(&ch) {
@@ -1600,12 +1608,7 @@ impl Video {
             ch
         };
 
-        let bitmap = if self.apple2e {
-            CHAR_APPLE2E_ROM[val as usize * 8 + yindex]
-        } else {
-            CHAR_APPLE2_ROM[val as usize * 8 + yindex]
-        };
-
+        let bitmap = self.get_font_bitmap(val, yindex);
         let flash = ch & 0xc0 == 0x40 && self.blink && !self.vid80_mode && !self.altchar;
         let normal = ch & 0x80 > 0;
         let mut back_color;
