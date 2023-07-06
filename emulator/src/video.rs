@@ -137,9 +137,6 @@ pub struct Video {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub skip_update: bool,
-
-    #[cfg_attr(feature = "serde_support", serde(default))]
-    pub color_burst: bool,
 }
 
 impl Tick for Video {
@@ -730,7 +727,6 @@ impl Video {
             chroma_dhgr,
             scanline: false,
             skip_update: false,
-            color_burst: false,
         }
     }
 
@@ -966,15 +962,6 @@ impl Video {
         for item in &mut self.video_dirty {
             *item = 0;
         }
-    }
-
-    pub fn get_color_burst(&self) -> bool {
-        self.color_burst
-    }
-
-    pub fn set_color_burst(&mut self, flag: bool) {
-        self.color_burst = flag;
-        self.invalidate_video_cache();
     }
 
     pub fn get_dirty_region(&self) -> Vec<(usize, usize)> {
@@ -1654,76 +1641,32 @@ impl Video {
         if !self.vid80_mode {
             let x1offset = x1 * 7;
             let y1offset = y1 * 8 + yindex;
-            if self.graphics_mode
-                && self.color_burst
-                && !self.video_50hz
-                && !self.is_display_mode_mono()
-                && !self.mono_mode
-            {
-                let mut data = bitmap.reverse_bits() & 0x7f;
-                let mut color = back_color;
-                if !self.apple2e {
-                    data >>= 1;
-                }
-                if flash {
-                    data = !data;
-                    color = fore_color;
-                }
-                if !normal {
-                    color = fore_color;
-                }
-                self.draw_raw_hires_a2_row_col(y1offset, x1, data);
-                self.set_a2_pixel(x1offset, y1offset, color);
-                self.set_a2_pixel(x1offset + 6, y1offset, color);
-            } else {
-                for xindex in x1offset..x1offset + 7 {
-                    let color = if bitmap & shift == 0 {
-                        back_color
-                    } else {
-                        fore_color
-                    };
-                    self.set_a2_pixel(xindex, y1offset, color);
-                    shift >>= 1;
-                }
+            for xindex in x1offset..x1offset + 7 {
+                let color = if bitmap & shift == 0 {
+                    back_color
+                } else {
+                    fore_color
+                };
+                self.set_a2_pixel(xindex, y1offset, color);
+                shift >>= 1;
             }
         } else {
             let x1offset = x1 * 14 + offset;
             let y1offset = y1 * 16 + yindex * 2;
-            if self.graphics_mode
-                && self.color_burst
-                && !self.video_50hz
-                && !self.is_display_mode_mono()
-                && !self.mono_mode
-            {
-                let data = bitmap.reverse_bits();
-                let alt_ch = self.read_aux_text_memory(x1, y1 * 8 + yindex);
-                let alt_val = if !self.altchar {
-                    if (0x40..0x80).contains(&alt_ch) {
-                        alt_ch - 0x40
-                    } else {
-                        alt_ch
-                    }
+            for xindex in x1offset..x1offset + 7 {
+                let color = if bitmap & shift == 0 {
+                    back_color
                 } else {
-                    alt_ch
-                };     
-                let alt_data = CHAR_APPLE2E_ROM[alt_val as usize * 8 + yindex].reverse_bits();
-                self.draw_raw_dhires_a2_row_col(y1 * 8 + yindex, x1, data, alt_data);
-            } else {
-                for xindex in x1offset..x1offset + 7 {
-                    let color = if bitmap & shift == 0 {
-                        back_color
-                    } else {
-                        fore_color
-                    };
-                    self.set_pixel(xindex, y1offset, color);
-                    if !self.scanline {
-                        self.set_pixel(xindex, y1offset + 1, color);
-                    } else {
-                        self.set_pixel(xindex, y1offset + 1, COLOR_BLACK);
-                    }
-
-                    shift >>= 1;
+                    fore_color
+                };
+                self.set_pixel(xindex, y1offset, color);
+                if !self.scanline {
+                    self.set_pixel(xindex, y1offset + 1, color);
+                } else {
+                    self.set_pixel(xindex, y1offset + 1, COLOR_BLACK);
                 }
+
+                shift >>= 1;
             }
         }
     }
@@ -2445,37 +2388,13 @@ impl Video {
             if self.display_mode == DisplayMode::RGB && self.rgb_mode == 2 {
                 self.draw_raw_dhires_mixed_row_col(row, col);
             } else {
-                let mixed_mode = self.mixed_mode && row >= 160;
-                let current_value = if mixed_mode {
-                    CHAR_APPLE2E_ROM[self.read_text_memory(ptr, row) as usize * 8 + row % 8]
-                        .reverse_bits()
-                } else {
-                    self.read_hires_memory(ptr, row)
-                };
-                let current_aux_value = if mixed_mode {
-                    CHAR_APPLE2E_ROM[self.read_aux_text_memory(ptr, row) as usize * 8 + row % 8]
-                        .reverse_bits()
-                } else {
-                    self.read_aux_hires_memory(ptr, row)
-                };
+                let current_value = self.read_hires_memory(ptr, row);
+                let current_aux_value = self.read_aux_hires_memory(ptr, row);
                 let mut value_7_pixels =
                     ((current_aux_value as u32) & 0x7f) + (((current_value as u32) & 0x7f) << 7);
                 if ptr + 1 < 40 {
-                    let next_value = if self.mixed_mode && row >= 160 {
-                        CHAR_APPLE2E_ROM[self.read_text_memory(ptr + 1, row) as usize * 8 + row % 8]
-                            .reverse_bits()
-                    } else {
-                        self.read_hires_memory(ptr + 1, row)
-                    };
-
-                    let next_aux_value = if mixed_mode {
-                        CHAR_APPLE2E_ROM
-                            [self.read_aux_text_memory(ptr + 1, row) as usize * 8 + row % 8]
-                            .reverse_bits()
-                    } else {
-                        self.read_aux_hires_memory(ptr + 1, row)
-                    };
-
+                    let next_value = self.read_hires_memory(ptr + 1, row);
+                    let next_aux_value = self.read_aux_hires_memory(ptr + 1, row);
                     value_7_pixels += (((next_aux_value as u32) & 0x7f) << 14)
                         + (((next_value as u32) & 0x7f) << 21);
                 }
@@ -2486,13 +2405,7 @@ impl Video {
                     let mut prev_color = 0;
 
                     if x > 0 {
-                        prev_color = if mixed_mode {
-                            CHAR_APPLE2E_ROM
-                                [(self.read_text_memory(ptr - 1, row) >> 3) as usize * 8 + row % 8]
-                                .reverse_bits() as usize
-                        } else {
-                            (self.read_hires_memory(ptr - 1, row) >> 3) as usize
-                        };
+                        prev_color = (self.read_hires_memory(ptr - 1, row) >> 3) as usize;
                     }
 
                     for _ in 0..3 {
