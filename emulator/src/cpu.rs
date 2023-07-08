@@ -373,6 +373,7 @@ fn deserialize_cpu_speed<'de, D: Deserializer<'de>>(deserializer: D) -> Result<C
             1 => CpuSpeed::SPEED_FASTEST,
             2 => CpuSpeed::SPEED_2_8MHZ,
             3 => CpuSpeed::SPEED_4MHZ,
+            4 => CpuSpeed::SPEED_8MHZ,
             _ => CpuSpeed::SPEED_DEFAULT,
         },
     };
