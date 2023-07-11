@@ -860,20 +860,21 @@ impl Video {
 
     pub fn io_access(&mut self, addr: u16, _value: u8, write_flag: bool) -> u8 {
         let mut value = 0;
-        match addr {
-            0xc00c => {
+        let io_addr = (addr & 0xff) as u8;
+        match io_addr {
+            0x0c => {
                 if self.apple2e && write_flag {
                     self.vid80_mode = false;
                     self.update_video();
                 }
             }
-            0xc00d => {
+            0x0d => {
                 if self.apple2e && write_flag {
                     self.vid80_mode = true;
                     self.update_video();
                 }
             }
-            0xc00e => {
+            0x0e => {
                 if self.apple2e && write_flag {
                     self.altchar = false;
                     for i in 0..self.video_dirty.len() {
@@ -881,7 +882,7 @@ impl Video {
                     }
                 }
             }
-            0xc00f => {
+            0x0f => {
                 if self.apple2e && write_flag {
                     self.altchar = true;
                     for i in 0..self.video_dirty.len() {
@@ -890,7 +891,7 @@ impl Video {
                 }
             }
 
-            0xc019 => {
+            0x19 => {
                 if self.apple2e {
                     let val = self.cycles;
                     let row = val / CYCLES_PER_ROW;
@@ -902,38 +903,38 @@ impl Video {
                 }
             }
 
-            0xc01a => {
+            0x1a => {
                 if !self.graphics_mode {
                     return 0x80;
                 }
             }
-            0xc01b => {
+            0x1b => {
                 if self.mixed_mode {
                     return 0x80;
                 }
             }
-            0xc01c => {
+            0x1c => {
                 if self.video_page2 {
                     return 0x80;
                 }
             }
-            0xc01d => {
+            0x1d => {
                 if !self.lores_mode {
                     return 0x80;
                 }
             }
-            0xc01e => {
+            0x1e => {
                 if self.altchar {
                     return 0x80;
                 }
             }
-            0xc01f => {
+            0x1f => {
                 if self.vid80_mode {
                     return 0x80;
                 }
             }
 
-            0xc021 => {
+            0x21 => {
                 if write_flag {
                     self.mono_mode = _value & 0x80 > 0;
                 } else if self.mono_mode {
@@ -941,7 +942,7 @@ impl Video {
                 }
             }
 
-            0xc029 => {
+            0x29 => {
                 if write_flag {
                     self.mono_mode = _value & 0x20 > 0;
                 } else if self.mono_mode {
