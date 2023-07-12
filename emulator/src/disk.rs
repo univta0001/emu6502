@@ -2348,6 +2348,7 @@ impl Card for DiskDrive {
                 self.q6 = false;
             }
             LOC_DRIVEWRITE => {
+                self.reset_lss();
                 self.q6 = true;
             }
 
@@ -2355,7 +2356,6 @@ impl Card for DiskDrive {
                 self.q7 = false;
             }
             LOC_DRIVEWRITEMODE => {
-                self.reset_lss();
                 self.q7 = true;
             }
             _ => unreachable!(),
