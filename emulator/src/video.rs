@@ -1701,7 +1701,7 @@ impl Video {
                 } else {
                     alt_ch
                 };
-                let alt_data = CHAR_APPLE2E_ROM[alt_val as usize * 8 + yindex].reverse_bits();
+                let alt_data = self.get_font_bitmap(alt_val, yindex).reverse_bits();
                 self.draw_raw_dhires_a2_row_col(y1 * 8 + yindex, x1, data, alt_data);
             } else {
                 for xindex in x1offset..x1offset + 7 {
@@ -2459,157 +2459,65 @@ impl Video {
 
         if row < 192 && col < 40 {
             let x = col * 14;
-            let odd = col % 2;
-            let ptr = col - odd;
-
-            //
-            //      Col 0             Col 1
-            //   Aux      Main     Aux      Main
-            // 76543210 76543210 76543210 76543210
-            //  bbbaaaa  ddccccb  feeeedd  ggggfff
-            //
-            //
-            // byte1 + (byte2&0x7f) << 7 + (byte3 & 0x7f) << 14 + (byte4 & 0x7f) << 21;
 
             // Mixed mode
             if self.display_mode == DisplayMode::RGB && self.rgb_mode == 2 {
                 self.draw_raw_dhires_mixed_row_col(row, col);
             } else {
                 let mixed_mode = self.mixed_mode && row >= 160;
-                let current_value = if mixed_mode {
-                    CHAR_APPLE2E_ROM[self.read_text_memory(ptr, row) as usize * 8 + row % 8]
+                let mut color_index = if col == 0 {
+                    0
+                } else if mixed_mode {
+                    let val = (CHAR_APPLE2E_ROM
+                        [self.read_text_memory(col - 1, row) as usize * 8 + row % 8]
                         .reverse_bits()
-                } else {
-                    self.read_hires_memory(ptr, row)
-                };
-                let current_aux_value = if mixed_mode {
-                    CHAR_APPLE2E_ROM[self.read_aux_text_memory(ptr, row) as usize * 8 + row % 8]
-                        .reverse_bits()
-                } else {
-                    self.read_aux_hires_memory(ptr, row)
-                };
-                let mut value_7_pixels =
-                    ((current_aux_value as u32) & 0x7f) + (((current_value as u32) & 0x7f) << 7);
-                if ptr + 1 < 40 {
-                    let next_value = if self.mixed_mode && row >= 160 {
-                        CHAR_APPLE2E_ROM[self.read_text_memory(ptr + 1, row) as usize * 8 + row % 8]
-                            .reverse_bits()
+                        >> 3)
+                        & 0xf;
+                    if col % 2 == 0 {
+                        val
                     } else {
-                        self.read_hires_memory(ptr + 1, row)
-                    };
-
-                    let next_aux_value = if mixed_mode {
-                        CHAR_APPLE2E_ROM
-                            [self.read_aux_text_memory(ptr + 1, row) as usize * 8 + row % 8]
-                            .reverse_bits()
+                        (val & 0x3) << 2 | val >> 2
+                    }
+                } else {
+                    let val = (self.read_hires_memory(col - 1, row) >> 3) & 0xf;
+                    if col % 2 == 0 {
+                        val
                     } else {
-                        self.read_aux_hires_memory(ptr + 1, row)
-                    };
+                        (val & 0x3) << 2 | val >> 2
+                    }
+                };
 
-                    value_7_pixels += (((next_aux_value as u32) & 0x7f) << 14)
-                        + (((next_value as u32) & 0x7f) << 21);
+                let mut mask = 0x1;
+                let mut offset = x;
+
+                // Draw the Aux
+                while mask != 0x80 {
+                    let index = offset % 4;
+                    if aux_value & mask > 0 {
+                        color_index |= 1 << index;
+                    } else {
+                        color_index &= (1 << index) ^ 0xf;
+                    }
+
+                    self.set_pixel_count(offset, row * 2, DHIRES_COLORS[color_index as usize], 1);
+                    mask <<= 1;
+                    offset += 1;
                 }
 
-                // 140 x 192 graphics mode
-                if odd == 0 {
-                    let mut offset = 0;
-                    let mut prev_color = 0;
-
-                    if x > 0 {
-                        prev_color = if mixed_mode {
-                            CHAR_APPLE2E_ROM
-                                [(self.read_text_memory(ptr - 1, row) >> 3) as usize * 8 + row % 8]
-                                .reverse_bits() as usize
-                        } else {
-                            (self.read_hires_memory(ptr - 1, row) >> 3) as usize
-                        };
+                // Draw the Main
+                mask = 0x1;
+                while mask != 0x80 {
+                    let index = offset % 4;
+                    if value & mask > 0 {
+                        color_index |= 1 << index;
+                    } else {
+                        color_index &= (1 << index) ^ 0xf;
                     }
-
-                    for _ in 0..3 {
-                        let color_index: usize = (value_7_pixels & 0xf) as usize;
-                        let color = DHIRES_COLORS[color_index];
-                        self.set_pixel_count(x + offset, row * 2, color, 4);
-                        self.fix_dhires_a2_row_col(row * 2, x + offset, prev_color, color_index);
-                        prev_color = color_index;
-                        offset += 4;
-                        value_7_pixels >>= 4;
-                    }
-                    let color_index = (value_7_pixels & 0xf) as usize;
-                    let color = DHIRES_COLORS[color_index];
-                    self.set_pixel_count(x + offset, row * 2, color, 2);
-                    self.fix_dhires_a2_row_col(row * 2, x + offset, prev_color, color_index);
-                } else {
-                    value_7_pixels >>= 8;
-                    let mut prev_color = (value_7_pixels & 0xf) as usize;
-                    value_7_pixels >>= 4;
-                    let mut offset = 0;
-                    let color = DHIRES_COLORS[(value_7_pixels & 0xf) as usize];
-                    self.set_pixel_count(x + offset, row * 2, color, 2);
-                    self.fix_dhires_a2_row_col(
-                        row * 2,
-                        x + offset - 2,
-                        prev_color,
-                        (value_7_pixels & 0xf) as usize,
-                    );
-                    prev_color = (value_7_pixels & 0xf) as usize;
-                    value_7_pixels >>= 4;
-                    offset += 2;
-                    for _ in 0..3 {
-                        let color_index: usize = (value_7_pixels & 0xf) as usize;
-                        let color = DHIRES_COLORS[color_index];
-                        self.set_pixel_count(x + offset, row * 2, color, 4);
-                        self.fix_dhires_a2_row_col(row * 2, x + offset, prev_color, color_index);
-                        prev_color = color_index;
-                        offset += 4;
-                        value_7_pixels >>= 4;
-                    }
+                    self.set_pixel_count(offset, row * 2, DHIRES_COLORS[color_index as usize], 1);
+                    mask <<= 1;
+                    offset += 1;
                 }
             }
-        }
-    }
-
-    fn fix_dhires_a2_row_col(
-        &mut self,
-        row: usize,
-        col: usize,
-        prev_index: usize,
-        color_index: usize,
-    ) {
-        if col == 0 {
-            if color_index & 3 == 0 {
-                self.set_pixel_count(col, row, COLOR_BLACK, 2);
-            }
-            return;
-        }
-
-        // Handling White (Case 0111 1000)
-        if color_index == 1 && prev_index == 14 {
-            self.set_pixel_count(col - 3, row, COLOR_WHITE, 4);
-        }
-
-        // Handling White (Case 0011 1100)
-        if (color_index & 3) == 3 && (prev_index & 12) == 12 {
-            self.set_pixel_count(col - 2, row, COLOR_WHITE, 4);
-        }
-
-        // Handling White (Case 0001 1110)
-        if (color_index & 7) == 7 && ((prev_index & 0x8) != 0) {
-            self.set_pixel_count(col - 1, row, COLOR_WHITE, 4);
-        }
-
-        // Handling Black (Case x000 0yyy)
-        if (color_index & 1) == 0 && (prev_index & 0xe) == 0 {
-            self.set_pixel_count(col - 3, row, COLOR_BLACK, 4);
-        }
-
-        // Handling Black (Case xx00 00yy)
-        if (color_index & 3) == 0 && ((prev_index & 0xc) == 0) {
-            self.set_pixel_count(col - 2, row, COLOR_BLACK, 4);
-        }
-
-        // Handling Black (Case xxx0 000y)
-        if (color_index & 7) == 0 && ((prev_index & 0x8) == 0) {
-            self.set_pixel_count(col - 1, row, COLOR_BLACK, 4);
         }
     }
 
@@ -2623,6 +2531,14 @@ impl Video {
             let current_aux_value = self.read_aux_hires_memory(ptr, row);
             let mut next_value = 0;
             let mut next_aux_value = 0;
+
+            //
+            //      Col 0             Col 1
+            //   Aux      Main     Aux      Main
+            // 76543210 76543210 76543210 76543210
+            //  bbbaaaa  ddccccb  feeeedd  ggggfff
+            //
+            //
             let mut value_7_pixels =
                 ((current_aux_value as u32) & 0x7f) + (((current_value as u32) & 0x7f) << 7);
             if ptr + 1 < 40 {
@@ -2638,10 +2554,6 @@ impl Video {
             if odd == 0 {
                 if current_aux_value & 0x80 == 0 {
                     for _ in 0..7 {
-                        if offset % 4 == 0 {
-                            color = DHIRES_COLORS[(value_7_pixels & 0xf) as usize];
-                        }
-
                         if value_7_pixels & 1 > 0 {
                             self.set_pixel_count(x + offset, row * 2, COLOR_WHITE, 1);
                         } else {
