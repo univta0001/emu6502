@@ -2095,166 +2095,70 @@ impl Video {
         }
 
         if row < 192 && col < 40 {
-            /*
             let x = col * 14;
-            let odd = col % 2;
-            let mut value = self.read_hires_memory(col, row);
-            let mut offset = 0;
-            let hbs = ((value & 0x80) >> 5) as usize;
-            let mut color_index: usize;
-            let mut color: Rgb;
-            let mut prev_index: usize;
-
-            // Only works in NTSC / PAL mode
-            let an3_mode =
-                if self.display_mode != DisplayMode::RGB && self.dhires_mode && !self.vid80_mode {
-                    0x8
-                } else {
-                    0x0
-                };
-
-            if odd == 0 {
-                prev_index = if col > 0 {
-                    (self.read_hires_memory(col - 1, row) >> 5 & 0x3) as usize
-                } else {
-                    0
-                };
-                for _ in 0..3 {
-                    color_index = (value & 0x3) as usize + hbs + an3_mode;
-                    color = HIRES_COLORS[color_index];
-                    self.set_pixel_count(x + offset, row * 2, color, 4);
-                    self.fix_hires_a2_row_col(row * 2, x + offset, prev_index, color_index);
-                    prev_index = color_index;
-                    value >>= 2;
-                    offset += 4;
-                }
-                let next_value = if col + 1 < 40 {
-                    self.read_hires_memory(col + 1, row)
-                } else {
-                    0
-                };
-                color_index = ((value & 0x1) + ((next_value & 0x1) << 1)) as usize + hbs + an3_mode;
-                color = HIRES_COLORS[color_index];
-                self.set_pixel_count(x + offset, row * 2, color, 2);
-                self.fix_hires_a2_row_col(row * 2, x + offset, prev_index, color_index);
-            } else {
-                let prev_value = self.read_hires_memory(col - 1, row);
-                color_index =
-                    (((value & 0x1) << 1) + ((prev_value >> 6) & 0x1)) as usize + hbs + an3_mode;
-                color = HIRES_COLORS[color_index];
-                prev_index = (self.read_hires_memory(col - 1, row) >> 4 & 0x3) as usize;
-                self.set_pixel_count(x + offset, row * 2, color, 2);
-                self.fix_hires_a2_row_col(row * 2, x + offset - 2, prev_index, color_index);
-                prev_index = color_index;
-                value >>= 1;
-                offset += 2;
-                for _ in 0..3 {
-                    color_index = (value & 0x3) as usize + hbs + an3_mode;
-                    color = HIRES_COLORS[color_index];
-                    self.set_pixel_count(x + offset, row * 2, color, 4);
-                    self.fix_hires_a2_row_col(row * 2, x + offset, prev_index, color_index);
-                    prev_index = color_index;
-                    value >>= 2;
-                    offset += 4;
-                }
-            }
-            */
-
+            let odd = col % 2 > 0;
+            let dhires_mode =
+                self.display_mode != DisplayMode::RGB && self.dhires_mode && !self.vid80_mode;
             let mixed_mode = self.mixed_mode && row >= 160;
+            let mut color_index = 0;
 
-            // Old Hires handling routine
-            let x = col * 7;
-            let b0 = if col > 0 {
-                if mixed_mode {
-                    if value & 0x1 > 0 {
-                        0x7f
-                    } else {
-                        0
-                    }
+            if col > 0 {
+                let val = if mixed_mode {
+                    0
                 } else {
                     self.read_hires_memory(col - 1, row)
-                }
-            } else {
-                0
-            };
-            let b2 = if col < 39 {
-                if mixed_mode {
-                    if value & 0x1 > 0 {
-                        0x7f
-                    } else {
-                        0
-                    }
+                };
+                let hbs = (val & 0x80 > 0) as u8;
+                let index = if odd { 2 + hbs } else { hbs };
+                if val & 0x20 > 0 {
+                    color_index |= 1 << (index % 4);
+                    color_index |= 1 << ((index + 1) % 4);
                 } else {
-                    self.read_hires_memory(col + 1, row)
+                    color_index &= (1 << (index % 4)) ^ 0xf;
+                    color_index &= ((1 << (index + 1)) % 4) ^ 0xf;
                 }
-            } else {
-                0
-            };
 
-            let hbs = value & 0x80 > 0;
-            let mut val = (value & 0x7f) | ((b2 & 0x1) << 7);
-            let mut odd = col & 0x1 > 0;
-            let mut prev = b0 & 0x40 > 0;
-            let mut current = val & 0x01 > 0;
-            let mut next = val & 0x02 > 0;
-            let mut odd_color = if hbs { COLOR_ORANGE } else { COLOR_GREEN };
-            let mut even_color = if hbs { COLOR_MEDIUM_BLUE } else { COLOR_VIOLET };
-
-            // Only works in NTSC / PAL mode
-            if self.display_mode != DisplayMode::RGB && self.dhires_mode && !self.vid80_mode {
-                odd_color = COLOR_GREEN;
-                even_color = COLOR_VIOLET;
-            }
-
-            let mut color: Rgb;
-
-            for offset in 0..7 {
-                if current {
-                    if prev || next {
-                        color = COLOR_WHITE
-                    } else {
-                        color = if odd { odd_color } else { even_color }
-                    }
-                } else if prev && next {
-                    color = if odd { even_color } else { odd_color }
+                if val & 0x40 > 0 {
+                    color_index |= 1 << ((index + 2) % 4);
+                    color_index |= 1 << ((index + 3) % 4);
                 } else {
-                    color = COLOR_BLACK
+                    color_index &= (1 << ((index + 2) % 4)) ^ 0xf;
+                    color_index &= (1 << ((index + 3) % 4)) ^ 0xf;
+                }
+            }
+
+            let mut mask = 0x1;
+            let mut offset = x;
+            let hbs = (value & 0x80 > 0) as usize;
+
+            while mask != 0x80 {
+                let index = (offset + hbs) % 4;
+                if value & mask > 0 {
+                    color_index |= 1 << (index % 4);
+                } else {
+                    color_index &= 1 << index ^ 0xf;
+                }
+                if dhires_mode {
+                    self.set_pixel_count(offset, row * 2, DHIRES_COLORS[color_index as usize], 1);
+                } else {
+                    self.set_pixel_count(offset, row * 2, LORES_COLORS[color_index as usize], 1);
+                }
+                offset += 1;
+
+                if value & mask > 0 {
+                    color_index |= 1 << ((index + 1) % 4);
+                } else {
+                    color_index &= 1 << ((index + 1) % 4) ^ 0xf;
+                }
+                if dhires_mode {
+                    self.set_pixel_count(offset, row * 2, DHIRES_COLORS[color_index as usize], 1);
+                } else {
+                    self.set_pixel_count(offset, row * 2, LORES_COLORS[color_index as usize], 1);
                 }
 
-                self.set_a2_pixel(x + offset, row, color);
-
-                val >>= 1;
-                prev = current;
-                current = next;
-                next = val & 0x2 > 0;
-                odd = !odd;
+                mask <<= 1;
+                offset += 1;
             }
-        }
-    }
-
-    fn _fix_hires_a2_row_col(
-        &mut self,
-        row: usize,
-        col: usize,
-        prev_index: usize,
-        current_index: usize,
-    ) {
-        if col == 0 {
-            if (current_index & 1) == 0 {
-                self.set_pixel_count(col, row, COLOR_BLACK, 2);
-            }
-            return;
-        }
-
-        // Handling White
-        if current_index & 1 == 1 && prev_index & 2 == 2 {
-            self.set_pixel_count(col - 2, row, COLOR_WHITE, 4);
-            return;
-        }
-
-        // Handling Black
-        if (current_index & 1) == 0 && ((prev_index & 2) == 0) {
-            self.set_pixel_count(col - 2, row, COLOR_BLACK, 4);
         }
     }
 
@@ -2264,6 +2168,7 @@ impl Video {
             let hbs = (value & 0x80 > 0) as usize;
             let mut offset = 0;
             let mut mask = 0x1;
+            let mono_color = self.get_mono_color();
 
             if hbs > 0 {
                 let bit = if col > 0 {
@@ -2273,18 +2178,14 @@ impl Video {
                     0
                 };
 
-                let mono_color = self.get_mono_color();
-
                 if bit != 0 {
-                    self.set_pixel_count(x + 2 * offset, 2 * row, mono_color, 1);
+                    self.set_pixel_count(x, 2 * row, mono_color, 1);
                 } else {
-                    self.set_pixel_count(x + 2 * offset, 2 * row, COLOR_BLACK, 1);
+                    self.set_pixel_count(x, 2 * row, COLOR_BLACK, 1);
                 }
             }
 
             while mask != 0x80 {
-                let mono_color = self.get_mono_color();
-
                 if value & mask > 0 {
                     self.set_pixel_count(hbs + x + 2 * offset, 2 * row, mono_color, 2);
                 } else {
