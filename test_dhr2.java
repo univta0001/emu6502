@@ -44,114 +44,19 @@ public class test_dhr2{
         System.out.println("Image width  = "+bi.getWidth());
         System.out.println("Image height = "+bi.getHeight());
 
-        boolean remove_artifact = true;
-
-        if (args.length > 1) {
-            remove_artifact = Boolean.valueOf(args[1]);
-        }
-
-        int prev_index = 0;
+        int color_index = 0;
+        
         for (int yy = 0; yy<bi.getHeight(); yy++) {
-            for (int xx = 0; xx<bi.getWidth(); xx +=4) {
-                int color_index = 
-                    (getBit(bi.getRGB(xx+3,yy)) << 3) +
-                    (getBit(bi.getRGB(xx+2,yy)) << 2) +
-                    (getBit(bi.getRGB(xx+1,yy)) << 1) + getBit(bi.getRGB(xx,yy));
-
-                bout.setRGB(xx,yy, colors[color_index]);
-                bout.setRGB(xx+1,yy, colors[color_index]);
-                bout.setRGB(xx+2,yy, colors[color_index]);
-                bout.setRGB(xx+3,yy, colors[color_index]);
-
-                if (remove_artifact) {
-                    // Handling White (Case 0111 1000)
-                    if ((color_index & 7) == 1 &&  ((prev_index & 0xf) == 14)) {
-                        if (xx-3 >= 0) {
-                            bout.setRGB(xx-3,yy, colors[15]);
-                        }
-                        if (xx-2 >= 0) {
-                            bout.setRGB(xx-2,yy, colors[15]);
-                        }
-                        if (xx-1 >= 0) {
-                            bout.setRGB(xx-1,yy, colors[15]);
-                        }
-                        bout.setRGB(xx,yy, colors[15]);
-                    }
-
-                    // Handling White (Case 0011 1100)
-                    if ((color_index & 3) == 3 &&  (prev_index >> 2 == (color_index & 3))) {
-                        if ((prev_index & 3) == 0) {
-                            if (xx-2 >=0) {
-                                bout.setRGB(xx-2,yy, colors[15]);
-                            }
-                            if (xx-1 >=0) {
-                                bout.setRGB(xx-1,yy, colors[15]);
-                            }
-                            bout.setRGB(xx,yy, colors[15]);
-                            if (xx+1 < 560) {
-                                bout.setRGB(xx+1,yy, colors[15]);
-                            }
-                        }
-                    }
-
-                    // Handling White (Case 0001 1110)
-                    if ((color_index & 7) == 7 &&  ((prev_index & 0x8) != 0)) {
-                        if (xx-1 >=0) {
-                            bout.setRGB(xx-1,yy, colors[15]);
-                        }
-                        bout.setRGB(xx,yy, colors[15]);
-                        if (xx+1 < 560) {
-                            bout.setRGB(xx+1,yy, colors[15]);
-                        }
-                        if (xx+2 < 560) {
-                            bout.setRGB(xx+2,yy, colors[15]);
-                        }
-                    }     
-
-                    // Handling Black (Case x000 0yyy)
-                    if ((color_index & 1) == 0 &&  (prev_index & 0xe) == 0) {
-                        if (xx-3 >= 0) {
-                            bout.setRGB(xx-3,yy, colors[0]);
-                        }
-                        if (xx-2 >= 0) {
-                            bout.setRGB(xx-2,yy, colors[0]);
-                        }
-                        if (xx-1 >= 0) {
-                            bout.setRGB(xx-1,yy, colors[0]);
-                        }
-                        bout.setRGB(xx,yy, colors[0]);
-                    } 
-
-                    // Handling Black (Case xx00 00yy)
-                    if ((color_index & 3) == 0 && ((prev_index & 0xc) == 0)) {
-                        if (xx-2 >= 0) {
-                            bout.setRGB(xx-2,yy, colors[0]);
-                        }
-                        if (xx-1 >= 0) {
-                            bout.setRGB(xx-1,yy, colors[0]);
-                        }
-                        bout.setRGB(xx,yy, colors[0]);
-                        if (xx+1 < 560) {
-                            bout.setRGB(xx+1,yy, colors[0]);
-                        }
-                    }
-
-                    // Handling Black (Case xxx0 000y)
-                    if ((color_index & 7) == 0 &&  ((prev_index & 0x8) == 0)) {
-                        if (xx-1 >=0) {
-                            bout.setRGB(xx-1,yy, colors[0]);
-                        }
-                        bout.setRGB(xx,yy, colors[0]);
-                        if (xx+1 < 560) {
-                            bout.setRGB(xx+1,yy, colors[0]);
-                        }
-                        if (xx+2 < 560) {
-                            bout.setRGB(xx+2,yy, colors[0]);
-                        }
-                    } 
+            color_index = 0;
+            for (int xx = 0; xx<bi.getWidth(); xx += 1) {
+                int index = xx % 4;
+                int bit = getBit(bi.getRGB(xx,yy));
+                if (bit > 0) {
+                    color_index = color_index | (1 << index);
+                } else {
+                    color_index = color_index & ((1 << index) ^ 0xf);
                 }
-
-                prev_index = color_index;
+                bout.setRGB(xx,yy, colors[color_index]);
             }
         }
         
