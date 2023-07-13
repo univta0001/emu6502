@@ -2111,11 +2111,11 @@ impl Video {
                 let hbs = (val & 0x80 > 0) as u8;
                 let index = if odd { 2 + hbs } else { hbs };
                 if val & 0x20 > 0 {
-                    color_index |= 1 << (index % 4);
+                    color_index |= 1 << index;
                     color_index |= 1 << ((index + 1) % 4);
                 } else {
-                    color_index &= (1 << (index % 4)) ^ 0xf;
-                    color_index &= ((1 << (index + 1)) % 4) ^ 0xf;
+                    color_index &= 1 << (index ^ 0xf);
+                    color_index &= (1 << ((index + 1) % 4)) ^ 0xf;
                 }
 
                 if val & 0x40 > 0 {
@@ -2134,30 +2134,20 @@ impl Video {
             while mask != 0x80 {
                 let index = (offset + hbs) % 4;
                 if value & mask > 0 {
-                    color_index |= 1 << (index % 4);
-                } else {
-                    color_index &= 1 << index ^ 0xf;
-                }
-                if dhires_mode {
-                    self.set_pixel_count(offset, row * 2, DHIRES_COLORS[color_index as usize], 1);
-                } else {
-                    self.set_pixel_count(offset, row * 2, LORES_COLORS[color_index as usize], 1);
-                }
-                offset += 1;
-
-                if value & mask > 0 {
+                    color_index |= 1 << index;
                     color_index |= 1 << ((index + 1) % 4);
                 } else {
+                    color_index &= 1 << index ^ 0xf;
                     color_index &= 1 << ((index + 1) % 4) ^ 0xf;
                 }
                 if dhires_mode {
-                    self.set_pixel_count(offset, row * 2, DHIRES_COLORS[color_index as usize], 1);
+                    self.set_pixel_count(offset, row * 2, DHIRES_COLORS[color_index as usize], 2);
                 } else {
-                    self.set_pixel_count(offset, row * 2, LORES_COLORS[color_index as usize], 1);
+                    self.set_pixel_count(offset, row * 2, LORES_COLORS[color_index as usize], 2);
                 }
 
                 mask <<= 1;
-                offset += 1;
+                offset += 2;
             }
         }
     }
