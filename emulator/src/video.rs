@@ -2550,12 +2550,13 @@ impl Video {
 
             let mut color = COLOR_BLACK;
             let mut offset = 0;
+            let mono_color = self.get_mono_color();
 
             if odd == 0 {
                 if current_aux_value & 0x80 == 0 {
                     for _ in 0..7 {
                         if value_7_pixels & 1 > 0 {
-                            self.set_pixel_count(x + offset, row * 2, COLOR_WHITE, 1);
+                            self.set_pixel_count(x + offset, row * 2, mono_color, 1);
                         } else {
                             self.set_pixel_count(x + offset, row * 2, COLOR_BLACK, 1);
                         }
@@ -2576,7 +2577,7 @@ impl Video {
                 if current_value & 0x80 == 0 {
                     for _ in 0..7 {
                         if value_7_pixels & 1 > 0 {
-                            self.set_pixel_count(x + offset, row * 2, COLOR_WHITE, 1);
+                            self.set_pixel_count(x + offset, row * 2, mono_color, 1);
                         } else {
                             self.set_pixel_count(x + offset, row * 2, COLOR_BLACK, 1);
                         }
@@ -2599,7 +2600,7 @@ impl Video {
                     value_7_pixels >>= 14;
                     for _ in 0..7 {
                         if value_7_pixels & 1 > 0 {
-                            self.set_pixel_count(x + offset, row * 2, COLOR_WHITE, 1);
+                            self.set_pixel_count(x + offset, row * 2, mono_color, 1);
                         } else {
                             self.set_pixel_count(x + offset, row * 2, COLOR_BLACK, 1);
                         }
@@ -2631,7 +2632,7 @@ impl Video {
                 if next_value & 0x80 == 0 {
                     for _ in 0..7 {
                         if value_7_pixels & 1 > 0 {
-                            self.set_pixel_count(x + offset, row * 2, COLOR_WHITE, 1);
+                            self.set_pixel_count(x + offset, row * 2, mono_color, 1);
                         } else {
                             self.set_pixel_count(x + offset, row * 2, COLOR_BLACK, 1);
                         }
