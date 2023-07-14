@@ -2130,6 +2130,11 @@ impl Video {
             let mut mask = 0x1;
             let mut offset = x;
             let hbs = (value & 0x80 > 0) as usize;
+            let mut prev_color = if dhires_mode {
+                DHIRES_COLORS[color_index as usize]
+            } else {
+                LORES_COLORS[color_index as usize]
+            };
 
             while mask != 0x80 {
                 let index = (offset + hbs) % 4;
@@ -2140,11 +2145,36 @@ impl Video {
                     color_index &= 1 << index ^ 0xf;
                     color_index &= 1 << ((index + 1) % 4) ^ 0xf;
                 }
-                if dhires_mode {
-                    self.set_pixel_count(offset, row * 2, DHIRES_COLORS[color_index as usize], 2);
+
+                let color = if dhires_mode {
+                    DHIRES_COLORS[color_index as usize]
                 } else {
-                    self.set_pixel_count(offset, row * 2, LORES_COLORS[color_index as usize], 2);
+                    LORES_COLORS[color_index as usize]
+                };
+
+                if prev_color == COLOR_BLACK && color != COLOR_BLACK {
+                    let avg_color = [
+                        ((prev_color[0] as u16 + color[0] as u16) / 4) as u8,
+                        ((prev_color[1] as u16 + color[1] as u16) / 4) as u8,
+                        ((prev_color[2] as u16 + color[2] as u16) / 4) as u8,
+                    ];
+                    self.set_pixel_count(offset, row * 2, avg_color, 1);
+                    self.set_pixel_count(offset + 1, row * 2, color, 1);
+                } else if prev_color != COLOR_BLACK && color == COLOR_BLACK {
+                    if offset > 0 {
+                        let avg_color = [
+                            ((prev_color[0] as u16 + color[0] as u16) / 4) as u8,
+                            ((prev_color[1] as u16 + color[1] as u16) / 4) as u8,
+                            ((prev_color[2] as u16 + color[2] as u16) / 4) as u8,
+                        ];
+                        self.set_pixel_count(offset - 1, row * 2, avg_color, 1);
+                    }
+                    self.set_pixel_count(offset, row * 2, color, 2);
+                } else {
+                    self.set_pixel_count(offset, row * 2, color, 2);
                 }
+
+                prev_color = color;
 
                 mask <<= 1;
                 offset += 2;
