@@ -2153,23 +2153,16 @@ impl Video {
                 };
 
                 if prev_color == COLOR_BLACK && color != COLOR_BLACK {
-                    let avg_color = [
-                        ((prev_color[0] as u16 + color[0] as u16) / 4) as u8,
-                        ((prev_color[1] as u16 + color[1] as u16) / 4) as u8,
-                        ((prev_color[2] as u16 + color[2] as u16) / 4) as u8,
-                    ];
-                    self.set_pixel_count(offset, row * 2, avg_color, 1);
+                    self.set_pixel_count(offset, row * 2, prev_color, 1);
                     self.set_pixel_count(offset + 1, row * 2, color, 1);
                 } else if prev_color != COLOR_BLACK && color == COLOR_BLACK {
                     if offset > 0 {
-                        let avg_color = [
-                            ((prev_color[0] as u16 + color[0] as u16) / 4) as u8,
-                            ((prev_color[1] as u16 + color[1] as u16) / 4) as u8,
-                            ((prev_color[2] as u16 + color[2] as u16) / 4) as u8,
-                        ];
-                        self.set_pixel_count(offset - 1, row * 2, avg_color, 1);
+                        self.set_pixel_count(offset - 1, row * 2, color, 1);
                     }
                     self.set_pixel_count(offset, row * 2, color, 2);
+                } else if prev_color == COLOR_WHITE && color != COLOR_WHITE {
+                    self.set_pixel_count(offset, row * 2, prev_color, 1);
+                    self.set_pixel_count(offset + 1, row * 2, color, 1);
                 } else {
                     self.set_pixel_count(offset, row * 2, color, 2);
                 }
