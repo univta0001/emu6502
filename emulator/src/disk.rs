@@ -2139,11 +2139,6 @@ impl DiskDrive {
         }
     }
 
-    fn reset_lss(&mut self) {
-        self.latch &= 0x7f;
-        self.lss_state = 0;
-    }
-
     fn step_lss(&mut self) {
         self.old_latch = self.latch;
 
@@ -2348,7 +2343,6 @@ impl Card for DiskDrive {
                 self.q6 = false;
             }
             LOC_DRIVEWRITE => {
-                self.reset_lss();
                 self.q6 = true;
             }
 
