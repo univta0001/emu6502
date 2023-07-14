@@ -2104,7 +2104,11 @@ impl Video {
 
             if col > 0 {
                 let val = if mixed_mode {
-                    0
+                    if value & 0x1 > 0 {
+                        0x7f
+                    } else {
+                        0
+                    }
                 } else {
                     self.read_hires_memory(col - 1, row)
                 };
