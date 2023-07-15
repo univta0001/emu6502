@@ -1925,7 +1925,7 @@ impl DiskDrive {
         }
     }
 
-    fn update_track_if_changed(
+    fn _update_track_if_changed(
         disk: &mut Disk,
         tmap_track: u8,
         track_bits: usize,
@@ -2002,7 +2002,7 @@ impl DiskDrive {
             0.0
         };
 
-        Self::update_track_if_changed(disk, tmap_track, track_bits, track_to_read, track_type);
+        //Self::_update_track_if_changed(disk, tmap_track, track_bits, track_to_read, track_type);
         let read_pulse = Self::read_flux_data(disk);
         let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
         if self.lss_cycle >= optimal_timing {
