@@ -1946,7 +1946,15 @@ impl DiskDrive {
                     0
                 } else {
                     let last_head = disk.head * 8 + disk.head_bit + 1;
-                    (last_head * track_bits) / last_track_bits
+
+                    // last_head can be greater than last_track_bits when the last_track is a empty
+                    // track. disk.last_track keeps track of the last readable track. For empty
+                    // track the number of track bits is MAX_USABLE_BITS_TRACK_SIZE * 8
+                    if last_head > last_track_bits {
+                        (last_head * track_bits) / (MAX_USABLE_BITS_TRACK_SIZE * 8)
+                    } else {
+                        (last_head * track_bits) / last_track_bits
+                    }
                 };
 
                 let (head, remainder) = (new_bit / 8, new_bit % 8);
