@@ -229,8 +229,16 @@ const DSK_DO: [u8; 16] = [
     0x0, 0xd, 0xb, 0x9, 0x7, 0x5, 0x3, 0x1, 0xe, 0xc, 0xa, 0x8, 0x6, 0x4, 0x2, 0xf,
 ];
 
+const DSK_PHYSICAL_DO: [u8; 16] = [
+    0x0, 0x7, 0xe, 0x6, 0xd, 0x5, 0xc, 0x4, 0xb, 0x3, 0xa, 0x2, 0x9, 0x1, 0x8, 0xf,
+];
+
 const DSK_PO: [u8; 16] = [
     0x0, 0x2, 0x4, 0x6, 0x8, 0xa, 0xc, 0xe, 0x1, 0x3, 0x5, 0x7, 0x9, 0xb, 0xd, 0xf,
+];
+
+const _DSK_PHYSICAL_PO: [u8; 16] = [
+    0x0, 0x8, 0x1, 0x9, 0x2, 0xa, 0x3, 0xb, 0x4, 0xc, 0x5, 0xd, 0x6, 0xe, 0x7, 0xf,
 ];
 
 // Fast disk for 1 second (6502 CPU cycles)
@@ -1255,6 +1263,26 @@ impl DiskDrive {
         }
     }
 
+    pub fn get_track_info(&self) -> (usize, usize) {
+        let disk = &self.drive[self.drive_select];
+        let tmap_track = disk.tmap_data[disk.last_track as usize];
+        let random_bits = MAX_USABLE_BITS_TRACK_SIZE * 8;
+        let track_bits = if tmap_track == 255 {
+            random_bits
+        } else {
+            disk.raw_track_bits[tmap_track as usize]
+        };
+        let sector_bits = track_bits / 16;
+        let disk_pos = disk.head * 8 + disk.head_bit;
+        let sector = disk_pos / sector_bits;
+        let logical_sector = if disk.po_mode {
+            sector
+        } else {
+            DSK_PHYSICAL_DO[sector] as usize
+        };
+        ((disk.last_track / 4) as usize, logical_sector)
+    }
+
     pub fn set_random_one_rate(&mut self, value: f32) {
         self.random_one_rate = value
     }
@@ -2003,6 +2031,7 @@ impl DiskDrive {
         };
 
         //Self::_update_track_if_changed(disk, tmap_track, track_bits, track_to_read, track_type);
+        disk.last_track = track_to_read;
         let read_pulse = Self::read_flux_data(disk);
         let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
         if self.lss_cycle >= optimal_timing {

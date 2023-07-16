@@ -1015,7 +1015,7 @@ fn load_serialized_image() -> Result<CPU, String> {
 fn dump_track_sector_info(cpu: &mut CPU) {
     let mut slot = 0;
     for i in 1..8 {
-        if cpu.bus.io_slot[i] == IODevice::Disk || cpu.bus.io_slot[i] == IODevice::Disk13 {
+        if cpu.bus.io_slot[i] == IODevice::Disk {
             slot = i as u8;
             break;
         }
@@ -1025,6 +1025,14 @@ fn dump_track_sector_info(cpu: &mut CPU) {
         return;
     }
 
+    let disk = &cpu.bus.disk;
+    let track_info = disk.get_track_info();
+    eprintln!(
+        "Track Information: T:0x{:02x} S:0x{:02x}",
+        track_info.0, track_info.1
+    );
+
+    /*
     let is_prodos = cpu.bus.mem.unclocked_addr_read(0xbf00) == 0x4c;
     if !is_prodos {
         let dos33_slot = cpu.bus.mem.unclocked_addr_read(0xb7e9) / 16;
@@ -1044,6 +1052,7 @@ fn dump_track_sector_info(cpu: &mut CPU) {
             eprintln!("Prodos Track: {prodos_track:02x} Sector: {prodos_sector:02x}");
         }
     }
+    */
 }
 
 fn update_audio(cpu: &mut CPU, audio_device: &sdl2::audio::AudioQueue<i16>, normal_speed: bool) {
