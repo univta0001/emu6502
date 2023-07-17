@@ -1282,7 +1282,7 @@ impl DiskDrive {
         self.override_optimal_timing = value
     }
 
-    pub fn get_value(&mut self) -> u8 {
+    pub fn get_value(&self) -> u8 {
         // This implementation keeps the previous latch value longer by one clock cycle
         // Needed for Test Drive and Glutton
         if self.prev_latch & 0x80 != 0 && self.latch & 0x80 == 0 {
@@ -2015,10 +2015,17 @@ impl DiskDrive {
         };
 
         //let mut rng = rand::thread_rng();
+
+        let disk_jitter = if !self.q7 && fastrand::f32() < self.random_one_rate {
+            0.0125
+        } else {
+            0.0
+        };
+
         //Self::_update_track_if_changed(disk, tmap_track, track_bits, track_to_read, track_type);
         disk.last_track = track_to_read;
         let read_pulse = Self::read_flux_data(disk);
-        let optimal_timing = disk.optimal_timing as f32 / 8.0;
+        let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
         if self.lss_cycle >= optimal_timing {
             if track_type != TrackType::Flux {
                 disk.head_mask >>= 1;
