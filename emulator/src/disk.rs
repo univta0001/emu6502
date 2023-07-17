@@ -165,7 +165,7 @@ pub struct DiskDrive {
     fast_disk_timer: usize,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
-    old_latch: u8,
+    prev_latch: u8,
 }
 
 // Q0L: Phase 0 OFF
@@ -1161,7 +1161,7 @@ impl DiskDrive {
             drive_select: 0,
             bus: 0,
             latch: 0,
-            old_latch: 0,
+            prev_latch: 0,
             q6: false,
             q7: false,
             pulse: 0,
@@ -1283,8 +1283,8 @@ impl DiskDrive {
     }
 
     pub fn get_value(&self) -> u8 {
-        if self.old_latch & 0x80 != 0 && self.latch == 0 {
-            self.old_latch
+        if self.prev_latch & 0x80 != 0 && self.latch == 0 {
+            self.prev_latch
         } else {
             self.latch
         }
@@ -2168,7 +2168,7 @@ impl DiskDrive {
     }
 
     fn step_lss(&mut self) {
-        self.old_latch = self.latch;
+        self.prev_latch = self.latch;
 
         let idx = self.lss_state
             | (self.q7 as u8) << 3
