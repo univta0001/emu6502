@@ -1282,10 +1282,10 @@ impl DiskDrive {
         self.override_optimal_timing = value
     }
 
-    pub fn get_value(&self) -> u8 {
+    pub fn get_value(&mut self) -> u8 {
         // This implementation keeps the previous latch value longer by one clock cycle
         // Needed for Test Drive and Glutton
-        if self.prev_latch & 0x80 != 0 && self.latch < 0x80 {
+        if self.prev_latch & 0x80 != 0 && self.latch & 0x80 == 0 {
             self.prev_latch
         } else {
             self.latch
@@ -2252,11 +2252,10 @@ impl Tick for DiskDrive {
         self.prev_latch = self.latch;
         self.move_head_woz();
         self.step_lss();
+        // Read Pulse last for only 500 nanoseconds
+        self.pulse = 0;
         self.move_head_woz();
         self.step_lss();
-
-        // Read Pulse last for only 1 microsecond
-        self.pulse = 0;
     }
 }
 
