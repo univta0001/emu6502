@@ -2747,7 +2747,7 @@ impl CpuStats {
         op.code == 0x91
     }
 
-    fn next_word(&self, cpu: &mut CPU) -> u16 {
+    fn next_word(&self, cpu: &CPU) -> u16 {
         let pc = cpu.program_counter.wrapping_add(1);
         let lo = cpu.bus.mem_read(pc) as u16;
         let hi = cpu.bus.mem_read(pc.wrapping_add(1)) as u16;
@@ -2758,7 +2758,7 @@ impl CpuStats {
         addr1 & 0xFF00 != addr2 & 0xFF00
     }
 
-    fn update_cross_page(&mut self, cpu: &mut CPU, opcode: &OpCode) {
+    fn update_cross_page(&mut self, cpu: &CPU, opcode: &OpCode) {
         if opcode.mode == AddressingMode::Absolute_X
             && !self.absolute_x_force_tick(opcode, cpu.m65c02)
         {
@@ -2785,7 +2785,7 @@ impl CpuStats {
         }
     }
 
-    pub fn update(&mut self, cpu: &mut CPU) {
+    pub fn update(&mut self, cpu: &CPU) {
         let code = cpu.bus.mem_read(cpu.program_counter);
         let opcode = &OPCODES[code as usize];
 

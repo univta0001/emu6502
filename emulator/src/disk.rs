@@ -513,7 +513,7 @@ where
                 .eq_ignore_ascii_case(OsStr::new(ext)))
 }
 
-fn save_dsk_woz_to_disk(disk: &mut Disk) -> io::Result<()> {
+fn save_dsk_woz_to_disk(disk: &Disk) -> io::Result<()> {
     if let Some(filename) = &disk.filename {
         let path = Path::new(filename);
         if let Some(file_stem) = path.file_stem() {
@@ -621,7 +621,7 @@ fn decompress_array_gz(data: &[u8]) -> io::Result<Vec<u8>> {
 }
 
 // It is assumed that the woz structure is the same when saving back
-fn save_woz_file(disk: &mut Disk) -> io::Result<()> {
+fn save_woz_file(disk: &Disk) -> io::Result<()> {
     if let Some(filename) = &disk.filename {
         let path = Path::new(filename);
 
@@ -862,7 +862,7 @@ fn create_woz2_trk(dsk: &[u8], woz_offset: usize, disk: &Disk, newdsk: &mut Vec<
 }
 
 // This functions assumes that the woz data comes originally from dsk / po
-fn convert_woz_to_dsk(disk: &mut Disk) -> io::Result<()> {
+fn convert_woz_to_dsk(disk: &Disk) -> io::Result<()> {
     let no_of_tracks: usize = if disk.track_40 { 40 } else { 35 };
     let mut data = vec![0u8; 16 * 256 * no_of_tracks];
 
@@ -928,7 +928,7 @@ fn convert_woz_to_dsk(disk: &mut Disk) -> io::Result<()> {
     Ok(())
 }
 
-fn convert_woz_to_nib(disk: &mut Disk) -> io::Result<()> {
+fn convert_woz_to_nib(disk: &Disk) -> io::Result<()> {
     let mut data = vec![0u8; NIB_TRACK_SIZE * 35];
 
     for t in 0..35 {

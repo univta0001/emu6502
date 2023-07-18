@@ -1012,7 +1012,7 @@ fn load_serialized_image() -> Result<CPU, String> {
     Ok(new_cpu)
 }
 
-fn dump_track_sector_info(cpu: &mut CPU) {
+fn dump_track_sector_info(cpu: &CPU) {
     let mut slot = 0;
     for i in 1..8 {
         if cpu.bus.io_slot[i] == IODevice::Disk {
