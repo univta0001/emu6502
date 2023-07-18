@@ -1257,7 +1257,7 @@ impl DiskDrive {
 
     pub fn get_track_info(&self) -> (usize, usize) {
         let disk = &self.drive[self.drive_select];
-        let tmap_track = disk.tmap_data[disk.last_track as usize];
+        let tmap_track = disk.tmap_data[disk.track as usize];
         let random_bits = MAX_USABLE_BITS_TRACK_SIZE * 8;
         let track_bits = if tmap_track == 255 {
             random_bits
