@@ -616,7 +616,7 @@ impl CPU {
         if absolute_x_force_tick(op, self.m65c02) {
             self.bus.addr_read(addr);
         } else if page_crossed {
-            self.tick();
+            self.bus.addr_read(addr);
         }
 
         addr
