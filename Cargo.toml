@@ -4,7 +4,11 @@ members = [
     "sdl_frontend",
     "self_test",
 ]
+
 resolver = "2"
+
+[workspace.package]
+version = "0.8.0"
 
 [profile.test]
 opt-level = 3
