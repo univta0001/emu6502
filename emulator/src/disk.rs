@@ -2257,12 +2257,13 @@ impl Tick for DiskDrive {
         }
 
         self.prev_latch = self.latch;
+
         self.move_head_woz();
         self.step_lss();
-        // Read Pulse last for only 500 nanoseconds
         self.pulse = 0;
         self.move_head_woz();
         self.step_lss();
+        self.pulse = 0;
     }
 }
 
