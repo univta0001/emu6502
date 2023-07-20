@@ -2170,7 +2170,7 @@ impl Video {
 
                 if offset + hbs > 0 {
                     self.set_pixel_count(offset + hbs - 1, row * 2, prev_color, 1);
-                }                  
+                }
 
                 prev_color = color;
 
