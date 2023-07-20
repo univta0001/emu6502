@@ -2157,19 +2157,20 @@ impl Video {
                 };
 
                 if prev_color == COLOR_BLACK && color != COLOR_BLACK {
-                    self.set_pixel_count(offset, row * 2, prev_color, 1);
-                    self.set_pixel_count(offset + 1, row * 2, color, 1);
+                    self.set_pixel_count(offset + hbs, row * 2, prev_color, 1);
+                    self.set_pixel_count(offset + hbs + 1, row * 2, color, 1);
                 } else if prev_color != COLOR_BLACK && color == COLOR_BLACK {
-                    if offset > 0 {
-                        self.set_pixel_count(offset - 1, row * 2, color, 1);
-                    }
-                    self.set_pixel_count(offset, row * 2, color, 2);
+                    self.set_pixel_count(offset + hbs, row * 2, color, 2);
                 } else if prev_color == COLOR_WHITE && color != COLOR_WHITE {
-                    self.set_pixel_count(offset, row * 2, prev_color, 1);
-                    self.set_pixel_count(offset + 1, row * 2, color, 1);
+                    self.set_pixel_count(offset + hbs, row * 2, prev_color, 1);
+                    self.set_pixel_count(offset + hbs + 1, row * 2, color, 1);
                 } else {
-                    self.set_pixel_count(offset, row * 2, color, 2);
+                    self.set_pixel_count(offset + hbs, row * 2, color, 2);
                 }
+
+                if offset + hbs > 0 {
+                    self.set_pixel_count(offset + hbs - 1, row * 2, prev_color, 1);
+                }                  
 
                 prev_color = color;
 
