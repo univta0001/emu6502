@@ -25,6 +25,7 @@ use serde::{Deserialize, Serialize};
 const DSK_IMAGE_SIZE: usize = 143360;
 const DSK40_IMAGE_SIZE: usize = 163840;
 const NIB_IMAGE_SIZE: usize = 232960;
+const NIB40_IMAGE_SIZE: usize = 266240;
 const DSK_TRACK_SIZE: usize = 160;
 
 const ROM: [u8; 256] = [
@@ -929,9 +930,10 @@ fn convert_woz_to_dsk(disk: &Disk) -> io::Result<()> {
 }
 
 fn convert_woz_to_nib(disk: &Disk) -> io::Result<()> {
-    let mut data = vec![0u8; NIB_TRACK_SIZE * 35];
+    let no_of_tracks: usize = if disk.track_40 { 40 } else { 35 };
+    let mut data = vec![0u8; NIB_TRACK_SIZE * no_of_tracks];
 
-    for t in 0..35 {
+    for t in 0..no_of_tracks {
         let track = &disk.raw_track_data[t];
         let offset = t * NIB_TRACK_SIZE;
         data[offset..offset + NIB_TRACK_SIZE].copy_from_slice(track);
@@ -1365,7 +1367,7 @@ impl DiskDrive {
         #[cfg(not(feature = "flate"))]
         let dsk: Vec<u8> = std::fs::read(filename)?;
 
-        if dsk.len() != NIB_IMAGE_SIZE {
+        if dsk.len() != NIB_IMAGE_SIZE && dsk.len() != NIB40_IMAGE_SIZE {
             return Err(std::io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Invalid nib file",
