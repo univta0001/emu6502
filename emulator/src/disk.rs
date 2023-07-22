@@ -2020,8 +2020,8 @@ impl DiskDrive {
 
         //let mut rng = rand::thread_rng();
 
-        let disk_jitter = if !self.q7 && fastrand::f32() < 0.1 {
-            0.25
+        let disk_jitter = if !self.q7 && fastrand::f32() < self.random_one_rate {
+            0.275
         } else {
             0.0
         };
