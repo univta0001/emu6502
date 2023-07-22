@@ -242,7 +242,9 @@ const PENDING_WAIT: usize = 1_224_581;
 const BITS_BLOCKS_PER_TRACK: usize = 13;
 const BITS_BLOCK_SIZE: usize = 512;
 const BITS_TRACK_SIZE: usize = BITS_BLOCKS_PER_TRACK * BITS_BLOCK_SIZE;
-const MAX_USABLE_BYTES_TRACK_SIZE: usize = BITS_TRACK_SIZE - 10;
+
+// Based on WOZ 2.1 specification, recommended value is 51200 bits or 6400 bytes
+const NOMINAL_USABLE_BYTES_TRACK_SIZE: usize = 6400;
 const TRACK_LEADER_SYNC_COUNT: usize = 64;
 const SECTORS_PER_TRACK: usize = 16;
 const BYTES_PER_SECTOR: usize = 256;
@@ -391,7 +393,7 @@ fn bits_write_sync(buf: &mut [u8], index: usize) -> usize {
 }
 
 fn encode_bits_for_track(data: &[u8], track: u8, sector_format_prodos: bool) -> (Vec<u8>, usize) {
-    let mut buf = vec![0u8; MAX_USABLE_BYTES_TRACK_SIZE];
+    let mut buf = vec![0u8; NOMINAL_USABLE_BYTES_TRACK_SIZE];
     let mut bit_index = 0;
 
     // Write 64 sync words
@@ -565,8 +567,8 @@ fn expand_unused_disk_track(disk: &mut Disk, qt: usize) {
         for t in 0..160 {
             if disk.raw_track_data[t].is_empty() {
                 disk.tmap_data[qt] = t as u8;
-                disk.raw_track_data[t] = vec![0u8; MAX_USABLE_BYTES_TRACK_SIZE];
-                disk.raw_track_bits[t] = MAX_USABLE_BYTES_TRACK_SIZE * 8;
+                disk.raw_track_data[t] = vec![0u8; NOMINAL_USABLE_BYTES_TRACK_SIZE];
+                disk.raw_track_bits[t] = NOMINAL_USABLE_BYTES_TRACK_SIZE * 8;
                 disk.trackmap[qt] = TrackType::Tmap;
                 break;
             }
@@ -582,8 +584,8 @@ fn _expand_unused_disk_tracks(disk: &mut Disk) {
             for t in 0..160 {
                 if disk.raw_track_data[t].is_empty() {
                     disk.tmap_data[qt] = t as u8;
-                    disk.raw_track_data[t] = vec![0u8; MAX_USABLE_BYTES_TRACK_SIZE];
-                    disk.raw_track_bits[t] = MAX_USABLE_BYTES_TRACK_SIZE * 8;
+                    disk.raw_track_data[t] = vec![0u8; NOMINAL_USABLE_BYTES_TRACK_SIZE];
+                    disk.raw_track_bits[t] = NOMINAL_USABLE_BYTES_TRACK_SIZE * 8;
                     disk.trackmap[qt] = TrackType::Tmap;
                     break;
                 }
@@ -787,9 +789,9 @@ fn create_woz1_trk(dsk: &[u8], woz_offset: usize, disk: &Disk, newdsk: &mut Vec<
         if len > 0 {
             newdsk.extend_from_slice(&disk.raw_track_data[qt]);
 
-            if len < MAX_USABLE_BYTES_TRACK_SIZE {
+            if len < NOMINAL_USABLE_BYTES_TRACK_SIZE {
                 // Pad the track to size of 6646 bytes
-                for _ in 0..(MAX_USABLE_BYTES_TRACK_SIZE - len) {
+                for _ in 0..(NOMINAL_USABLE_BYTES_TRACK_SIZE - len) {
                     newdsk.push(0);
                 }
             }
@@ -1260,7 +1262,7 @@ impl DiskDrive {
     pub fn get_track_info(&self) -> (usize, usize) {
         let disk = &self.drive[self.drive_select];
         let tmap_track = disk.tmap_data[disk.track as usize];
-        let random_bits = MAX_USABLE_BYTES_TRACK_SIZE * 8;
+        let random_bits = NOMINAL_USABLE_BYTES_TRACK_SIZE * 8;
         let track_bits = if tmap_track == 255 {
             random_bits
         } else {
@@ -1871,7 +1873,7 @@ impl DiskDrive {
         disk.last_track = 0;
         disk.disk_rom13 = false;
 
-        disk.raw_track_data = vec![vec![0u8; MAX_USABLE_BYTES_TRACK_SIZE]; DSK_TRACK_SIZE];
+        disk.raw_track_data = vec![vec![0u8; NOMINAL_USABLE_BYTES_TRACK_SIZE]; DSK_TRACK_SIZE];
         disk.raw_track_bits = vec![0; DSK_TRACK_SIZE];
         disk.tmap_data = vec![0xffu8; WOZ_TMAP_SIZE];
     }
@@ -1972,9 +1974,9 @@ impl DiskDrive {
 
                     // last_head can be greater than last_track_bits when the last_track is a empty
                     // track. disk.last_track keeps track of the last readable track. For empty
-                    // track the number of track bits is MAX_USABLE_BYTES_TRACK_SIZE * 8
+                    // track the number of track bits is NOMINAL_USABLE_BYTES_TRACK_SIZE * 8
                     if last_head > last_track_bits {
-                        (last_head * track_bits) / (MAX_USABLE_BYTES_TRACK_SIZE * 8)
+                        (last_head * track_bits) / (NOMINAL_USABLE_BYTES_TRACK_SIZE * 8)
                     } else {
                         (last_head * track_bits) / last_track_bits
                     }
@@ -2003,7 +2005,7 @@ impl DiskDrive {
         // LSS is running at 2Mhz i.e. 0.5 us
         self.lss_cycle += 0.5;
 
-        let random_bits = MAX_USABLE_BYTES_TRACK_SIZE * 8;
+        let random_bits = NOMINAL_USABLE_BYTES_TRACK_SIZE * 8;
         let track_bits = if tmap_track == 255 {
             random_bits
         } else {
