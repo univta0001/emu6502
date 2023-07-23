@@ -244,7 +244,8 @@ const BITS_BLOCK_SIZE: usize = 512;
 const BITS_TRACK_SIZE: usize = BITS_BLOCKS_PER_TRACK * BITS_BLOCK_SIZE;
 
 // Based on WOZ 2.1 specification, recommended value is 51200 bits or 6400 bytes
-const NOMINAL_USABLE_BYTES_TRACK_SIZE: usize = 6400;
+const NOMINAL_USABLE_BITS_TRACK_SIZE: usize = 51200;
+const NOMINAL_USABLE_BYTES_TRACK_SIZE: usize = (NOMINAL_USABLE_BITS_TRACK_SIZE + 7)/8;
 const TRACK_LEADER_SYNC_COUNT: usize = 64;
 const SECTORS_PER_TRACK: usize = 16;
 const BYTES_PER_SECTOR: usize = 256;
@@ -568,7 +569,7 @@ fn expand_unused_disk_track(disk: &mut Disk, qt: usize) {
             if disk.raw_track_data[t].is_empty() {
                 disk.tmap_data[qt] = t as u8;
                 disk.raw_track_data[t] = vec![0u8; NOMINAL_USABLE_BYTES_TRACK_SIZE];
-                disk.raw_track_bits[t] = NOMINAL_USABLE_BYTES_TRACK_SIZE * 8;
+                disk.raw_track_bits[t] = NOMINAL_USABLE_BITS_TRACK_SIZE;
                 disk.trackmap[qt] = TrackType::Tmap;
                 break;
             }
@@ -585,7 +586,7 @@ fn _expand_unused_disk_tracks(disk: &mut Disk) {
                 if disk.raw_track_data[t].is_empty() {
                     disk.tmap_data[qt] = t as u8;
                     disk.raw_track_data[t] = vec![0u8; NOMINAL_USABLE_BYTES_TRACK_SIZE];
-                    disk.raw_track_bits[t] = NOMINAL_USABLE_BYTES_TRACK_SIZE * 8;
+                    disk.raw_track_bits[t] = NOMINAL_USABLE_BITS_TRACK_SIZE;
                     disk.trackmap[qt] = TrackType::Tmap;
                     break;
                 }
@@ -1262,7 +1263,7 @@ impl DiskDrive {
     pub fn get_track_info(&self) -> (usize, usize) {
         let disk = &self.drive[self.drive_select];
         let tmap_track = disk.tmap_data[disk.track as usize];
-        let random_bits = NOMINAL_USABLE_BYTES_TRACK_SIZE * 8;
+        let random_bits = NOMINAL_USABLE_BITS_TRACK_SIZE;
         let track_bits = if tmap_track == 255 {
             random_bits
         } else {
@@ -1275,7 +1276,7 @@ impl DiskDrive {
         };
         let disk_pos = disk.head * 8 + disk.head_bit;
         let sector = disk_pos / sector_bits;
-        ((disk.track / 4) as usize, sector)
+        ((disk.last_track / 4) as usize, sector)
     }
 
     pub fn set_random_one_rate(&mut self, value: f32) {
@@ -1290,8 +1291,8 @@ impl DiskDrive {
         // This implementation keeps the previous latch value longer by one clock cycle
         // Needed for Test Drive
         if self.prev_latch & 0x80 != 0 && self.latch & 0x80 == 0 {
-            // 3% jitter is required for Buzzard Bait
-            if fastrand::f32() < 0.03 {
+            // 5% jitter is required for Buzzard Bait
+            if fastrand::f32() < 0.05 {
                 self.latch
             } else {
                 self.prev_latch
@@ -1975,13 +1976,13 @@ impl DiskDrive {
                 let new_bit = if last_track_type == TrackType::Flux {
                     0
                 } else {
-                    let last_head = disk.head * 8 + disk.head_bit + 1;
+                    let last_head = disk.head * 8 + disk.head_bit;
 
                     // last_head can be greater than last_track_bits when the last_track is a empty
                     // track. disk.last_track keeps track of the last readable track. For empty
-                    // track the number of track bits is NOMINAL_USABLE_BYTES_TRACK_SIZE * 8
+                    // track the number of track bits is NOMINAL_USABLE_BITES_TRACK_SIZE
                     if last_head > last_track_bits {
-                        (last_head * track_bits) / (NOMINAL_USABLE_BYTES_TRACK_SIZE * 8)
+                        (last_head * track_bits) / NOMINAL_USABLE_BITS_TRACK_SIZE
                     } else {
                         (last_head * track_bits) / last_track_bits
                     }
@@ -2010,7 +2011,7 @@ impl DiskDrive {
         // LSS is running at 2Mhz i.e. 0.5 us
         self.lss_cycle += 0.5;
 
-        let random_bits = NOMINAL_USABLE_BYTES_TRACK_SIZE * 8;
+        let random_bits = NOMINAL_USABLE_BITS_TRACK_SIZE;
         let track_bits = if tmap_track == 255 {
             random_bits
         } else {
