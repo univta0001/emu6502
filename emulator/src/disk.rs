@@ -1980,7 +1980,7 @@ impl DiskDrive {
 
                     // last_head can be greater than last_track_bits when the last_track is a empty
                     // track. disk.last_track keeps track of the last readable track. For empty
-                    // track the number of track bits is NOMINAL_USABLE_BITES_TRACK_SIZE
+                    // track the number of track bits is NOMINAL_USABLE_BITS_TRACK_SIZE
                     if last_head > last_track_bits {
                         (last_head * track_bits) / NOMINAL_USABLE_BITS_TRACK_SIZE
                     } else {
