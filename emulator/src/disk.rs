@@ -1275,7 +1275,7 @@ impl DiskDrive {
         };
         let disk_pos = disk.head * 8 + disk.head_bit;
         let sector = disk_pos / sector_bits;
-        ((disk.last_track / 4) as usize, sector)
+        ((disk.track / 4) as usize, sector)
     }
 
     pub fn set_random_one_rate(&mut self, value: f32) {
