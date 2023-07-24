@@ -245,7 +245,7 @@ const BITS_TRACK_SIZE: usize = BITS_BLOCKS_PER_TRACK * BITS_BLOCK_SIZE;
 
 // Based on WOZ 2.1 specification, recommended value is 51200 bits or 6400 bytes
 const NOMINAL_USABLE_BITS_TRACK_SIZE: usize = 51200;
-const NOMINAL_USABLE_BYTES_TRACK_SIZE: usize = (NOMINAL_USABLE_BITS_TRACK_SIZE + 7)/8;
+const NOMINAL_USABLE_BYTES_TRACK_SIZE: usize = (NOMINAL_USABLE_BITS_TRACK_SIZE + 7) / 8;
 const TRACK_LEADER_SYNC_COUNT: usize = 64;
 const SECTORS_PER_TRACK: usize = 16;
 const BYTES_PER_SECTOR: usize = 256;
@@ -261,8 +261,34 @@ const WOZ_TMAP_CHUNK: u32 = 0x50414D54;
 const WOZ_TRKS_CHUNK: u32 = 0x534B5254;
 const WOZ_FLUX_CHUNK: u32 = 0x58554C46;
 
-// motor position from the magnet state
-// -1 means invalid, not supported
+/* motor position from the magnet state
+   -1 means invalid, not supported
+   Derived from https://github.com/cmosher01/Epple-II/blob/main/src/disk2steppermotor.cpp
+   and https://github.com/trudnai/Steve2/blob/work/src/dev/disk/disk.c
+
+   Phase to Position
+
+   PHASE     CAN       LOCATION
+   3210  ==  10
+   ---- ---- --------- --------
+   0000      OO.  0/ 0    -1
+   0001      ON.  0/+1     0
+   0010      NO. +1/ 0     2
+   0011      NN. +1/+1     1
+   0100      OS.  0/-1     4
+   0101 0000              -1
+   0110      NS. +1/-1     3
+   0111 0010              -1
+   1000      SO. -1/ 0     6
+   1001      SN. -1/+1     7
+   1010 0000              -1
+   1011 0001              -1
+   1100      SS. -1/-1     5
+   1101 1000              -1
+   1110 0100              -1
+   1111 0000              -1
+*/
+
 #[rustfmt::skip]
 const MAGNET_TO_POSITION:[i32;16] = [
 //   0000 0001 0010 0011 0100 0101 0110 0111 1000 1001 1010 1011 1100 1101 1110 1111
@@ -1244,6 +1270,7 @@ impl DiskDrive {
         } else {
             disk.phase &= !(1 << phase);
         }
+
         let position = MAGNET_TO_POSITION[disk.phase];
 
         if position >= 0 {
