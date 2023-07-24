@@ -2099,7 +2099,7 @@ impl DiskDrive {
             if self.bit_buffer & 0x0f != 0 {
                 self.pulse = (self.bit_buffer & 0x2) >> 1;
             } else {
-                self.update_disk_bit_buffer(fastrand::f32())
+                self.pulse = self.get_random_disk_bit(fastrand::f32())
             }
 
             self.lss_cycle -= optimal_timing;
@@ -2110,13 +2110,13 @@ impl DiskDrive {
         }
     }
 
-    fn update_disk_bit_buffer(&mut self, random_value: f32) {
+    fn get_random_disk_bit(&self, random_value: f32) -> u8 {
         // The random bit 1 is generated with probability 0.3 or 30%
         if random_value < self.random_one_rate {
-            self.pulse = 1
+            1
         } else {
-            self.pulse = 0
-        };
+            0
+        }
     }
 
     pub fn set_disable_fast_disk(&mut self, state: bool) {
