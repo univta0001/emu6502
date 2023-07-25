@@ -139,6 +139,9 @@ pub struct Disk {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     mc3470_read_pulse: usize,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    rotor_pending_ticks: usize,
 }
 
 #[derive(Debug)]
@@ -1271,6 +1274,8 @@ impl DiskDrive {
             disk.phase &= !(1 << phase);
         }
 
+        disk.rotor_pending_ticks = 1000;
+        /*
         let position = MAGNET_TO_POSITION[disk.phase];
 
         if position >= 0 {
@@ -1285,6 +1290,7 @@ impl DiskDrive {
                 disk.track = (disk.tmap_data.len() - 1) as i32;
             }
         }
+        */
     }
 
     pub fn get_track_info(&self) -> (usize, usize) {
@@ -2296,6 +2302,12 @@ impl Tick for DiskDrive {
             }
         }
 
+        // Update rotor pending ticks
+        for drive in 0..self.drive.len() {
+            let disk = &mut self.drive[drive];
+            disk.tick();
+        }
+
         self.prev_latch = self.latch;
 
         self.move_head_woz();
@@ -2332,6 +2344,32 @@ impl Disk {
             force_disk_rom13: false,
             mc3470_counter: 0,
             mc3470_read_pulse: 0,
+            rotor_pending_ticks: 0,
+        }
+    }
+
+    fn tick(&mut self) {
+        if self.rotor_pending_ticks > 0 {
+            self.rotor_pending_ticks -= 1;
+            if self.rotor_pending_ticks == 0 {
+                if self.phase != 0 {
+                    let position = MAGNET_TO_POSITION[self.phase];
+
+                    if position >= 0 {
+                        let last_position = self.track & 7;
+                        let direction =
+                            POSITION_TO_DIRECTION[last_position as usize][position as usize];
+
+                        self.track += direction;
+
+                        if self.track < 0 {
+                            self.track = 0;
+                        } else if self.track >= self.tmap_data.len() as i32 {
+                            self.track = (self.tmap_data.len() - 1) as i32;
+                        }
+                    }
+                }
+            }
         }
     }
 }
