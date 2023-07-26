@@ -112,6 +112,7 @@ impl Mmu {
         self.writebsr = false;
         self.prewrite = false;
         self.aux_bank = 0;
+        self.intcxrom = false;
     }
 
     pub fn is_aux_memory(&self, addr: u16, write_flag: bool) -> bool {
