@@ -2071,7 +2071,13 @@ impl DiskDrive {
         disk.last_track = track_to_read;
         let read_pulse = Self::read_flux_data(disk);
         //let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
-        let optimal_timing = disk.optimal_timing as f32 / 8.0;
+        let optimal_timing = if !self.q7 {
+            disk.optimal_timing as f32 / 8.0
+        } else {
+            // Writing is always at 4 microseconds
+            4.0
+        };
+
         if self.lss_cycle >= optimal_timing {
             if track_type != TrackType::Flux {
                 disk.head_mask >>= 1;
