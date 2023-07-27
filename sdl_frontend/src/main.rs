@@ -321,6 +321,52 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         }
 
         Event::KeyDown {
+            keycode: Some(Keycode::Kp1),
+            ..
+        } => {
+            cpu.bus.paddle_latch[0] = 0x0;
+            cpu.bus.paddle_latch[1] = PADDLE_MAX_VALUE;
+        }
+
+        Event::KeyUp {
+            keycode: Some(Keycode::Kp1),
+            ..
+        } => {
+            cpu.bus.reset_paddle_latch(0);
+            cpu.bus.reset_paddle_latch(1);
+        }
+
+        Event::KeyDown {
+            keycode: Some(Keycode::Kp2),
+            ..
+        } => {
+            cpu.bus.paddle_latch[1] = PADDLE_MAX_VALUE;
+        }
+
+        Event::KeyUp {
+            keycode: Some(Keycode::Kp2),
+            ..
+        } => {
+            cpu.bus.reset_paddle_latch(1);
+        }
+
+        Event::KeyDown {
+            keycode: Some(Keycode::Kp3),
+            ..
+        } => {
+            cpu.bus.paddle_latch[0] = PADDLE_MAX_VALUE;
+            cpu.bus.paddle_latch[1] = PADDLE_MAX_VALUE;
+        }
+
+        Event::KeyUp {
+            keycode: Some(Keycode::Kp3),
+            ..
+        } => {
+            cpu.bus.reset_paddle_latch(0);
+            cpu.bus.reset_paddle_latch(1);
+        }
+
+        Event::KeyDown {
             keycode: Some(Keycode::Kp4),
             ..
         } => {
@@ -349,6 +395,22 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         }
 
         Event::KeyDown {
+            keycode: Some(Keycode::Kp7),
+            ..
+        } => {
+            cpu.bus.paddle_latch[0] = 0x0;
+            cpu.bus.paddle_latch[1] = 0x0;
+        }
+
+        Event::KeyUp {
+            keycode: Some(Keycode::Kp7),
+            ..
+        } => {
+            cpu.bus.reset_paddle_latch(0);
+            cpu.bus.reset_paddle_latch(1);
+        }
+
+        Event::KeyDown {
             keycode: Some(Keycode::Kp8),
             ..
         } => {
@@ -363,16 +425,18 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         }
 
         Event::KeyDown {
-            keycode: Some(Keycode::Kp2),
+            keycode: Some(Keycode::Kp9),
             ..
         } => {
-            cpu.bus.paddle_latch[1] = PADDLE_MAX_VALUE;
+            cpu.bus.paddle_latch[0] = PADDLE_MAX_VALUE;
+            cpu.bus.paddle_latch[1] = 0;
         }
 
         Event::KeyUp {
-            keycode: Some(Keycode::Kp2),
+            keycode: Some(Keycode::Kp9),
             ..
         } => {
+            cpu.bus.reset_paddle_latch(0);
             cpu.bus.reset_paddle_latch(1);
         }
 
