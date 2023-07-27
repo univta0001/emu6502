@@ -615,9 +615,7 @@ impl CPU {
         // Implement false read for RMW ABS,X instructions to pass a2audit test
         if absolute_x_force_tick(op, self.m65c02) {
             self.bus.addr_read(addr);
-        }
-
-        if page_crossed {
+        } else if page_crossed {
             self.tick();
         }
 
