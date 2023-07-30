@@ -2357,22 +2357,20 @@ impl Disk {
     fn tick(&mut self) {
         if self.rotor_pending_ticks > 0 {
             self.rotor_pending_ticks -= 1;
-            if self.rotor_pending_ticks == 0 {
-                if self.phase != 0 {
-                    let position = MAGNET_TO_POSITION[self.phase];
+            if self.rotor_pending_ticks == 0 && self.phase !=0 {
+                let position = MAGNET_TO_POSITION[self.phase];
 
-                    if position >= 0 {
-                        let last_position = self.track & 7;
-                        let direction =
-                            POSITION_TO_DIRECTION[last_position as usize][position as usize];
+                if position >= 0 {
+                    let last_position = self.track & 7;
+                    let direction =
+                        POSITION_TO_DIRECTION[last_position as usize][position as usize];
 
-                        self.track += direction;
+                    self.track += direction;
 
-                        if self.track < 0 {
-                            self.track = 0;
-                        } else if self.track >= self.tmap_data.len() as i32 {
-                            self.track = (self.tmap_data.len() - 1) as i32;
-                        }
+                    if self.track < 0 {
+                        self.track = 0;
+                    } else if self.track >= self.tmap_data.len() as i32 {
+                        self.track = (self.tmap_data.len() - 1) as i32;
                     }
                 }
             }
