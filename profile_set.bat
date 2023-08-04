@@ -1,4 +1,10 @@
 @echo off
-@cargo profdata -- merge -o d:/temp/emu6502/merged_profdata.bin d:/temp/pgodata
-@set RUSTFLAGS=-Cprofile-use=d:/temp/emu6502/merged_profdata.bin
+IF EXIST "%~dp0target\pgo-profiles\merged_profdata.bin" (
+    del %~dp0target\pgo-profiles\merged_profdata.bin
+)
+
+SETLOCAL
+@cargo profdata -- merge -o %~dp0target\pgo-profiles\merged_profdata.bin %~dp0target\pgo-profiles
+@set RUSTFLAGS=-Cprofile-use=%~dp0target\pgo-profiles\merged_profdata.bin
 @cargo build --release --target=x86_64-pc-windows-msvc --bin emu6502
+ENDLOCAL
