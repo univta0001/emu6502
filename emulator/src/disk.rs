@@ -532,18 +532,27 @@ fn encode_bits_for_track(data: &[u8], track: u8, sector_format_prodos: bool) -> 
     (buf, bit_index)
 }
 
+fn check_extension(ext: &OsStr, target_ext: &str) -> bool {
+    ext.eq_ignore_ascii_case(OsStr::new(target_ext))
+}
+
 fn check_file_extension<P>(file_ext: &OsStr, stem_path: P, ext: &str) -> bool
 where
     P: AsRef<Path>,
 {
     let stem = stem_path.as_ref();
-    file_ext.eq_ignore_ascii_case(OsStr::new(ext))
-        || (file_ext.eq_ignore_ascii_case(OsStr::new("gz"))
-            && stem.extension().is_some()
-            && stem
-                .extension()
-                .unwrap()
-                .eq_ignore_ascii_case(OsStr::new(ext)))
+
+    if check_extension(file_ext, ext) {
+        return true
+    }
+
+    if check_extension(file_ext, "gz") {
+        if let Some(stem_ext) = stem.extension() {
+            return check_extension(stem_ext, ext);
+        }
+    }
+
+    false
 }
 
 fn save_dsk_woz_to_disk(disk: &Disk) -> io::Result<()> {
