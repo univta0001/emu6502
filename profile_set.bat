@@ -5,6 +5,6 @@ IF EXIST "%~dp0target\pgo-profiles\merged_profdata.bin" (
 
 SETLOCAL
 @cargo profdata -- merge -o %~dp0target\pgo-profiles\merged_profdata.bin %~dp0target\pgo-profiles
-@set RUSTFLAGS=-Cprofile-use=%~dp0target\pgo-profiles\merged_profdata.bin
+@set RUSTFLAGS=-Cprofile-use=%~dp0target\pgo-profiles\merged_profdata.bin -Cllvm-args=-pgo-warn-missing-function
 @cargo build --release --target=x86_64-pc-windows-msvc --bin emu6502
 ENDLOCAL

@@ -1008,7 +1008,7 @@ fn replace_quoted_hex_values(string: &str) -> String {
 #[cfg(feature = "serde_support")]
 fn save_serialized_image(cpu: &CPU) {
     let output = serde_yaml::to_string(&cpu).unwrap();
-    let yaml_output = output.replace("\"\"", "''").replace('"', "");
+    let yaml_output = output.replace("\"\"", "''").replace('"', "").replace("'","");
 
     /*
     #[cfg(feature = "regex")]
