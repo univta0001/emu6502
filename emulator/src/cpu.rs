@@ -1273,8 +1273,8 @@ impl CPU {
     }
 
     fn branch(&mut self, condition: bool) {
-        let addr = self.get_immediate_addr();
-
+        let addr = self.program_counter;
+        self.increment_pc();
         self.tick();
         if condition {
             let offset = self.bus.addr_read(addr) as i8 as u16;
