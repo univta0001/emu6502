@@ -209,7 +209,29 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                             if value == 128 {
                                 cpu.bus.reset_paddle_latch(2 * joystick_id as usize);
                             } else {
-                                let mut pvalue = ((value as i32 + 32768) / 257) as u16;
+                                let u = entry.1.axis(axis) as f32 / 32768.0;
+                                let v = if axis == Axis::LeftX {
+                                    entry.1.axis(Axis::LeftY) as f32 / 32768.0
+                                } else {
+                                    entry.1.axis(Axis::RightY) as f32 / 32768.0
+                                };
+
+                                // Squaring a circle algorithm
+                                let mut x = u;
+                                if u * v != 0.0 {
+                                    let ratio = (v * v) / (u * u);
+                                    let c = f32::min(ratio, 1.0 / ratio);
+                                    let coeff = f32::sqrt(1.0 + c);
+                                    x *= coeff;
+                                }
+                                if x < -1.0 {
+                                    x = -1.0
+                                }
+                                if x > 1.0 {
+                                    x = 1.0
+                                }
+                                let x = (x * 32768.0) as i32;
+                                let mut pvalue = ((x + 32768) / 257) as u16;
                                 if pvalue >= 255 {
                                     pvalue = PADDLE_MAX_VALUE;
                                 }
@@ -220,7 +242,29 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                             if value == 128 {
                                 cpu.bus.reset_paddle_latch(2 * joystick_id as usize + 1);
                             } else {
-                                let mut pvalue = ((value as i32 + 32768) / 257) as u16;
+                                let v = entry.1.axis(axis) as f32 / 32768.0;
+                                let u = if axis == Axis::LeftY {
+                                    entry.1.axis(Axis::LeftX) as f32 / 32768.0
+                                } else {
+                                    entry.1.axis(Axis::RightX) as f32 / 32768.0
+                                };
+
+                                // Squaring a circle algorithm
+                                let mut y = v;
+                                if u * v != 0.0 {
+                                    let ratio = (v * v) / (u * u);
+                                    let c = f32::min(ratio, 1.0 / ratio);
+                                    let coeff = f32::sqrt(1.0 + c);
+                                    y *= coeff;
+                                }
+                                if y < -1.0 {
+                                    y = -1.0
+                                }
+                                if y > 1.0 {
+                                    y = 1.0
+                                }
+                                let y = (y * 32768.0) as i32;
+                                let mut pvalue = ((y + 32768) / 257) as u16;
                                 if pvalue >= 255 {
                                     pvalue = PADDLE_MAX_VALUE;
                                 }
@@ -1008,7 +1052,7 @@ fn replace_quoted_hex_values(string: &str) -> String {
 #[cfg(feature = "serde_support")]
 fn save_serialized_image(cpu: &CPU) {
     let output = serde_yaml::to_string(&cpu).unwrap();
-    let yaml_output = output.replace("\"\"", "''").replace('"', "").replace("'","");
+    let yaml_output = output.replace("\"\"", "''").replace(['"', '\''], "");
 
     /*
     #[cfg(feature = "regex")]
@@ -1040,17 +1084,19 @@ fn load_serialized_image() -> Result<CPU, String> {
         .pick_file();
 
     let Some(file_path) = result else {
-         return Err("".to_string())
+        return Err("".to_string());
     };
 
     let result = fs::read_to_string(&file_path);
     let Ok(input) = result else {
-        return Err(format!("Unable to restore the image : {result:?}"))
+        return Err(format!("Unable to restore the image : {result:?}"));
     };
 
     let deserialized_result = serde_yaml::from_str::<CPU>(&input);
     let Ok(mut new_cpu) = deserialized_result else {
-        return Err(format!("Unable to restore the image : {deserialized_result:?}"));
+        return Err(format!(
+            "Unable to restore the image : {deserialized_result:?}"
+        ));
     };
 
     // Load the loaded disk into the new cpu
