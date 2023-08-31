@@ -163,7 +163,7 @@ impl NoSlotClock {
         let utc = time::OffsetDateTime::UNIX_EPOCH
             + SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap();
+                .unwrap_or(std::time::Duration::ZERO);
         let now = if let Ok(offset) = time::UtcOffset::current_local_offset() {
             utc.to_offset(offset)
         } else {

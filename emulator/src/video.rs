@@ -707,7 +707,7 @@ impl Video {
             blink: false,
             blink_time: SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
+                .unwrap_or(std::time::Duration::ZERO)
                 .as_millis(),
             graphics_mode: false,
             mixed_mode: false,
@@ -750,7 +750,7 @@ impl Video {
         if val == 0 {
             let elapsed = SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
+                .unwrap_or(std::time::Duration::ZERO)
                 .as_millis()
                 .saturating_sub(self.blink_time);
             if elapsed > BLINK_PERIOD as u128 {
@@ -759,7 +759,7 @@ impl Video {
                 }
                 self.blink_time = SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH)
-                    .unwrap()
+                    .unwrap_or(std::time::Duration::ZERO)
                     .as_millis();
             }
         }

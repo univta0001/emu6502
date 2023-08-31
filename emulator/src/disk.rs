@@ -668,13 +668,13 @@ fn save_woz_file(disk: &Disk) -> io::Result<()> {
         let path = Path::new(filename);
 
         #[cfg(feature = "flate")]
-        let dsk: Vec<u8> = if path
-            .extension()
-            .unwrap()
-            .eq_ignore_ascii_case(OsStr::new("gz"))
-        {
-            let data = std::fs::read(path)?;
-            decompress_array_gz(&data)?
+        let dsk: Vec<u8> = if let Some(extension) = path.extension() {
+            if extension.eq_ignore_ascii_case(OsStr::new("gz")) {
+                let data = std::fs::read(path)?;
+                decompress_array_gz(&data)?
+            } else {
+                std::fs::read(path)?
+            }
         } else {
             std::fs::read(path)?
         };
@@ -776,12 +776,10 @@ fn save_woz_file(disk: &Disk) -> io::Result<()> {
             if let Some(filename) = &disk.filename {
                 let path = Path::new(filename);
                 let mut gz_compress = false;
-                if path
-                    .extension()
-                    .unwrap()
-                    .eq_ignore_ascii_case(OsStr::new("gz"))
-                {
-                    gz_compress = true;
+                if let Some(extension) = path.extension() {
+                    if extension.eq_ignore_ascii_case(OsStr::new("gz")) {
+                        gz_compress = true;
+                    }
                 }
 
                 if !gz_compress {
@@ -939,12 +937,10 @@ fn convert_woz_to_dsk(disk: &Disk) -> io::Result<()> {
         if let Some(filename) = &disk.filename {
             let path = Path::new(filename);
             let mut gz_compress = false;
-            if path
-                .extension()
-                .unwrap()
-                .eq_ignore_ascii_case(OsStr::new("gz"))
-            {
-                gz_compress = true;
+            if let Some(extension) = path.extension() {
+                if extension.eq_ignore_ascii_case(OsStr::new("gz")) {
+                    gz_compress = true;
+                }
             }
             if !gz_compress {
                 let mut file = File::create(filename)?;
@@ -986,12 +982,10 @@ fn convert_woz_to_nib(disk: &Disk) -> io::Result<()> {
         if let Some(filename) = &disk.filename {
             let path = Path::new(filename);
             let mut gz_compress = false;
-            if path
-                .extension()
-                .unwrap()
-                .eq_ignore_ascii_case(OsStr::new("gz"))
-            {
-                gz_compress = true;
+            if let Some(extension) = path.extension() {
+                if extension.eq_ignore_ascii_case(OsStr::new("gz")) {
+                    gz_compress = true;
+                }
             }
 
             if !gz_compress {
@@ -1370,13 +1364,13 @@ impl DiskDrive {
         let filename = filename_path.as_ref();
 
         #[cfg(feature = "flate")]
-        let dsk: Vec<u8> = if filename
-            .extension()
-            .unwrap()
-            .eq_ignore_ascii_case(OsStr::new("gz"))
-        {
-            let data = std::fs::read(filename)?;
-            decompress_array_gz(&data)?
+        let dsk: Vec<u8> = if let Some(extension) = filename.extension() {
+            if extension.eq_ignore_ascii_case(OsStr::new("gz")) {
+                let data = std::fs::read(filename)?;
+                decompress_array_gz(&data)?
+            } else {
+                std::fs::read(filename)?
+            }
         } else {
             std::fs::read(filename)?
         };
@@ -1403,13 +1397,13 @@ impl DiskDrive {
         let filename = filename_path.as_ref();
 
         #[cfg(feature = "flate")]
-        let dsk: Vec<u8> = if filename
-            .extension()
-            .unwrap()
-            .eq_ignore_ascii_case(OsStr::new("gz"))
-        {
-            let data = std::fs::read(filename)?;
-            decompress_array_gz(&data)?
+        let dsk: Vec<u8> = if let Some(extension) = filename.extension() {
+            if extension.eq_ignore_ascii_case(OsStr::new("gz")) {
+                let data = std::fs::read(filename)?;
+                decompress_array_gz(&data)?
+            } else {
+                std::fs::read(filename)?
+            }
         } else {
             std::fs::read(filename)?
         };
@@ -1567,13 +1561,13 @@ impl DiskDrive {
         let filename = filename_path.as_ref();
 
         #[cfg(feature = "flate")]
-        let dsk: Vec<u8> = if filename
-            .extension()
-            .unwrap()
-            .eq_ignore_ascii_case(OsStr::new("gz"))
-        {
-            let data = std::fs::read(filename)?;
-            decompress_array_gz(&data)?
+        let dsk: Vec<u8> = if let Some(extension) = filename.extension() {
+            if extension.eq_ignore_ascii_case(OsStr::new("gz")) {
+                let data = std::fs::read(filename)?;
+                decompress_array_gz(&data)?
+            } else {
+                std::fs::read(filename)?
+            }
         } else {
             std::fs::read(filename)?
         };
@@ -1941,17 +1935,19 @@ impl DiskDrive {
 
         if let Some(file_stem) = filename.file_stem() {
             let stem_path = Path::new(file_stem);
-            let filename_ext = filename.extension().unwrap();
+            let extension = filename.extension();
 
-            if check_file_extension(filename_ext, stem_path, "dsk") {
-                return self.convert_dsk_po_to_woz(filename, false);
-            } else if check_file_extension(filename_ext, stem_path, "po") {
-                return self.convert_dsk_po_to_woz(filename, true);
-            } else if check_file_extension(filename_ext, stem_path, "nib") {
-                return self.convert_nib_to_woz(filename);
-            } else if check_file_extension(filename_ext, stem_path, "woz") {
-                return self.load_woz_file(filename);
-            }
+            if let Some(filename_ext) = extension {
+                if check_file_extension(filename_ext, stem_path, "dsk") {
+                    return self.convert_dsk_po_to_woz(filename, false);
+                } else if check_file_extension(filename_ext, stem_path, "po") {
+                    return self.convert_dsk_po_to_woz(filename, true);
+                } else if check_file_extension(filename_ext, stem_path, "nib") {
+                    return self.convert_nib_to_woz(filename);
+                } else if check_file_extension(filename_ext, stem_path, "woz") {
+                    return self.load_woz_file(filename);
+                }
+            } 
         }
 
         Err(std::io::Error::new(

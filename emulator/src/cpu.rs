@@ -1273,8 +1273,8 @@ impl CPU {
     }
 
     fn branch(&mut self, condition: bool) {
-        let addr = self.program_counter;
-        self.increment_pc();
+        let addr = self.get_immediate_addr();
+
         self.tick();
         if condition {
             let offset = self.bus.addr_read(addr) as i8 as u16;
@@ -1431,13 +1431,14 @@ impl CPU {
         if let Some(_nmi) = self.bus.poll_nmi_status() {
             self.interrupt(interrupt::NMI);
         } else if self.bus.irq().is_some() && !self.status.contains(CpuFlags::INTERRUPT_DISABLE) {
-            let irq_happen = self.bus.irq().unwrap();
-            let cycles_elapsed = self.bus.cycles.saturating_sub(irq_happen);
+            if let Some(irq_happen) = self.bus.irq() {
+                let cycles_elapsed = self.bus.cycles.saturating_sub(irq_happen);
 
-            // If the interrupt happens on the last cycle of the opcode, execute the opcode and
-            // then the interrupt handling routine
-            if cycles_elapsed > 1 {
-                self.interrupt(interrupt::IRQ);
+                // If the interrupt happens on the last cycle of the opcode, execute the opcode and
+                // then the interrupt handling routine
+                if cycles_elapsed > 1 {
+                    self.interrupt(interrupt::IRQ);
+                }
             }
         }
 
