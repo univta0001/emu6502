@@ -637,8 +637,9 @@ fn _encode_chunk_id(chunk_id: &str) -> u32 {
     debug_assert!(chunk_id.len() == 4, "Chunk id len should be 4");
     let mut value: u32 = 0;
     for i in (0..chunk_id.len()).rev() {
-        let c = chunk_id.chars().nth(i).unwrap() as u32;
-        value = value * 256 + c;
+        if let Some(c) = chunk_id.chars().nth(i) {
+            value = value * 256 + c as u32;
+        }
     }
     value
 }
