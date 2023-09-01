@@ -1231,14 +1231,13 @@ fn update_video<T: RenderTarget>(
     */
 
     canvas.set_blend_mode(BlendMode::Blend);
-    let _ = canvas.copy(texture, None, None);
     for region in dirty_region {
         let start = region.0 * 16;
         let end = 16 * ((region.1 - region.0) + 1);
         let rect = Rect::new(0, start as i32, 560, end as u32);
         let _ = texture.update(rect, &disp.frame[start * 4 * 560..], 560 * 4);
-        let _ = canvas.copy(texture, Some(rect), Some(rect));
     }
+    let _ = canvas.copy(texture, None, None);
     disp.clear_video_dirty();
 
     let harddisk_on;
