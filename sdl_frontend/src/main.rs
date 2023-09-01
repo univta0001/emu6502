@@ -1231,6 +1231,7 @@ fn update_video<T: RenderTarget>(
     */
 
     canvas.set_blend_mode(BlendMode::Blend);
+    let _ = canvas.copy(texture, None, None);
     for region in dirty_region {
         let start = region.0 * 16;
         let end = 16 * ((region.1 - region.0) + 1);
