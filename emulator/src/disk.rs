@@ -1948,7 +1948,7 @@ impl DiskDrive {
                 } else if check_file_extension(filename_ext, stem_path, "woz") {
                     return self.load_woz_file(filename);
                 }
-            } 
+            }
         }
 
         Err(std::io::Error::new(

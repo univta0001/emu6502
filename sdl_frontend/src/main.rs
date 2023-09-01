@@ -1235,10 +1235,8 @@ fn update_video<T: RenderTarget>(
         let start = region.0 * 16;
         let end = 16 * ((region.1 - region.0) + 1);
         let rect = Rect::new(0, start as i32, 560, end as u32);
-        texture
-            .update(rect, &disp.frame[start * 4 * 560..], 560 * 4)
-            .unwrap();
-        canvas.copy(texture, Some(rect), Some(rect)).unwrap();
+        let _ = texture.update(rect, &disp.frame[start * 4 * 560..], 560 * 4);
+        let _ = canvas.copy(texture, Some(rect), Some(rect));
     }
     disp.clear_video_dirty();
 
@@ -1248,24 +1246,16 @@ fn update_video<T: RenderTarget>(
         cpu.bus.disk.is_motor_on() || harddisk_on
     };
 
+    let rect = Rect::new(552, 0, 8, 8);
+    let _ = texture.update(rect, &disp.frame[552 * 4..], 560 * 4);
+    let _ = canvas.copy(texture, Some(rect), Some(rect));
     if disk_is_on {
-        let rect = Rect::new(552, 0, 8, 8);
-        texture
-            .update(rect, &disp.frame[552 * 4..], 560 * 4)
-            .unwrap();
-        canvas.copy(texture, Some(rect), Some(rect)).unwrap();
         if harddisk_on {
             canvas.set_draw_color(Color::RGBA(0, 255, 0, 128));
         } else {
             canvas.set_draw_color(Color::RGBA(255, 0, 0, 128));
         }
         let _ = draw_circle(canvas, 560 - 4, 4, 2);
-    } else {
-        let rect = Rect::new(552, 0, 8, 8);
-        texture
-            .update(rect, &disp.frame[552 * 4..], 560 * 4)
-            .unwrap();
-        canvas.copy(texture, Some(rect), Some(rect)).unwrap();
     }
     canvas.present();
 }
