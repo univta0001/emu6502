@@ -1247,9 +1247,6 @@ fn update_video<T: RenderTarget>(
         cpu.bus.disk.is_motor_on() || harddisk_on
     };
 
-    let rect = Rect::new(552, 0, 8, 8);
-    let _ = texture.update(rect, &disp.frame[552 * 4..], 560 * 4);
-    let _ = canvas.copy(texture, Some(rect), Some(rect));
     if disk_is_on {
         if harddisk_on {
             canvas.set_draw_color(Color::RGBA(0, 255, 0, 128));
