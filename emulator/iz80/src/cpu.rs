@@ -14,21 +14,17 @@ const NMI_ADDRESS: u16 = 0x0066;
 pub struct Cpu {
     state: State,
     trace: bool,
-    decoder: Box<dyn Decoder + Send + Sync>,
+    decoder: Box<dyn Decoder>,
 }
 
 pub(crate) trait Decoder {
-    fn decode(&mut self, env: &mut Environment) -> &mut Opcode;
+    fn decode(&self, env: &mut Environment) -> &Opcode;
 }
 
 impl Cpu {
     /// Returns a Z80 Cpu instance. Alias of new_z80()
     pub fn new() -> Cpu {
-        Cpu {
-            state: State::new(),
-            trace: false,
-            decoder: Box::new(DecoderZ80::new()),
-        }
+        Self::new_z80()
     }
 
     /// Returns a Z80 Cpu instance
@@ -51,13 +47,21 @@ impl Cpu {
         cpu.state.reg.set_8080();
         cpu
     }
+}
 
+impl Default for Cpu {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Cpu {
     /// Executes a single instruction
     ///
     /// # Arguments
     ///
     /// * `sys` - A representation of the emulated machine that has the Machine trait
-    ///  
+    ///
     pub fn execute_instruction(&mut self, sys: &mut dyn Machine) {
         if self.is_halted() {
             // The CPU is in HALT state. Only interrupts can execute.
@@ -65,7 +69,6 @@ impl Cpu {
         }
 
         let mut env = Environment::new(&mut self.state, sys);
-
         if env.state.reset_pending {
             env.state.reset_pending = false;
             env.state.nmi_pending = false;
@@ -87,11 +90,14 @@ impl Cpu {
         if self.trace {
             print!("==> {:04x}: {:20}", pc, opcode.disasm(&mut env));
         }
+
+        env.clear_branch_taken();
         opcode.execute(&mut env);
+        env.advance_cycles(opcode);
         env.clear_index();
 
         if self.trace {
-            print!(" PC:{:04x} AF:{:04x} BC:{:04x} DE:{:04x} HL:{:04x} SP:{:04x} IX:{:04x} IY:{:04x} Flags:{:08b}",
+            print!(" PC:{:04x} AF:{:04x} BC:{:04x} DE:{:04x} HL:{:04x} SP:{:04x} IX:{:04x} IY:{:04x} Flags:{:08b} Cycle:{:04}",
                 self.state.reg.pc(),
                 self.state.reg.get16(Reg16::AF),
                 self.state.reg.get16(Reg16::BC),
@@ -100,7 +106,8 @@ impl Cpu {
                 self.state.reg.get16(Reg16::SP),
                 self.state.reg.get16(Reg16::IX),
                 self.state.reg.get16(Reg16::IY),
-                self.state.reg.get8(Reg8::F)
+                self.state.reg.get8(Reg8::F),
+                self.state.cycle
             );
             println!(
                 " [{:02x} {:02x} {:02x}]",
@@ -109,6 +116,18 @@ impl Cpu {
                 sys.peek(pc.wrapping_add(2))
             );
         }
+    }
+
+    /// Returns the instruction in PC disassembled. PC is advanced.
+    ///
+    /// # Arguments
+    ///
+    /// * `sys` - A representation of the emulated machine that has the Machine trait
+    ///  
+    pub fn disasm_instruction(&mut self, sys: &mut dyn Machine) -> String {
+        let mut env = Environment::new(&mut self.state, sys);
+        let opcode = self.decoder.decode(&mut env);
+        opcode.disasm(&mut env)
     }
 
     /// Activates or deactivates traces of the instruction executed and
@@ -126,8 +145,8 @@ impl Cpu {
         &mut self.state.reg
     }
 
-    /// Returns a Registers struct to read and write on the Z80 registers
-    pub fn reg(&self) -> &Registers {
+    /// Returns an immutable references to Registers struct to read the Z80 registers
+    pub fn immutable_registers(&self) -> &Registers {
         &self.state.reg
     }
 
@@ -145,10 +164,9 @@ impl Cpu {
     pub fn signal_reset(&mut self) {
         self.state.reset_pending = true
     }
-}
 
-impl Default for Cpu {
-    fn default() -> Self {
-        Self::new()
+    /// Returns the current cycle count
+    pub fn cycle_count(&self) -> u64 {
+        self.state.cycle
     }
 }

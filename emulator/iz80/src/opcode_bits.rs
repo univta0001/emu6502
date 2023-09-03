@@ -23,23 +23,22 @@ pub fn build_rot_r(
     indexed: bool,
 ) -> Opcode {
     let full_name = if indexed {
-        format!("LD {r}, {name} {}", Reg8::_HL)
+        format!("LD {}, {} {}", r, name, Reg8::_HL)
     } else {
         let separator = if fast { "" } else { " " };
-        format!("{name}{separator}{r}")
+        format!("{}{}{}", name, separator, r)
     };
-    Opcode {
-        name: full_name,
-        action: Box::new(move |env: &mut Environment| {
-            env.load_displacement(r);
 
+    Opcode::new(
+        full_name,
+        Box::new(move |env: &mut Environment| {
             let mut v = if indexed {
                 env.reg8_ext(Reg8::_HL)
             } else {
                 env.reg8_ext(r)
             };
 
-            let carry = match dir {
+            let carry: bool = match dir {
                 ShiftDir::Left => {
                     let upper_bit = v >= 0x80;
                     v <<= 1;
@@ -85,15 +84,13 @@ pub fn build_rot_r(
                 env.state.reg.update_bits_in_flags(v);
             }
         }),
-    }
+    )
 }
 
 pub fn build_bit_r(n: u8, r: Reg8) -> Opcode {
-    Opcode {
-        name: format!("BIT {n}, {r}"),
-        action: Box::new(move |env: &mut Environment| {
-            env.load_displacement(r);
-
+    Opcode::new(
+        format!("BIT {}, {}", n, r),
+        Box::new(move |env: &mut Environment| {
             let v = env.reg8_ext(r);
             let z = v & (1 << n);
             env.state.reg.put_flag(Flag::S, (z & 0x80) != 0);
@@ -125,16 +122,14 @@ pub fn build_bit_r(n: u8, r: Reg8) -> Opcode {
                 env.state.reg.update_undocumented_flags(v); // TUZD-4.1, copy bits from reg
             }
         }),
-    }
+    )
 }
 
 pub fn build_set_res_r(bit: u8, r: Reg8, value: bool) -> Opcode {
     let name = if value { "SET" } else { "RES" };
-    Opcode {
-        name: format!("{name} {bit}, {r}"),
-        action: Box::new(move |env: &mut Environment| {
-            env.load_displacement(r);
-
+    Opcode::new(
+        format!("{} {}, {}", name, bit, r),
+        Box::new(move |env: &mut Environment| {
             let mut v = env.reg8_ext(r);
             if value {
                 v |= 1 << bit;
@@ -144,22 +139,20 @@ pub fn build_set_res_r(bit: u8, r: Reg8, value: bool) -> Opcode {
 
             env.set_reg(r, v);
         }),
-    }
+    )
 }
 
 pub fn build_indexed_set_res_r(bit: u8, r: Reg8, value: bool) -> Opcode {
     let name = if value { "SET" } else { "RES" };
-    Opcode {
-        name: format!("LD {r}, {name} {bit}, {}", Reg8::_HL),
-        action: Box::new(move |env: &mut Environment| {
+    Opcode::new(
+        format!("LD {}, {} {}, {}", r, name, bit, Reg8::_HL),
+        Box::new(move |env: &mut Environment| {
             /*
             An instruction such as LD r, RES b, (IX+d) should be interpreted as
             "attempt to reset bit b of the byte at (IX+d), and copy the result
             to register r, even the new byte cannot be written at the said
             address (e.g. when it points to a ROM location).
             */
-            env.load_displacement(r);
-
             let mut v = env.reg8_ext(Reg8::_HL);
             if value {
                 v |= 1 << bit;
@@ -171,13 +164,13 @@ pub fn build_indexed_set_res_r(bit: u8, r: Reg8, value: bool) -> Opcode {
                 env.set_reg(r, v);
             }
         }),
-    }
+    )
 }
 
 pub fn build_cpl() -> Opcode {
-    Opcode {
-        name: "CPL".to_string(),
-        action: Box::new(move |env: &mut Environment| {
+    Opcode::new(
+        "CPL".to_string(),
+        Box::new(move |env: &mut Environment| {
             let mut v = env.state.reg.a();
             v = !v;
             env.state.reg.set_a(v);
@@ -185,26 +178,26 @@ pub fn build_cpl() -> Opcode {
             env.state.reg.update_hn_flags(true, true);
             env.state.reg.update_undocumented_flags(v);
         }),
-    }
+    )
 }
 
 pub fn build_scf() -> Opcode {
-    Opcode {
-        name: "SCF".to_string(),
-        action: Box::new(move |env: &mut Environment| {
+    Opcode::new(
+        "SCF".to_string(),
+        Box::new(move |env: &mut Environment| {
             let a = env.state.reg.a();
 
             env.state.reg.set_flag(Flag::C);
             env.state.reg.update_hn_flags(false, false);
             env.state.reg.update_undocumented_flags(a);
         }),
-    }
+    )
 }
 
 pub fn build_ccf() -> Opcode {
-    Opcode {
-        name: "CCF".to_string(),
-        action: Box::new(move |env: &mut Environment| {
+    Opcode::new(
+        "CCF".to_string(),
+        Box::new(move |env: &mut Environment| {
             let a = env.state.reg.a();
             let c = env.state.reg.get_flag(Flag::C);
 
@@ -212,13 +205,13 @@ pub fn build_ccf() -> Opcode {
             env.state.reg.update_hn_flags(c, false);
             env.state.reg.update_undocumented_flags(a);
         }),
-    }
+    )
 }
 
 pub fn build_rxd(dir: ShiftDir, name: &str) -> Opcode {
-    Opcode {
-        name: name.to_string(),
-        action: Box::new(move |env: &mut Environment| {
+    Opcode::new(
+        name.to_string(),
+        Box::new(move |env: &mut Environment| {
             let mut a = env.state.reg.a();
             let mut phl = env.reg8_ext(Reg8::_HL);
             // a = 0xWX, phl = 0xYZ
@@ -241,5 +234,5 @@ pub fn build_rxd(dir: ShiftDir, name: &str) -> Opcode {
 
             env.state.reg.update_bits_in_flags(a);
         }),
-    }
+    )
 }

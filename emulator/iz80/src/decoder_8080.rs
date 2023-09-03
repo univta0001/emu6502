@@ -21,9 +21,9 @@ pub struct Decoder8080 {
 }
 
 impl Decoder for Decoder8080 {
-    fn decode(&mut self, env: &mut Environment) -> &mut Opcode {
+    fn decode(&self, env: &mut Environment) -> &Opcode {
         let b0 = env.advance_pc();
-        let opcode = &mut self.no_prefix[b0 as usize];
+        let opcode = &self.no_prefix[b0 as usize];
         match opcode {
             Some(o) => o,
             None => {
@@ -59,6 +59,7 @@ impl Decoder8080 {
             ],
         };
         decoder.load_no_prefix();
+        decoder.load_cycle_information();
         decoder
     }
 
@@ -159,6 +160,70 @@ impl Decoder8080 {
             self.no_prefix[c as usize] = opcode;
         }
     }
+
+    fn load_cycle_information(&mut self) {
+        // Load cycle information
+        for (c, item) in NO_PREFIX_CYCLES.iter().enumerate() {
+            if let Some(opcode) = &mut self.no_prefix[c] {
+                opcode.cycles = *item;
+                opcode.cycles_conditional = opcode.cycles;
+            }
+        }
+
+        //Load cycle information for conditional cases
+        if let Some(opcode) = &mut self.no_prefix[0xc0] {
+            opcode.cycles_conditional = 5;
+        }
+        if let Some(opcode) = &mut self.no_prefix[0xc4] {
+            opcode.cycles_conditional = 11;
+        }
+        if let Some(opcode) = &mut self.no_prefix[0xc8] {
+            opcode.cycles_conditional = 5;
+        }
+        if let Some(opcode) = &mut self.no_prefix[0xcc] {
+            opcode.cycles_conditional = 11;
+        }
+
+        if let Some(opcode) = &mut self.no_prefix[0xd0] {
+            opcode.cycles_conditional = 5;
+        }
+        if let Some(opcode) = &mut self.no_prefix[0xd4] {
+            opcode.cycles_conditional = 11;
+        }
+        if let Some(opcode) = &mut self.no_prefix[0xd8] {
+            opcode.cycles_conditional = 5;
+        }
+        if let Some(opcode) = &mut self.no_prefix[0xdc] {
+            opcode.cycles_conditional = 11;
+        }
+
+        if let Some(opcode) = &mut self.no_prefix[0xe0] {
+            opcode.cycles_conditional = 5;
+        }
+        if let Some(opcode) = &mut self.no_prefix[0xe4] {
+            opcode.cycles_conditional = 11;
+        }
+        if let Some(opcode) = &mut self.no_prefix[0xe8] {
+            opcode.cycles_conditional = 5;
+        }
+        if let Some(opcode) = &mut self.no_prefix[0xec] {
+            opcode.cycles_conditional = 11;
+        }
+
+        if let Some(opcode) = &mut self.no_prefix[0xf0] {
+            opcode.cycles_conditional = 5;
+        }
+        if let Some(opcode) = &mut self.no_prefix[0xf4] {
+            opcode.cycles_conditional = 11;
+        }
+        if let Some(opcode) = &mut self.no_prefix[0xf8] {
+            opcode.cycles_conditional = 5;
+        }
+        if let Some(opcode) = &mut self.no_prefix[0xfc] {
+            opcode.cycles_conditional = 11;
+        }
+        // Note that on the 8080 the conditional jumps use always the same number of cycles
+    }
 }
 
 #[derive(Debug)]
@@ -183,9 +248,9 @@ impl DecodingHelper {
     }
 }
 
-pub const RP: [Reg16; 4] = [Reg16::BC, Reg16::DE, Reg16::HL, Reg16::SP];
-pub const RP2: [Reg16; 4] = [Reg16::BC, Reg16::DE, Reg16::HL, Reg16::AF];
-pub const R: [Reg8; 8] = [
+const RP: [Reg16; 4] = [Reg16::BC, Reg16::DE, Reg16::HL, Reg16::SP];
+const RP2: [Reg16; 4] = [Reg16::BC, Reg16::DE, Reg16::HL, Reg16::AF];
+const R: [Reg8; 8] = [
     Reg8::B,
     Reg8::C,
     Reg8::D,
@@ -196,7 +261,7 @@ pub const R: [Reg8; 8] = [
     Reg8::A,
 ];
 
-pub const CC: [(Flag, bool, &str); 8] = [
+const CC: [(Flag, bool, &str); 8] = [
     (Flag::Z, false, "NZ"),
     (Flag::Z, true, "Z"),
     (Flag::C, false, "NC"),
@@ -207,7 +272,7 @@ pub const CC: [(Flag, bool, &str); 8] = [
     (Flag::S, true, "N"),
 ];
 
-pub const ROT: [(ShiftDir, ShiftMode, &str); 8] = [
+const ROT: [(ShiftDir, ShiftMode, &str); 8] = [
     (ShiftDir::Left, ShiftMode::RotateCarry, "RLC"),
     (ShiftDir::Right, ShiftMode::RotateCarry, "RRC"),
     (ShiftDir::Left, ShiftMode::Rotate, "RL"),
@@ -218,7 +283,7 @@ pub const ROT: [(ShiftDir, ShiftMode, &str); 8] = [
     (ShiftDir::Right, ShiftMode::Logical, "SRL"),
 ];
 
-pub const ALU: [(Operator, &str); 8] = [
+const ALU: [(Operator, &str); 8] = [
     (operator_add, "ADD"),
     (operator_adc, "ADC"),
     (operator_sub, "SUB"),
@@ -227,4 +292,18 @@ pub const ALU: [(Operator, &str); 8] = [
     (operator_xor, "XOR"),
     (operator_or, "OR"),
     (operator_cp, "CP"),
+];
+
+// From https://pastraiser.com/cpu/i8080/i8080_opcodes.html
+// From https://tobiasvl.github.io/optable/intel-8080/
+const NO_PREFIX_CYCLES: [u8; 256] = [
+    4, 10, 7, 5, 5, 5, 7, 4, 4, 10, 7, 5, 5, 5, 7, 4, 4, 10, 7, 5, 5, 5, 7, 4, 4, 10, 7, 5, 5, 5,
+    7, 4, 4, 10, 16, 5, 5, 5, 7, 4, 4, 10, 16, 5, 5, 5, 7, 4, 4, 10, 13, 5, 10, 10, 10, 4, 4, 10,
+    13, 5, 5, 5, 7, 4, 5, 5, 5, 5, 5, 5, 7, 5, 5, 5, 5, 5, 5, 5, 7, 5, 5, 5, 5, 5, 5, 5, 7, 5, 5,
+    5, 5, 5, 5, 5, 7, 5, 5, 5, 5, 5, 5, 5, 7, 5, 5, 5, 5, 5, 5, 5, 7, 5, 7, 7, 7, 7, 7, 7, 7, 7, 5,
+    5, 5, 5, 5, 5, 7, 5, 4, 4, 4, 4, 4, 4, 7, 4, 4, 4, 4, 4, 4, 4, 7, 4, 4, 4, 4, 4, 4, 4, 7, 4, 4,
+    4, 4, 4, 4, 4, 7, 4, 4, 4, 4, 4, 4, 4, 7, 4, 4, 4, 4, 4, 4, 4, 7, 4, 7, 7, 7, 7, 7, 7, 4, 7, 4,
+    4, 4, 4, 4, 4, 7, 4, 11, 10, 10, 10, 17, 11, 7, 11, 11, 10, 10, 10, 17, 17, 7, 11, 11, 10, 10,
+    10, 17, 11, 7, 11, 11, 10, 10, 10, 17, 17, 7, 11, 11, 10, 10, 18, 17, 11, 7, 11, 11, 5, 10, 5,
+    17, 17, 7, 11, 11, 10, 10, 4, 17, 11, 7, 11, 11, 5, 10, 4, 17, 17, 7, 11,
 ];

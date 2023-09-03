@@ -9,7 +9,6 @@
 //!
 //! ```
 //!    // Prepare the device
-//!    use iz80::{Cpu,Machine,PlainMachine};
 //!    let mut machine = PlainMachine::new();
 //!    let mut cpu = Cpu::new(); // Or Cpu::new_8080()
 //!    cpu.set_trace(true);
@@ -32,13 +31,14 @@
 //!            // Let's stop
 //!            break;
 //!        }
-//!    }
+//!}
 //! ```
 
 mod cpu;
 mod machine;
 mod registers;
 mod state;
+mod timed_runner;
 
 mod decoder_8080;
 mod decoder_z80;
@@ -56,3 +56,4 @@ pub use cpu::Cpu;
 pub use machine::Machine;
 pub use machine::PlainMachine;
 pub use registers::*;
+pub use timed_runner::TimedRunner;

@@ -48,6 +48,12 @@ impl PlainMachine {
     }
 }
 
+impl Default for PlainMachine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Machine for PlainMachine {
     fn peek(&mut self, address: u16) -> u8 {
         self.mem[address as usize]
@@ -61,12 +67,6 @@ impl Machine for PlainMachine {
     }
     fn port_out(&mut self, address: u16, value: u8) {
         self.io[address as usize] = value;
-    }
-}
-
-impl Default for PlainMachine {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

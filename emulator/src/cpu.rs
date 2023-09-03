@@ -2619,7 +2619,7 @@ fn serialize_cpu<S: Serializer>(v: &Cpu, serializer: S) -> Result<S::Ok, S::Erro
         map.insert("PC", format!("{:04X}", r.pc()));
     }
     */
-    let r = v.reg();
+    let r = v.immutable_registers();
     map.insert("AF", format!("{:04X}", r.get16(Reg16::AF)));
     map.insert("BC", format!("{:04X}", r.get16(Reg16::BC)));
     map.insert("DE", format!("{:04X}", r.get16(Reg16::DE)));

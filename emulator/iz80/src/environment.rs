@@ -1,4 +1,5 @@
 use super::machine::*;
+use super::opcode::Opcode;
 use super::registers::*;
 use super::state::State;
 
@@ -79,19 +80,30 @@ impl<'a> Environment<'_> {
 
     pub fn clear_index(&mut self) {
         self.state.index = Reg16::HL;
-        self.state.displacement_loaded = false;
+    }
+
+    pub fn clear_branch_taken(&mut self) {
+        self.state.branch_taken = false;
+    }
+
+    pub fn set_branch_taken(&mut self) {
+        self.state.branch_taken = true;
+    }
+
+    pub fn advance_cycles(&mut self, opcode: &Opcode) {
+        let cycles = if self.state.branch_taken {
+            opcode.cycles
+        } else {
+            opcode.cycles_conditional
+        };
+        self.state.cycle = self.state.cycle.wrapping_add(cycles as u64);
     }
 
     pub fn index_description(&self) -> String {
         if self.state.index == Reg16::HL {
-            "".to_string()
-        } else if self.state.displacement_loaded {
-            format!(
-                "[PREFIX {:?} + {}]",
-                self.state.index, self.state.displacement
-            )
+            "HL".to_string()
         } else {
-            format!("[PREFIX {:?}]", self.state.index)
+            format!("{:?}{:+}", self.state.index, self.state.displacement)
         }
     }
 
@@ -99,14 +111,7 @@ impl<'a> Environment<'_> {
         self.state.index != Reg16::HL
     }
 
-    pub fn load_displacement_forced(&mut self) {
-        // For DDCB and FDCB we always have to load the
-        // displacement. Even before decoding the opcode
-        self.state.displacement = self.advance_pc() as i8;
-        self.state.displacement_loaded = true;
-    }
-
-    pub fn load_displacement(&mut self, reg: Reg8) {
+    pub fn load_displacement(&mut self) {
         /*
         The displacement byte is a signed 8-bit integer (-128..+127) used
         in some instructions to specify a displacement added to a given
@@ -115,9 +120,7 @@ impl<'a> Environment<'_> {
         enough information to figure out whether to expect a displacement
         byte or not.
         */
-        if reg == Reg8::_HL && self.is_alt_index() && !self.state.displacement_loaded {
-            self.load_displacement_forced()
-        }
+        self.state.displacement = self.advance_pc() as i8;
     }
 
     pub fn index_value(&self) -> u16 {
@@ -128,9 +131,6 @@ impl<'a> Environment<'_> {
         // Pseudo register (HL), (IX+d), (IY+d)
         let address = self.state.reg.get16(self.state.index);
         if self.is_alt_index() {
-            if !self.state.displacement_loaded {
-                panic!("Displacement used but not loaded")
-            }
             (address as i16).wrapping_add(self.state.displacement as i16) as u16
         } else {
             address
@@ -138,7 +138,6 @@ impl<'a> Environment<'_> {
     }
 
     fn translate_reg(&self, reg: Reg8) -> Reg8 {
-        // TODO: use a faster lookup table
         match self.state.index {
             Reg16::IX => match reg {
                 Reg8::H => Reg8::IXH,
@@ -162,7 +161,7 @@ impl<'a> Environment<'_> {
         }
     }
 
-    pub fn reg16_ext(&self, rr: Reg16) -> u16 {
+    pub fn reg16_ext(&mut self, rr: Reg16) -> u16 {
         if rr == Reg16::HL {
             self.state.reg.get16(self.state.index)
         } else {
