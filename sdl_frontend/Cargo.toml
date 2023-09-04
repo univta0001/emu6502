@@ -18,25 +18,10 @@ image = { version = "0.24.7", default-features = false, features = ['jpeg','png'
 spin_sleep = "1.1.1"
 #regex = { version = "1.8.1", optional = true }
 
-[target.x86_64-pc-windows-msvc.dependencies]
+[target.'cfg(not(target_vendor="apple"))'.dependencies]
 sdl2 = { version = "0.35.2", features = ['bundled', 'static-link'] }
 
-[target.x86_64-pc-windows-gnu.dependencies]
-sdl2 = { version = "0.35.2", features = ['bundled', 'static-link'] }
-
-[target.x86_64-unknown-linux-gnu.dependencies]
-sdl2 = { version = "0.35.2", features = ['bundled', 'static-link'] }
-
-[target.x86_64-unknown-linux-musl.dependencies]
-sdl2 = { version = "0.35.2", features = ['bundled', 'static-link'] }
-
-[target.aarch64-unknown-linux-gnu.dependencies]
-sdl2 = { version = "0.35.2", features = ['bundled', 'static-link'] }
-
-[target.aarch64-unknown-linux-musl.dependencies]
-sdl2 = { version = "0.35.2", features = ['bundled', 'static-link'] }
-
-[target.aarch64-apple-darwin.dependencies]
+[target.'cfg(target_vendor="apple")'.dependencies]
 sdl2 = "0.35.2"
 
 #[target.x86_64-pc-windows-msvc.dependencies]
