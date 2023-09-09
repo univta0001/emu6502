@@ -273,7 +273,7 @@ impl Uthernet2 {
         self.set_transmit_size(W5100_TMSR, 0x55);
 
         // Always use Virtual DNS. Only supports UDP/TCP-based transports protocol
-
+        // Actual real W5100, value should be 0x28
         self.mem[W5100_PTIMER] = 0x0;
     }
 
