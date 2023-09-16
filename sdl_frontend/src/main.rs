@@ -1324,8 +1324,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let apple2p_rom: Vec<u8> = include_bytes!("../../Apple2_Plus.rom").to_vec();
     //let apple2e_rom: Vec<u8> = std::fs::read("Apple2e.rom").unwrap();
     let apple2e_rom: Vec<u8> = include_bytes!("../../Apple2e.rom").to_vec();
-    //let apple2ee_rom: Vec<u8> = std::fs::read("Apple2e_enhanced.rom").unwrap();
-    let apple2ee_rom: Vec<u8> = include_bytes!("../../Apple2e_enhanced.rom").to_vec();
+    //let apple2ee_rom: Vec<u8> = std::fs::read("Apple2e_Enhanced.rom").unwrap();
+    let apple2ee_rom: Vec<u8> = include_bytes!("../../Apple2e_Enhanced.rom").to_vec();
     let apple2c_rom: Vec<u8> = include_bytes!("../../Apple2c_RomFF.rom").to_vec();
 
     // Create bus
