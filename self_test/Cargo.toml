@@ -10,8 +10,8 @@ emu6502 = { path = "../emulator" }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
 pprof = { version = "0.12.1", features = ["flamegraph","protobuf-codec"] }
-symbolic-demangle = "12.4.0"
-inferno = "0.11.16"
+symbolic-demangle = "12.4.1"
+inferno = "0.11.17"
 
 [[bin]]
 name = "self_test"
