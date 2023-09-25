@@ -4,6 +4,7 @@ debug/
 ref/
 lib/
 emu6502_raw/
+zig-6502
 
 Cargo.lock
 
@@ -25,3 +26,4 @@ Cargo.lock
 *.yaml
 *.bin
 *.a2stream
+
