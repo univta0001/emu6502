@@ -5,10 +5,10 @@ use emu6502::cpu::{CpuStats, CPU};
 use std::error::Error;
 use std::io::{self, BufWriter, Write};
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_arch = "x86_64", target_os = "linux", target_env = "gnu"))]
 use std::fs::File;
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_arch = "x86_64", target_os = "linux", target_env = "gnu"))]
 use pprof::protos::Message;
 
 #[rustfmt::skip]
@@ -37,7 +37,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     let now = std::time::Instant::now();
 
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_arch = "x86_64", target_os = "linux", target_env = "gnu"))]
     let guard = pprof::ProfilerGuard::new(100).unwrap();
 
     cpu.run_with_callback(|_cpu| {
@@ -63,18 +63,18 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     writeln!(output, "Indirect Y cross-page:{:>12}", _cpu_stats.indirect_y_cross_page)?;
 
     // Save the pprof output
-    #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
+    #[cfg(all(target_arch = "x86_64", target_os = "linux", target_env = "gnu"))]
     {
         if let Ok(report) = guard.report().build() {
-            let flame_file = File::create("flamegraph.svg").unwrap();
-            report.flamegraph(flame_file).unwrap();
+            let flame_file = File::create("flamegraph.svg")?;
+            report.flamegraph(flame_file)?;
 
-            let mut file = File::create("profile.pb").unwrap();
-            let profile = report.pprof().unwrap();
+            let mut file = File::create("profile.pb")?;
+            let profile = report.pprof()?;
 
             let mut content = Vec::new();
-            profile.write_to_vec(&mut content).unwrap();
-            file.write_all(&content).unwrap();
+            profile.write_to_vec(&mut content)?;
+            file.write_all(&content)?;
         }
     }
 
