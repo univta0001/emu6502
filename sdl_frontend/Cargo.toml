@@ -18,10 +18,10 @@ image = { version = "0.24.7", default-features = false, features = ['jpeg','png'
 spin_sleep = "1.1.1"
 #regex = { version = "1.8.1", optional = true }
 
-[target.'cfg(not(target_os="macos"))'.dependencies]
+[target.'cfg(any(target_os="windows", target_os="linux"))'.dependencies]
 sdl2 = { version = "0.35.2", features = ['bundled', 'static-link'] }
 
-[target.'cfg(target_os="macos")'.dependencies]
+[target.'cfg(not(any(target_os="windows", target_os="linux")))'.dependencies]
 sdl2 = "0.35.2"
 
 #[target.x86_64-pc-windows-msvc.dependencies]
