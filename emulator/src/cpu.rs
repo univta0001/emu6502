@@ -543,65 +543,54 @@ impl CPU {
         }
     }
 
-    #[inline]
     fn page_cross(&mut self, addr1: u16, addr2: u16) -> bool {
         addr1 & 0xFF00 != addr2 & 0xFF00
     }
 
-    #[inline]
     fn increment_pc(&mut self) {
         self.increment_pc_count(1);
     }
 
-    #[inline]
     fn increment_pc_count(&mut self, count: usize) {
         self.program_counter = self.program_counter.wrapping_add(count as u16);
     }
 
-    #[inline]
     fn next_byte(&mut self) -> u8 {
         let value = self.bus.addr_read(self.program_counter);
         self.increment_pc();
         value
     }
 
-    #[inline]
     fn next_word(&mut self) -> u16 {
         let value = self.bus.addr_read_u16(self.program_counter);
         self.increment_pc_count(2);
         value
     }
 
-    #[inline]
     pub fn get_zeropage_addr(&mut self) -> u16 {
         self.next_byte() as u16
     }
 
-    #[inline]
     pub fn get_absolute_addr(&mut self) -> u16 {
         self.next_word()
     }
 
-    #[inline]
     pub fn get_zeropage_x_addr(&mut self) -> u16 {
         let pos = self.next_byte();
         self.tick();
         pos.wrapping_add(self.register_x) as u16
     }
 
-    #[inline]
     pub fn get_zeropage_y_addr(&mut self) -> u16 {
         let pos = self.next_byte();
         self.tick();
         pos.wrapping_add(self.register_y) as u16
     }
 
-    #[inline]
     pub fn get_zeropage_relative_addr(&mut self) -> u16 {
         self.next_byte() as u16
     }
 
-    #[inline]
     pub fn get_absolute_x_addr(&mut self, op: &OpCode) -> u16 {
         let base = self.next_word();
         let addr = base.wrapping_add(self.register_x as u16);
@@ -622,7 +611,6 @@ impl CPU {
         addr
     }
 
-    #[inline]
     pub fn get_absolute_y_addr(&mut self, op: &OpCode) -> u16 {
         let base = self.next_word();
         let addr = base.wrapping_add(self.register_y as u16);
@@ -634,13 +622,11 @@ impl CPU {
         addr
     }
 
-    #[inline]
     pub fn get_indirect_zeropage_addr(&mut self) -> u16 {
         let ptr = self.next_byte();
         self.bus.addr_read_u16(ptr as u16)
     }
 
-    #[inline]
     pub fn get_indirect_x_addr(&mut self) -> u16 {
         let base = self.next_byte();
         let ptr = base.wrapping_add(self.register_x);
@@ -648,7 +634,6 @@ impl CPU {
         self.bus.addr_read_u16(ptr as u16)
     }
 
-    #[inline]
     pub fn get_indirect_y_addr(&mut self, op: &OpCode) -> u16 {
         let base = self.next_byte();
         let deref_base = self.bus.addr_read_u16(base as u16);
@@ -666,14 +651,12 @@ impl CPU {
         deref
     }
 
-    #[inline]
     pub fn get_indirect_absolute_x_addr(&mut self) -> u16 {
         let base = self.next_word();
         let ptr = base.wrapping_add(self.register_x as u16);
         self.bus.addr_read_u16(ptr)
     }
 
-    #[inline]
     pub fn get_immediate_addr(&mut self) -> u16 {
         let original_pc = self.program_counter;
         self.increment_pc();
