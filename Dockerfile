@@ -21,11 +21,8 @@ COPY self_test self_test/.
 # Copy ROMS
 COPY Apple2.rom apple2c_Rom00.rom Apple2c_RomFF.rom Apple2e.rom Apple2e_Enhanced.rom Apple2_Plus.rom .
 
-# Copy functional test
-COPY 6502_functional_test.bin .
-
 # A dummy build to get the dependencies compiled and cached
-RUN cargo build --release
+RUN cargo build --release --bin emu6502
 
 # (Optional) Remove debug symbols
 RUN strip target/release/emu6502
