@@ -1165,7 +1165,7 @@ fn dump_track_sector_info(cpu: &CPU) {
     */
 }
 
-fn update_audio(cpu: &mut CPU, audio_device: &sdl2::audio::AudioQueue<i16>, normal_speed: bool) {
+fn update_audio(cpu: &mut CPU, audio_device: &Option<sdl2::audio::AudioQueue<i16>>, normal_speed: bool) {
     let snd = &mut cpu.bus.audio;
 
     let video_50hz = cpu.bus.video.is_video_50hz();
@@ -1177,23 +1177,27 @@ fn update_audio(cpu: &mut CPU, audio_device: &sdl2::audio::AudioQueue<i16>, norm
 
     snd.update_cycles(video_50hz);
 
-    if audio_device.size() < audio_sample_size * 2 * 8 {
-        //let mut return_buffer = Vec::new();
-        let buffer = if normal_speed || snd.get_buffer().len() < (audio_sample_size * 2) as usize {
-            snd.get_buffer()
-        } else {
-            /*
-            let step_size = snd.get_buffer().len() / ((audio_sample_size*2) as usize);
-            for item in snd.get_buffer().iter().step_by(step_size) {
-                return_buffer.push(*item)
-            }
-            &return_buffer
-            */
-            &snd.get_buffer()[0..(audio_sample_size * 2) as usize]
-        };
+    if let Some(audio) = audio_device {
+        if audio.size() < audio_sample_size * 2 * 8 {
+            //let mut return_buffer = Vec::new();
+            let buffer = if normal_speed || snd.get_buffer().len() < (audio_sample_size * 2) as usize {
+                snd.get_buffer()
+            } else {
+                /*
+                let step_size = snd.get_buffer().len() / ((audio_sample_size*2) as usize);
+                for item in snd.get_buffer().iter().step_by(step_size) {
+                    return_buffer.push(*item)
+                }
+                &return_buffer
+                */
+                &snd.get_buffer()[0..(audio_sample_size * 2) as usize]
+            };
 
-        let _ = audio_device.queue_audio(buffer);
-        snd.clear_buffer();
+            let _ = audio.queue_audio(buffer);
+            snd.clear_buffer();
+        } else {
+            snd.clear_buffer();
+        }
     } else {
         snd.clear_buffer();
     }
@@ -1368,16 +1372,25 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     canvas.present();
 
     // Create audio
-    let audio_subsystem = sdl_context.audio().unwrap();
+    let audio_subsystem = sdl_context.audio();
     let desired_spec = AudioSpecDesired {
         freq: Some(AUDIO_SAMPLE_RATE as i32),
         channels: Some(2),                       // stereo
         samples: Some(AUDIO_SAMPLE_SIZE as u16), // default sample size
     };
-    let audio_device = audio_subsystem
-        .open_queue::<i16, _>(None, &desired_spec)
-        .unwrap();
-    audio_device.resume();
+
+    let audio_device = if let Ok(audio) = audio_subsystem {
+        if let Ok(device) = audio.open_queue::<i16, _>(None, &desired_spec) {
+            device.resume();
+            Some(device)
+        } else {
+            eprintln!("Audio device detected but cannot open queue!");
+            None
+        }
+    } else {
+        eprintln!("No audio device detected!");
+        None
+    };
 
     // Create SDL event pump
     let mut _event_pump = sdl_context.event_pump().unwrap();
