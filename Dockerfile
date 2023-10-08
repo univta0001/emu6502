@@ -30,7 +30,11 @@ RUN strip target/release/emu6502
 # Use a slim image for running the application
 FROM debian:bookworm-slim as runtime
 
-RUN apt-get update && apt-get install -y libgtk-3.0 pulseaudio
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends libgtk-3.0 pulseaudio \
+ && rm -rf /var/cache/debconf/* \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
 
 # Copy only the compiled binary from the builder stage to this image
 COPY --from=builder /app/target/release/emu6502 /bin/emu6502
