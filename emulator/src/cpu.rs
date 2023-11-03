@@ -2046,17 +2046,23 @@ impl CPU {
                 self.program_counter = indirect_ref;
             }
 
-            /* JSR */
+            /* JSR 
+             * 
+             * Read Opcode ($20); Increment PC
+             * Read ADL; Increment PC
+             * Buffer ADL
+             * Push PCH; Decrement S
+             * Push PCL; Decrement S;
+             * Read ADH;
+             * Load PC with ADH/ADL; Fetch next OP with new PC
+             */
             0x20 => {
-                let target_address = self.bus.addr_read_u16(self.program_counter);
+                let adl = self.bus.addr_read(self.program_counter);
                 self.stack_push_u16(self.program_counter.wrapping_add(1));
-
-                // Corrected the JSR stack bug as reported in AppleWin issue 1257
-                // https://github.com/AppleWin/AppleWin/issues/1257
                 let target_address = (self.bus.addr_read(self.program_counter + 1) as u16) << 8
-                    | (target_address & 0xff);
-                
-                self.program_counter = target_address
+                    | adl as u16;
+                self.program_counter = target_address;
+                self.tick()
             }
 
             /* RTS */
