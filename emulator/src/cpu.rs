@@ -2049,8 +2049,13 @@ impl CPU {
             /* JSR */
             0x20 => {
                 let target_address = self.bus.addr_read_u16(self.program_counter);
-                self.tick();
-                self.stack_push_u16(self.program_counter.wrapping_add(2).wrapping_sub(1));
+                self.stack_push_u16(self.program_counter.wrapping_add(1));
+
+                // Corrected the JSR stack bug as reported in AppleWin issue 1257
+                // https://github.com/AppleWin/AppleWin/issues/1257
+                let target_address = (self.bus.addr_read(self.program_counter + 1) as u16) << 8
+                    | (target_address & 0xff);
+                
                 self.program_counter = target_address
             }
 
@@ -3801,6 +3806,26 @@ mod test {
         assert_eq!(
             cpu.register_a, 0x11,
             "Bank 2 $D17B should be 17. Bank 2 prewrite not reset"
+        );
+    }
+
+    #[test]
+    fn jsr_stack_applewin_1257() {
+        let bus = Bus::new();
+        let mut cpu = CPU::new(bus);
+        cpu.reset();
+        cpu.m65c02 = false;
+        let opcodes = [
+            0xa2, 0x7d,       // $178: LDX #$7D
+            0x9a,             // $17a: TXS
+            0x20, 0x7e, 0x13, // $17b: JSR 1355
+            0x00
+        ];
+        cpu.load_and_run_offset(&opcodes, 0x178, 0x178);
+        assert_eq!(
+            cpu.program_counter, 0x17f,
+            "Expected program counter to be 0x17f instead of {:04x}",
+            cpu.program_counter
         );
     }
 
