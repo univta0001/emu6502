@@ -1817,13 +1817,18 @@ impl DiskDrive {
                 return false;
             }
 
-            while num_of_tracks > 0 {
+            while num_of_tracks > 0 && block_offset + 6648 < dsk.len() {
                 let bit_count =
                     dsk[block_offset + 6648] as u32 + dsk[block_offset + 6649] as u32 * 256;
                 self.handle_woz_process_trks(dsk, track, block_offset, bit_count as usize);
                 block_offset += NIB_TRACK_SIZE;
                 num_of_tracks -= 1;
                 track += 1;
+            }
+
+            if num_of_tracks != 0 {
+                eprintln!("Invalid WOZ disk. Number of tracks > file size");
+                return false;
             }
         }
         true
