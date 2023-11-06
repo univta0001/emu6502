@@ -826,10 +826,11 @@ fn create_woz1_trk(dsk: &[u8], woz_offset: usize, disk: &Disk, newdsk: &mut Vec<
         let len = disk.raw_track_data[qt].len();
         if len > 0 {
             newdsk.extend_from_slice(&disk.raw_track_data[qt]);
+            let nominal_size = BITS_TRACK_SIZE - 10;
 
-            if len < NOMINAL_USABLE_BYTES_TRACK_SIZE {
+            if len <= nominal_size {
                 // Pad the track to size of 6646 bytes
-                for _ in 0..(NOMINAL_USABLE_BYTES_TRACK_SIZE - len) {
+                for _ in 0..(nominal_size - len) {
                     newdsk.push(0);
                 }
             }
