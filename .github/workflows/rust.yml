@@ -17,6 +17,6 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Build
-      run: cargo build -r --verbose
+      run: cargo build -r --verbose --bin emu6502
     - name: Run tests
       run: cargo test --verbose
