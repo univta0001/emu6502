@@ -4,8 +4,8 @@ use emu6502::cpu::{CpuSpeed, CPU};
 use emu6502::mockingboard::Mockingboard;
 use wasm_bindgen::prelude::*;
 
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+//#[global_allocator]
+//static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 #[wasm_bindgen]
 pub struct Emulator {
