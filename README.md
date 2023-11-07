@@ -24,6 +24,14 @@ Features in the emulator
 - Support for RamFactor 1 MiB and RamWorks III up to 8 MiB
 - Preliminary support for Apple //c (Rom FF)
 
+## Usage
+
+- To run the emulator
+
+  emul6502 \[FLAGS\] \[disk 1\] \[disk 2\]
+
+  Disk formatted supported are dsk, po, nib, WOZ, hdv and 2mg. Dsk, po, nib and WOZ images in GZIP format is also supported.
+
 ## Tested Platform
 
 - Windows 10 / 11
