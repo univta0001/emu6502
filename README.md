@@ -32,6 +32,94 @@ Features in the emulator
 
   Disk formatted supported are dsk, po, nib, WOZ, hdv and 2mg. Dsk, po, nib and WOZ images in GZIP format is also supported.
 
+- `emu6502 --help` will display:
+
+      emul6502 0.8.0 (238153904c584c291a1f757e2acfcdb010082dc0)
+
+      USAGE:
+      emul6502 [FLAGS] [disk 1] [disk 2]
+      
+      FLAGS:
+      
+      -h, --help         Prints help information
+      -V, --version      Prints version information
+      --50hz             Enable 50 Hz emulation
+      --nojoystick       Disable joystick
+      --xtrim            Set joystick x-trim value
+      --ytrim            Set joystick y-trim value
+      --swapbuttons      Swap the paddle 0 and paddle 1 buttons
+      -r no of pages     Emulate RAMworks III card with 1 to 127 pages
+      --rf size          Ramfactor memory size in KB
+      -m, --model MODEL  Set apple 2 model.
+                         Valid value: apple2p,apple2e,apple2ee,apple2c
+      --d1 PATH          Set the file path for disk 1 drive at Slot 6 Drive 1
+      --d2 PATH          Set the file path for disk 2 drive at Slot 6 Drive 2
+      --h1 PATH          Set the file path for hard disk 1
+      --h2 PATH          Set the file path for hard disk 2
+      --s1 device        Device slot 1
+                         Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
+                                diskii,diskii13
+      --s2 device        Device slot 2
+                         Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
+                                diskii,diskii13
+      --s3 device        Device slot 3
+                         Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
+                                diskii,diskii13
+      --s4 device        Device slot 4
+                         Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
+                                diskii,diskii13
+      --s5 device        Device slot 5
+                         Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
+                                diskii,diskii13
+      --s6 device        Device slot 6
+                         Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
+                              diskii,diskii13
+      --s7 device        Device slot 7
+                         Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
+                                diskii,diskii13
+      --weakbit rate     Set the random weakbit error rate (Default is 0.3)
+      --opt_timing rate  Override the optimal timing (Default is 32)
+      --rgb              Enable RGB mode (Default: RGB mode disabled)
+      --mboard 0|1|2     Number of mockingboards in Slot 4 and/or Slot 5
+      --luma bandwidth   NTSC Luma B/W (Valid value: 0-7159090, Default: 2300000)
+      --chroma bandwidth NTSC Chroma B/W (Valid value: 0-7159090, Default: 600000)
+      --capslock off     Turns off default capslock
+      
+      ARGS:
+      
+      [disk 1]           Disk 1 file (woz, dsk, po file). File can be in gz format
+      [disk 2]           Disk 2 file (woz, dsk, po file). File can be in gz format
+      
+      Function Keys:
+      
+      Ctrl-Shift-F1      Display emulation speed
+      Ctrl-Shift-F2      Disassemble current instructions
+      Ctrl-Shift-F3      Dump track sector information
+      Ctrl-F1            Eject Disk 1
+      Ctrl-F2            Eject Disk 2
+      Ctrl-F3            Save state in YAML file
+      Ctrl-F4            Load state from YAML file
+      Ctrl-F5            Disable / Enable video scanline mode
+      Ctrl-F6            Disable / Enable audio filter
+      Ctrl-F7            Disable / Enable color burst for 60 Hz display
+      Ctrl-F10           Eject Hard Disk 1
+      Ctrl-F11           Eject Hard Disk 2
+      Ctrl-PrintScreen   Save screenshot as screenshot.png
+      Shift-Insert       Paste clipboard text to the emulator
+      F1                 Load Disk 1 file
+      F2                 Load Disk 2 file
+      F3                 Swap Disk 1 and Disk 2
+      F4                 Disable / Enable Joystick
+      F5                 Disable / Enable Fask Disk emulation
+      F6 / Shift-F6      Toggle Display Mode (Default, NTSC, RGB, Mono)
+      F7                 Disable / Enable 50/60 Hz video
+      F8                 Disable / Enable Joystick jitter
+      F9 / Shift-F9      Toggle speed (1 MHz, 2.8 MHz, 4 MHz, 8 MHz, Fastest)
+      F10                Load Hard Disk 1 file
+      F11                Load Hard Disk 2 file
+      F12 / Break        Reset      
+  
+
 ## Tested Platform
 
 - Windows 10 / 11
