@@ -28,9 +28,13 @@ Features in the emulator
 
 - To run the emulator
 
-  emul6502 \[FLAGS\] \[disk 1\] \[disk 2\]
+  emul6502 [FLAGS] [disk 1] [disk 2]
 
   Disk formatted supported are dsk, po, nib, WOZ, hdv and 2mg. Dsk, po, nib and WOZ images in GZIP format is also supported.
+
+- To run Z80 CPM images
+
+  emu6502 --s4 z80 <CPM image>
 
 - `emu6502 --help` will display:
 
