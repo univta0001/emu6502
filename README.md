@@ -28,7 +28,7 @@ Features in the emulator
 
 - To run the emulator
 
-  emul6502 [FLAGS] [disk 1] [disk 2]
+  emu6502 [FLAGS] [disk 1] [disk 2]
 
   Disk formatted supported are dsk, po, nib, WOZ, hdv and 2mg. Dsk, po, nib and WOZ images in GZIP format is also supported.
 
@@ -38,10 +38,10 @@ Features in the emulator
 
 - `emu6502 --help` will display:
 
-      emul6502 0.8.0 (238153904c584c291a1f757e2acfcdb010082dc0)
+      emu6502 0.8.0 (238153904c584c291a1f757e2acfcdb010082dc0)
 
       USAGE:
-      emul6502 [FLAGS] [disk 1] [disk 2]
+      emu6502 [FLAGS] [disk 1] [disk 2]
       
       FLAGS:
       

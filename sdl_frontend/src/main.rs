@@ -743,7 +743,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
 }
 
 fn print_version() {
-    eprintln!("emul6502 {VERSION} ({})", env!("GIT_HASH"));
+    eprintln!("emu6502 {VERSION} ({})", env!("GIT_HASH"));
 }
 
 fn print_help() {
@@ -755,7 +755,7 @@ fn print_usage() {
     eprintln!(
         r#"
 USAGE:
-    emul6502 [FLAGS] [disk 1] [disk 2]
+    emu6502 [FLAGS] [disk 1] [disk 2]
 
 FLAGS:
     -h, --help         Prints help information
