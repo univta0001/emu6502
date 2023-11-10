@@ -34,7 +34,7 @@ Features in the emulator
 
 - To run Z80 CPM images
 
-  emu6502 --s4 z80 <CPM image>
+  emu6502 --s4 z80 [CPM image]
 
 - `emu6502 --help` will display:
 
