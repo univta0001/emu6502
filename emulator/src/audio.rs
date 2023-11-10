@@ -210,6 +210,7 @@ pub struct Audio {
     #[cfg_attr(feature = "serde_support", serde(skip))]
     audio_filter: AudioFilter,
     filter_enabled: bool,
+    level: f32,
 }
 
 #[derive(Debug)]
@@ -235,6 +236,7 @@ impl Audio {
             audio_active: false,
             audio_filter: Default::default(),
             filter_enabled: true,
+            level: 0.0,
         }
     }
 
@@ -339,6 +341,7 @@ impl Audio {
     }
 
     pub fn set_filter_enabled(&mut self, value: bool) {
+        self.level = 0.0;
         self.filter_enabled = value
     }
 }
@@ -348,7 +351,7 @@ impl Tick for Audio {
         self.fcycles += 1.0;
         self.mboard.iter_mut().for_each(|mb| mb.tick());
 
-        let beep = if self.filter_enabled {
+        let mut beep = if self.filter_enabled {
             if self.dc_filter > 0 {
                 let response = self.audio_filter.filter_response(self.data.phase);
                 self.dc_filter((response * 32767.0) as Channel)
@@ -356,7 +359,9 @@ impl Tick for Audio {
                 0
             }
         } else {
-            self.dc_filter(self.data.phase)
+            let value = self.dc_filter(self.data.phase);
+            self.level += value as f32;
+            value
         };
 
         /*
@@ -373,6 +378,14 @@ impl Tick for Audio {
                 beep = self.audio_filter.filter();
             }
             */
+
+            if !self.filter_enabled {
+
+                // Calculate average beep level
+                beep = (self.level / self.fcycles_per_sample) as Channel;
+                self.level = 0.0;
+            }
+
             if beep == 0 {
                 self.audio_active = false;
                 self.audio_filter.filter_tap[0] = 0.0;
@@ -406,3 +419,4 @@ impl Default for Audio {
         Self::new()
     }
 }
+
