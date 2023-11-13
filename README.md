@@ -135,7 +135,7 @@ Features in the emulator
 - [Writing NES Emulator in Rust](https://bugzmanov.github.io/nes_ebook) by Bugzmanov. The article that started this emulator development
 - [Beneath Apple DOS](http://www.scribd.com/doc/200679/Beneath-Apple-DOS-By-Don-Worth-and-Pieter-Lechner) by Don Worth and Pieter Lechner
 - [Inside the Apple //e] by Gary B. Little
-- [Apple II Disk Drive Article](http://www.doc.ic.ac.uk/~ih/doc/stepper/others/example3/diskii_specs.html) by Neil Parker
+- [Apple II Disk Drive Article](https://mirrors.apple2.org.za/apple.cabi.net/FAQs.and.INFO/DiskDrives/disk.routines.txt) by Neil Parker
 - [Understanding the Apple //e](https://archive.org/details/Understanding_the_Apple_IIe) by Jim Sather.
 - [AppleWin](https://github.com/AppleWin/AppleWin/), whose source code is a goldmine of useful references.
 - [A2 Audit](https://github.com/zellyn/a2audit) and a2audit, good resource to test out language card and aux memory compliance.
