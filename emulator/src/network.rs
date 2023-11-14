@@ -74,15 +74,15 @@ const W5100_SN_DHAR3: usize = 0x09;
 const W5100_SN_DHAR4: usize = 0x0a;
 const W5100_SN_DHAR5: usize = 0x0b;
 const W5100_SN_DIPR0: usize = 0x0c;
-const _W5100_SN_DIPR1: usize = 0x0d;
-const _W5100_SN_DIPR2: usize = 0x0e;
+const W5100_SN_DIPR1: usize = 0x0d;
+const W5100_SN_DIPR2: usize = 0x0e;
 const W5100_SN_DIPR3: usize = 0x0f;
 const W5100_SN_DPORT0: usize = 0x10;
 const W5100_SN_DPORT1: usize = 0x11;
 const _W5100_SN_MSSR0: usize = 0x12;
 const _W5100_SN_MSSR1: usize = 0x13;
-const _W5100_SN_PROTO: usize = 0x14;
-const _W5100_SN_TOS: usize = 0x15;
+const W5100_SN_PROTO: usize = 0x14;
+const W5100_SN_TOS: usize = 0x15;
 const W5100_SN_TTL: usize = 0x16;
 const W5100_SN_TX_FSR0: usize = 0x20;
 const W5100_SN_TX_FSR1: usize = 0x21;
@@ -558,20 +558,44 @@ impl Uthernet2 {
     }
 
     fn write_socket_register(&mut self, addr: usize, value: u8) {
-        self.mem[addr] = value;
+        //self.mem[addr] = value;
         let unit = (addr >> 8) - 4;
         let loc = addr & 0xff;
 
+        if loc >= W5100_SN_DNS_NAME_LEN {
+            self.mem[addr] = value;
+            return
+        }
+
         match loc {
-            W5100_SN_MR => self.set_socket_mode_register(unit, value),
+            W5100_SN_MR => self.set_socket_mode_register(unit, addr, value),
             W5100_SN_CR => self.set_command_register(unit, addr, value),
+            W5100_SN_PORT0 | W5100_SN_PORT1 | W5100_SN_DPORT0 | W5100_SN_DPORT1 => {
+                self.mem[addr] = value
+            }
+            W5100_SN_PROTO => {
+                self.mem[addr] = value
+            }
+            W5100_SN_TOS => {
+                self.mem[addr] = value
+            }
+            W5100_SN_TTL => {
+                self.mem[addr] = value
+            }
+            W5100_SN_DIPR0 | W5100_SN_DIPR1 | W5100_SN_DIPR2 | W5100_SN_DIPR3 => {
+                self.mem[addr] = value
+            }
+            W5100_SN_TX_WR0 | W5100_SN_TX_WR1 | W5100_SN_RX_RD0 | W5100_SN_RX_RD1 => {
+                self.mem[addr] = value
+            }
             _ => {
-                //u2_debug!("Write to socket unit = {unit} addr = 0x{addr:04X} value = 0x{value:02X}")
+                //u2_debug!("Write to socket unit = {unit} addr = 0x{addr:04X} loc = 0x{loc:02X} value = 0x{value:02X}")
             }
         }
     }
 
-    fn set_socket_mode_register(&mut self, i: usize, value: u8) {
+    fn set_socket_mode_register(&mut self, i: usize, addr: usize, value: u8) {
+        self.mem[addr] = value;
         let protocol = value & W5100_SN_MR_PROTO_MASK;
 
         match protocol {
