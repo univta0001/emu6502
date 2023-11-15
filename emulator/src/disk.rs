@@ -2159,8 +2159,7 @@ impl DiskDrive {
         if self.disable_fast_disk || (!self.is_motor_on() || self.is_motor_off_pending()) {
             true
         } else {
-            let disk = &self.drive[self.drive_select];
-            !disk.loaded || self.fast_disk_timer == 0
+            self.fast_disk_timer == 0
         }
     }
 
