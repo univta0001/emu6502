@@ -497,9 +497,9 @@ mod interrupt {
 
 fn absolute_x_force_tick(op: &OpCode, m65c02: bool) -> bool {
     if m65c02 {
-        matches!(op.code, 0x9d | 0xfe | 0xde)
+        matches!(op.code, 0xfe | 0xde)
     } else {
-        matches!(op.code, 0x9d | 0xfe | 0xde | 0x3e | 0x7e | 0x1e | 0x5e)
+        matches!(op.code, 0xfe | 0xde | 0x3e | 0x7e | 0x1e | 0x5e)
     }
 
     /*

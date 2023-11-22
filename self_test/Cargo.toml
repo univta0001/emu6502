@@ -10,7 +10,7 @@ emu6502 = { path = "../emulator" }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
 pprof = { version = "0.13.0", features = ["flamegraph","protobuf-codec"] }
-symbolic-demangle = "12.6.0"
+symbolic-demangle = "12.7.0"
 inferno = "0.11.18"
 
 [[bin]]
