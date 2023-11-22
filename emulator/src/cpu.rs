@@ -497,9 +497,9 @@ mod interrupt {
 
 fn absolute_x_force_tick(op: &OpCode, m65c02: bool) -> bool {
     if m65c02 {
-        matches!(op.code, 0xfe | 0xde)
+        matches!(op.code, 0xde | 0xfe)
     } else {
-        matches!(op.code, 0xfe | 0xde | 0x3e | 0x7e | 0x1e | 0x5e)
+        matches!(op.code, 0x1e | 0x3e | 0x5e | 0x7e | 0xde | 0xfe)
     }
 
     /*
@@ -2172,6 +2172,7 @@ impl CPU {
             /* STA absolute,X */
             0x9d => {
                 let addr = self.get_absolute_x_addr(opcode);
+                self.tick();
                 self.sta(addr);
             }
 
@@ -2728,9 +2729,9 @@ impl CpuStats {
 
     fn absolute_x_force_tick(&self, op: &OpCode, m65c02: bool) -> bool {
         if m65c02 {
-            matches!(op.code, 0x9d | 0xfe | 0xde)
+            matches!(op.code, 0xde | 0xfe)
         } else {
-            matches!(op.code, 0x9d | 0xfe | 0xde | 0x3e | 0x7e | 0x1e | 0x5e)
+            matches!(op.code, 0x1e | 0x3e | 0x5e | 0x7e | 0xde | 0xfe)
         }
     }
 
