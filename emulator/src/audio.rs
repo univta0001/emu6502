@@ -380,7 +380,6 @@ impl Tick for Audio {
             */
 
             if !self.filter_enabled {
-
                 // Calculate average beep level
                 beep = (self.level / self.fcycles_per_sample) as Channel;
                 self.level = 0.0;
@@ -419,4 +418,3 @@ impl Default for Audio {
         Self::new()
     }
 }
-

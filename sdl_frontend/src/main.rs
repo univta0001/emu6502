@@ -1165,7 +1165,11 @@ fn dump_track_sector_info(cpu: &CPU) {
     */
 }
 
-fn update_audio(cpu: &mut CPU, audio_device: &Option<sdl2::audio::AudioQueue<i16>>, normal_speed: bool) {
+fn update_audio(
+    cpu: &mut CPU,
+    audio_device: &Option<sdl2::audio::AudioQueue<i16>>,
+    normal_speed: bool,
+) {
     let snd = &mut cpu.bus.audio;
 
     let video_50hz = cpu.bus.video.is_video_50hz();
@@ -1180,18 +1184,19 @@ fn update_audio(cpu: &mut CPU, audio_device: &Option<sdl2::audio::AudioQueue<i16
     if let Some(audio) = audio_device {
         if audio.size() < audio_sample_size * 2 * 8 {
             //let mut return_buffer = Vec::new();
-            let buffer = if normal_speed || snd.get_buffer().len() < (audio_sample_size * 2) as usize {
-                snd.get_buffer()
-            } else {
-                /*
-                let step_size = snd.get_buffer().len() / ((audio_sample_size*2) as usize);
-                for item in snd.get_buffer().iter().step_by(step_size) {
-                    return_buffer.push(*item)
-                }
-                &return_buffer
-                */
-                &snd.get_buffer()[0..(audio_sample_size * 2) as usize]
-            };
+            let buffer =
+                if normal_speed || snd.get_buffer().len() < (audio_sample_size * 2) as usize {
+                    snd.get_buffer()
+                } else {
+                    /*
+                    let step_size = snd.get_buffer().len() / ((audio_sample_size*2) as usize);
+                    for item in snd.get_buffer().iter().step_by(step_size) {
+                        return_buffer.push(*item)
+                    }
+                    &return_buffer
+                    */
+                    &snd.get_buffer()[0..(audio_sample_size * 2) as usize]
+                };
 
             let _ = audio.queue_audio(buffer);
             snd.clear_buffer();

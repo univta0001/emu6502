@@ -564,7 +564,7 @@ impl Uthernet2 {
 
         if loc >= W5100_SN_DNS_NAME_LEN {
             self.mem[addr] = value;
-            return
+            return;
         }
 
         match loc {
@@ -573,15 +573,9 @@ impl Uthernet2 {
             W5100_SN_PORT0 | W5100_SN_PORT1 | W5100_SN_DPORT0 | W5100_SN_DPORT1 => {
                 self.mem[addr] = value
             }
-            W5100_SN_PROTO => {
-                self.mem[addr] = value
-            }
-            W5100_SN_TOS => {
-                self.mem[addr] = value
-            }
-            W5100_SN_TTL => {
-                self.mem[addr] = value
-            }
+            W5100_SN_PROTO => self.mem[addr] = value,
+            W5100_SN_TOS => self.mem[addr] = value,
+            W5100_SN_TTL => self.mem[addr] = value,
             W5100_SN_DIPR0 | W5100_SN_DIPR1 | W5100_SN_DIPR2 | W5100_SN_DIPR3 => {
                 self.mem[addr] = value
             }

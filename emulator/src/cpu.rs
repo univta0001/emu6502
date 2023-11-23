@@ -2046,8 +2046,8 @@ impl CPU {
                 self.program_counter = indirect_ref;
             }
 
-            /* JSR 
-             * 
+            /* JSR
+             *
              * Read Opcode ($20); Increment PC
              * Read ADL; Increment PC
              * Buffer ADL
@@ -2059,8 +2059,8 @@ impl CPU {
             0x20 => {
                 let adl = self.bus.addr_read(self.program_counter);
                 self.stack_push_u16(self.program_counter.wrapping_add(1));
-                let target_address = (self.bus.addr_read(self.program_counter + 1) as u16) << 8
-                    | adl as u16;
+                let target_address =
+                    (self.bus.addr_read(self.program_counter + 1) as u16) << 8 | adl as u16;
                 self.program_counter = target_address;
                 self.tick()
             }
@@ -3823,10 +3823,10 @@ mod test {
         cpu.reset();
         cpu.m65c02 = false;
         let opcodes = [
-            0xa2, 0x7d,       // $178: LDX #$7D
-            0x9a,             // $17a: TXS
+            0xa2, 0x7d, // $178: LDX #$7D
+            0x9a, // $17a: TXS
             0x20, 0x7e, 0x13, // $17b: JSR 1355
-            0x00
+            0x00,
         ];
         cpu.load_and_run_offset(&opcodes, 0x178, 0x178);
         assert_eq!(
