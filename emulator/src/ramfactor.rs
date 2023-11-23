@@ -782,6 +782,8 @@ impl Card for RamFactor {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::cpu::CPU;
+    use crate::bus::{Bus, IODevice};
 
     #[test]
     fn auto_increment() {
@@ -863,6 +865,38 @@ mod test {
             (rf.addr >> 16) & 0xff,
             0x02,
             "High value should be incremented when medium bit 7 is high and value bit 7 is low"
+        );
+    }
+
+    #[test]
+    fn ramfactor_write_check() {
+        let mut bus = Bus::default();
+        bus.io_slot[2] = IODevice::RamFactor;
+        let mut cpu = CPU::new(bus);
+        cpu.reset();
+        let write_code = [
+            0xa2, 0xa8,         // LDX #$A8
+            0xa9, 0x00,         // LDA #$00
+            0x9d, 0xf8, 0xbf,   // STA $BFF8, X
+            0x9d, 0xf9, 0xbf,   // STA $BFF9, X
+            0x9d, 0xfa, 0xbf,   // STA $BFFA, X
+            0xa9, 0xa5,         // LDA #$A5
+            0x9d, 0xfb, 0xbf,   // STA $BFFB,X
+            0xa9, 0xff,         // LDA #$FF
+            0x9d, 0xf8, 0xbf,   // LDA $BFF8,X
+            0x9d, 0xf9, 0xbf,   // LDA $BFF9,X
+            0xa9, 0x0f,         // LDA #$FF
+            0x9d, 0xfa, 0xbf,   // STA $BFFA,X
+            0xbd, 0xfb, 0xbf,   // LDA $BFFB,X
+            0xbd, 0xfb, 0xbf,   // LDA $BFFB,X
+            0x00, // END
+        ];
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run_offset(&write_code, 0x1000, 0x1000);
+        assert_eq!(
+            cpu.register_a,
+            0xa5,
+            "Expected 0xa5 (165) at the end of the memory of ramfactor"
         );
     }
 }
