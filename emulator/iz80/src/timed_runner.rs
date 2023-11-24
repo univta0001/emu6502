@@ -14,12 +14,6 @@ pub struct TimedRunner {
     prev_time: Instant,
 }
 
-impl Default for TimedRunner {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl TimedRunner {
     /// Returns a Timed Runner instance
     pub fn new() -> TimedRunner {

@@ -133,8 +133,8 @@ impl Decoder8080 {
                         3 => Some(build_in_a_n()),               // IN A, (n)
                         4 => Some(build_ex_psp_hl()),            // EX (SP), HL
                         5 => Some(build_ex_de_hl()),             // EX DE, HL
-                        6 => Some(build_conf_interrupts(false)), // DI
-                        7 => Some(build_conf_interrupts(true)),  // EI
+                        6 => Some(build_disable_interrupts()),   // DI
+                        7 => Some(build_enable_interrupts()),    // EI
                         _ => panic!("Unreachable"),
                     },
                     4 => Some(build_call_eq(CC[p.y])),
@@ -163,9 +163,9 @@ impl Decoder8080 {
 
     fn load_cycle_information(&mut self) {
         // Load cycle information
-        for (c, item) in NO_PREFIX_CYCLES.iter().enumerate() {
-            if let Some(opcode) = &mut self.no_prefix[c] {
-                opcode.cycles = *item;
+        for c in 0..=255 {
+            if let Some(opcode) = &mut self.no_prefix[c as usize] {
+                opcode.cycles = NO_PREFIX_CYCLES[c];
                 opcode.cycles_conditional = opcode.cycles;
             }
         }

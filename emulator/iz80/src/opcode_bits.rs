@@ -38,7 +38,8 @@ pub fn build_rot_r(
                 env.reg8_ext(r)
             };
 
-            let carry: bool = match dir {
+            let carry: bool;
+            match dir {
                 ShiftDir::Left => {
                     let upper_bit = v >= 0x80;
                     v <<= 1;
@@ -52,7 +53,7 @@ pub fn build_rot_r(
                         // bit 0 is 0 already
                         v |= 1;
                     }
-                    upper_bit
+                    carry = upper_bit;
                 }
                 ShiftDir::Right => {
                     let upper_bit = v >= 0x80;
@@ -68,7 +69,7 @@ pub fn build_rot_r(
                         // bit 7 is 0 already
                         v |= 0x80;
                     }
-                    lower_bit
+                    carry = lower_bit;
                 }
             };
             if indexed && r != Reg8::_HL {

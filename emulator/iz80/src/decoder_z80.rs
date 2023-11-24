@@ -243,14 +243,14 @@ impl DecoderZ80 {
                     },
                     2 => Some(build_jp_eq(CC[p.y])), // JP cc, nn
                     3 => match p.y {
-                        0 => Some(build_jp_unconditional()),     // JP nn
-                        1 => None,                               // CB prefix
-                        2 => Some(build_out_n_a()),              // OUT (n), A
-                        3 => Some(build_in_a_n()),               // IN A, (n)
-                        4 => Some(build_ex_psp_hl()),            // EX (SP), HL
-                        5 => Some(build_ex_de_hl()),             // EX DE, HL
-                        6 => Some(build_conf_interrupts(false)), // DI
-                        7 => Some(build_conf_interrupts(true)),  // EI
+                        0 => Some(build_jp_unconditional()),   // JP nn
+                        1 => None,                             // CB prefix
+                        2 => Some(build_out_n_a()),            // OUT (n), A
+                        3 => Some(build_in_a_n()),             // IN A, (n)
+                        4 => Some(build_ex_psp_hl()),          // EX (SP), HL
+                        5 => Some(build_ex_de_hl()),           // EX DE, HL
+                        6 => Some(build_disable_interrupts()), // DI
+                        7 => Some(build_enable_interrupts()),  // EI
                         _ => panic!("Unreachable"),
                     },
                     4 => Some(build_call_eq(CC[p.y])),
@@ -424,20 +424,20 @@ impl DecoderZ80 {
     fn load_cycle_information(&mut self) {
         // Load cycle information
         for c in 0..=255 {
-            if let Some(opcode) = &mut self.no_prefix[c] {
+            if let Some(opcode) = &mut self.no_prefix[c as usize] {
                 opcode.cycles = NO_PREFIX_CYCLES[c];
                 opcode.cycles_conditional = opcode.cycles;
             }
-            if let Some(opcode) = &mut self.prefix_cb[c] {
+            if let Some(opcode) = &mut self.prefix_cb[c as usize] {
                 opcode.cycles = PREFIX_CB_CYCLES[c];
                 opcode.cycles_conditional = opcode.cycles;
             }
-            if let Some(opcode) = &mut self.prefix_cb_indexed[c] {
+            if let Some(opcode) = &mut self.prefix_cb_indexed[c as usize] {
                 // 23 cycles except for BIT that is 20
                 opcode.cycles = if (c & 0xc0) == 0x40 { 20 } else { 23 };
                 opcode.cycles_conditional = opcode.cycles;
             }
-            if let Some(opcode) = &mut self.prefix_ed[c] {
+            if let Some(opcode) = &mut self.prefix_ed[c as usize] {
                 opcode.cycles = PREFIX_ED_CYCLES[c];
                 opcode.cycles_conditional = opcode.cycles;
             }

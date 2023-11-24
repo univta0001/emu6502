@@ -6,6 +6,7 @@ use super::opcode::*;
 use super::registers::*;
 use super::state::*;
 
+const IRQ_ADDRESS: u16 = 0x0036;
 const NMI_ADDRESS: u16 = 0x0066;
 
 /// The Z80 cpu emulator.
@@ -73,16 +74,29 @@ impl Cpu {
             env.state.reset_pending = false;
             env.state.nmi_pending = false;
             env.state.halted = false;
-            env.state.reg.set_pc(0x0000);
-            env.state.reg.set8(Reg8::I, 0x00);
-            env.state.reg.set8(Reg8::R, 0x00);
-            env.state.reg.set_interrupts(false);
-            env.state.reg.set_interrupt_mode(0);
+            env.state.reg.reset();
+            env.state.cycle = env.state.cycle.wrapping_add(3);
         } else if env.state.nmi_pending {
             env.state.nmi_pending = false;
             env.state.halted = false;
             env.state.reg.start_nmi();
+            env.state.cycle = env.state.cycle.wrapping_add(11);
             env.subroutine_call(NMI_ADDRESS);
+        } else if env.state.int_signaled {
+            let (int_enabled, int_mode) = env.state.reg.get_interrupt_mode();
+            if int_enabled && !env.state.int_just_enabled {
+                env.state.halted = false;
+                env.state.reg.set_interrupts(false);
+                match int_mode {
+                    0 => panic!("Interrupt mode 0 not implemented"),
+                    1 => {
+                        env.state.cycle = env.state.cycle.wrapping_add(13);
+                        env.subroutine_call(IRQ_ADDRESS);
+                    }
+                    2 => panic!("Interrupt mode 2 not implemented"),
+                    _ => panic!("Invalid interrupt mode"),
+                }
+            }
         }
 
         let pc = env.state.reg.pc();
@@ -92,6 +106,7 @@ impl Cpu {
         }
 
         env.clear_branch_taken();
+        env.clear_int_just_enabled();
         opcode.execute(&mut env);
         env.advance_cycles(opcode);
         env.clear_index();
@@ -152,7 +167,16 @@ impl Cpu {
 
     /// Returns if the Cpu has executed a HALT
     pub fn is_halted(&self) -> bool {
-        self.state.halted && !self.state.nmi_pending && !self.state.reset_pending
+        self.state.halted
+            && !self.state.nmi_pending
+            && !self.state.reset_pending
+            && !self.state.int_signaled
+    }
+
+    /// Maskable interrupt request. It stays signaled until is is
+    /// deactivated by calling signal_interrupt(false).
+    pub fn signal_interrupt(&mut self, active: bool) {
+        self.state.int_signaled = active
     }
 
     /// Non maskable interrupt request

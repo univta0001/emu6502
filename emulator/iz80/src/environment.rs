@@ -86,6 +86,10 @@ impl<'a> Environment<'_> {
         self.state.branch_taken = false;
     }
 
+    pub fn clear_int_just_enabled(&mut self) {
+        self.state.int_just_enabled = false;
+    }
+
     pub fn set_branch_taken(&mut self) {
         self.state.branch_taken = true;
     }
@@ -161,7 +165,7 @@ impl<'a> Environment<'_> {
         }
     }
 
-    pub fn reg16_ext(&mut self, rr: Reg16) -> u16 {
+    pub fn reg16_ext(&self, rr: Reg16) -> u16 {
         if rr == Reg16::HL {
             self.state.reg.get16(self.state.index)
         } else {
