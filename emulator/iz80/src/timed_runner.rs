@@ -62,3 +62,9 @@ impl TimedRunner {
         cpu.execute_instruction(sys);
     }
 }
+
+impl Default for TimedRunner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
