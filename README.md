@@ -38,7 +38,7 @@ Features in the emulator
 
 - `emu6502 --help` will display:
 
-      emu6502 0.8.3 (61ae5928c6604fe2c4dcd0104fa119db13214933)
+      emu6502 0.8.5 (4a4bac756c357b27c2f1ee26467eb2345fd62eac)
 
       USAGE:
       emu6502 [FLAGS] [disk 1] [disk 2]
@@ -88,7 +88,8 @@ Features in the emulator
       --luma bandwidth   NTSC Luma B/W (Valid value: 0-7159090, Default: 2300000)
       --chroma bandwidth NTSC Chroma B/W (Valid value: 0-7159090, Default: 600000)
       --capslock off     Turns off default capslock
-      
+      --mac_lc_dlgr      Turns on Mac LC DLGR emulation
+  
       ARGS:
       
       [disk 1]           Disk 1 file (woz, dsk, po file). File can be in gz format
