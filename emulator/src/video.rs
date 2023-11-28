@@ -140,6 +140,9 @@ pub struct Video {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub color_burst: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    pub mac_lc_dlgr: bool,
 }
 
 impl Tick for Video {
@@ -731,6 +734,7 @@ impl Video {
             scanline: false,
             skip_update: false,
             color_burst: false,
+            mac_lc_dlgr: false,
         }
     }
 
@@ -975,6 +979,15 @@ impl Video {
 
     pub fn set_color_burst(&mut self, flag: bool) {
         self.color_burst = flag;
+        self.invalidate_video_cache();
+    }
+
+    pub fn get_mac_lc_dlgr(&self) -> bool {
+        self.mac_lc_dlgr
+    }
+
+    pub fn set_mac_lc_dlgr(&mut self, flag: bool) {
+        self.mac_lc_dlgr = flag;
         self.invalidate_video_cache();
     }
 
@@ -1760,9 +1773,15 @@ impl Video {
                 LORES_COLORS[(ch >> 4 & 0xf) as usize]
             }
         } else if yindex < 4 {
-            DHIRES_COLORS[(ch & 0xf) as usize]
-        } else {
+            if !self.mac_lc_dlgr {
+                DHIRES_COLORS[(ch & 0xf) as usize]
+            } else {
+                LORES_COLORS[(ch & 0xf) as usize]
+            }
+        } else if !self.mac_lc_dlgr {
             DHIRES_COLORS[(ch >> 4 & 0xf) as usize]
+        } else {
+            LORES_COLORS[(ch >> 4 & 0xf) as usize]
         };
 
         if self.vid80_mode && self.dhires_mode {
@@ -2061,7 +2080,11 @@ impl Video {
         for i in 0..7 {
             let pos = (x + offset + i) % 4;
             let luma_u32 = luma_to_u32(&luma, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR);
-            let color = self.chroma_dhgr[pos][luma_u32 as usize];
+            let color = if self.mac_lc_dlgr && aux {
+                self.chroma_hgr[pos][luma_u32 as usize]
+            } else {
+                self.chroma_dhgr[pos][luma_u32 as usize]
+            };
             //let color = chroma_ntsc_color(&luma, x + offset + i, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR, true, &self.ntsc_decoder);
             self.set_pixel_count(x + offset + i, y1 * 2, color, 1);
         }

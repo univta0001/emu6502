@@ -801,6 +801,7 @@ FLAGS:
     --luma bandwidth   NTSC Luma B/W (Valid value: 0-7159090, Default: 2300000)
     --chroma bandwidth NTSC Chroma B/W (Valid value: 0-7159090, Default: 600000)
     --capslock off     Turns off default capslock
+    --mac_lc_dlgr      Turns on Mac LC DLGR emulation
 
 ARGS:
     [disk 1]           Disk 1 file (woz, dsk, po file). File can be in gz format
@@ -1433,6 +1434,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     if pargs.contains("--swapbuttons") {
         cpu.bus.swap_buttons(true);
+    }
+
+    if pargs.contains("--mac_lc_dlgr") {
+        cpu.bus.video.set_mac_lc_dlgr(true);
     }
 
     if let Some(xtrim) = pargs.opt_value_from_str::<_, i8>("--xtrim")? {
