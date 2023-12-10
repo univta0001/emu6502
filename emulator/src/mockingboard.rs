@@ -408,8 +408,8 @@ impl W65C22 {
     fn new(name: &str) -> Self {
         W65C22 {
             _name: name.to_owned(),
-            orb: 0,
-            ora: 0,
+            orb: 0xff,
+            ora: 0xff,
             ddrb: 0,
             ddra: 0,
             t1c: 0xffff,
@@ -478,8 +478,8 @@ impl W65C22 {
     }
 
     fn reset(&mut self) {
-        self.orb = 0;
-        self.ora = 0;
+        self.orb = 0xff;
+        self.ora = 0xff;
         self.ddrb = 0;
         self.ddra = 0;
         self.t1_loaded = false;
@@ -1024,6 +1024,23 @@ mod test {
             w65c22.io_access(0x01, 00, false),
             0x00,
             "Expecting 0x0 when reading AY current register"
+        );
+    }
+
+    #[test]
+    fn w6522_reset_orb() {
+        let mut w65c22 = W65C22::new("#1");
+        w65c22.reset();
+        assert_eq!(
+            w65c22.orb,
+            0xff,
+            "Expecting 0xff in ORB when W65c22 is reset"
+        );
+
+        assert_eq!(
+            w65c22.ora,
+            0xff,
+            "Expecting 0xff in ORA when W65c22 is reset"
         );
     }
 }
