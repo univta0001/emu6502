@@ -655,7 +655,7 @@ impl Bus {
                         keyboard_latch & 0x7f
                     }
                 } else {
-                    keyboard_latch & 0x7f
+                    self.read_floating_bus() & 0x7f
                 }
             }
 
