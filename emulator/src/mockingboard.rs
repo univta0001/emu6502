@@ -408,8 +408,8 @@ impl W65C22 {
     fn new(name: &str) -> Self {
         W65C22 {
             _name: name.to_owned(),
-            orb: 0xff,
-            ora: 0xff,
+            orb: 0,
+            ora: 0,
             ddrb: 0,
             ddra: 0,
             t1c: 0xffff,
@@ -478,8 +478,8 @@ impl W65C22 {
     }
 
     fn reset(&mut self) {
-        self.orb = 0xff;
-        self.ora = 0xff;
+        self.orb = 0;
+        self.ora = 0;
         self.ddrb = 0;
         self.ddra = 0;
         self.t1_loaded = false;
@@ -553,12 +553,12 @@ impl W65C22 {
             0x10 | 0x00 => {
                 if write_flag {
                     //eprintln!("Write ORB {:02X} with {:02X}", addr, value);
-                    self.orb = value & self.ddrb;
+                    self.orb = value;
                     self.ay8910_write(value & 0xf);
                 } else {
                     //eprintln!("Read ORB {:02X} with {:02X}", addr, self.orb);
                     self.ifr &= !0x18;
-                    return_addr = self.orb;
+                    return_addr = self.orb | (self.ddrb ^ 0xff);
                 }
             }
 
@@ -566,11 +566,15 @@ impl W65C22 {
             0x11 | 0x01 => {
                 if write_flag {
                     //eprintln!("Write ORA {:02X} with {:02X}", addr, value);
-                    self.ora = value & self.ddra;
+                    self.ora = value;
                 } else {
                     //eprintln!("Read ORA {:02X} with {:02X}", addr, self.ora);
                     self.ifr &= !0x03;
-                    return_addr = self.ora;
+                    return_addr = if self.latch_addr_valid {
+                        self.ora
+                    } else {
+                        self.ora | (self.ddra ^ 0xff)
+                    }
                 }
             }
 
@@ -1032,13 +1036,13 @@ mod test {
         let mut w65c22 = W65C22::new("#1");
         w65c22.reset();
         assert_eq!(
-            w65c22.orb,
+            w65c22.io_access(0x00, 0x00, false),
             0xff,
             "Expecting 0xff in ORB when W65c22 is reset"
         );
 
         assert_eq!(
-            w65c22.ora,
+            w65c22.io_access(0x01, 0x00, false),
             0xff,
             "Expecting 0xff in ORA when W65c22 is reset"
         );
