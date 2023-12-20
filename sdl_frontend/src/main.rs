@@ -802,6 +802,7 @@ FLAGS:
     --chroma bandwidth NTSC Chroma B/W (Valid value: 0-7159090, Default: 600000)
     --capslock off     Turns off default capslock
     --mac_lc_dlgr      Turns on Mac LC DLGR emulation
+    --scale ratio      Scale the graphics by ratio (Default is 2.0)
 
 ARGS:
     [disk 1]           Disk 1 file (woz, dsk, po file). File can be in gz format
@@ -1345,9 +1346,18 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let sdl_context = sdl2::init()?;
 
     // Create window
+    let mut scale = 2.0;
+
+    if let Some(scale_value) = pargs.opt_value_from_str::<_, f32>("--scale")? {
+        scale = scale_value;
+    }
+
+    let width = (scale * 560.0) as u32;
+    let height = (scale * 384.0) as u32;
+
     let video_subsystem = sdl_context.video()?;
     let window = video_subsystem
-        .window("Apple ][ emulator", 1120_u32, 768_u32)
+        .window("Apple ][ emulator", width, height)
         .position_centered()
         .build()
         .unwrap();
@@ -1371,7 +1381,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         .unwrap();
 
     canvas.clear();
-    canvas.set_scale(2.0, 2.0).unwrap();
+    canvas.set_scale(scale, scale).unwrap();
 
     texture.update(None, &bus.video.frame, 560 * 4).unwrap();
     canvas.copy(&texture, None, None).unwrap();
