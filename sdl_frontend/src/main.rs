@@ -28,6 +28,7 @@ use sdl2::render::BlendMode;
 use sdl2::render::Canvas;
 use sdl2::render::RenderTarget;
 use sdl2::render::Texture;
+use sdl2::video::FullscreenType;
 use sdl2::GameControllerSubsystem;
 use sdl2::VideoSubsystem;
 use std::collections::HashMap;
@@ -72,6 +73,7 @@ struct EventParam<'a> {
     display_index: &'a mut usize,
     speed_index: &'a mut usize,
     clipboard_text: &'a mut String,
+    full_screen: &'a mut bool,
 }
 
 fn translate_key_to_apple_key(
@@ -715,6 +717,13 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             keymod,
             ..
         } => {
+            if value == Keycode::Return
+                && (keymod.contains(Mod::LALTMOD) || keymod.contains(Mod::RALTMOD))
+            {
+                *event_param.full_screen = !*event_param.full_screen;
+                return;
+            }
+
             let (status, value) =
                 translate_key_to_apple_key(cpu.is_apple2e(), event_param.key_caps, value, keymod);
             if status {
@@ -1354,7 +1363,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     let width = (scale * 560.0) as u32;
     let height = (scale * 384.0) as u32;
-
     let video_subsystem = sdl_context.video()?;
     let window = video_subsystem
         .window("Apple ][ emulator", width, height)
@@ -1646,6 +1654,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut reload_cpu = false;
     let mut save_screenshot = false;
 
+    let mut current_full_screen = false;
+    let mut full_screen = false;
+
     let mut clipboard_text = String::new();
 
     let mut display_index = 0;
@@ -1738,6 +1749,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                             speed_mode: &speed_mode,
                             speed_index: &mut speed_index,
                             clipboard_text: &mut clipboard_text,
+                            full_screen: &mut full_screen,
                         };
 
                         handle_event(_cpu, event_value, &mut event_param);
@@ -1752,6 +1764,26 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     // Update keyboard akd state
                     _cpu.bus.any_key_down =
                         _event_pump.keyboard_state().pressed_scancodes().count() > 0;
+
+                    // Check the full_screen state is not change
+                    if full_screen != current_full_screen {
+                        let current_full_screen_value = current_full_screen;
+                        current_full_screen = full_screen;
+                        if current_full_screen {
+                            if let Err(e) = canvas.window_mut().set_fullscreen(FullscreenType::True)
+                            {
+                                eprintln!("Unable to set full_screen = {}", e);
+                                current_full_screen = current_full_screen_value;
+                                full_screen = current_full_screen_value;
+                            }
+                        } else if let Err(e) =
+                            canvas.window_mut().set_fullscreen(FullscreenType::Off)
+                        {
+                            eprintln!("Unable to restore from full_screen = {}", e);
+                            current_full_screen = current_full_screen_value;
+                            full_screen = current_full_screen_value;
+                        }
+                    }
                 } else {
                     _cpu.bus.video.skip_update = true;
                 }
