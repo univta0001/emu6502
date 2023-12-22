@@ -1775,6 +1775,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                                 eprintln!("Unable to set full_screen = {}", e);
                                 current_full_screen = current_full_screen_value;
                                 full_screen = current_full_screen_value;
+                            } else {
+                                sdl_context.mouse().show_cursor(false);
+                                _cpu.bus.video.invalidate_video_cache();
                             }
                         } else if let Err(e) =
                             canvas.window_mut().set_fullscreen(FullscreenType::Off)
@@ -1782,6 +1785,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                             eprintln!("Unable to restore from full_screen = {}", e);
                             current_full_screen = current_full_screen_value;
                             full_screen = current_full_screen_value;
+                        } else {
+                            sdl_context.mouse().show_cursor(true);
+                            _cpu.bus.video.invalidate_video_cache();
                         }
                     }
                 } else {
