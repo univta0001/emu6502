@@ -29,6 +29,7 @@ use sdl2::render::Canvas;
 use sdl2::render::RenderTarget;
 use sdl2::render::Texture;
 use sdl2::video::FullscreenType;
+use sdl2::video::Window;
 use sdl2::GameControllerSubsystem;
 use sdl2::VideoSubsystem;
 use std::collections::HashMap;
@@ -1219,11 +1220,13 @@ fn update_audio(
     }
 }
 
-fn update_video<T: RenderTarget>(
+fn update_video(
     cpu: &mut CPU,
     save_screenshot: &mut bool,
-    canvas: &mut Canvas<T>,
+    canvas: &mut Canvas<Window>,
     texture: &mut Texture,
+    fullscreen: bool,
+    scale: f32
 ) {
     let disp = &mut cpu.bus.video;
     if *save_screenshot {
@@ -1272,7 +1275,21 @@ fn update_video<T: RenderTarget>(
         } else {
             canvas.set_draw_color(Color::RGBA(255, 0, 0, 128));
         }
-        let _ = draw_circle(canvas, 560 - 4, 4, 2);
+
+        if fullscreen {
+            let width = if let Ok(display_mode) = canvas.window().display_mode() {
+                let mut effective_width = (display_mode.w as f32 / scale) as i32;
+                if effective_width < 560 {
+                    effective_width = 560;
+                }
+                effective_width
+            } else {
+                560
+            };
+            let _ = draw_circle(canvas, width - 4, 4, 2);
+        } else {
+            let _ = draw_circle(canvas, 560 - 4, 4, 2);
+        }
     }
     canvas.present();
 }
@@ -1730,7 +1747,14 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 // Update video, audio and events at multiple of 60Hz or 50Hz
                 if normal_cpu_speed || video_time.elapsed().as_micros() >= cpu_period as u128 {
                     update_audio(_cpu, &audio_device, normal_cpu_speed);
-                    update_video(_cpu, &mut save_screenshot, &mut canvas, &mut texture);
+                    update_video(
+                        _cpu,
+                        &mut save_screenshot,
+                        &mut canvas,
+                        &mut texture,
+                        current_full_screen,
+                        scale,
+                    );
                     video_time = Instant::now();
 
                     _cpu.bus.video.skip_update = false;
@@ -1770,7 +1794,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         let current_full_screen_value = current_full_screen;
                         current_full_screen = full_screen;
                         if current_full_screen {
-                            if let Err(e) = canvas.window_mut().set_fullscreen(FullscreenType::True)
+                            if let Err(e) =
+                                canvas.window_mut().set_fullscreen(FullscreenType::Desktop)
                             {
                                 eprintln!("Unable to set full_screen = {}", e);
                                 current_full_screen = current_full_screen_value;
