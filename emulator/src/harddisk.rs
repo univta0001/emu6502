@@ -295,7 +295,15 @@ impl Card for HardDisk {
         _value: u8,
         _write_flag: bool,
     ) -> u8 {
-        ROM[(addr & 0xff) as usize]
+        let addr = (addr & 0xff) as usize;
+        let disk = &mut self.drive[self.drive_select];
+        if addr == 0xfc && disk.data_len > 0 {
+            ((disk.data_len / 512) & 0xff) as u8
+        } else if addr == 0xfd && disk.data_len > 0 {
+            (((disk.data_len / 512) & 0xff00) >> 8) as u8
+        } else {
+            ROM[addr]
+        }
     }
 
     fn io_access(
