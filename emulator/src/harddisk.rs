@@ -28,7 +28,7 @@ const ROM: [u8; 256] = [
     0xa5, 0x47, 0x9d, 0x87, 0xc0, 0xbd, 0x80, 0xc0, 0x3e, 0x81, 0xc0, 0xb0, 0xfb, 0x28, 0xb0, 0x18,
     0x7e, 0x81, 0xc0, 0xa9, 0x00, 0xf0, 0xa1, 0xa5, 0x00, 0xd0, 0x0a, 0xa5, 0x01, 0xcd, 0xf8, 0x07,
     0xd0, 0x03, 0x4c, 0xba, 0xfa, 0x4c, 0x00, 0xe0, 0x7e, 0x81, 0xc0, 0xb0, 0x0e, 0xa5, 0x42, 0xd0,
-    0x08, 0xbd, 0x89, 0xc0, 0xa8, 0xbd, 0x88, 0xc0, 0xaa, 0xa9, 0x00, 0x60, 0xff, 0x7f, 0xd7, 0x0a,
+    0x08, 0xbd, 0x89, 0xc0, 0xa8, 0xbd, 0x88, 0xc0, 0xaa, 0xa9, 0x00, 0x60, 0x00, 0x00, 0xd7, 0x0a,
 ];
 
 const HD_BLOCK_SIZE: usize = 512;
@@ -108,6 +108,7 @@ pub enum DeviceStatus {
     DeviceIoError = 0x27,
     DeviceNotConnected = 0x28,
     DeviceWriteProtected = 0x2b,
+    DeviceOffline = 0x2f,
 }
 
 impl HardDisk {
@@ -295,15 +296,7 @@ impl Card for HardDisk {
         _value: u8,
         _write_flag: bool,
     ) -> u8 {
-        let addr = (addr & 0xff) as usize;
-        let disk = &mut self.drive[self.drive_select];
-        if addr == 0xfc && disk.data_len > 0 {
-            ((disk.data_len / 512) & 0xff) as u8
-        } else if addr == 0xfd && disk.data_len > 0 {
-            (((disk.data_len / 512) & 0xff00) >> 8) as u8
-        } else {
-            ROM[addr]
-        }
+        ROM[(addr & 0xff) as usize]
     }
 
     fn io_access(
@@ -439,6 +432,45 @@ impl Card for HardDisk {
                             disk.error = 0;
                             DeviceStatus::DeviceOk as u8
                         }
+
+                        // Format
+                        0x3 => {
+                            if disk.data_len == 0 {
+                                disk.error = 1;
+                                return DeviceStatus::DeviceOffline as u8;
+                            }
+
+                            if disk.write_protect {
+                                disk.error = 1;
+                                return DeviceStatus::DeviceWriteProtected as u8;
+                            }
+
+                            for i in 0..disk.raw_data.len() {
+                                disk.raw_data[i] = 0;
+                            }
+
+                            if self.enable_save {
+                                if let Some(filename) = &disk.filename {
+                                    if let Ok(mut f) = OpenOptions::new().write(true).open(filename)
+                                    {
+                                        let result = f.write_all(&disk.raw_data);
+                                        if result.is_err() {
+                                            disk.error = 1;
+                                            return DeviceStatus::DeviceIoError as u8;
+                                        }
+                                    } else {
+                                        eprintln!("Unable to open {}", filename);
+                                        disk.error = 1;
+                                        return DeviceStatus::DeviceIoError as u8;
+                                    }
+                                }
+                            }
+
+                            disk.error = 0;
+                            DeviceStatus::DeviceOk as u8
+                        }
+
+
 
                         _ => DeviceStatus::DeviceIoError as u8,
                     }
