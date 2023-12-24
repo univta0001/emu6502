@@ -57,6 +57,9 @@ hd_command = $c082
 hd_unitnum = $c083
 hd_memblock  = $c084
 hd_diskblock = $c086
+hd_disklen_low = $c088
+hd_disklen_high = $c089
+
 ;hd_nextbyte = $c088	; legacy read-only port (still supported by AppleWin)
 
 ; Notes on accesses to I/O registers:
@@ -311,13 +314,6 @@ cmdproc
  lda #0
  beq hdboot2
 
-done
- ror hd_status,x	; Post: C=0 or 1
- rts
-
-;======================================
-
-; 16 unused bytes
 boot_other
  lda $00
  bne applesoft
@@ -327,6 +323,21 @@ boot_other
  jmp $faba
 applesoft
  jmp $e000
+
+done
+ ror hd_status,x	; Post: C=0 or 1
+ lda command
+ bne not_status
+ lda hd_disklen_high,x
+ tay
+ lda hd_disklen_low,x
+ tax
+not_status
+ rts
+
+;======================================
+
+; 16 unused bytes
 
 !zone data
 
