@@ -46,8 +46,8 @@ https://github.com/AppleWin/AppleWin/blob/master/source/Harddisk.cpp
     C085	(r/w) HIGH BYTE OF MEMORY BUFFER
     C086	(r/w) LOW BYTE OF BLOCK NUMBER
     C087	(r/w) HIGH BYTE OF BLOCK NUMBER
-    C088    (r)   LOW BYTE OF DISK LEN
-    C089    (r)   HIGH BYTE OF DISK LEN
+    C088	(r)   LOW BYTE OF DISK LEN
+    C089	(r)   HIGH BYTE OF DISK LEN
 */
 
 #[derive(Debug)]
