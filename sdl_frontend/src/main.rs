@@ -848,7 +848,11 @@ Function Keys:
     );
 }
 
-fn load_image<P>(cpu: &mut CPU, path: P, drive: usize) -> Result<(), Box<dyn Error + Send + Sync>>
+fn get_drive_number(loaded_device: &mut Vec<IODevice>, device: IODevice) -> usize {
+    loaded_device.iter().filter(|&item| *item == device).count()
+}
+
+fn load_image<P>(cpu: &mut CPU, path: P, loaded_device: &mut Vec<IODevice>) -> Result<(), Box<dyn Error + Send + Sync>>
 where
     P: AsRef<Path>,
 {
@@ -858,16 +862,24 @@ where
         if ext.eq_ignore_ascii_case(OsStr::new("2mg"))
             || ext.eq_ignore_ascii_case(OsStr::new("hdv"))
         {
+            let drive = get_drive_number(loaded_device, IODevice::HardDisk);
             load_harddisk(cpu, path_ref, drive)?;
+            loaded_device.push(IODevice::HardDisk);
         } else if ext.eq_ignore_ascii_case(OsStr::new("po")) {
             let size = std::fs::metadata(path_ref)?.len();
             if size > DSK_PO_SIZE {
+                let drive = get_drive_number(loaded_device, IODevice::HardDisk);
                 load_harddisk(cpu, path_ref, drive)?;
+                loaded_device.push(IODevice::HardDisk);
             } else {
+                let drive = get_drive_number(loaded_device, IODevice::Disk);
                 load_disk(cpu, path_ref, drive)?;
+                loaded_device.push(IODevice::Disk);
             }
         } else {
+            let drive = get_drive_number(loaded_device, IODevice::Disk);
             load_disk(cpu, path_ref, drive)?;
+            loaded_device.push(IODevice::Disk);
         }
     }
     Ok(())
@@ -1648,7 +1660,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     if !remaining.is_empty() {
         // Load dsk image in drive 1
         let path = Path::new(&remaining[0]);
-        let result = load_image(&mut cpu, path, 0);
+        let mut loaded_device = Vec::new();
+        let result = load_image(&mut cpu, path, &mut loaded_device);
         if let Err(e) = result {
             eprintln!("Unable to load disk {} : {e}", path.display());
         }
@@ -1656,7 +1669,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         if remaining.len() > 1 {
             // Load dsk image in drive 2
             let path2 = Path::new(&remaining[1]);
-            let result = load_image(&mut cpu, path2, 1);
+            let result = load_image(&mut cpu, path2, &mut loaded_device);
             if let Err(e) = result {
                 eprintln!("Unable to load disk {} : {e}", path2.display());
             }
