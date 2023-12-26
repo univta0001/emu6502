@@ -54,14 +54,32 @@ bitflags! {
 #[cfg(feature = "serde_support")]
 impl serde::Serialize for CpuFlags {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        bitflags_serde_legacy::serialize(self, "bits", serializer)
+        u8::serialize(&self.bits(), serializer)
     }
 }
 
 #[cfg(feature = "serde_support")]
 impl<'de> serde::Deserialize<'de> for CpuFlags {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        bitflags_serde_legacy::deserialize("bits", deserializer)
+        #[derive(Serialize, Deserialize)]
+        #[serde(untagged)]
+        enum U8orMap {
+            U8(u8),
+            Map(BTreeMap::<String, u8>),
+        }
+
+        let value = match U8orMap::deserialize(deserializer)? {
+            U8orMap::U8(value) => CpuFlags::from_bits_truncate(value),
+            U8orMap::Map(value) => {
+                if let Some(&value) = value.get("bits") {
+                    CpuFlags::from_bits_truncate(value)
+                } else {
+                    CpuFlags::from_bits_truncate(0b100100)
+                }
+            }
+        };
+
+        Ok(value)
     }
 }
 
