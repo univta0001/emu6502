@@ -598,7 +598,7 @@ impl Uthernet2 {
             W5100_SN_MR_UDP | W5100_SN_MR_UDP_DNS => u2_debug!("Socket #{i} mode: UDP"),
             W5100_SN_MR_IPRAW | W5100_SN_MR_IPRAW_DNS => u2_debug!("Socket #{i} mode: IPRAW"),
             W5100_SN_MR_MACRAW => u2_debug!("Socket #{i} mode: MACRAW"),
-            _ => u2_debug!("Socker #{i} mode: Unknown = {protocol:02X}"),
+            _ => u2_debug!("Socket #{i} mode: Unknown = {protocol:02X}"),
         }
     }
 
