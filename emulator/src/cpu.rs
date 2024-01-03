@@ -1445,6 +1445,8 @@ impl CPU {
 
         #[cfg(feature = "z80")]
         if self.alt_cpu {
+            self.tick();
+            callback(self);
             self.z80cpu.execute_instruction(&mut self.bus);
             return true;
         }
