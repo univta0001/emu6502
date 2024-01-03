@@ -38,7 +38,7 @@ Features in the emulator
 
 - `emu6502 --help` will display:
 
-      emu6502 0.8.5 (4a4bac756c357b27c2f1ee26467eb2345fd62eac)
+      emu6502 0.8.6 (9b964f2f64ad9d4f5c40cf3671d345f8e934bf96)
 
       USAGE:
       emu6502 [FLAGS] [disk 1] [disk 2]
@@ -89,6 +89,7 @@ Features in the emulator
       --chroma bandwidth NTSC Chroma B/W (Valid value: 0-7159090, Default: 600000)
       --capslock off     Turns off default capslock
       --mac_lc_dlgr      Turns on Mac LC DLGR emulation
+      --scale ratio      Scale the graphics by ratio (Default is 2.0)
   
       ARGS:
       
