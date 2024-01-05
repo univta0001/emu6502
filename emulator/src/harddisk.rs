@@ -470,8 +470,6 @@ impl Card for HardDisk {
                             DeviceStatus::DeviceOk as u8
                         }
 
-
-
                         _ => DeviceStatus::DeviceIoError as u8,
                     }
                 } else {
@@ -560,7 +558,7 @@ impl Card for HardDisk {
                 let disk = &mut self.drive[self.drive_select];
                 (((disk.data_len / 512) & 0xff00) >> 8) as u8
             }
-            
+
             _ => DeviceStatus::DeviceIoError as u8,
         }
     }

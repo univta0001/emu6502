@@ -852,7 +852,11 @@ fn get_drive_number(loaded_device: &mut Vec<IODevice>, device: IODevice) -> usiz
     loaded_device.iter().filter(|&item| *item == device).count()
 }
 
-fn load_image<P>(cpu: &mut CPU, path: P, loaded_device: &mut Vec<IODevice>) -> Result<(), Box<dyn Error + Send + Sync>>
+fn load_image<P>(
+    cpu: &mut CPU,
+    path: P,
+    loaded_device: &mut Vec<IODevice>,
+) -> Result<(), Box<dyn Error + Send + Sync>>
 where
     P: AsRef<Path>,
 {
@@ -1238,7 +1242,7 @@ fn update_video(
     canvas: &mut Canvas<Window>,
     texture: &mut Texture,
     fullscreen: bool,
-    scale: f32
+    scale: f32,
 ) {
     let disp = &mut cpu.bus.video;
     if *save_screenshot {

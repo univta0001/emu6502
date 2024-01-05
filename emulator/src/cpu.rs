@@ -65,7 +65,7 @@ impl<'de> serde::Deserialize<'de> for CpuFlags {
         #[serde(untagged)]
         enum U8orMap {
             U8(u8),
-            Map(BTreeMap::<String, u8>),
+            Map(BTreeMap<String, u8>),
         }
 
         let value = match U8orMap::deserialize(deserializer)? {

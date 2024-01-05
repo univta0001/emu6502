@@ -402,6 +402,7 @@ struct W65C22 {
     irq_happen: usize,
     enabled: bool,
     latch_addr_valid: bool,
+    driving_bus: bool,
 }
 
 impl W65C22 {
@@ -428,6 +429,7 @@ impl W65C22 {
             irq_happen: 0,
             enabled: false,
             latch_addr_valid: false,
+            driving_bus: false,
         }
     }
 
@@ -494,6 +496,7 @@ impl W65C22 {
         self.state = AY_INACTIVE;
         self.enabled = false;
         self.latch_addr_valid = false;
+        self.driving_bus = false;
     }
 
     fn poll_irq(&mut self) -> Option<usize> {
@@ -510,9 +513,11 @@ impl W65C22 {
         if value & 0x07 == AY_RESET {
             self.ay8910.reset();
             self.latch_addr_valid = false;
+            self.driving_bus = false;
         } else if self.state == AY_INACTIVE {
             match value & 0x07 {
                 AY_READ_DATA => {
+                    self.driving_bus = true;
                     if self.latch_addr_valid {
                         self.ora = self.ay8910.read_register() & (self.ddra ^ 0xff)
                     }
@@ -530,6 +535,12 @@ impl W65C22 {
                 }
                 _ => {}
             }
+        }
+
+        self.state = value & 0x7;
+
+        if self.state == AY_INACTIVE {
+            self.driving_bus = false;
         }
     }
 
@@ -570,7 +581,7 @@ impl W65C22 {
                 } else {
                     //eprintln!("Read ORA {:02X} with {:02X}", addr, self.ora);
                     self.ifr &= !0x03;
-                    return_addr = if self.latch_addr_valid {
+                    return_addr = if self.driving_bus {
                         self.ora
                     } else {
                         self.ora | (self.ddra ^ 0xff)
@@ -1026,8 +1037,8 @@ mod test {
 
         assert_eq!(
             w65c22.io_access(0x01, 00, false),
-            0x00,
-            "Expecting 0x0 when reading AY current register"
+            0xff,
+            "Expecting 0xff when reading AY current register"
         );
     }
 
