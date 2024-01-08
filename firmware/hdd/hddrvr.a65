@@ -326,16 +326,14 @@ applesoft
 
 done
  ror hd_status,x	; Post: C=0 or 1
- bcs status_fail
- lda command
+ ldy command
  bne not_status
- lda hd_disklen_high,x
- tay
+ pha
+ ldy hd_disklen_high,x
  lda hd_disklen_low,x
  tax
+ pla
 not_status
- lda #0
-status_fail
  rts
 
 ;======================================
