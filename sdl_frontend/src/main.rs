@@ -848,7 +848,7 @@ Function Keys:
     );
 }
 
-fn get_drive_number(loaded_device: &mut Vec<IODevice>, device: IODevice) -> usize {
+fn get_drive_number(loaded_device: &mut [IODevice], device: IODevice) -> usize {
     loaded_device.iter().filter(|&item| *item == device).count()
 }
 
