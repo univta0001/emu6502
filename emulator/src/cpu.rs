@@ -2593,10 +2593,7 @@ fn translate_z80_cirtech_address(address: u16) -> u16 {
     match address {
         0x7800..=0x7fff => address + 0x3000,
         0x9800..=0x9fff => address - 0x1000,
-        0x0000..=0xafff => address + 0x1000,
-        0xb000..=0xdfff => address + 0x2000,
-        0xe000..=0xefff => address - 0x2000,
-        0xf000..=0xffff => address - 0xf000,
+        _ => translate_z80address(address),
     }
 }
 
