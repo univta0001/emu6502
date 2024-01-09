@@ -550,13 +550,13 @@ impl Card for HardDisk {
             // Low Disk Len block
             0x8 => {
                 let disk = &mut self.drive[self.drive_select];
-                ((disk.data_len / 512) & 0xff) as u8
+                ((disk.data_len / HD_BLOCK_SIZE) & 0xff) as u8
             }
 
             // High Disk Len block
             0x9 => {
                 let disk = &mut self.drive[self.drive_select];
-                (((disk.data_len / 512) & 0xff00) >> 8) as u8
+                (((disk.data_len / HD_BLOCK_SIZE) & 0xff00) >> 8) as u8
             }
 
             _ => DeviceStatus::DeviceIoError as u8,
