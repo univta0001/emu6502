@@ -128,6 +128,9 @@ pub struct Bus {
     #[cfg(not(target_os = "wasi"))]
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub uthernet2: Uthernet2,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    pub z80_cirtech: bool,
 }
 
 pub trait Mem {
@@ -222,6 +225,7 @@ impl Bus {
             any_key_down: false,
             #[cfg(not(target_os = "wasi"))]
             uthernet2: Uthernet2::new(),
+            z80_cirtech: false,
         };
 
         // Memory initialization is based on the implementation of AppleWin
@@ -299,6 +303,14 @@ impl Bus {
 
     pub fn is_normal_speed(&self) -> bool {
         self.disk.is_normal_disk() || self.audio.is_audio_active()
+    }
+
+    pub fn get_z80_cirtech(&self) -> bool {
+        self.z80_cirtech
+    }
+
+    pub fn set_z80_cirtech(&mut self, value: bool) {
+        self.z80_cirtech = value;
     }
 
     fn get_paddle_trigger(&self) -> usize {

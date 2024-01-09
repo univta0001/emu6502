@@ -2547,12 +2547,20 @@ impl Machine for Bus {
         let mut_ptr = const_ptr as *mut Bus;
         unsafe { (*mut_ptr).addr_read(translate_z80address(address)) }
         */
-        self.addr_read(translate_z80address(address))
+        if !self.z80_cirtech {
+            self.addr_read(translate_z80address(address))
+        } else {
+            self.addr_read(translate_z80_cirtech_address(address))
+        }
     }
 
     fn poke(&mut self, address: u16, value: u8) {
         //eprintln!("Poke addr = {:04x} {:04X} {:02X}", address, translate_address(address), value);
-        self.addr_write(translate_z80address(address), value);
+        if !self.z80_cirtech {
+            self.addr_write(translate_z80address(address), value);
+        } else {
+            self.addr_write(translate_z80_cirtech_address(address), value);
+        }
     }
 
     fn port_in(&mut self, _address: u16) -> u8 {
@@ -2573,6 +2581,18 @@ fn default_z80cpu() -> Cpu {
 #[cfg(feature = "z80")]
 fn translate_z80address(address: u16) -> u16 {
     match address {
+        0x0000..=0xafff => address + 0x1000,
+        0xb000..=0xdfff => address + 0x2000,
+        0xe000..=0xefff => address - 0x2000,
+        0xf000..=0xffff => address - 0xf000,
+    }
+}
+
+#[cfg(feature = "z80")]
+fn translate_z80_cirtech_address(address: u16) -> u16 {
+    match address {
+        0x7800..=0x7fff => address + 0x3000,
+        0x9800..=0x9fff => address - 0x1000,
         0x0000..=0xafff => address + 0x1000,
         0xb000..=0xdfff => address + 0x2000,
         0xe000..=0xefff => address - 0x2000,
