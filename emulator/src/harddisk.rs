@@ -222,6 +222,16 @@ impl HardDisk {
 
         Ok(absolute_path)
     }
+
+    fn low_disk_block_size(&mut self) -> u8 {
+        let disk = &mut self.drive[self.drive_select];
+        ((disk.data_len / HD_BLOCK_SIZE) & 0xff) as u8
+    }
+
+    fn high_disk_block_size(&mut self) -> u8 {
+        let disk = &mut self.drive[self.drive_select];
+        (((disk.data_len / HD_BLOCK_SIZE) & 0xff00) >> 8) as u8
+    }
 }
 
 impl Tick for HardDisk {
@@ -296,7 +306,12 @@ impl Card for HardDisk {
         _value: u8,
         _write_flag: bool,
     ) -> u8 {
-        ROM[(addr & 0xff) as usize]
+        let addr = (addr & 0xff) as usize;
+        match addr {
+            0xfc => self.low_disk_block_size(),
+            0xfd => self.high_disk_block_size(),
+            _ => ROM[addr],
+        }
     }
 
     fn io_access(
@@ -548,16 +563,10 @@ impl Card for HardDisk {
             }
 
             // Low Disk Len block
-            0x8 => {
-                let disk = &mut self.drive[self.drive_select];
-                ((disk.data_len / HD_BLOCK_SIZE) & 0xff) as u8
-            }
+            0x8 => self.low_disk_block_size(),
 
             // High Disk Len block
-            0x9 => {
-                let disk = &mut self.drive[self.drive_select];
-                (((disk.data_len / HD_BLOCK_SIZE) & 0xff00) >> 8) as u8
-            }
+            0x9 => self.high_disk_block_size(),
 
             _ => DeviceStatus::DeviceIoError as u8,
         }
