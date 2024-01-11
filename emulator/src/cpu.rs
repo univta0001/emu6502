@@ -8,7 +8,6 @@ use bitflags::bitflags;
 #[cfg(feature = "z80")]
 use iz80::*;
 
-#[cfg(feature = "z80")]
 #[cfg(feature = "serde_support")]
 use std::collections::BTreeMap;
 
@@ -21,7 +20,6 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "serde_support")]
 use serde::de::Error;
 
-#[cfg(feature = "z80")]
 #[cfg(feature = "serde_support")]
 use serde::{Deserializer, Serializer};
 
