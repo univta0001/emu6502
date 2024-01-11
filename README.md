@@ -38,7 +38,7 @@ Features in the emulator
 
 - `emu6502 --help` will display:
 
-      emu6502 0.8.6 (9b964f2f64ad9d4f5c40cf3671d345f8e934bf96)
+      emu6502 0.8.7 (44360322fa64819bf929a22356f3ba1f22076220)
 
       USAGE:
       emu6502 [FLAGS] [disk 1] [disk 2]
@@ -90,6 +90,7 @@ Features in the emulator
       --capslock off     Turns off default capslock
       --mac_lc_dlgr      Turns on Mac LC DLGR emulation
       --scale ratio      Scale the graphics by ratio (Default is 2.0)
+      --z80_cirtech      Enable Z80 Cirtech address translation
   
       ARGS:
       
