@@ -944,6 +944,7 @@ impl CPU {
         self.register_y = 0;
         self.stack_pointer = STACK_RESET;
         self.status = CpuFlags::from_bits_truncate(0b00100100);
+        self.alt_cpu = false;
 
         if self.is_apple2c() {
             self.bus.is_apple2c = true;
@@ -1445,9 +1446,19 @@ impl CPU {
 
         #[cfg(feature = "z80")]
         if self.alt_cpu {
-            self.tick();
+            let z80_cycle = self.z80cpu.cycle_count();
             callback(self);
             self.z80cpu.execute_instruction(&mut self.bus);
+            let z80_cycle = (self.z80cpu.cycle_count() - z80_cycle + 1) / 2;
+            for _ in 0..z80_cycle {
+                self.tick();
+            }
+
+            if z80_cycle == 0 {
+                // Assume zero cycle count that the Z80 cpu is in halt state
+                self.alt_cpu = false;
+            }
+
             return true;
         }
 
@@ -2548,18 +2559,18 @@ impl Machine for Bus {
         unsafe { (*mut_ptr).addr_read(translate_z80address(address)) }
         */
         if !self.z80_cirtech {
-            self.addr_read(translate_z80address(address))
+            self.unclocked_addr_read(translate_z80address(address))
         } else {
-            self.addr_read(translate_z80_cirtech_address(address))
+            self.unclocked_addr_read(translate_z80_cirtech_address(address))
         }
     }
 
     fn poke(&mut self, address: u16, value: u8) {
         //eprintln!("Poke addr = {:04x} {:04X} {:02X}", address, translate_address(address), value);
         if !self.z80_cirtech {
-            self.addr_write(translate_z80address(address), value);
+            self.unclocked_addr_write(translate_z80address(address), value);
         } else {
-            self.addr_write(translate_z80_cirtech_address(address), value);
+            self.unclocked_addr_write(translate_z80_cirtech_address(address), value);
         }
     }
 
