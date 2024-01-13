@@ -572,15 +572,31 @@ impl CPU {
     }
 
     fn next_byte(&mut self) -> u8 {
-        let value = self.bus.addr_read(self.program_counter);
+        let value = self.addr_read(self.program_counter);
         self.increment_pc();
         value
     }
 
     fn next_word(&mut self) -> u16 {
-        let value = self.bus.addr_read_u16(self.program_counter);
+        let value = self.addr_read_u16(self.program_counter);
         self.increment_pc_count(2);
         value
+    }
+
+    fn addr_read(&mut self, addr: u16) -> u8 {
+        self.tick();
+        self.bus.unclocked_addr_read(addr)
+    }
+
+    fn addr_read_u16(&mut self, addr: u16) -> u16 {
+        self.tick();
+        self.tick();
+        self.bus.unclocked_addr_read_u16(addr)
+    }
+
+    fn addr_write(&mut self, addr: u16, value: u8) {
+        self.tick();
+        self.bus.unclocked_addr_write(addr, value)
     }
 
     pub fn get_zeropage_addr(&mut self) -> u16 {
@@ -619,7 +635,7 @@ impl CPU {
 
         // Implement false read for RMW ABS,X instructions to pass a2audit test
         if absolute_x_force_tick(op, self.m65c02) {
-            self.bus.addr_read(addr);
+            self.addr_read(addr);
         } else if page_crossed {
             self.tick();
         }
@@ -640,19 +656,19 @@ impl CPU {
 
     pub fn get_indirect_zeropage_addr(&mut self) -> u16 {
         let ptr = self.next_byte();
-        self.bus.addr_read_u16(ptr as u16)
+        self.addr_read_u16(ptr as u16)
     }
 
     pub fn get_indirect_x_addr(&mut self) -> u16 {
         let base = self.next_byte();
         let ptr = base.wrapping_add(self.register_x);
         self.tick();
-        self.bus.addr_read_u16(ptr as u16)
+        self.addr_read_u16(ptr as u16)
     }
 
     pub fn get_indirect_y_addr(&mut self, op: &OpCode) -> u16 {
         let base = self.next_byte();
-        let deref_base = self.bus.addr_read_u16(base as u16);
+        let deref_base = self.addr_read_u16(base as u16);
         let deref = deref_base.wrapping_add(self.register_y as u16);
         let page_crossed = self.page_cross(deref, deref_base);
 
@@ -670,7 +686,7 @@ impl CPU {
     pub fn get_indirect_absolute_x_addr(&mut self) -> u16 {
         let base = self.next_word();
         let ptr = base.wrapping_add(self.register_x as u16);
-        self.bus.addr_read_u16(ptr)
+        self.addr_read_u16(ptr)
     }
 
     pub fn get_immediate_addr(&mut self) -> u16 {
@@ -804,7 +820,7 @@ impl CPU {
 
     fn read_operand(&mut self, op: &OpCode) -> u8 {
         let addr = self.get_operand_address(op, self.program_counter);
-        self.bus.addr_read(addr)
+        self.addr_read(addr)
     }
 
     //    02     03     04     07     0B     0C     0F
@@ -831,34 +847,34 @@ impl CPU {
     }
 
     fn ldy(&mut self, addr: u16) {
-        let data = self.bus.addr_read(addr);
+        let data = self.addr_read(addr);
         self.set_register_y(data);
     }
 
     fn ldx(&mut self, addr: u16) {
-        let data = self.bus.addr_read(addr);
+        let data = self.addr_read(addr);
         self.set_register_x(data);
     }
 
     fn lda(&mut self, addr: u16) {
-        let data = self.bus.addr_read(addr);
+        let data = self.addr_read(addr);
         self.set_register_a(data);
     }
 
     fn sta(&mut self, addr: u16) {
-        self.bus.addr_write(addr, self.register_a);
+        self.addr_write(addr, self.register_a);
     }
 
     fn stx(&mut self, addr: u16) {
-        self.bus.addr_write(addr, self.register_x);
+        self.addr_write(addr, self.register_x);
     }
 
     fn sty(&mut self, addr: u16) {
-        self.bus.addr_write(addr, self.register_y);
+        self.addr_write(addr, self.register_y);
     }
 
     fn stz(&mut self, addr: u16) {
-        self.bus.addr_write(addr, 0);
+        self.addr_write(addr, 0);
     }
 
     fn set_register_a(&mut self, value: u8) {
@@ -877,17 +893,17 @@ impl CPU {
     }
 
     fn and(&mut self, addr: u16) {
-        let data = self.bus.addr_read(addr);
+        let data = self.addr_read(addr);
         self.set_register_a(data & self.register_a);
     }
 
     fn eor(&mut self, addr: u16) {
-        let data = self.bus.addr_read(addr);
+        let data = self.addr_read(addr);
         self.set_register_a(data ^ self.register_a);
     }
 
     fn ora(&mut self, addr: u16) {
-        let data = self.bus.addr_read(addr);
+        let data = self.addr_read(addr);
         self.set_register_a(data | self.register_a);
     }
 
@@ -1050,11 +1066,11 @@ impl CPU {
 
     fn stack_pop(&mut self) -> u8 {
         self.stack_pointer = self.stack_pointer.wrapping_add(1);
-        self.bus.addr_read(STACK + self.stack_pointer as u16)
+        self.addr_read(STACK + self.stack_pointer as u16)
     }
 
     fn stack_push(&mut self, data: u8) {
-        self.bus.addr_write(STACK + self.stack_pointer as u16, data);
+        self.addr_write(STACK + self.stack_pointer as u16, data);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1)
     }
 
@@ -1081,12 +1097,12 @@ impl CPU {
     }
 
     fn asl(&mut self, addr: u16) {
-        let mut data = self.bus.addr_read(addr);
+        let mut data = self.addr_read(addr);
 
         self.status.set(CpuFlags::CARRY, data & 0x80 > 0);
         self.tick();
         data <<= 1;
-        self.bus.addr_write(addr, data);
+        self.addr_write(addr, data);
         self.update_zero_and_negative_flags(data);
     }
 
@@ -1100,24 +1116,24 @@ impl CPU {
     }
 
     fn lsr(&mut self, addr: u16) {
-        let mut data = self.bus.addr_read(addr);
+        let mut data = self.addr_read(addr);
 
         self.status.set(CpuFlags::CARRY, data & 1 == 1);
         data >>= 1;
         self.tick();
-        self.bus.addr_write(addr, data);
+        self.addr_write(addr, data);
         self.update_zero_and_negative_flags(data);
     }
 
     fn rol(&mut self, addr: u16) {
-        let mut data = self.bus.addr_read(addr);
+        let mut data = self.addr_read(addr);
         let old_carry = self.status.contains(CpuFlags::CARRY) as u8;
 
         self.status.set(CpuFlags::CARRY, data & 0x80 > 0);
         data <<= 1;
         data |= old_carry;
         self.tick();
-        self.bus.addr_write(addr, data);
+        self.addr_write(addr, data);
         self.update_zero_and_negative_flags(data);
     }
 
@@ -1133,14 +1149,14 @@ impl CPU {
     }
 
     fn ror(&mut self, addr: u16) {
-        let mut data = self.bus.addr_read(addr);
+        let mut data = self.addr_read(addr);
         let old_carry = self.status.contains(CpuFlags::CARRY) as u8;
 
         self.status.set(CpuFlags::CARRY, data & 1 == 1);
         data >>= 1;
         data |= old_carry << 7;
         self.tick();
-        self.bus.addr_write(addr, data);
+        self.addr_write(addr, data);
         self.update_zero_and_negative_flags(data);
     }
 
@@ -1156,10 +1172,10 @@ impl CPU {
     }
 
     fn inc(&mut self, addr: u16) {
-        let mut data = self.bus.addr_read(addr);
+        let mut data = self.addr_read(addr);
         data = data.wrapping_add(1);
         self.tick();
-        self.bus.addr_write(addr, data);
+        self.addr_write(addr, data);
         self.update_zero_and_negative_flags(data);
     }
 
@@ -1182,10 +1198,10 @@ impl CPU {
     }
 
     fn dec(&mut self, addr: u16) {
-        let mut data = self.bus.addr_read(addr);
+        let mut data = self.addr_read(addr);
         data = data.wrapping_sub(1);
         self.tick();
-        self.bus.addr_write(addr, data);
+        self.addr_write(addr, data);
         self.update_zero_and_negative_flags(data);
     }
 
@@ -1234,14 +1250,14 @@ impl CPU {
     }
 
     fn bit_immediate(&mut self) {
-        let data = self.bus.addr_read(self.program_counter);
+        let data = self.addr_read(self.program_counter);
         self.increment_pc();
         let and = self.register_a & data;
         self.status.set(CpuFlags::ZERO, and == 0);
     }
 
     fn bit(&mut self, addr: u16) {
-        let data = self.bus.addr_read(addr);
+        let data = self.addr_read(addr);
         let and = self.register_a & data;
         self.status.set(CpuFlags::ZERO, and == 0);
         self.status.set(CpuFlags::NEGATIVE, data & 0b10000000 > 0);
@@ -1250,24 +1266,24 @@ impl CPU {
 
     fn trb(&mut self, op: &OpCode) {
         let addr = self.get_operand_address(op, self.program_counter);
-        let data = self.bus.addr_read(addr);
+        let data = self.addr_read(addr);
         let and = self.register_a & data;
         self.status.set(CpuFlags::ZERO, and == 0);
         self.tick();
-        self.bus.addr_write(addr, data & (self.register_a ^ 0xff));
+        self.addr_write(addr, data & (self.register_a ^ 0xff));
     }
 
     fn tsb(&mut self, op: &OpCode) {
         let addr = self.get_operand_address(op, self.program_counter);
-        let data = self.bus.addr_read(addr);
+        let data = self.addr_read(addr);
         let and = self.register_a & data;
         self.status.set(CpuFlags::ZERO, and == 0);
         self.tick();
-        self.bus.addr_write(addr, data | self.register_a);
+        self.addr_write(addr, data | self.register_a);
     }
 
     fn compare(&mut self, addr: u16, compare_with: u8) {
-        let data = self.bus.addr_read(addr);
+        let data = self.addr_read(addr);
         self.status.set(CpuFlags::CARRY, data <= compare_with);
         self.update_zero_and_negative_flags(compare_with.wrapping_sub(data));
     }
@@ -1277,7 +1293,7 @@ impl CPU {
 
         self.tick();
         if condition {
-            let offset = self.bus.addr_read(addr) as i8 as u16;
+            let offset = self.addr_read(addr) as i8 as u16;
             let jump_addr = self.program_counter.wrapping_add(offset);
 
             if self.program_counter & 0xFF00 != jump_addr & 0xFF00 {
@@ -1291,10 +1307,10 @@ impl CPU {
     fn rmb(&mut self, bit: u8) {
         if self.m65c02 && !self.m65c02_rockwell_disable {
             let zp = self.next_byte();
-            let value = self.bus.addr_read(zp as u16);
+            let value = self.addr_read(zp as u16);
             self.tick();
             let mask = (1 << bit) ^ 0xff;
-            self.bus.addr_write(zp as u16, value & mask);
+            self.addr_write(zp as u16, value & mask);
         } else {
             self.tick();
         }
@@ -1303,10 +1319,10 @@ impl CPU {
     fn smb(&mut self, bit: u8) {
         if self.m65c02 && !self.m65c02_rockwell_disable {
             let zp = self.next_byte();
-            let value = self.bus.addr_read(zp as u16);
+            let value = self.addr_read(zp as u16);
             self.tick();
             let mask = 1 << bit;
-            self.bus.addr_write(zp as u16, value | mask);
+            self.addr_write(zp as u16, value | mask);
         } else {
             self.tick();
         }
@@ -1315,7 +1331,7 @@ impl CPU {
     fn bbr(&mut self, bit: u8) {
         if self.m65c02 && !self.m65c02_rockwell_disable {
             let zp = self.next_byte();
-            let value = self.bus.addr_read(zp as u16);
+            let value = self.addr_read(zp as u16);
             let jump: i8 = self.next_byte() as i8;
 
             self.tick();
@@ -1332,7 +1348,7 @@ impl CPU {
     fn bbs(&mut self, bit: u8) {
         if self.m65c02 && !self.m65c02_rockwell_disable {
             let zp = self.next_byte();
-            let value = self.bus.addr_read(zp as u16);
+            let value = self.addr_read(zp as u16);
             let jump: i8 = self.next_byte() as i8;
 
             self.tick();
@@ -1362,7 +1378,7 @@ impl CPU {
             self.status.remove(CpuFlags::DECIMAL_MODE);
         }
 
-        self.program_counter = self.bus.addr_read_u16(interrupt.vector_addr);
+        self.program_counter = self.addr_read_u16(interrupt.vector_addr);
     }
 
     pub fn is_apple2e(&self) -> bool {
@@ -2027,15 +2043,15 @@ impl CPU {
 
                 /* JMP Absolute */
                 0x4c => {
-                    let mem_address = self.bus.addr_read_u16(self.program_counter);
+                    let mem_address = self.addr_read_u16(self.program_counter);
                     self.program_counter = mem_address;
                 }
 
                 /* JMP Indirect */
                 0x6c => {
-                    let mem_address = self.bus.addr_read_u16(self.program_counter);
+                    let mem_address = self.addr_read_u16(self.program_counter);
 
-                    // let indirect_ref = self.bus.addr_read_u16(mem_address);
+                    // let indirect_ref = self.addr_read_u16(mem_address);
                     // 6502 bug mode with with page boundary:
                     // if address $3000 contains $40, $30FF contains $80, and $3100 contains $50,
                     // the result of JMP ($30FF) will be a transfer of control to $4080 rather
@@ -2044,15 +2060,15 @@ impl CPU {
                     // the high byte from $3000
                     let indirect_ref = if !self.m65c02 {
                         if mem_address & 0x00FF == 0x00FF {
-                            let lo = self.bus.addr_read(mem_address);
-                            let hi = self.bus.addr_read(mem_address & 0xFF00);
+                            let lo = self.addr_read(mem_address);
+                            let hi = self.addr_read(mem_address & 0xFF00);
                             (hi as u16) << 8 | (lo as u16)
                         } else {
-                            self.bus.addr_read_u16(mem_address)
+                            self.addr_read_u16(mem_address)
                         }
                     } else {
                         self.tick();
-                        self.bus.addr_read_u16(mem_address)
+                        self.addr_read_u16(mem_address)
                     };
 
                     self.program_counter = indirect_ref;
@@ -2069,10 +2085,10 @@ impl CPU {
                  * Load PC with ADH/ADL; Fetch next OP with new PC
                  */
                 0x20 => {
-                    let adl = self.bus.addr_read(self.program_counter);
+                    let adl = self.addr_read(self.program_counter);
                     self.stack_push_u16(self.program_counter.wrapping_add(1));
                     let target_address =
-                        (self.bus.addr_read(self.program_counter + 1) as u16) << 8 | adl as u16;
+                        (self.addr_read(self.program_counter + 1) as u16) << 8 | adl as u16;
                     self.program_counter = target_address;
                     self.tick()
                 }
@@ -2506,7 +2522,7 @@ impl CPU {
                         self.tick();
                         let address = self.next_word();
                         let ptr = address.wrapping_add(self.register_x as u16);
-                        self.program_counter = self.bus.addr_read_u16(ptr);
+                        self.program_counter = self.addr_read_u16(ptr);
                     } else {
                         self.tick();
                     }
@@ -2529,7 +2545,7 @@ impl CPU {
             true
         } else {
             callback(self);
-            
+
             #[cfg(feature = "z80")]
             {
                 let z80_cycle = self.z80cpu.cycle_count();
