@@ -997,19 +997,16 @@ mod test {
             0x09, 0xc0, // -> $Cx
             0x85, 0xfb, // STA $FB
             0xa0, 0x04, // LDY #$04 ; $Cx04
-            0xa2, 0x02, // LDX #$02 ; 2 verify
             0xb1, 0xfa, // LDA ($FA),Y
-            0x85, 0xff, // STA $ff ; 3 cycles
-            0xb1, 0xfa, // LDA ($FA),Y ; 5 cycles
-            0x38, // SEC
-            0xe5, 0xff, // SBC $FF ; Expected value = 0xf8
+            0xc5, 0xfa, // CMP $FA ; 3 cycles, C=1
+            0xf1, 0xfa, // SBC ($FA),Y ; 5 cycles;
             0x00, // END
         ];
         cpu.bus.set_cycles(0);
         cpu.load_and_run(&detect_code);
         assert_eq!(
-            cpu.register_a, 0xf8,
-            "Detect Mockingboard value should be 0xf8"
+            cpu.register_a, 0x08,
+            "Detect Mockingboard value should be 0x08"
         );
     }
 
