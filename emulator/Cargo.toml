@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bitflags = "2.4.1"
+bitflags = "2.4.2"
 flate2 = { version = "1.0.28", optional = true }
 instant = { version = "0.1.12", features = ["wasm-bindgen"], optional = true }
 serde = { version = "1.0.195", features = ["derive"],  optional = true }

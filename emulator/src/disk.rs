@@ -562,6 +562,7 @@ fn save_dsk_woz_to_disk(disk: &Disk) -> io::Result<()> {
             let stem_path = Path::new(file_stem);
             if let Some(path_ext) = path.extension() {
                 if check_file_extension(path_ext, stem_path, "dsk")
+                    || check_file_extension(path_ext, stem_path, "do")
                     || check_file_extension(path_ext, stem_path, "po")
                 {
                     convert_woz_to_dsk(disk)?;
@@ -1946,6 +1947,8 @@ impl DiskDrive {
 
             if let Some(filename_ext) = extension {
                 if check_file_extension(filename_ext, stem_path, "dsk") {
+                    return self.convert_dsk_po_to_woz(filename, false);
+                } if check_file_extension(filename_ext, stem_path, "do") {
                     return self.convert_dsk_po_to_woz(filename, false);
                 } else if check_file_extension(filename_ext, stem_path, "po") {
                     return self.convert_dsk_po_to_woz(filename, true);

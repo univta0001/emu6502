@@ -816,8 +816,8 @@ FLAGS:
     --z80_cirtech      Enable Z80 Cirtech address translation
 
 ARGS:
-    [disk 1]           Disk 1 file (woz, dsk, po file). File can be in gz format
-    [disk 2]           Disk 2 file (woz, dsk, po file). File can be in gz format
+    [disk 1]           Disk 1 file (woz, dsk, do, po file). File can be in gz format
+    [disk 2]           Disk 2 file (woz, dsk, do, po file). File can be in gz format
 
 Function Keys:
     Ctrl-Shift-F1      Display emulation speed
@@ -910,7 +910,7 @@ fn open_disk_dialog(cpu: &mut CPU, drive: usize) {
         .add_filter(
             "Disk image",
             &[
-                "dsk", "po", "nib", "woz", "nib.gz", "dsk.gz", "po.gz", "woz.gz",
+                "dsk", "do", "po", "nib", "woz", "nib.gz", "dsk.gz", "do.gz", "po.gz", "woz.gz",
             ],
         )
         .pick_file();
