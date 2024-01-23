@@ -517,8 +517,8 @@ impl W65C22 {
         } else if self.state == AY_INACTIVE {
             match value & 0x07 {
                 AY_READ_DATA => {
-                    self.driving_bus = true;
                     if self.latch_addr_valid {
+                        self.driving_bus = true;
                         self.ora = self.ay8910.read_register() & (self.ddra ^ 0xff)
                     }
                 }

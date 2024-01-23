@@ -1946,9 +1946,9 @@ impl DiskDrive {
             let extension = filename.extension();
 
             if let Some(filename_ext) = extension {
-                if check_file_extension(filename_ext, stem_path, "dsk") {
-                    return self.convert_dsk_po_to_woz(filename, false);
-                } if check_file_extension(filename_ext, stem_path, "do") {
+                if check_file_extension(filename_ext, stem_path, "dsk")
+                    || check_file_extension(filename_ext, stem_path, "do")
+                {
                     return self.convert_dsk_po_to_woz(filename, false);
                 } else if check_file_extension(filename_ext, stem_path, "po") {
                     return self.convert_dsk_po_to_woz(filename, true);
