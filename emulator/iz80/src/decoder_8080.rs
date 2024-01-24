@@ -163,9 +163,9 @@ impl Decoder8080 {
 
     fn load_cycle_information(&mut self) {
         // Load cycle information
-        for (c, item) in NO_PREFIX_CYCLES.iter().enumerate() {
+        for (c, &item) in NO_PREFIX_CYCLES.iter().enumerate() {
             if let Some(opcode) = &mut self.no_prefix[c] {
-                opcode.cycles = *item;
+                opcode.cycles = item;
                 opcode.cycles_conditional = opcode.cycles;
             }
         }
