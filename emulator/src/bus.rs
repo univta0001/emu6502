@@ -657,19 +657,17 @@ impl Bus {
 
             0x0c..=0x0f => self.video.io_access(addr, value, write_flag),
 
-            0x10..=0x1f if !self.video.is_apple2e() => {
-                let keyboard_latch = self.get_keyboard_latch();
-                self.set_keyboard_latch(keyboard_latch & 0x7f);
-                self.read_floating_bus()
-            }
-
             0x10 => {
                 let keyboard_latch = self.get_keyboard_latch();
                 self.set_keyboard_latch(keyboard_latch & 0x7f);
-                if self.any_key_down {
-                    keyboard_latch | 0x80
+                if self.video.is_apple2e() {
+                    if self.any_key_down {
+                        keyboard_latch | 0x80
+                    } else {
+                        keyboard_latch & 0x7f
+                    }
                 } else {
-                    keyboard_latch & 0x7f
+                    self.read_floating_bus()
                 }
             }
 
