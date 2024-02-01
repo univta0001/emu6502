@@ -672,11 +672,6 @@ impl CPU {
         let deref = deref_base.wrapping_add(self.register_y as u16);
         let page_crossed = self.page_cross(deref, deref_base);
 
-        // Only implement false read for STA (zp), Y. Required for mb_audit
-        if op.code == 0x91 {
-            self.bus.unclocked_addr_read(deref);
-        }
-
         if page_crossed || indirect_y_force_tick(op) {
             self.tick();
         }
