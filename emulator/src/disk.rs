@@ -2052,9 +2052,8 @@ impl DiskDrive {
 
     fn move_head_woz(&mut self) {
         let disk = &mut self.drive[self.drive_select];
-        let track_to_read = disk.track;
         //let track_to_read = 0;
-        let tmap_track = disk.tmap_data[track_to_read as usize];
+        let tmap_track = disk.tmap_data[disk.track as usize];
 
         // LSS is running at 2Mhz i.e. 0.5 us
         self.lss_cycle += 0.5;
@@ -2083,7 +2082,7 @@ impl DiskDrive {
         */
 
         //Self::_update_track_if_changed(disk, tmap_track, track_bits, track_to_read, track_type);
-        disk.last_track = track_to_read;
+        disk.last_track = disk.track;
         let read_pulse = Self::read_flux_data(disk);
         //let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
         let optimal_timing = if !self.q7 {
@@ -2094,25 +2093,8 @@ impl DiskDrive {
         };
 
         if self.lss_cycle >= optimal_timing {
-            if track_type != TrackType::Flux {
-                disk.head_mask >>= 1;
-                disk.head_bit += 1;
-
-                if disk.head_mask == 0 {
-                    disk.head_mask = 0x80;
-                    disk.head_bit = 0;
-                    disk.head += 1;
-                }
-
-                if disk.head * 8 + disk.head_bit >= track_bits {
-                    let wrapped = (disk.head * 8 + disk.head_bit) % track_bits;
-                    let (head, remainder) = (wrapped / 8, wrapped % 8);
-                    disk.head = head;
-                    disk.head_mask = 1 << (7 - remainder);
-                    disk.head_bit = remainder;
-                }
-            }
-
+            Self::update_disk_head(disk, track_bits, track_type);
+            
             self.bit_buffer <<= 1;
 
             if disk.loaded && tmap_track != 0xff {
@@ -2134,6 +2116,27 @@ impl DiskDrive {
 
         if track_type == TrackType::Flux {
             self.pulse = read_pulse as u8;
+        }
+    }
+
+    fn update_disk_head(disk: &mut Disk, track_bits: usize, track_type: TrackType) {
+        if track_type != TrackType::Flux {
+            disk.head_mask >>= 1;
+            disk.head_bit += 1;
+
+            if disk.head_mask == 0 {
+                disk.head_mask = 0x80;
+                disk.head_bit = 0;
+                disk.head += 1;
+            }
+
+            if disk.head * 8 + disk.head_bit >= track_bits {
+                let wrapped = (disk.head * 8 + disk.head_bit) % track_bits;
+                let (head, remainder) = (wrapped / 8, wrapped % 8);
+                disk.head = head;
+                disk.head_mask = 1 << (7 - remainder);
+                disk.head_bit = remainder;
+            }
         }
     }
 
