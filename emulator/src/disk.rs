@@ -20,7 +20,7 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 
 #[cfg(feature = "serde_support")]
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 const DSK_IMAGE_SIZE: usize = 143360;
 const DSK40_IMAGE_SIZE: usize = 163840;
@@ -155,7 +155,13 @@ pub struct DiskDrive {
     q7: bool,
     pulse: u8,
     bit_buffer: u8,
-    lss_cycle: f32,
+
+    #[cfg_attr(
+        feature = "serde_support",
+        serde(deserialize_with = "deserialize_lss_cycle")
+    )]
+    lss_cycle: u8,
+
     lss_state: u8,
     prev_lss_state: u8,
     cycles: usize,
@@ -170,6 +176,22 @@ pub struct DiskDrive {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     prev_latch: u8,
+}
+#[cfg(feature = "serde_support")]
+fn deserialize_lss_cycle<'de, D: Deserializer<'de>>(deserializer: D) -> Result<u8, D::Error> {
+    #[derive(Serialize, Deserialize)]
+    #[serde(untagged)]
+    enum Float32OrU8 {
+        Float32(f32),
+        U8(u8),
+    }
+
+    let value = match Float32OrU8::deserialize(deserializer)? {
+        Float32OrU8::Float32(value) => (value * 8.0) as u8,
+        Float32OrU8::U8(value) => value,
+    };
+
+    Ok(value)
 }
 
 // Q0L: Phase 0 OFF
@@ -1206,7 +1228,7 @@ impl DiskDrive {
             q7: false,
             pulse: 0,
             bit_buffer: 0,
-            lss_cycle: 0.0,
+            lss_cycle: 0,
             lss_state: 0,
             prev_lss_state: 0,
             cycles: 0,
@@ -2056,7 +2078,7 @@ impl DiskDrive {
         let tmap_track = disk.tmap_data[disk.track as usize];
 
         // LSS is running at 2Mhz i.e. 0.5 us
-        self.lss_cycle += 0.5;
+        self.lss_cycle += 4;
 
         let random_bits = NOMINAL_USABLE_BITS_TRACK_SIZE;
         let track_bits = if tmap_track == 255 {
@@ -2086,15 +2108,15 @@ impl DiskDrive {
         let read_pulse = Self::read_flux_data(disk);
         //let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
         let optimal_timing = if !self.q7 {
-            disk.optimal_timing as f32 / 8.0
+            disk.optimal_timing
         } else {
             // Writing is always at 4 microseconds
-            4.0
+            32
         };
 
         if self.lss_cycle >= optimal_timing {
             Self::update_disk_head(disk, track_bits, track_type);
-            
+
             self.bit_buffer <<= 1;
 
             if disk.loaded && tmap_track != 0xff {
