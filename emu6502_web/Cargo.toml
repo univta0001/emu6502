@@ -10,9 +10,9 @@ edition = "2021"
 
 [dependencies]
 emu6502 = { path = "../emulator", features=["serde_support","z80","instant_time","flate"] }
-wasm-bindgen = "0.2.90"
-wasm-bindgen-futures = "0.4.40"
-js-sys = "0.3.67"
+wasm-bindgen = "0.2.91"
+wasm-bindgen-futures = "0.4.41"
+js-sys = "0.3.68"
 instant = { version = "0.1.12", features = ["wasm-bindgen"] }
 console_error_panic_hook = "0.1.7"
 #wee_alloc = "0.4.5"

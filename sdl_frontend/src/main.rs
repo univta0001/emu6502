@@ -1228,12 +1228,7 @@ fn update_audio(
                 };
 
             let _ = audio.queue_audio(buffer);
-            snd.clear_buffer();
-        } else {
-            snd.clear_buffer();
         }
-    } else {
-        snd.clear_buffer();
     }
 }
 
@@ -1840,6 +1835,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 } else {
                     _cpu.bus.video.skip_update = true;
                 }
+
+                _cpu.bus.audio.clear_buffer();
 
                 let video_cpu_update = t.elapsed().as_micros();
 
