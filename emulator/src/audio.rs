@@ -371,8 +371,6 @@ impl Tick for Audio {
         */
 
         if self.fcycles >= (self.fcycles_per_sample) {
-            self.fcycles -= self.fcycles_per_sample;
-
             /*
             if self.filter_enabled {
                 beep = self.audio_filter.filter();
@@ -381,9 +379,11 @@ impl Tick for Audio {
 
             if !self.filter_enabled {
                 // Calculate average beep level
-                beep = (self.level / self.fcycles_per_sample) as Channel;
+                beep = (self.level / self.fcycles.floor()) as Channel;
                 self.level = 0.0;
             }
+
+            self.fcycles -= self.fcycles_per_sample;
 
             if beep == 0 {
                 self.audio_active = false;
