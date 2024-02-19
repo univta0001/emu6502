@@ -831,7 +831,7 @@ class _WriterBaseCommand(_BaseCommand):
         tmpfile = args.file + ".ardry"
         with open(tmpfile, "wb") as tmp:
             tmp.write(output_as_bytes)
-        os.rename(tmpfile, args.file)
+        os.rename(tmpfile, args.file+".new")
 
 class _CommandEdit(_WriterBaseCommand):
     def __init__(self):

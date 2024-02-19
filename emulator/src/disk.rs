@@ -1663,6 +1663,7 @@ impl DiskDrive {
 
         let mut trks_woz_offset = 0;
         let mut trks_chunk_size = 0;
+        let version_offset = 20;
 
         while woz_offset < dsk.len() {
             let chunk_id = read_woz_u32(dsk, woz_offset);
@@ -1695,7 +1696,9 @@ impl DiskDrive {
                 // FLUX
                 WOZ_FLUX_CHUNK => {
                     // Only handle FLUX Chunk if the version is greater than 2
-                    self.handle_woz_fluxmap(dsk, woz_offset);
+                    if dsk[version_offset] > 2 {
+                        self.handle_woz_fluxmap(dsk, woz_offset);
+                    }
                     woz_offset += chunk_size as usize;
                 }
 
