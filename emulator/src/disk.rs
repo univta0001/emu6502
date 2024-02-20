@@ -2392,7 +2392,7 @@ impl Disk {
     fn tick(&mut self) {
         if self.rotor_pending_ticks > 0 {
             self.rotor_pending_ticks -= 1;
-            if self.rotor_pending_ticks == 0 && self.phase != 0 {
+            if self.rotor_pending_ticks == 0 {
                 let position = MAGNET_TO_POSITION[self.phase];
 
                 if position >= 0 {
