@@ -9,11 +9,11 @@ default-run = "emu6502"
 
 [dependencies]
 pico-args = "0.5.0"
-rfd = "0.13.0"
+rfd = "0.14.0"
 emu6502 = { path = "../emulator" }
 #sdl2 = "0.35.2"
 #sdl2 = { version = "0.35.2", features = ['bundled', 'static-link'] }
-serde_yaml = { version = "0.9.31", optional = true }
+serde_yaml = { version = "0.9.32", optional = true }
 image = { version = "0.24.8", default-features = false, features = ['jpeg','png'] }
 spin_sleep = "1.2.0"
 #regex = { version = "1.8.1", optional = true }

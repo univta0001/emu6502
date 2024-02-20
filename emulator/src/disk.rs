@@ -10,9 +10,6 @@ use std::path::Path;
 use std::path::PathBuf;
 
 #[cfg(feature = "flate")]
-use std::io::Read;
-
-#[cfg(feature = "flate")]
 use flate2::read::GzDecoder;
 #[cfg(feature = "flate")]
 use flate2::write::GzEncoder;
@@ -1874,11 +1871,7 @@ impl DiskDrive {
         let byte_len = if disk.trackmap[track] == TrackType::Flux {
             bit_count
         } else {
-            let mut value = bit_count / 8;
-            if bit_count % 8 > 0 {
-                value += 1;
-            }
-            value
+            (bit_count + 7) / 8
         };
 
         /*
