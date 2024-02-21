@@ -32,3 +32,5 @@ Cargo.lock
 *.svg
 *.jpg
 *.py
+*.class
+*.java
