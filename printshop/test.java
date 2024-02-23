@@ -30,6 +30,7 @@ public class test {
         byte color = 0;
         int[] image_buffer = null;
         List<Integer> image_int = new ArrayList<Integer>();
+        int columnSize = 0;
         
         while (offset < buffer.length) {
             if (buffer[offset] == 0xd) {
@@ -56,7 +57,7 @@ public class test {
                     offset += 3;
                     continue;
                 case 0x4c:
-                    int columnSize = buffer[offset+3]*256+buffer[2+offset];
+                    columnSize = buffer[offset+3]*256+buffer[2+offset];
                     byte[] image = getBuffer(buffer,offset,columnSize, color);
                     if (image_buffer == null) {
                         image_buffer = new int[image.length];
@@ -92,10 +93,10 @@ public class test {
             }
         }
 
-        BufferedImage bimage = new BufferedImage(1024,row,BufferedImage.TYPE_INT_RGB);
+        BufferedImage bimage = new BufferedImage(columnSize,row,BufferedImage.TYPE_INT_RGB);
         
         for (int j=0;j<row;j++) {
-            for (int i=0;i<1024;i++) {
+            for (int i=0;i<columnSize;i++) {
                 int value = (int) image_int.get(i+j*1024);
                 bimage.setRGB(i,j,value);
             }
@@ -155,7 +156,7 @@ public class test {
     }
 
     public byte[] getBuffer(byte[] buffer, int offset, int columnSize, byte color) {
-        byte[] image = new byte[ 1024*7 ];
+        byte[] image = new byte[ columnSize*7 ];
 
         for (int i=0;i<image.length;i++) {
             image[i] = 127;
@@ -167,9 +168,9 @@ public class test {
         int value = buffer[offset+4+i];
         while (mask > 0) {
             if ((value & mask) > 0) {
-                image[j*1024+i] = color;
+                image[j*columnSize+i] = color;
             } else {
-                image[j*1024+i] = 127;
+                image[j*columnSize+i] = 127;
             }
 
             j += 1;
