@@ -1995,9 +1995,7 @@ impl DiskDrive {
 
             // Read the flux data for 4 times = 0.125 * 4 = 0.5 microsecond
             for _ in 0..4 {
-                if disk.mc3470_counter < 8 {
-                    return_value = 1;
-                } else if disk.mc3470_counter >= disk.mc3470_read_pulse {
+                if disk.mc3470_counter >= disk.mc3470_read_pulse {
                     disk.mc3470_counter = 0;
                     disk.head += 1;
                     if disk.head >= track_bits {
@@ -2010,11 +2008,13 @@ impl DiskDrive {
                     }
                     disk.mc3470_read_pulse = value;
                     return_value = 1;
-                    continue;
+                } else if disk.mc3470_counter < 8 {
+                    return_value = 1;
+                    disk.mc3470_counter += 1;
                 } else {
                     return_value = 0;
+                    disk.mc3470_counter += 1;
                 };
-                disk.mc3470_counter += 1;
             }
             return_value
         } else {
