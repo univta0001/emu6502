@@ -2001,8 +2001,9 @@ impl DiskDrive {
         ))
     }
 
-    /// Read the flux data. The value in the flux data, is the next read pulse. The read pulse is
-    /// valid for 1.0 microsecond (8 cycles)
+    /// Read the flux data. The value in the flux data, is the the number of ticks since
+    /// the previous flux transition in 125us.
+    /// The read pulse is valid for 0.5 microsecond (4 cycles, 1 LSS sequencer clock)
     fn read_flux_data(disk: &mut Disk) -> usize {
         let tmap_track = disk.tmap_data[disk.track as usize];
         if tmap_track != 255 && disk.trackmap[tmap_track as usize] == TrackType::Flux {
@@ -2025,7 +2026,7 @@ impl DiskDrive {
                     }
                     disk.mc3470_read_pulse = value;
                     return_value = 1;
-                } else if disk.mc3470_counter + 1 < 8 {
+                } else if disk.mc3470_counter + 1 < 4 {
                     return_value = 1;
                     disk.mc3470_counter += 1;
                 } else {
