@@ -614,8 +614,12 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                *event_param.reload_cpu = true;
-                cpu.halt_cpu();
+                if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
+                    dump_disk_info(cpu);
+                } else {
+                    *event_param.reload_cpu = true;
+                    cpu.halt_cpu();
+                }
             } else {
                 cpu.bus.toggle_joystick();
             }
@@ -823,6 +827,7 @@ Function Keys:
     Ctrl-Shift-F1      Display emulation speed
     Ctrl-Shift-F2      Disassemble current instructions
     Ctrl-Shift-F3      Dump track sector information
+    Ctrl-Shift-F4      Dump disk WOZ information
     Ctrl-F1            Eject Disk 1
     Ctrl-F2            Eject Disk 2
     Ctrl-F3            Save state in YAML file
@@ -1149,6 +1154,27 @@ fn load_serialized_image() -> Result<CPU, String> {
     }
 
     Ok(new_cpu)
+}
+
+fn dump_disk_info(cpu: &CPU) {
+    let mut slot = 0;
+    for i in 1..8 {
+        if cpu.bus.io_slot[i] == IODevice::Disk {
+            slot = i as u8;
+            break;
+        }
+    }
+
+    if slot == 0 {
+        return;
+    }
+
+    let disk = &cpu.bus.disk;
+    let disk_info = disk.get_disk_info();
+
+    for item in disk_info {
+        eprintln!("{:?}:  Track {:.2}\t\tTRKS {}",item.0, item.1, item.2);
+    }
 }
 
 fn dump_track_sector_info(cpu: &CPU) {

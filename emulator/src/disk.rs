@@ -1337,6 +1337,23 @@ impl DiskDrive {
         ((disk.last_track / 4) as usize, sector)
     }
 
+    pub fn get_disk_info(&self) -> Vec<(TrackType, f32, u8)> {
+        let disk = &self.drive[self.drive_select];
+        let mut result = Vec::new();
+        for track in 0..160 {
+            let tmap_track = disk.tmap_data[track];
+            let track_type = if tmap_track == 255 {
+                TrackType::None
+            } else {
+                disk.trackmap[tmap_track as usize]
+            };
+            if track_type != TrackType::None {
+                result.push((track_type, track as f32 / 4.0, disk.tmap_data[track]));
+            }
+        }
+        result
+    }
+
     pub fn set_random_one_rate(&mut self, value: f32) {
         self.random_one_rate = value
     }
