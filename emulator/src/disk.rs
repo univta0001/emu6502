@@ -2008,7 +2008,7 @@ impl DiskDrive {
                     }
                     disk.mc3470_read_pulse = value;
                     return_value = 1;
-                } else if disk.mc3470_counter < 8 {
+                } else if disk.mc3470_counter + 1 < 8 {
                     return_value = 1;
                     disk.mc3470_counter += 1;
                 } else {
