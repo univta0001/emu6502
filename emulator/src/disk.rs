@@ -1435,7 +1435,7 @@ impl DiskDrive {
         #[cfg(not(feature = "flate"))]
         let dsk: Vec<u8> = std::fs::read(filename)?;
 
-        if dsk.len() != DSK_IMAGE_SIZE && !DSK_36_40_SIZE.contains(dsk.len()) {
+        if dsk.len() != DSK_IMAGE_SIZE && !DSK_36_40_SIZE.contains(&dsk.len()) {
             return Err(std::io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Invalid dsk file",
