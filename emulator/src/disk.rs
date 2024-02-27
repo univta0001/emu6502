@@ -123,7 +123,7 @@ pub struct Disk {
     loaded: bool,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
-    track_40: bool,
+    track_size: usize,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     disk_rom13: bool,
@@ -925,7 +925,7 @@ fn create_woz2_trk(dsk: &[u8], woz_offset: usize, disk: &Disk, newdsk: &mut Vec<
 
 // This functions assumes that the woz data comes originally from dsk / po
 fn convert_woz_to_dsk(disk: &Disk) -> io::Result<()> {
-    let no_of_tracks: usize = if disk.track_40 { 40 } else { 35 };
+    let no_of_tracks: usize = disk.track_size;
     let mut data = vec![0u8; 16 * 256 * no_of_tracks];
 
     for t in 0..no_of_tracks {
@@ -989,7 +989,7 @@ fn convert_woz_to_dsk(disk: &Disk) -> io::Result<()> {
 }
 
 fn convert_woz_to_nib(disk: &Disk) -> io::Result<()> {
-    let no_of_tracks: usize = if disk.track_40 { 40 } else { 35 };
+    let no_of_tracks: usize = disk.track_size;
     let mut data = vec![0u8; NIB_TRACK_SIZE * no_of_tracks];
 
     for t in 0..no_of_tracks {
@@ -1565,7 +1565,7 @@ impl DiskDrive {
             disk.disk_rom13 = true;
         }
 
-        disk.track_40 = no_of_tracks > 35;
+        disk.track_size = no_of_tracks;
 
         if self.override_optimal_timing != 0 {
             disk.optimal_timing = self.override_optimal_timing;
@@ -2406,7 +2406,7 @@ impl Disk {
             optimal_timing: 32,
             track: 0,
             last_track: 0,
-            track_40: false,
+            track_size: 0,
             phase: 0,
             head: 0,
             head_mask: 0x80,
