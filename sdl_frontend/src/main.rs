@@ -1173,7 +1173,10 @@ fn dump_disk_info(cpu: &CPU) {
     let disk_info = disk.get_disk_info();
 
     for item in disk_info {
-        eprintln!("{:?}:  Track {:.2}\t\tTRKS {}", item.0, item.1, item.2);
+        eprintln!(
+            "{:?}:  Track {:.2}\t\tTRKS {}\tBITS {} BYTES {}",
+            item.0, item.1, item.2, item.3, item.4
+        );
     }
 }
 

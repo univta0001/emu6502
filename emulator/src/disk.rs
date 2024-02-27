@@ -19,8 +19,8 @@ use flate2::Compression;
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Deserializer, Serialize};
 
+const DSK_36_40_SIZE: [usize; 5] = [147456, 151552, 155648, 159744, 163840];
 const DSK_IMAGE_SIZE: usize = 143360;
-const DSK40_IMAGE_SIZE: usize = 163840;
 const NIB_IMAGE_SIZE: usize = 232960;
 const NIB40_IMAGE_SIZE: usize = 266240;
 const DSK_TRACK_SIZE: usize = 160;
@@ -1337,7 +1337,7 @@ impl DiskDrive {
         ((disk.last_track / 4) as usize, sector)
     }
 
-    pub fn get_disk_info(&self) -> Vec<(TrackType, f32, u8)> {
+    pub fn get_disk_info(&self) -> Vec<(TrackType, f32, u8, usize, usize)> {
         let disk = &self.drive[self.drive_select];
         let mut result = Vec::new();
         for track in 0..160 {
@@ -1348,7 +1348,25 @@ impl DiskDrive {
                 disk.trackmap[tmap_track as usize]
             };
             if track_type != TrackType::None {
-                result.push((track_type, track as f32 / 4.0, disk.tmap_data[track]));
+                let bits = if track_type != TrackType::Flux {
+                    disk.raw_track_bits[tmap_track as usize]
+                } else {
+                    let mut sum = 0;
+                    for item in &disk.raw_track_data[tmap_track as usize] {
+                        sum += *item as usize
+                    }
+                    sum / 32 + 1
+                };
+
+                let bytes = (bits + 7) / 8;
+
+                result.push((
+                    track_type,
+                    track as f32 / 4.0,
+                    disk.tmap_data[track],
+                    bits,
+                    bytes,
+                ));
             }
         }
         result
@@ -1417,7 +1435,7 @@ impl DiskDrive {
         #[cfg(not(feature = "flate"))]
         let dsk: Vec<u8> = std::fs::read(filename)?;
 
-        if dsk.len() != DSK_IMAGE_SIZE && dsk.len() != DSK40_IMAGE_SIZE {
+        if dsk.len() != DSK_IMAGE_SIZE && !DSK_36_40_SIZE.contains(dsk.len()) {
             return Err(std::io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Invalid dsk file",
