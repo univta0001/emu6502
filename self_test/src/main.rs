@@ -19,9 +19,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     let mut instr_count: usize = 0;
 
-    //let function_test: Vec<u8> = std::fs::read("6502_functional_test.bin").unwrap();
-    let function_test: Vec<u8> = include_bytes!("../../6502_functional_test.bin").to_vec();
-    //let _function_test: Vec<u8> = std::fs::read("65C02_extended_opcodes_test.bin").unwrap();
+    //let function_test: Vec<u8> = std::fs::read("6502_functional_test").unwrap();
+    let function_test: Vec<u8> = include_bytes!("../../6502_functional_test").to_vec();
+    //let _function_test: Vec<u8> = std::fs::read("65C02_extended_opcodes_test").unwrap();
     cpu.load(&function_test, 0x0);
     cpu.reset();
     cpu.program_counter = 0x0400;

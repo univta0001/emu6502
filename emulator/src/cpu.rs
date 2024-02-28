@@ -2993,7 +2993,7 @@ mod test {
 
     #[test]
     fn functional_test_6502() {
-        let function_test: Vec<u8> = std::fs::read("../6502_functional_test.bin").unwrap();
+        let function_test: Vec<u8> = std::fs::read("../6502_functional_test").unwrap();
         let bus = Bus::new();
         let mut cpu = CPU::new(bus);
         cpu.load(&function_test, 0x0);
@@ -3013,7 +3013,7 @@ mod test {
 
     #[test]
     fn functional_test_65c02() {
-        let function_test: Vec<u8> = std::fs::read("../65C02_extended_opcodes_test.bin").unwrap();
+        let function_test: Vec<u8> = std::fs::read("../65C02_extended_opcodes_test").unwrap();
         let bus = Bus::new();
         let mut cpu = CPU::new(bus);
         cpu.load(&function_test, 0x0);
@@ -3060,7 +3060,7 @@ mod test {
 
     #[test]
     fn decimal_test_6502() {
-        let function_test: Vec<u8> = std::fs::read("../6502_decimal_test.bin").unwrap();
+        let function_test: Vec<u8> = std::fs::read("../6502_decimal_test").unwrap();
         let bus = Bus::new();
         let mut cpu = CPU::new(bus);
         cpu.load(&function_test, 0x200);
