@@ -69,6 +69,9 @@ pub struct Mmu {
         serde(serialize_with = "as_opt_hex", deserialize_with = "from_hex_opt")
     )]
     pub ext_aux_mem: Option<Vec<u8>>,
+
+    saturn_flag: bool,
+    saturn_bank: u8,
 }
 
 impl Mmu {
@@ -99,6 +102,9 @@ impl Mmu {
 
             aux_bank: 0,
             ext_aux_mem: None,
+
+            saturn_flag: false,
+            saturn_bank: 0,
         }
     }
 
@@ -113,6 +119,15 @@ impl Mmu {
         self.prewrite = false;
         self.aux_bank = 0;
         self.intcxrom = false;
+        self.saturn_bank = 0;
+    }
+
+    pub fn set_saturn_memory(&mut self, flag: bool) {
+        self.saturn_flag = flag;
+        if self.saturn_flag {
+            self.bank1_memory = vec![0; 0x3000 * 8];
+            self.bank2_memory = vec![0; 0x3000 * 8];
+        }
     }
 
     pub fn is_aux_memory(&self, addr: u16, write_flag: bool) -> bool {
@@ -166,19 +181,19 @@ impl Mmu {
     }
 
     pub fn mem_bank1_read(&self, addr: u16) -> u8 {
-        self.bank1_memory[addr as usize]
+        self.bank1_memory[self.saturn_bank as usize * 0x3000 + addr as usize]
     }
 
     pub fn mem_bank1_write(&mut self, addr: u16, data: u8) {
-        self.bank1_memory[addr as usize] = data
+        self.bank1_memory[self.saturn_bank as usize * 0x3000 + addr as usize] = data
     }
 
     pub fn mem_bank2_read(&self, addr: u16) -> u8 {
-        self.bank2_memory[addr as usize]
+        self.bank2_memory[self.saturn_bank as usize * 0x3000 + addr as usize]
     }
 
     pub fn mem_bank2_write(&mut self, addr: u16, data: u8) {
-        self.bank2_memory[addr as usize] = data
+        self.bank2_memory[self.saturn_bank as usize * 0x3000 + addr as usize] = data
     }
 
     pub fn mem_aux_read(&self, addr: u16) -> u8 {
@@ -342,6 +357,20 @@ impl Mmu {
             self.writebsr = false;
             self.prewrite = false;
             self.readbsr = !off_mode;
+        }
+
+        if self.saturn_flag {
+            match io_addr {
+                0x4 => self.saturn_bank = 0,
+                0x5 => self.saturn_bank = 1,
+                0x6 => self.saturn_bank = 2,
+                0x7 => self.saturn_bank = 3,
+                0xc => self.saturn_bank = 4,
+                0xd => self.saturn_bank = 5,
+                0xe => self.saturn_bank = 6,
+                0xf => self.saturn_bank = 7,
+                _ => {}
+            }
         }
 
         self.bank1 = bank1_mode;

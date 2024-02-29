@@ -818,6 +818,7 @@ FLAGS:
     --mac_lc_dlgr      Turns on Mac LC DLGR emulation
     --scale ratio      Scale the graphics by ratio (Default is 2.0)
     --z80_cirtech      Enable Z80 Cirtech address translation
+    --saturn           Enable Saturn memory
 
 ARGS:
     [disk 1]           Disk 1 file (woz, dsk, do, po file). File can be in gz format
@@ -1534,6 +1535,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     if pargs.contains("--z80_cirtech") {
         cpu.bus.set_z80_cirtech(true);
+    }
+
+    if pargs.contains("--saturn") {
+        cpu.bus.mem.set_saturn_memory(true);
     }
 
     if let Some(model) = pargs.opt_value_from_str::<_, String>(["-m", "--model"])? {

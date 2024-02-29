@@ -23,7 +23,7 @@ serde_json = "1.0.114"
 crossbeam-epoch = "0.9.18"
 ryu = "1.0.17"
 autocfg = "1.1.0"
-crossbeam-channel = "0.5.11"
+crossbeam-channel = "0.5.12"
 num_cpus = "1.16.0"
 
 [features]

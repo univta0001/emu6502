@@ -80,9 +80,18 @@ pub fn as_hex<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Error>
     let mut addr = 0;
     let mut count = 0;
     let mut s = String::new();
+    let format_addr_6bytes = if v.len() >= 0x10000 {
+        true
+    } else {
+        false
+    };
     for value in v {
         if count >= 0x40 {
-            let addr_key = format!("{addr:04X}");
+            let addr_key = if format_addr_6bytes {
+                format!("{addr:06X}")
+            } else {
+                format!("{addr:04X}")
+            };
             map.insert(addr_key, s);
             s = String::new();
             count = 0;
@@ -94,7 +103,11 @@ pub fn as_hex<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Error>
     }
 
     if !s.is_empty() {
-        let addr_key = format!("{addr:04X}");
+        let addr_key = if format_addr_6bytes {
+            format!("{addr:06X}")
+        } else {
+            format!("{addr:04X}")
+        };
         map.insert(addr_key, s);
     }
     BTreeMap::serialize(&map, serializer)
@@ -198,7 +211,7 @@ pub fn from_hex_64k<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8
 pub fn from_hex_12k<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
     let result = from_hex(deserializer);
     if let Ok(ref value) = result {
-        if value.len() != 0x3000 {
+        if value.len() != 0x3000 && value.len() != 0x3000 * 8 {
             return Err(Error::invalid_value(
                 Unexpected::Seq,
                 &"Array should be 12K",
