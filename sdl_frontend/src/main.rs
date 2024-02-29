@@ -789,25 +789,25 @@ FLAGS:
     --h2 PATH          Set the file path for hard disk 2
     --s1 device        Device slot 1 
                        Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
-                              diskii,diskii13
+                              diskii,diskii13,saturn
     --s2 device        Device slot 2
                        Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
-                              diskii,diskii13
+                              diskii,diskii13,saturn
     --s3 device        Device slot 3
                        Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
-                              diskii,diskii13
+                              diskii,diskii13,saturn
     --s4 device        Device slot 4
                        Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
-                              diskii,diskii13
+                              diskii,diskii13,saturn
     --s5 device        Device slot 5
                        Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
-                              diskii,diskii13
+                              diskii,diskii13,saturn
     --s6 device        Device slot 6
                        Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
-                              diskii,diskii13
+                              diskii,diskii13,saturn
     --s7 device        Device slot 7
                        Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
-                              diskii,diskii13
+                              diskii,diskii13,saturn
     --weakbit rate     Set the random weakbit error rate (Default is 0.3)
     --opt_timing rate  Override the optimal timing (Default is 32)
     --rgb              Enable RGB mode (Default: RGB mode disabled)
@@ -818,7 +818,7 @@ FLAGS:
     --mac_lc_dlgr      Turns on Mac LC DLGR emulation
     --scale ratio      Scale the graphics by ratio (Default is 2.0)
     --z80_cirtech      Enable Z80 Cirtech address translation
-    --saturn           Enable Saturn memory
+    --saturn           Enable Saturn memory at slot 0
 
 ARGS:
     [disk 1]           Disk 1 file (woz, dsk, do, po file). File can be in gz format
@@ -1040,6 +1040,10 @@ fn register_device(cpu: &mut CPU, device: &str, slot: usize, mboard: &mut usize)
         "z80" => cpu.bus.register_device(IODevice::Z80, slot),
         "diskii" => cpu.bus.register_device(IODevice::Disk, slot),
         "diskii13" => cpu.bus.register_device(IODevice::Disk13, slot),
+        "saturn" => {
+            cpu.bus.mem.init_saturn_memory();
+            cpu.bus.register_device(IODevice::Saturn, slot)
+        }
         _ => {}
     }
 }

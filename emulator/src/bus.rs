@@ -7,6 +7,7 @@ use crate::noslotclock::NoSlotClock;
 use crate::parallel::ParallelCard;
 use crate::ramfactor::RamFactor;
 use crate::video::Video;
+use crate::saturn::Saturn;
 
 #[cfg(not(target_os = "wasi"))]
 use crate::network::Uthernet2;
@@ -61,6 +62,7 @@ pub enum IODevice {
     Mouse,
     #[cfg(not(target_os = "wasi"))]
     Uthernet2,
+    Saturn,
 }
 
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize, Derivative))]
@@ -356,6 +358,7 @@ impl Bus {
         if slot < self.io_slot.len() {
             let slot_value = self.io_slot[slot];
             //eprintln!("IOAccess - {:04x} {} {}",addr,slot,io_addr);
+            let mut saturn = Saturn {};
             let return_value: Option<&mut dyn Card> = match slot_value {
                 IODevice::Printer => Some(&mut self.parallel),
                 IODevice::RamFactor => Some(&mut self.ramfactor),
@@ -371,6 +374,7 @@ impl Bus {
                 IODevice::Z80 => None,
                 #[cfg(not(target_os = "wasi"))]
                 IODevice::Uthernet2 => Some(&mut self.uthernet2),
+                IODevice::Saturn => Some(&mut saturn),
                 _ => None,
             };
 

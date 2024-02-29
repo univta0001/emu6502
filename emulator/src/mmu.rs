@@ -125,9 +125,13 @@ impl Mmu {
     pub fn set_saturn_memory(&mut self, flag: bool) {
         self.saturn_flag = flag;
         if self.saturn_flag {
-            self.bank1_memory = vec![0; 0x3000 * 8];
-            self.bank2_memory = vec![0; 0x3000 * 8];
+            self.init_saturn_memory();
         }
+    }
+
+    pub fn init_saturn_memory(&mut self) {
+         self.bank1_memory = vec![0; 0x3000 * 8];
+         self.bank2_memory = vec![0; 0x3000 * 8];
     }
 
     pub fn is_aux_memory(&self, addr: u16, write_flag: bool) -> bool {
@@ -339,6 +343,10 @@ impl Mmu {
                 unimplemented!("should not reached here")
             }
         }
+    }
+
+    pub fn set_saturn_bank(&mut self, value: u8) {
+        self.saturn_bank = value
     }
 
     pub fn io_access(&mut self, addr: u16, _value: u8, write_flag: bool) -> u8 {
