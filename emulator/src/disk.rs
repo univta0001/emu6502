@@ -940,6 +940,7 @@ fn convert_woz_to_dsk(disk: &Disk) -> io::Result<()> {
 
         for (s, dos_sector) in ordering.iter().enumerate() {
             let sector = read_woz_sector(
+                t as u8,
                 track,
                 *dos_sector,
                 &mut head,
@@ -1113,6 +1114,7 @@ fn skip_woz_nibble(
 }
 
 fn read_woz_sector(
+    t: u8,
     track: &[u8],
     sector: u8,
     head: &mut usize,
@@ -1123,6 +1125,10 @@ fn read_woz_sector(
     let mut state = 0;
     let mut rev: u8 = 0;
     let mut sector_to_read = 0;
+    let mut track_to_read = 0;
+    let mut volume = 0;
+    let mut checksum = 0;
+
     while rev < 4 {
         match state {
             0 => {
@@ -1146,13 +1152,13 @@ fn read_woz_sector(
             }
             3 => {
                 // Volume
-                decode_4x4_value(
+                volume = decode_4x4_value(
                     read_woz_nibble(track, head, mask, bit, &mut rev, bit_count),
                     read_woz_nibble(track, head, mask, bit, &mut rev, bit_count),
                 );
 
                 // Track
-                decode_4x4_value(
+                track_to_read = decode_4x4_value(
                     read_woz_nibble(track, head, mask, bit, &mut rev, bit_count),
                     read_woz_nibble(track, head, mask, bit, &mut rev, bit_count),
                 );
@@ -1162,12 +1168,20 @@ fn read_woz_sector(
                     read_woz_nibble(track, head, mask, bit, &mut rev, bit_count),
                 );
 
-                // Skip checksum and footer
-                skip_woz_nibble(track, 5, head, mask, bit, &mut rev, bit_count);
+                checksum = decode_4x4_value(
+                    read_woz_nibble(track, head, mask, bit, &mut rev, bit_count),
+                    read_woz_nibble(track, head, mask, bit, &mut rev, bit_count),
+                );
+
+                // Skip footer (DEAAAB)
+                skip_woz_nibble(track, 3, head, mask, bit, &mut rev, bit_count);
                 state = 0;
             }
             4 => {
-                if sector_to_read == sector {
+                if track_to_read == t
+                    && sector_to_read == sector
+                    && checksum == (volume ^ track_to_read ^ sector_to_read)
+                {
                     let mut last = 0;
                     let mut val;
                     let mut data = [0u8; 256];
@@ -1184,22 +1198,30 @@ fn read_woz_sector(
                         *item = val;
                         last = val;
                     }
-                    let mut j = 0x55;
-                    for item in &mut data {
-                        let mut val = data2[j];
-                        let mut val2 = (*item << 1) + (val & 1);
-                        val >>= 1;
-                        val2 = (val2 << 1) + (val & 1);
-                        *item = val2;
-                        val >>= 1;
-                        data2[j] = val;
-                        if j == 0 {
-                            j = 0x55;
-                        } else {
-                            j -= 1;
+
+                    // Get checksum value
+                    let nibble = read_woz_nibble(track, head, mask, bit, &mut rev, bit_count);
+                    val = DETRANS62[(nibble - 0x80) as usize] ^ last;
+
+                    // If checksum pass return data
+                    if val == 0 {
+                        let mut j = 0x55;
+                        for item in &mut data {
+                            let mut val = data2[j];
+                            let mut val2 = (*item << 1) + (val & 1);
+                            val >>= 1;
+                            val2 = (val2 << 1) + (val & 1);
+                            *item = val2;
+                            val >>= 1;
+                            data2[j] = val;
+                            if j == 0 {
+                                j = 0x55;
+                            } else {
+                                j -= 1;
+                            }
                         }
+                        return data;
                     }
-                    return data;
                 }
 
                 // Skip data, checksum and footer
