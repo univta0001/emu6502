@@ -38,7 +38,7 @@ Features in the emulator
 
 - `emu6502 --help` will display:
 
-      emu6502 0.8.8 (12363f0c90bd62b9fe47261f8086a6f092144986)
+      emu6502 0.8.9 (3fd0cb3f4eda9ea1a93fbddf3fc19e01b0eca92c)
 
       USAGE:
       emu6502 [FLAGS] [disk 1] [disk 2]
@@ -91,6 +91,7 @@ Features in the emulator
       --mac_lc_dlgr      Turns on Mac LC DLGR emulation
       --scale ratio      Scale the graphics by ratio (Default is 2.0)
       --z80_cirtech      Enable Z80 Cirtech address translation
+      --saturn           Enable Saturn memory (Only available in Apple 2+)
   
       ARGS:
       
