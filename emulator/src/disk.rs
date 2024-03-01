@@ -1128,6 +1128,7 @@ fn read_woz_sector(
     let mut track_to_read = 0;
     let mut volume = 0;
     let mut checksum = 0;
+    let mut decoded = false;
 
     while rev < 4 {
         match state {
@@ -1173,12 +1174,14 @@ fn read_woz_sector(
                     read_woz_nibble(track, head, mask, bit, &mut rev, bit_count),
                 );
 
+                decoded = true;
                 // Skip footer (DEAAAB)
                 skip_woz_nibble(track, 3, head, mask, bit, &mut rev, bit_count);
                 state = 0;
             }
             4 => {
-                if track_to_read == t
+                if decoded
+                    && track_to_read == t
                     && sector_to_read == sector
                     && checksum == (volume ^ track_to_read ^ sector_to_read)
                 {
@@ -1226,6 +1229,8 @@ fn read_woz_sector(
                         state = 0;
                     }
                 } else {
+                    decoded = false;
+
                     // Skip data, checksum and footer
                     skip_woz_nibble(track, 0x159, head, mask, bit, &mut rev, bit_count);
                     state = 0;
