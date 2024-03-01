@@ -818,7 +818,7 @@ FLAGS:
     --mac_lc_dlgr      Turns on Mac LC DLGR emulation
     --scale ratio      Scale the graphics by ratio (Default is 2.0)
     --z80_cirtech      Enable Z80 Cirtech address translation
-    --saturn           Enable Saturn memory at slot 0
+    --saturn           Enable Saturn memory (Only available in Apple 2+)
 
 ARGS:
     [disk 1]           Disk 1 file (woz, dsk, do, po file). File can be in gz format
@@ -1021,7 +1021,7 @@ fn draw_circle<T: RenderTarget>(
     Ok(())
 }
 
-fn register_device(cpu: &mut CPU, device: &str, slot: usize, mboard: &mut usize) {
+fn register_device(cpu: &mut CPU, device: &str, slot: usize, mboard: &mut usize, saturn: &mut u8) {
     match device {
         "none" => cpu.bus.register_device(IODevice::None, slot),
         "harddisk" => cpu.bus.register_device(IODevice::HardDisk, slot),
@@ -1041,8 +1041,9 @@ fn register_device(cpu: &mut CPU, device: &str, slot: usize, mboard: &mut usize)
         "diskii" => cpu.bus.register_device(IODevice::Disk, slot),
         "diskii13" => cpu.bus.register_device(IODevice::Disk13, slot),
         "saturn" => {
-            cpu.bus.mem.init_saturn_memory();
-            cpu.bus.register_device(IODevice::Saturn, slot)
+            cpu.bus.register_device(IODevice::Saturn(*saturn), slot);
+            *saturn += 1;
+            cpu.bus.mem.init_saturn_memory(*saturn as usize);
         }
         _ => {}
     }
@@ -1541,19 +1542,23 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         cpu.bus.set_z80_cirtech(true);
     }
 
-    if pargs.contains("--saturn") {
-        cpu.bus.mem.set_saturn_memory(true);
-    }
-
+    let mut apple2p = false;
     if let Some(model) = pargs.opt_value_from_str::<_, String>(["-m", "--model"])? {
         match &model[..] {
             "apple2" => cpu.load(&apple2_rom, 0xd000),
-            "apple2p" => cpu.load(&apple2p_rom, 0xd000),
+            "apple2p" => {
+                apple2p = true;
+                cpu.load(&apple2p_rom, 0xd000)
+            }
             "apple2e" => cpu.load(&apple2e_rom, 0xc000),
             "apple2ee" => cpu.load(&apple2ee_rom, 0xc000),
             "apple2c" => cpu.load(&apple2c_rom, 0xc000),
             _ => {}
         }
+    }
+
+    if apple2p && pargs.contains("--saturn") {
+        cpu.bus.mem.set_saturn_memory(true);
     }
 
     if let Some(bank) = pargs.opt_value_from_str::<_, u8>("-r")? {
@@ -1600,33 +1605,34 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
 
     let mut slot_mboard = 0;
+    let mut slot_saturn = 0;
 
     if let Some(device) = pargs.opt_value_from_str::<_, String>("--s1")? {
-        register_device(&mut cpu, &device, 1, &mut slot_mboard);
+        register_device(&mut cpu, &device, 1, &mut slot_mboard, &mut slot_saturn);
     }
 
     if let Some(device) = pargs.opt_value_from_str::<_, String>("--s2")? {
-        register_device(&mut cpu, &device, 2, &mut slot_mboard);
+        register_device(&mut cpu, &device, 2, &mut slot_mboard, &mut slot_saturn);
     }
 
     if let Some(device) = pargs.opt_value_from_str::<_, String>("--s3")? {
-        register_device(&mut cpu, &device, 3, &mut slot_mboard);
+        register_device(&mut cpu, &device, 3, &mut slot_mboard, &mut slot_saturn);
     }
 
     if let Some(device) = pargs.opt_value_from_str::<_, String>("--s4")? {
-        register_device(&mut cpu, &device, 4, &mut slot_mboard);
+        register_device(&mut cpu, &device, 4, &mut slot_mboard, &mut slot_saturn);
     }
 
     if let Some(device) = pargs.opt_value_from_str::<_, String>("--s5")? {
-        register_device(&mut cpu, &device, 5, &mut slot_mboard);
+        register_device(&mut cpu, &device, 5, &mut slot_mboard, &mut slot_saturn);
     }
 
     if let Some(device) = pargs.opt_value_from_str::<_, String>("--s6")? {
-        register_device(&mut cpu, &device, 6, &mut slot_mboard);
+        register_device(&mut cpu, &device, 6, &mut slot_mboard, &mut slot_saturn);
     }
 
     if let Some(device) = pargs.opt_value_from_str::<_, String>("--s7")? {
-        register_device(&mut cpu, &device, 7, &mut slot_mboard);
+        register_device(&mut cpu, &device, 7, &mut slot_mboard, &mut slot_saturn);
     }
 
     if slot_mboard > 2 {

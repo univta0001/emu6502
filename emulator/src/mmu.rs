@@ -1,4 +1,5 @@
-use crate::bus::{ROM_END, ROM_START};
+use crate::bus::{Card, ROM_END, ROM_START};
+use crate::video::Video;
 
 #[cfg(feature = "serde_support")]
 use crate::marshal::{as_hex, as_opt_hex, from_hex_12k, from_hex_64k, from_hex_opt};
@@ -72,6 +73,7 @@ pub struct Mmu {
 
     saturn_flag: bool,
     saturn_bank: u8,
+    saturn_slot: u8,
 }
 
 impl Mmu {
@@ -105,6 +107,7 @@ impl Mmu {
 
             saturn_flag: false,
             saturn_bank: 0,
+            saturn_slot: 0,
         }
     }
 
@@ -125,13 +128,17 @@ impl Mmu {
     pub fn set_saturn_memory(&mut self, flag: bool) {
         self.saturn_flag = flag;
         if self.saturn_flag {
-            self.init_saturn_memory();
+            self.init_saturn_memory(1);
         }
     }
 
-    pub fn init_saturn_memory(&mut self) {
-         self.bank1_memory = vec![0; 0x3000 * 8];
-         self.bank2_memory = vec![0; 0x3000 * 8];
+    pub fn set_saturn_slot(&mut self, value: u8) {
+        self.saturn_slot = value
+    }
+
+    pub fn init_saturn_memory(&mut self, count: usize) {
+        self.bank1_memory = vec![0; 0x3000 * 8 * count];
+        self.bank2_memory = vec![0; 0x3000 * 8 * count];
     }
 
     pub fn is_aux_memory(&self, addr: u16, write_flag: bool) -> bool {
@@ -185,19 +192,23 @@ impl Mmu {
     }
 
     pub fn mem_bank1_read(&self, addr: u16) -> u8 {
-        self.bank1_memory[self.saturn_bank as usize * 0x3000 + addr as usize]
+        let offset = self.saturn_bank as usize * 0x3000 * (self.saturn_slot as usize + 1);
+        self.bank1_memory[offset + addr as usize]
     }
 
     pub fn mem_bank1_write(&mut self, addr: u16, data: u8) {
-        self.bank1_memory[self.saturn_bank as usize * 0x3000 + addr as usize] = data
+        let offset = self.saturn_bank as usize * 0x3000 * (self.saturn_slot as usize + 1);
+        self.bank1_memory[offset + addr as usize] = data;
     }
 
     pub fn mem_bank2_read(&self, addr: u16) -> u8 {
-        self.bank2_memory[self.saturn_bank as usize * 0x3000 + addr as usize]
+        let offset = self.saturn_bank as usize * 0x3000 * (self.saturn_slot as usize + 1);
+        self.bank2_memory[offset + addr as usize]
     }
 
     pub fn mem_bank2_write(&mut self, addr: u16, data: u8) {
-        self.bank2_memory[self.saturn_bank as usize * 0x3000 + addr as usize] = data
+        let offset = self.saturn_bank as usize * 0x3000 * (self.saturn_slot as usize + 1);
+        self.bank2_memory[offset + addr as usize] = data
     }
 
     pub fn mem_aux_read(&self, addr: u16) -> u8 {
@@ -355,19 +366,20 @@ impl Mmu {
         let off_mode = (io_addr & 0x02) > 0;
         let bank1_mode = (io_addr & 0x08) > 0;
 
-        if write_mode {
-            if !write_flag && self.prewrite {
-                self.writebsr = true;
+        if !self.saturn_flag {
+            if write_mode {
+                if !write_flag && self.prewrite {
+                    self.writebsr = true;
+                }
+                self.prewrite = !write_flag;
+                self.readbsr = off_mode;
+            } else {
+                self.writebsr = false;
+                self.prewrite = false;
+                self.readbsr = !off_mode;
             }
-            self.prewrite = !write_flag;
-            self.readbsr = off_mode;
+            self.bank1 = bank1_mode;
         } else {
-            self.writebsr = false;
-            self.prewrite = false;
-            self.readbsr = !off_mode;
-        }
-
-        if self.saturn_flag {
             match io_addr {
                 0x4 => self.saturn_bank = 0,
                 0x5 => self.saturn_bank = 1,
@@ -377,11 +389,23 @@ impl Mmu {
                 0xd => self.saturn_bank = 5,
                 0xe => self.saturn_bank = 6,
                 0xf => self.saturn_bank = 7,
-                _ => {}
+                _ => {
+                    if write_mode {
+                        if self.prewrite {
+                            self.writebsr = true;
+                        }
+                        self.prewrite = true;
+                        self.readbsr = off_mode;
+                    } else {
+                        self.writebsr = false;
+                        self.prewrite = false;
+                        self.readbsr = !off_mode;
+                    }
+                    self.bank1 = bank1_mode;
+                }
             }
         }
 
-        self.bank1 = bank1_mode;
         0
     }
 }
@@ -389,5 +413,65 @@ impl Mmu {
 impl Default for Mmu {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[derive(Default, Debug)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
+pub struct Saturn(pub u8);
+
+impl Card for Saturn {
+    fn rom_access(
+        &mut self,
+        _mem: &mut Mmu,
+        _video: &mut Video,
+        _addr: u16,
+        _value: u8,
+        _write_flag: bool,
+    ) -> u8 {
+        0
+    }
+
+    fn io_access(
+        &mut self,
+        mmu: &mut Mmu,
+        _video: &mut Video,
+        addr: u16,
+        value: u8,
+        _write_flag: bool,
+    ) -> u8 {
+        let io_addr = addr & 0xf;
+        let write_mode = (io_addr & 0x01) > 0;
+        let off_mode = (io_addr & 0x02) > 0;
+        let bank1_mode = (io_addr & 0x08) > 0;
+
+        mmu.set_saturn_slot(self.0);
+        let io_addr = addr & 0xf;
+        match io_addr {
+            0x4 => mmu.set_saturn_bank(0),
+            0x5 => mmu.set_saturn_bank(1),
+            0x6 => mmu.set_saturn_bank(2),
+            0x7 => mmu.set_saturn_bank(3),
+            0xc => mmu.set_saturn_bank(4),
+            0xd => mmu.set_saturn_bank(5),
+            0xe => mmu.set_saturn_bank(6),
+            0xf => mmu.set_saturn_bank(7),
+            _ => {
+                if write_mode {
+                    if mmu.prewrite {
+                        mmu.writebsr = true;
+                    }
+                    mmu.prewrite = true;
+                    mmu.readbsr = off_mode;
+                } else {
+                    mmu.writebsr = false;
+                    mmu.prewrite = false;
+                    mmu.readbsr = !off_mode;
+                }
+                mmu.bank1 = bank1_mode;
+            }
+        }
+
+        value
     }
 }

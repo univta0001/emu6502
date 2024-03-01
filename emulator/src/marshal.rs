@@ -80,11 +80,7 @@ pub fn as_hex<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Error>
     let mut addr = 0;
     let mut count = 0;
     let mut s = String::new();
-    let format_addr_6bytes = if v.len() >= 0x10000 {
-        true
-    } else {
-        false
-    };
+    let format_addr_6bytes = v.len() >= 0x10000;
     for value in v {
         if count >= 0x40 {
             let addr_key = if format_addr_6bytes {
@@ -211,10 +207,10 @@ pub fn from_hex_64k<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8
 pub fn from_hex_12k<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
     let result = from_hex(deserializer);
     if let Ok(ref value) = result {
-        if value.len() != 0x3000 && value.len() != 0x3000 * 8 {
+        if value.len() != 0x3000 && value.len() % 0x3000 * 8 != 0 {
             return Err(Error::invalid_value(
                 Unexpected::Seq,
-                &"Array should be 12K",
+                &"Array should be 12K or multiple of 128k",
             ));
         }
     }
