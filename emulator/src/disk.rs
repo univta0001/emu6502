@@ -1199,27 +1199,37 @@ fn read_woz_sector(
                         last = val;
                     }
 
-                    let mut j = 0x55;
-                    for item in &mut data {
-                        let mut val = data2[j];
-                        let mut val2 = (*item << 1) + (val & 1);
-                        val >>= 1;
-                        val2 = (val2 << 1) + (val & 1);
-                        *item = val2;
-                        val >>= 1;
-                        data2[j] = val;
-                        if j == 0 {
-                            j = 0x55;
-                        } else {
-                            j -= 1;
-                        }
-                    }
-                    return data;
-                }
+                    let nibble = read_woz_nibble(track, head, mask, bit, &mut rev, bit_count);
+                    val = DETRANS62[(nibble - 0x80) as usize] ^ last;
 
-                // Skip data, checksum and footer
-                skip_woz_nibble(track, 0x159, head, mask, bit, &mut rev, bit_count);
-                state = 0;
+                    // Verify data checksum is correct. If correct return data
+                    if val == 0 {
+                        let mut j = 0x55;
+                        for item in &mut data {
+                            let mut val = data2[j];
+                            let mut val2 = (*item << 1) + (val & 1);
+                            val >>= 1;
+                            val2 = (val2 << 1) + (val & 1);
+                            *item = val2;
+                            val >>= 1;
+                            data2[j] = val;
+                            if j == 0 {
+                                j = 0x55;
+                            } else {
+                                j -= 1;
+                            }
+                        }
+                        return data;
+                    } else {
+                        // Skip footer (DEAAAB)
+                        skip_woz_nibble(track, 0x3, head, mask, bit, &mut rev, bit_count);
+                        state = 0;
+                    }
+                } else {
+                    // Skip data, checksum and footer
+                    skip_woz_nibble(track, 0x159, head, mask, bit, &mut rev, bit_count);
+                    state = 0;
+                }
             }
             _ => {}
         }
