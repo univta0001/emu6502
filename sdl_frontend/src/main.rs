@@ -1041,9 +1041,9 @@ fn register_device(cpu: &mut CPU, device: &str, slot: usize, mboard: &mut usize,
         "diskii" => cpu.bus.register_device(IODevice::Disk, slot),
         "diskii13" => cpu.bus.register_device(IODevice::Disk13, slot),
         "saturn" => {
-            cpu.bus.register_device(IODevice::Saturn(*saturn), slot);
             *saturn += 1;
-            cpu.bus.mem.init_saturn_memory(*saturn as usize);
+            cpu.bus.register_device(IODevice::Saturn(*saturn), slot);
+            cpu.bus.mem.init_saturn_memory(*saturn as usize + 1);
         }
         _ => {}
     }

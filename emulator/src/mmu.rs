@@ -192,22 +192,22 @@ impl Mmu {
     }
 
     pub fn mem_bank1_read(&self, addr: u16) -> u8 {
-        let offset = self.saturn_bank as usize * 0x3000 * (self.saturn_slot as usize + 1);
+        let offset = self.saturn_bank as usize * 0x3000 + 0x3000 * 8 * self.saturn_slot as usize;
         self.bank1_memory[offset + addr as usize]
     }
 
     pub fn mem_bank1_write(&mut self, addr: u16, data: u8) {
-        let offset = self.saturn_bank as usize * 0x3000 * (self.saturn_slot as usize + 1);
+        let offset = self.saturn_bank as usize * 0x3000 + 0x3000 * 8 * self.saturn_slot as usize;
         self.bank1_memory[offset + addr as usize] = data;
     }
 
     pub fn mem_bank2_read(&self, addr: u16) -> u8 {
-        let offset = self.saturn_bank as usize * 0x3000 * (self.saturn_slot as usize + 1);
+        let offset = self.saturn_bank as usize * 0x3000 + 0x3000 * 8 * self.saturn_slot as usize;
         self.bank2_memory[offset + addr as usize]
     }
 
     pub fn mem_bank2_write(&mut self, addr: u16, data: u8) {
-        let offset = self.saturn_bank as usize * 0x3000 * (self.saturn_slot as usize + 1);
+        let offset = self.saturn_bank as usize * 0x3000 + 0x3000 * 8 * self.saturn_slot as usize;
         self.bank2_memory[offset + addr as usize] = data
     }
 
@@ -366,6 +366,7 @@ impl Mmu {
         let off_mode = (io_addr & 0x02) > 0;
         let bank1_mode = (io_addr & 0x08) > 0;
 
+        self.set_saturn_slot(0);
         if !self.saturn_flag {
             if write_mode {
                 if !write_flag && self.prewrite {

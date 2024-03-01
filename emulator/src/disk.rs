@@ -1199,29 +1199,22 @@ fn read_woz_sector(
                         last = val;
                     }
 
-                    // Get checksum value
-                    let nibble = read_woz_nibble(track, head, mask, bit, &mut rev, bit_count);
-                    val = DETRANS62[(nibble - 0x80) as usize] ^ last;
-
-                    // If checksum pass return data
-                    if val == 0 {
-                        let mut j = 0x55;
-                        for item in &mut data {
-                            let mut val = data2[j];
-                            let mut val2 = (*item << 1) + (val & 1);
-                            val >>= 1;
-                            val2 = (val2 << 1) + (val & 1);
-                            *item = val2;
-                            val >>= 1;
-                            data2[j] = val;
-                            if j == 0 {
-                                j = 0x55;
-                            } else {
-                                j -= 1;
-                            }
+                    let mut j = 0x55;
+                    for item in &mut data {
+                        let mut val = data2[j];
+                        let mut val2 = (*item << 1) + (val & 1);
+                        val >>= 1;
+                        val2 = (val2 << 1) + (val & 1);
+                        *item = val2;
+                        val >>= 1;
+                        data2[j] = val;
+                        if j == 0 {
+                            j = 0x55;
+                        } else {
+                            j -= 1;
                         }
-                        return data;
                     }
+                    return data;
                 }
 
                 // Skip data, checksum and footer
