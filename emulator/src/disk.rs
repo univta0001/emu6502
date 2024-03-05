@@ -995,8 +995,59 @@ fn convert_woz_to_nib(disk: &Disk) -> io::Result<()> {
 
     for t in 0..no_of_tracks {
         let track = &disk.raw_track_data[t];
+        let bit_count = disk.raw_track_bits[t];
         let offset = t * NIB_TRACK_SIZE;
-        data[offset..offset + NIB_TRACK_SIZE].copy_from_slice(track);
+
+        let mut head = 0;
+        let mut mask = 0x80;
+        let mut bit = 0;
+        let mut rev = 0;
+
+        // Find sync byte
+        while read_woz_nibble(track, &mut head, &mut mask, &mut bit, &mut rev, bit_count) != 0xff {}
+        let mut sync_head = head;
+        let mut sync_mask = mask;
+        let mut sync_bit = bit;
+
+        // Find sequences of sync bytes 
+        let mut count = 0;
+        loop {
+            count += 1;
+            let sync_value =
+                read_woz_nibble(track, &mut head, &mut mask, &mut bit, &mut rev, bit_count);
+            if sync_value != 0xff {
+                if count > 4 {
+                    break;
+                }
+                count = 0;
+                while read_woz_nibble(track, &mut head, &mut mask, &mut bit, &mut rev, bit_count)
+                    != 0xff
+                {}
+                sync_head = head;
+                sync_mask = mask;
+                sync_bit = bit;
+            }
+        }
+        head = sync_head;
+        mask = sync_mask;
+        bit = sync_bit;
+        rev = 0;
+
+        // Populate track until it reached back the initial sync point
+        let pos = head * 8 + bit as usize;
+        let _ = read_woz_nibble(track, &mut head, &mut mask, &mut bit, &mut rev, bit_count);
+        let mut nib_track = Vec::new();
+        while head * 8 + bit as usize != pos {
+            let value = read_woz_nibble(track, &mut head, &mut mask, &mut bit, &mut rev, bit_count);
+            nib_track.push(value);
+        }
+
+        // Fill the remaining bytes with sync bytes. 
+        // Nib track is always 6656 bytes
+        while nib_track.len() < 6656 {
+            nib_track.push(0xff);
+        }
+        data[offset..offset + NIB_TRACK_SIZE].copy_from_slice(&nib_track);
     }
 
     // Write to new file
@@ -1146,7 +1197,11 @@ fn read_woz_sector(
                 state = if nibble == 0x96 {
                     3
                 } else if nibble == 0xad {
-                    4
+                    if decoded {
+                        4
+                    } else {
+                        0
+                    }
                 } else {
                     0
                 }
@@ -1180,8 +1235,7 @@ fn read_woz_sector(
                 state = 0;
             }
             4 => {
-                if decoded
-                    && track_to_read == t
+                if track_to_read == t
                     && sector_to_read == sector
                     && checksum == (volume ^ track_to_read ^ sector_to_read)
                 {

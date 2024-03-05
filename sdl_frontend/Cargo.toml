@@ -29,7 +29,7 @@ sdl2 = "0.36.0"
 
 [build-dependencies]
 embed-resource = "2.4.1"
-cc = "1.0.88"
+cc = "1.0.89"
 
 [features]
 #default = [ ]
