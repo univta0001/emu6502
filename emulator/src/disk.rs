@@ -1004,50 +1004,72 @@ fn convert_woz_to_nib(disk: &Disk) -> io::Result<()> {
         let mut rev = 0;
 
         // Find sync byte
-        while read_woz_nibble(track, &mut head, &mut mask, &mut bit, &mut rev, bit_count) != 0xff {}
+        while rev < 4
+            && read_woz_nibble(track, &mut head, &mut mask, &mut bit, &mut rev, bit_count) != 0xff
+        {
+        }
         let mut sync_head = head;
         let mut sync_mask = mask;
         let mut sync_bit = bit;
 
-        // Find sequences of sync bytes 
+        // Find sequences of sync bytes
         let mut count = 0;
-        loop {
-            count += 1;
-            let sync_value =
-                read_woz_nibble(track, &mut head, &mut mask, &mut bit, &mut rev, bit_count);
-            if sync_value != 0xff {
-                if count > 4 {
-                    break;
+
+        if rev < 4 {
+            loop {
+                count += 1;
+                let sync_value =
+                    read_woz_nibble(track, &mut head, &mut mask, &mut bit, &mut rev, bit_count);
+                if sync_value != 0xff {
+                    if count > 4 {
+                        break;
+                    }
+                    count = 0;
+                    while rev < 4
+                        && read_woz_nibble(
+                            track, &mut head, &mut mask, &mut bit, &mut rev, bit_count,
+                        ) != 0xff
+                    {}
+
+                    if rev >= 4 {
+                        break;
+                    }
+
+                    sync_head = head;
+                    sync_mask = mask;
+                    sync_bit = bit;
                 }
-                count = 0;
-                while read_woz_nibble(track, &mut head, &mut mask, &mut bit, &mut rev, bit_count)
-                    != 0xff
-                {}
-                sync_head = head;
-                sync_mask = mask;
-                sync_bit = bit;
             }
         }
-        head = sync_head;
-        mask = sync_mask;
-        bit = sync_bit;
-        rev = 0;
+        if rev < 4 {
+            head = sync_head;
+            mask = sync_mask;
+            bit = sync_bit;
+            rev = 0;
 
-        // Populate track until it reached back the initial sync point
-        let pos = head * 8 + bit as usize;
-        let _ = read_woz_nibble(track, &mut head, &mut mask, &mut bit, &mut rev, bit_count);
-        let mut nib_track = Vec::new();
-        while head * 8 + bit as usize != pos {
-            let value = read_woz_nibble(track, &mut head, &mut mask, &mut bit, &mut rev, bit_count);
-            nib_track.push(value);
-        }
+            // Populate track until it reached back the initial sync point
+            let pos = head * 8 + bit as usize;
+            let _ = read_woz_nibble(track, &mut head, &mut mask, &mut bit, &mut rev, bit_count);
+            let mut nib_track = Vec::new();
+            while rev < 4 && head * 8 + bit as usize != pos {
+                let value =
+                    read_woz_nibble(track, &mut head, &mut mask, &mut bit, &mut rev, bit_count);
+                nib_track.push(value);
+            }
 
-        // Fill the remaining bytes with sync bytes. 
-        // Nib track is always 6656 bytes
-        while nib_track.len() < 6656 {
-            nib_track.push(0xff);
+            if rev < 4 {
+                // Fill the remaining bytes with sync bytes.
+                // Nib track is always 6656 bytes
+                while nib_track.len() < 6656 {
+                    nib_track.push(0xff);
+                }
+                data[offset..offset + NIB_TRACK_SIZE].copy_from_slice(&nib_track);
+            } else {
+                data[offset..offset + NIB_TRACK_SIZE].copy_from_slice(track);
+            }
+        } else {
+            data[offset..offset + NIB_TRACK_SIZE].copy_from_slice(track);
         }
-        data[offset..offset + NIB_TRACK_SIZE].copy_from_slice(&nib_track);
     }
 
     // Write to new file
