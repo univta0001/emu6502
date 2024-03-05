@@ -1712,7 +1712,11 @@ impl DiskDrive {
             disk.raw_track_bits[track] = data.len() * 8;
 
             for item in data {
-                disk.raw_track_data[track].push(item);
+                if item & 0x80 > 0 {
+                    disk.raw_track_data[track].push(item);
+                } else {
+                    disk.raw_track_data[track].push(0xff);
+                }
             }
         }
     }
