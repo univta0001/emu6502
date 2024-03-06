@@ -1020,6 +1020,11 @@ fn convert_woz_to_nib(disk: &Disk) -> io::Result<()> {
                 count += 1;
                 let sync_value =
                     read_woz_nibble(track, &mut head, &mut mask, &mut bit, &mut rev, bit_count);
+
+                if rev >= 4 {
+                    break;
+                }
+
                 if sync_value != 0xff {
                     if count > 4 {
                         break;
@@ -1058,17 +1063,22 @@ fn convert_woz_to_nib(disk: &Disk) -> io::Result<()> {
             }
 
             if rev < 4 {
-                // Fill the remaining bytes with sync bytes.
+                // Fill the remaining bytes with 0 bytes to make the nibble image use less than
+                // 6656 bytes to pass Prodos Format
                 // Nib track is always 6656 bytes
-                while nib_track.len() < 6656 {
-                    nib_track.push(0xff);
+                while nib_track.len() < NIB_TRACK_SIZE {
+                    nib_track.push(0);
                 }
                 data[offset..offset + NIB_TRACK_SIZE].copy_from_slice(&nib_track);
             } else {
-                data[offset..offset + NIB_TRACK_SIZE].copy_from_slice(track);
+                let mut nib_track = [0u8; NIB_TRACK_SIZE];
+                nib_track[0..track.len()].copy_from_slice(track);
+                data[offset..offset + NIB_TRACK_SIZE].copy_from_slice(&nib_track);
             }
         } else {
-            data[offset..offset + NIB_TRACK_SIZE].copy_from_slice(track);
+            let mut nib_track = [0u8; NIB_TRACK_SIZE];
+            nib_track[0..track.len()].copy_from_slice(track);
+            data[offset..offset + NIB_TRACK_SIZE].copy_from_slice(&nib_track);
         }
     }
 
@@ -1709,15 +1719,20 @@ impl DiskDrive {
             data[0..NIB_TRACK_SIZE]
                 .copy_from_slice(&dsk[track_offset..track_offset + NIB_TRACK_SIZE]);
             disk.raw_track_data[track].clear();
-            disk.raw_track_bits[track] = data.len() * 8;
 
             for item in data {
                 if item & 0x80 > 0 {
                     disk.raw_track_data[track].push(item);
                 } else {
-                    disk.raw_track_data[track].push(0xff);
+                    break;
                 }
             }
+
+            while disk.raw_track_data[track].len() < NOMINAL_USABLE_BYTES_TRACK_SIZE {
+                disk.raw_track_data[track].push(0);
+            }
+
+            disk.raw_track_bits[track] = disk.raw_track_data[track].len() * 8;
         }
     }
 
