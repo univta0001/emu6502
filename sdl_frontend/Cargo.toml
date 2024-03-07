@@ -28,7 +28,7 @@ sdl2 = "0.36.0"
 #winapi = "0.3.9"
 
 [build-dependencies]
-embed-resource = "2.4.1"
+embed-resource = "2.4.2"
 cc = "1.0.89"
 
 [features]

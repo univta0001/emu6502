@@ -1046,40 +1046,27 @@ fn convert_woz_to_nib(disk: &Disk) -> io::Result<()> {
                 }
             }
         }
-        if rev < 4 {
-            head = sync_head;
-            mask = sync_mask;
-            bit = sync_bit;
-            rev = 0;
 
-            // Populate track until it reached back the initial sync point
-            let pos = head * 8 + bit as usize;
-            let _ = read_woz_nibble(track, &mut head, &mut mask, &mut bit, &mut rev, bit_count);
-            let mut nib_track = Vec::new();
-            while rev < 4 && head * 8 + bit as usize != pos {
-                let value =
-                    read_woz_nibble(track, &mut head, &mut mask, &mut bit, &mut rev, bit_count);
-                nib_track.push(value);
-            }
+        head = sync_head;
+        mask = sync_mask;
+        bit = sync_bit;
+        rev = 0;
 
-            if rev < 4 {
-                // Fill the remaining bytes with 0 bytes to make the nibble image use less than
-                // 6656 bytes to pass Prodos Format
-                // Nib track is always 6656 bytes
-                while nib_track.len() < NIB_TRACK_SIZE {
-                    nib_track.push(0);
-                }
-                data[offset..offset + NIB_TRACK_SIZE].copy_from_slice(&nib_track);
-            } else {
-                let mut nib_track = [0u8; NIB_TRACK_SIZE];
-                nib_track[0..track.len()].copy_from_slice(track);
-                data[offset..offset + NIB_TRACK_SIZE].copy_from_slice(&nib_track);
-            }
-        } else {
-            let mut nib_track = [0u8; NIB_TRACK_SIZE];
-            nib_track[0..track.len()].copy_from_slice(track);
-            data[offset..offset + NIB_TRACK_SIZE].copy_from_slice(&nib_track);
+        // Populate track until it reached back the initial sync point
+        let pos = head * 8 + bit as usize;
+        let mut nib_track = Vec::new();
+        while rev == 0 || (rev == 1 && (head * 8 + bit as usize) < pos) {
+            let value = read_woz_nibble(track, &mut head, &mut mask, &mut bit, &mut rev, bit_count);
+            nib_track.push(value);
         }
+
+        // Fill the remaining bytes with 0 bytes to make the nibble image use less than
+        // 6656 bytes to pass Prodos Format
+        // Nib track is always 6656 bytes
+        while nib_track.len() < NIB_TRACK_SIZE {
+            nib_track.push(0);
+        }
+        data[offset..offset + NIB_TRACK_SIZE].copy_from_slice(&nib_track[0..NIB_TRACK_SIZE]);
     }
 
     // Write to new file
