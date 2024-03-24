@@ -1279,7 +1279,7 @@ fn update_video(
     if *save_screenshot {
         if let Ok(output) = File::create("screenshot.png") {
             let encoder = PngEncoder::new(output);
-            let result = encoder.write_image(&disp.frame, 560, 384, ColorType::Rgba8);
+            let result = encoder.write_image(&disp.frame, 560, 384, ColorType::Rgba8.into());
             if result.is_err() {
                 eprintln!("Unable to create PNG file");
             }
