@@ -265,6 +265,12 @@ impl Bus {
         self.video.reset();
         self.ramfactor.reset();
 
+        // Clear the annunciator
+        self.annunciator[0] = false;
+        self.annunciator[1] = false;
+        self.annunciator[2] = false;
+        self.annunciator[3] = false;
+
         if self.is_apple2c {
             self.mem.intcxrom = true;
         }

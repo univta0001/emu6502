@@ -745,6 +745,7 @@ impl Video {
     pub fn reset(&mut self) {
         self._80storeon = false;
         self.vid80_mode = false;
+        self.altchar = false;
     }
 
     pub fn update_video(&mut self) {
