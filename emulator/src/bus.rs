@@ -133,6 +133,9 @@ pub struct Bus {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub z80_cirtech: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    pub speedstar: bool,
 }
 
 pub trait Mem {
@@ -228,6 +231,7 @@ impl Bus {
             #[cfg(not(target_os = "wasi"))]
             uthernet2: Uthernet2::new(),
             z80_cirtech: false,
+            speedstar: false,
         };
 
         // Memory initialization is based on the implementation of AppleWin
@@ -319,6 +323,14 @@ impl Bus {
 
     pub fn set_z80_cirtech(&mut self, value: bool) {
         self.z80_cirtech = value;
+    }
+
+    pub fn get_speedstar(&self) -> bool {
+        self.speedstar
+    }
+
+    pub fn set_speedstar(&mut self, value: bool) {
+        self.speedstar = value;
     }
 
     fn get_paddle_trigger(&self) -> usize {
@@ -776,17 +788,18 @@ impl Bus {
                 self.read_floating_bus()
             }
 
-            0x58..=0x59 => {
-                self.annunciator[((addr >> 1) & 3) as usize] = (addr & 1) != 0;
-                self.read_floating_bus()
-            }
-
-            0x5a..=0x5d => {
+            0x58..=0x5d => {
                 self.annunciator[((addr >> 1) & 3) as usize] = (addr & 1) != 0;
 
                 //SpeedStar DataKey Dongle
-                //self.pushbutton_latch[2] =
-                //    u8::from(!(self.annunciator[1] & self.annunciator[2])) << 7;
+                if self.speedstar {
+                    if self.annunciator[0] {
+                        self.pushbutton_latch[2] =
+                            u8::from(!(self.annunciator[1] & self.annunciator[2])) << 7;
+                   } else {
+                       self.pushbutton_latch[2] = 0x80
+                   }
+                }
 
                 self.read_floating_bus()
             }
