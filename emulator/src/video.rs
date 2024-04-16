@@ -165,7 +165,10 @@ const CYCLES_PER_ROW: usize = 65;
 const CYCLES_PER_HBL: usize = 25;
 const CYCLES_PER_FIELD_60HZ: usize = 17030;
 const CYCLES_PER_FIELD_50HZ: usize = 20280;
-const BLINK_PERIOD: usize = 250;
+
+// Flash frequency is 60 Hz / 32 (267ms) or 50 Hz / 32 (320 ms)
+const BLINK_PERIOD_60HZ: usize = 267;
+const BLINK_PERIOD_50HZ: usize = 320;
 
 // hires colors
 /*
@@ -758,7 +761,14 @@ impl Video {
                 .unwrap_or(std::time::Duration::ZERO)
                 .as_millis()
                 .saturating_sub(self.blink_time);
-            if elapsed > BLINK_PERIOD as u128 {
+
+            let blink_period = if !self.video_50hz {
+                BLINK_PERIOD_60HZ
+            } else {
+                BLINK_PERIOD_50HZ
+            };
+
+            if elapsed > blink_period as u128 {
                 if !self.vid80_mode {
                     self.blink = !self.blink;
                 }
