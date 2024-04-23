@@ -110,7 +110,7 @@ pub struct Bus {
     //bad_softswitch_addr: HashMap<u16, bool>,
     #[cfg_attr(
         feature = "serde_support",
-        serde(default),
+        serde(default = "default_io_slot"),
         derivative(Debug = "ignore")
     )]
     pub io_slot: Vec<IODevice>,
@@ -796,9 +796,9 @@ impl Bus {
                     if self.annunciator[0] {
                         self.pushbutton_latch[2] =
                             u8::from(!(self.annunciator[1] & self.annunciator[2])) << 7;
-                   } else {
-                       self.pushbutton_latch[2] = 0x80
-                   }
+                    } else {
+                        self.pushbutton_latch[2] = 0x80
+                    }
                 }
 
                 self.read_floating_bus()
@@ -1103,9 +1103,19 @@ impl Default for Bus {
 }
 
 fn default_io_slot() -> Vec<IODevice> {
-    let mut io_slot = Vec::new();
-    for _ in 0..8 {
-        io_slot.push(IODevice::None)
+    let mut io_slot = vec![IODevice::None; 8];
+    io_slot[1] = IODevice::Printer;
+    io_slot[2] = IODevice::RamFactor;
+
+    #[cfg(not(target_os = "wasi"))]
+    {
+        io_slot[3] = IODevice::Uthernet2;
     }
+
+    io_slot[4] = IODevice::Mockingboard(0);
+    io_slot[5] = IODevice::Mouse;
+    io_slot[6] = IODevice::Disk;
+    io_slot[7] = IODevice::HardDisk;
+
     io_slot
 }

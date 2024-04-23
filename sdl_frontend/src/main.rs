@@ -1093,7 +1093,7 @@ fn replace_quoted_hex_values(string: &str) -> String {
 #[cfg(feature = "serde_support")]
 fn save_serialized_image(cpu: &CPU) {
     let output = serde_yaml::to_string(&cpu).unwrap();
-    let yaml_output = output.replace("\"\"", "''").replace(['"', '\''], "");
+    let output = output.replace("\"\"", "''").replace(['"', '\''], "");
 
     /*
     #[cfg(feature = "regex")]
@@ -1104,14 +1104,14 @@ fn save_serialized_image(cpu: &CPU) {
         .to_string();
     */
 
-    let yaml_output = replace_quoted_hex_values(&yaml_output);
+    let output = replace_quoted_hex_values(&output);
 
     let result = FileDialog::new()
         .add_filter("Save state", &["yaml"])
         .save_file();
 
     if let Some(file_path) = result {
-        let write_result = fs::write(&file_path, yaml_output);
+        let write_result = fs::write(&file_path, output);
         if let Err(e) = write_result {
             eprintln!("Unable to write to file {} : {}", file_path.display(), e);
         }
