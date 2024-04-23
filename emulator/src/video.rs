@@ -124,7 +124,7 @@ pub struct Video {
     dhires_mode: bool,
     altchar: bool,
     blink: bool,
-    blink_time: u128,
+    blink_time: u64,
     video_latch: u8,
     prev_video_data: u8,
     apple2e: bool,
@@ -711,10 +711,10 @@ impl Video {
             cycles: 0,
             cycle_field,
             blink: false,
-            blink_time: SystemTime::now()
+            blink_time: (SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap_or(std::time::Duration::ZERO)
-                .as_millis(),
+                .as_millis()) as u64,
             graphics_mode: false,
             mixed_mode: false,
             lores_mode: false,
@@ -756,11 +756,11 @@ impl Video {
         let (row, col) = (val / CYCLES_PER_ROW, val % CYCLES_PER_ROW);
 
         if val == 0 {
-            let elapsed = SystemTime::now()
+            let elapsed = (SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap_or(std::time::Duration::ZERO)
                 .as_millis()
-                .saturating_sub(self.blink_time);
+                .saturating_sub(self.blink_time.into())) as u64;
 
             let blink_period = if !self.video_50hz {
                 BLINK_PERIOD_60HZ
@@ -768,14 +768,14 @@ impl Video {
                 BLINK_PERIOD_50HZ
             };
 
-            if elapsed > blink_period as u128 {
+            if elapsed > blink_period as u64 {
                 if !self.vid80_mode {
                     self.blink = !self.blink;
                 }
-                self.blink_time = SystemTime::now()
+                self.blink_time = (SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH)
                     .unwrap_or(std::time::Duration::ZERO)
-                    .as_millis();
+                    .as_millis()) as u64;
             }
         }
 
