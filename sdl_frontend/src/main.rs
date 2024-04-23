@@ -1491,6 +1491,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut ntsc_luma = NTSC_LUMA_BANDWIDTH;
     let mut ntsc_chroma = NTSC_CHROMA_BANDWIDTH;
 
+    // Disable rockwell instructions
+    cpu.m65c02_rockwell_disable = true;
+
     // Enable save for disk
     cpu.bus.disk.set_enable_save_disk(true);
 
