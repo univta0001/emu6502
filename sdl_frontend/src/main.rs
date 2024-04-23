@@ -1121,7 +1121,7 @@ fn save_serialized_image(cpu: &CPU) {
 #[cfg(feature = "serde_support")]
 fn load_serialized_image() -> Result<CPU, String> {
     let result = FileDialog::new()
-        .add_filter("Save state", &["yaml"])
+        .add_filter("Load state", &["yaml"])
         .pick_file();
 
     let Some(file_path) = result else {
