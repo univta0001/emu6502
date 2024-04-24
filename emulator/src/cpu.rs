@@ -1441,7 +1441,7 @@ impl CPU {
 
         if let Some(_nmi) = self.bus.poll_nmi_status() {
             self.interrupt(interrupt::NMI);
-        } else if self.bus.irq().is_some() && !self.status.contains(CpuFlags::INTERRUPT_DISABLE) {
+        } else if !self.status.contains(CpuFlags::INTERRUPT_DISABLE) {
             if let Some(irq_happen) = self.bus.irq() {
                 let cycles_elapsed = self.bus.cycles.saturating_sub(irq_happen);
 

@@ -227,12 +227,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                                     let coeff = f32::sqrt(1.0 + c);
                                     x *= coeff;
                                 }
-                                if x < -1.0 {
-                                    x = -1.0
-                                }
-                                if x > 1.0 {
-                                    x = 1.0
-                                }
+                                x = x.clamp(-1.0, 1.0);
                                 let x = (x * 32768.0) as i32;
                                 let mut pvalue = ((x + 32768) / 257) as u16;
                                 if pvalue >= 255 {
@@ -260,12 +255,8 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                                     let coeff = f32::sqrt(1.0 + c);
                                     y *= coeff;
                                 }
-                                if y < -1.0 {
-                                    y = -1.0
-                                }
-                                if y > 1.0 {
-                                    y = 1.0
-                                }
+
+                                y = y.clamp(-1.0, 1.0);
                                 let y = (y * 32768.0) as i32;
                                 let mut pvalue = ((y + 32768) / 257) as u16;
                                 if pvalue >= 255 {

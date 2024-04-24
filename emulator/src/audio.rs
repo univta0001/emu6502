@@ -181,12 +181,7 @@ impl AudioFilter {
         self.filter_tap[0] = y;
 
         let mut return_value = y / 4000.0;
-        if return_value < -1.0 {
-            return_value = -1.0;
-        } else if return_value > 1.0 {
-            return_value = 1.0;
-        }
-
+        return_value = return_value.clamp(-1.0, 1.0);
         return_value
     }
 }
