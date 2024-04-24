@@ -122,7 +122,7 @@ impl Mouse {
         }
     }
 
-    pub fn poll_irq(&mut self) -> Option<usize> {
+    pub fn poll_irq(&self) -> Option<usize> {
         if self.interrupt != 0 {
             Some(self.irq_happen)
         } else {

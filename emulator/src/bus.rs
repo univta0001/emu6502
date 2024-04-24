@@ -560,7 +560,7 @@ impl Bus {
         }
 
         if !self.disable_audio {
-            self.audio.mboard.iter_mut().find_map(|mb| mb.poll_irq())
+            self.audio.mboard.iter().find_map(|mb| mb.poll_irq())
         } else {
             None
         }

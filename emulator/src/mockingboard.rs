@@ -499,7 +499,7 @@ impl W65C22 {
         self.driving_bus = false;
     }
 
-    fn poll_irq(&mut self) -> Option<usize> {
+    fn poll_irq(&self) -> Option<usize> {
         let irqb = self.ier & self.ifr;
 
         if irqb > 0 {
@@ -774,7 +774,7 @@ impl Mockingboard {
         self.rng = 1;
     }
 
-    pub fn poll_irq(&mut self) -> Option<usize> {
+    pub fn poll_irq(&self) -> Option<usize> {
         let result1 = self.w65c22[0].poll_irq();
         let result2 = self.w65c22[1].poll_irq();
         if result1.is_some() {
