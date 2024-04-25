@@ -1439,6 +1439,7 @@ impl CPU {
             self.alt_cpu = !self.alt_cpu;
         }
 
+        let mut irq_defer = false;
         if let Some(_nmi) = self.bus.poll_nmi_status() {
             self.interrupt(interrupt::NMI);
         } else if !self.status.contains(CpuFlags::INTERRUPT_DISABLE) {
@@ -1447,8 +1448,10 @@ impl CPU {
 
                 // If the interrupt happens on the last cycle of the opcode, execute the opcode and
                 // then the interrupt handling routine
-                if cycles_elapsed > 1 {
+                if cycles_elapsed > 1 && cycles_elapsed < 8 {
                     self.interrupt(interrupt::IRQ);
+                } else {
+                    irq_defer = true;
                 }
             }
         }
@@ -2537,6 +2540,11 @@ impl CPU {
                 }
                 return false;
             }
+
+            if irq_defer {
+                self.interrupt(interrupt::IRQ);
+            }
+
             true
         } else {
             callback(self);
