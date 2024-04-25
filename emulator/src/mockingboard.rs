@@ -437,7 +437,7 @@ impl W65C22 {
 
         self.t1c = self.t1c.wrapping_sub(1);
 
-        if self.t1_loaded && self.t1c == 0 {
+        if self.t1_loaded && self.t1c == 0 && self.ifr & 0x40 == 0 {
             self.irq_happen = cycles;
         }
 
@@ -457,7 +457,7 @@ impl W65C22 {
 
         self.t2c = self.t2c.wrapping_sub(1);
 
-        if self.t2_loaded && self.t2c == 0 {
+        if self.t2_loaded && self.t2c == 0 && self.ifr & 0x20 == 0 {
             self.irq_happen = cycles;
         }
 
