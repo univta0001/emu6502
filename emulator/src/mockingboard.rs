@@ -67,7 +67,6 @@ struct Envelope {
     holding: bool,
     alternate: bool,
     attack: u8,
-    shape: u8,
 }
 
 impl Envelope {
@@ -81,7 +80,6 @@ impl Envelope {
             holding: false,
             alternate: false,
             attack: 0,
-            shape: 0,
         }
     }
 
@@ -101,7 +99,6 @@ impl Envelope {
     }
 
     fn set_shape(&mut self, shape: u8) {
-        self.shape = shape;
         self.attack = if shape & AY_ENV_ATTACK > 0 { 0xf } else { 0 };
         if shape & AY_ENV_CONT == 0 {
             self.hold = true;
