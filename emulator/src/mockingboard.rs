@@ -249,12 +249,11 @@ impl AY8910 {
 
         // Galois configuration
         /*
-        let lsb = self.rng & 1 > 0;
-        self.rng >>= 1;
-        if lsb {
+        if self.rng & 1 > 0 {
             self.rng ^= 0x24000;
         }
-        self.rng
+        self.rng >>= 1;
+        self.rng        
         */
     }
 
