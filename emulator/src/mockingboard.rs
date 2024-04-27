@@ -138,14 +138,12 @@ impl Tone {
     }
 
     fn set_period(&mut self, fine: u8, coarse: u8) {
-        let mut period = ((coarse & 0xf) as u16) * 256 + (fine as u16);
-        if period == 0 {
-            period = 1
+        self.period = ((coarse & 0xf) as u16) * 256 + (fine as u16);
+        if self.period == 0 {
+            self.count = 0;
+        } else if self.count >= self.period as usize {
+            self.count %= self.period as usize;
         }
-        if self.count >= (period * 2) as usize {
-            self.count %= (period * 2) as usize;
-        }
-        self.period = period;
     }
 
     fn set_volume(&mut self, val: u8) {
@@ -202,7 +200,7 @@ impl AY8910 {
         if self.noise.period == 0 {
             return;
         }
-        let env_period = self.noise.period as usize;
+        let env_period = self.noise.period as usize * 2;
         self.noise.count += 1;
         if self.noise.count >= env_period {
             self.noise.count -= env_period;
@@ -242,6 +240,8 @@ impl AY8910 {
     }
 
     fn get_noise_value(&mut self) -> usize {
+        // LFSR generator g(x) = x^17 + x^3 + 1
+
         let bit0 = self.rng & 0x1;
         let bit3 = self.rng >> 3 & 0x1;
         self.rng = (self.rng >> 1) | ((bit0 ^ bit3) << 16);
@@ -249,10 +249,11 @@ impl AY8910 {
 
         // Galois configuration
         /*
-        if self.rng & 1 > 0 {
+        let lsb = self.rng & 1 > 0;
+        self.rng >>= 1;
+        if lsb {
             self.rng ^= 0x24000;
         }
-        self.rng >>= 1;
         self.rng
         */
     }
@@ -807,21 +808,6 @@ impl Mockingboard {
 
     pub fn get_noise_period(&self, chip: usize) -> usize {
         self.w65c22[chip].ay8910.noise.period as usize
-    }
-
-    pub fn get_noise_value(&mut self) -> usize {
-        /*
-        let bit0 = self.rng & 0x1;
-        let bit3 = self.rng >> 3 & 0x1;
-        self.rng = (self.rng >> 1) | ((bit0 ^ bit3) << 16);
-        self.rng
-        */
-        // Galois configuration
-        if self.rng & 1 > 0 {
-            self.rng ^= 0x24000;
-        }
-        self.rng >>= 1;
-        self.rng
     }
 
     pub fn get_channel_enable(&self, chip: usize) -> u8 {
