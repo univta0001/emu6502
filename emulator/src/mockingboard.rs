@@ -1037,4 +1037,43 @@ mod test {
             "Expecting 0xff in ORA when W65c22 is reset"
         );
     }
+
+    #[test]
+    fn ay8910_envelope() {
+        let mut w65c22 = W65C22::new("#1");
+        w65c22.reset();
+        w65c22.ay8910.envelope.set_period(1, 0);
+        w65c22.ay8910.envelope.set_shape(8);
+
+        let mut result = Vec::new();
+        result.push(w65c22.ay8910.envelope.volume);
+        for _ in 0..31 {
+            w65c22.ay8910.update_envelope();
+            w65c22.ay8910.update_envelope();
+            result.push(w65c22.ay8910.envelope.volume);
+        }
+
+        let expected_ans = [
+            0xf, 0xe, 0xd, 0xc, 0xb, 0xa, 0x9, 0x8, 0x7, 0x6, 0x5, 0x4, 0x3, 0x2, 0x1, 0x0, 0xf,
+            0xe, 0xd, 0xc, 0xb, 0xa, 0x9, 0x8, 0x7, 0x6, 0x5, 0x4, 0x3, 0x2, 0x1, 0x0,
+        ];
+
+        assert_eq!(&result[..], expected_ans, "Expecting the sawtooth envelope");
+
+        w65c22.ay8910.envelope.count = 0;
+        w65c22.ay8910.envelope.set_shape(10);
+        result.clear();
+        result.push(w65c22.ay8910.envelope.volume);
+        for _ in 0..31 {
+            w65c22.ay8910.update_envelope();
+            w65c22.ay8910.update_envelope();
+            result.push(w65c22.ay8910.envelope.volume);
+        }
+
+        let expected_ans = [
+            0xf, 0xe, 0xd, 0xc, 0xb, 0xa, 0x9, 0x8, 0x7, 0x6, 0x5, 0x4, 0x3, 0x2, 0x1, 0x0, 0x0,
+            0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf,
+        ];
+        assert_eq!(&result[..], expected_ans, "Expecting the sawtooth envelope");
+    }
 }
