@@ -20,6 +20,7 @@ pub enum DisplayMode {
     DEFAULT,
     NTSC,
     MONO_WHITE,
+    MONO_NTSC,
     MONO_GREEN,
     MONO_AMBER,
     RGB,
@@ -1801,7 +1802,9 @@ impl Video {
 
         if self.vid80_mode && self.dhires_mode {
             if !self.mono_mode && !(self.is_display_mode_mono()) {
-                if self.display_mode == DisplayMode::NTSC {
+                if self.display_mode == DisplayMode::NTSC
+                    || self.display_mode == DisplayMode::MONO_NTSC
+                {
                     self.draw_dlores_ntsc_a2_y(x1, y1, ch, offset, aux);
                 } else {
                     for xindex in 0..7 {
@@ -1834,7 +1837,8 @@ impl Video {
                 }
             }
         } else if !self.mono_mode && !(self.is_display_mode_mono()) {
-            if self.display_mode == DisplayMode::NTSC {
+            if self.display_mode == DisplayMode::NTSC || self.display_mode == DisplayMode::MONO_NTSC
+            {
                 self.draw_lores_ntsc_a2_y(x1, y1, ch);
             } else {
                 for xindex in 0..7 {
@@ -1964,7 +1968,15 @@ impl Video {
         for i in 0..14 {
             let pos = (x + i) % 4;
             let luma_u32 = luma_to_u32(&luma, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR);
-            let color = self.chroma_hgr[pos][luma_u32 as usize];
+            let mut color = self.chroma_hgr[pos][luma_u32 as usize];
+
+            if self.display_mode == DisplayMode::MONO_NTSC {
+                let gray =
+                    (((color[0] as u16) * 30 + (color[1] as u16) * 59 + (color[2] as u16) * 11)
+                        / 100) as u8;
+                color = [gray, gray, gray];
+            }
+
             //let color = chroma_ntsc_color(&luma, x + i, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR, false, &self.ntsc_decoder);
             self.set_pixel_count(x + i, y1 * 2, color, 1);
         }
@@ -2095,11 +2107,18 @@ impl Video {
         for i in 0..7 {
             let pos = (x + offset + i) % 4;
             let luma_u32 = luma_to_u32(&luma, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR);
-            let color = if self.mac_lc_dlgr && aux {
+            let mut color = if self.mac_lc_dlgr && aux {
                 self.chroma_hgr[pos][luma_u32 as usize]
             } else {
                 self.chroma_dhgr[pos][luma_u32 as usize]
             };
+
+            if self.display_mode == DisplayMode::MONO_NTSC {
+                let gray =
+                    (((color[0] as u16) * 30 + (color[1] as u16) * 59 + (color[2] as u16) * 11)
+                        / 100) as u8;
+                color = [gray, gray, gray];
+            }
             //let color = chroma_ntsc_color(&luma, x + offset + i, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR, true, &self.ntsc_decoder);
             self.set_pixel_count(x + offset + i, y1 * 2, color, 1);
         }
@@ -2121,7 +2140,7 @@ impl Video {
             return;
         }
 
-        if self.display_mode == DisplayMode::NTSC {
+        if self.display_mode == DisplayMode::NTSC || self.display_mode == DisplayMode::MONO_NTSC {
             self.draw_raw_hires_ntsc_a2_row_col(row, col, value);
             return;
         }
@@ -2355,11 +2374,18 @@ impl Video {
             for i in 0..14 {
                 let pos = (x + i) % 4;
                 let luma_u32 = luma_to_u32(&luma, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR);
-                let color = if an3 {
+                let mut color = if an3 {
                     self.chroma_dhgr[pos][luma_u32 as usize]
                 } else {
                     self.chroma_hgr[pos][luma_u32 as usize]
                 };
+
+                if self.display_mode == DisplayMode::MONO_NTSC {
+                    let gray =
+                        (((color[0] as u16) * 30 + (color[1] as u16) * 59 + (color[2] as u16) * 11)
+                            / 100) as u8;
+                    color = [gray, gray, gray];
+                }
                 //let color = chroma_ntsc_color(&luma, x + i, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR, an3, &self.ntsc_decoder);
                 self.set_pixel_count(x + i, 2 * row, color, 1);
             }
@@ -2409,7 +2435,7 @@ impl Video {
             return;
         }
 
-        if self.display_mode == DisplayMode::NTSC {
+        if self.display_mode == DisplayMode::NTSC || self.display_mode == DisplayMode::MONO_NTSC {
             self.draw_raw_dhires_ntsc_a2_row_col(row, col, value, aux_value);
             return;
         }
@@ -2754,7 +2780,14 @@ impl Video {
             for i in 0..14 {
                 let pos = (x + i) % 4;
                 let luma_u32 = luma_to_u32(&luma, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR);
-                let color = self.chroma_dhgr[pos][luma_u32 as usize];
+                let mut color = self.chroma_dhgr[pos][luma_u32 as usize];
+
+                if self.display_mode == DisplayMode::MONO_NTSC {
+                    let gray =
+                        (((color[0] as u16) * 30 + (color[1] as u16) * 59 + (color[2] as u16) * 11)
+                            / 100) as u8;
+                    color = [gray, gray, gray];
+                }
                 //let color = chroma_ntsc_color(&luma, x + i, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR, true, &self.ntsc_decoder);
                 self.set_pixel_count(x + i, 2 * row, color, 1);
             }
