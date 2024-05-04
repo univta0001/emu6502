@@ -1380,9 +1380,9 @@ impl Video {
             self.frame[base + offset + 1] = g;
             self.frame[base + offset + 2] = b;
         } else {
-            self.frame[base + offset] = 0;
-            self.frame[base + offset + 1] = 0;
-            self.frame[base + offset + 2] = 0;
+            self.frame[base + offset] = self.frame[base] / 2;
+            self.frame[base + offset + 1] = self.frame[base + 1] / 2;
+            self.frame[base + offset + 2] = self.frame[base + 2] / 2;
         }
     }
 
@@ -1429,12 +1429,12 @@ impl Video {
             self.frame[base + 5 + offset] = g;
             self.frame[base + 6 + offset] = b;
         } else {
-            self.frame[base + offset] = 0;
-            self.frame[base + 1 + offset] = 0;
-            self.frame[base + 2 + offset] = 0;
-            self.frame[base + 4 + offset] = 0;
-            self.frame[base + 5 + offset] = 0;
-            self.frame[base + 6 + offset] = 0;
+            self.frame[base + offset] = r / 2;
+            self.frame[base + 1 + offset] = g / 2;
+            self.frame[base + 2 + offset] = b / 2;
+            self.frame[base + 4 + offset] = r / 2;
+            self.frame[base + 5 + offset] = b / 2;
+            self.frame[base + 6 + offset] = b / 2;
         }
     }
 
@@ -1738,7 +1738,11 @@ impl Video {
                     if !self.scanline {
                         self.set_pixel(xindex, y1offset + 1, color);
                     } else {
-                        self.set_pixel(xindex, y1offset + 1, COLOR_BLACK);
+                        self.set_pixel(
+                            xindex,
+                            y1offset + 1,
+                            [color[0] / 2, color[1] / 2, color[2] / 2],
+                        );
                     }
 
                     shift >>= 1;
