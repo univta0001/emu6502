@@ -1433,7 +1433,7 @@ impl Video {
             self.frame[base + 1 + offset] = g / 2;
             self.frame[base + 2 + offset] = b / 2;
             self.frame[base + 4 + offset] = r / 2;
-            self.frame[base + 5 + offset] = b / 2;
+            self.frame[base + 5 + offset] = g / 2;
             self.frame[base + 6 + offset] = b / 2;
         }
     }
