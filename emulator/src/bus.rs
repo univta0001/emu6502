@@ -18,9 +18,6 @@ use crate::network::Uthernet2;
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "serde_support")]
-use derivative::*;
-
 pub const ROM_START: u16 = 0xd000;
 pub const ROM_END: u16 = 0xffff;
 
@@ -65,8 +62,8 @@ pub enum IODevice {
     Saturn(u8),
 }
 
-#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize, Derivative))]
-#[cfg_attr(feature = "serde_support", derivative(Debug))]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_support", derive(educe::Educe), educe(Debug))]
 pub struct Bus {
     pub disk: DiskDrive,
     pub video: Video,
@@ -111,7 +108,7 @@ pub struct Bus {
     #[cfg_attr(
         feature = "serde_support",
         serde(default = "default_io_slot"),
-        derivative(Debug = "ignore")
+        educe(Debug(ignore))
     )]
     pub io_slot: Vec<IODevice>,
 

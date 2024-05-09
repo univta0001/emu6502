@@ -12,8 +12,6 @@ use iz80::*;
 use std::collections::BTreeMap;
 
 #[cfg(feature = "serde_support")]
-use derivative::*;
-#[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "z80")]
@@ -397,8 +395,8 @@ fn deserialize_cpu_speed<'de, D: Deserializer<'de>>(deserializer: D) -> Result<C
     Ok(value)
 }
 
-#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize, Derivative))]
-#[cfg_attr(feature = "serde_support", derivative(Debug))]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_support", derive(educe::Educe), educe(Debug))]
 pub struct CPU {
     pub register_a: u8,
     pub register_x: u8,
@@ -438,7 +436,7 @@ pub struct CPU {
 
     #[cfg(feature = "z80")]
     #[cfg_attr(feature = "serde_support", serde(default = "default_z80cpu"))]
-    #[cfg_attr(feature = "serde_support", derivative(Debug = "ignore"))]
+    #[cfg_attr(feature = "serde_support", educe(Debug(ignore)))]
     #[cfg_attr(
         feature = "serde_support",
         serde(serialize_with = "serialize_cpu", deserialize_with = "deserialize_cpu")

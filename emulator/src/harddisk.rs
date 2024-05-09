@@ -8,8 +8,6 @@ use std::path::Path;
 use std::path::PathBuf;
 
 #[cfg(feature = "serde_support")]
-use derivative::*;
-#[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
 
 const ROM: [u8; 256] = [
@@ -50,12 +48,11 @@ https://github.com/AppleWin/AppleWin/blob/master/source/Harddisk.cpp
     C089	(r)   HIGH BYTE OF DISK LEN
 */
 
-#[derive(Debug)]
-#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize, Derivative))]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize, educe::Educe), educe(Debug))]
 struct Disk {
     #[cfg_attr(feature = "serde_support", serde(skip))]
     #[cfg_attr(feature = "serde_support", serde(default))]
-    #[cfg_attr(feature = "serde_support", derivative(Debug = "ignore"))]
+    #[cfg_attr(feature = "serde_support", educe(Debug(ignore)))]
     raw_data: Vec<u8>,
 
     write_protect: bool,

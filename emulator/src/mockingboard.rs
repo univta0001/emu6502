@@ -253,7 +253,7 @@ impl AY8910 {
             self.rng ^= 0x24000;
         }
         self.rng >>= 1;
-        self.rng        
+        self.rng
         */
     }
 
