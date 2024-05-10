@@ -259,8 +259,8 @@ const DSK_PO: [u8; 16] = [
 // Fast disk for 1 second (6502 CPU cycles)
 const FAST_DISK_INTERVAL: usize = 1020484;
 
-// Wait for motor to stop after 1 sec * 1.2
-const PENDING_WAIT: usize = 1_224_581;
+// Wait for motor to stop after 1 sec
+const PENDING_WAIT: usize = 1020484;
 const BITS_BLOCKS_PER_TRACK: usize = 13;
 const BITS_BLOCK_SIZE: usize = 512;
 const BITS_TRACK_SIZE: usize = BITS_BLOCKS_PER_TRACK * BITS_BLOCK_SIZE;
