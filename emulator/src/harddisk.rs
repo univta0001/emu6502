@@ -48,7 +48,11 @@ https://github.com/AppleWin/AppleWin/blob/master/source/Harddisk.cpp
     C089	(r)   HIGH BYTE OF DISK LEN
 */
 
-#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize, educe::Educe), educe(Debug))]
+#[cfg_attr(
+    feature = "serde_support",
+    derive(Serialize, Deserialize, educe::Educe),
+    educe(Debug)
+)]
 struct Disk {
     #[cfg_attr(feature = "serde_support", serde(skip))]
     #[cfg_attr(feature = "serde_support", serde(default))]

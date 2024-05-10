@@ -1351,7 +1351,7 @@ impl DiskDrive {
             if self.pending_ticks > 0 {
                 self.pending_ticks = 0;
             }
-        } else if self.pending_ticks == 0 {
+        } else if self.drive[self.drive_select].motor_status && self.pending_ticks == 0 {
             self.pending_ticks = PENDING_WAIT;
         }
     }
