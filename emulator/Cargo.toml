@@ -11,9 +11,9 @@ flate2 = { version = "1.0.30", optional = true }
 instant = { version = "0.1.12", features = ["wasm-bindgen"], optional = true }
 serde = { version = "1.0.201", features = ["derive"],  optional = true }
 iz80 = { path = "iz80", optional = true }
-educe = { version = "0.5.11", features = ["Debug"], optional = true }
 time = { version = "0.3.36", features = ["local-offset","wasm-bindgen"] }
 fastrand = "2.1.0"
+educe = { version = "0.5.11", default-features = false, features = ["Debug"], optional = true }
 
 [dev-dependencies]
 regex = "1.10.4"
