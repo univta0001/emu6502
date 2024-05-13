@@ -701,15 +701,36 @@ impl Bus {
 
             0x14 => self.get_io_status(self.mem.wrcardram),
 
-            0x15 => self.get_io_status(self.mem.intcxrom),
+            0x15 => {
+                if self.is_apple2c {
+                    self.get_io_status(false)
+                } else {
+                    self.get_io_status(self.mem.intcxrom)
+                }
+            }
 
             0x16 => self.get_io_status(self.mem.altzp),
 
-            0x17 => self.get_io_status(self.mem.slotc3rom),
+            0x17 => {
+                if self.is_apple2c {
+                    self.get_io_status(false)
+                } else {
+                    self.get_io_status(self.mem.slotc3rom)
+                }
+            }
 
             0x18 => self.get_io_status(self.mem._80storeon),
 
-            0x19..=0x1f => {
+            0x19 => {
+                if self.is_apple2c {
+                    self.get_keyboard_latch() & 0x7f
+                } else {
+                    self.video.io_access(addr, value, write_flag)
+                        | (self.get_keyboard_latch() & 0x7f)
+                }
+            }
+
+            0x1a..=0x1f => {
                 self.video.io_access(addr, value, write_flag) | (self.get_keyboard_latch() & 0x7f)
             }
 
