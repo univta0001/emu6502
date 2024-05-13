@@ -915,7 +915,6 @@ impl Bus {
 
             0x73 => {
                 if write_flag {
-                    self.set_paddle_trigger(self.get_cycles());
                     self.mem.set_aux_bank(value);
                 }
                 self.read_floating_bus()
