@@ -900,6 +900,20 @@ impl Bus {
                 self.read_floating_bus()
             }
 
+            0x78 => {
+                if self.is_apple2c && write_flag {
+                    self.iou = false;
+                }
+                self.read_floating_bus()
+            }
+
+            0x79 => {
+                if self.is_apple2c && write_flag {
+                    self.iou = true;
+                }
+                self.read_floating_bus()
+            }
+
             0x7e => {
                 let val = self.read_floating_bus() & 0x7f;
                 if write_flag {
