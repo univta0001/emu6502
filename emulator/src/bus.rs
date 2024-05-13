@@ -373,6 +373,7 @@ impl Bus {
         if slot < self.io_slot.len() {
             let slot_value = self.io_slot[slot];
             //eprintln!("IOAccess - {:04x} {} {}",addr,slot,io_addr);
+
             let mut saturn;
             let return_value: Option<&mut dyn Card> = match slot_value {
                 IODevice::Printer => Some(&mut self.parallel),
@@ -737,6 +738,13 @@ impl Bus {
             0x20 => self.read_floating_bus(),
 
             0x21 => self.video.io_access(addr, value, write_flag),
+
+            0x28 => {
+                if self.is_apple2c && write_flag {
+                    self.mem.set_rom_bank(!self.mem.rom_bank())
+                }
+                self.read_floating_bus()
+            }
 
             0x29 => self.video.io_access(addr, value, write_flag),
 

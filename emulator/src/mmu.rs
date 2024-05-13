@@ -21,6 +21,12 @@ pub struct Mmu {
         feature = "serde_support",
         serde(serialize_with = "as_hex", deserialize_with = "from_hex_64k")
     )]
+    pub alt_cpu_memory: Vec<u8>,
+
+    #[cfg_attr(
+        feature = "serde_support",
+        serde(serialize_with = "as_hex", deserialize_with = "from_hex_64k")
+    )]
     pub aux_memory: Vec<u8>,
 
     #[cfg_attr(
@@ -46,6 +52,8 @@ pub struct Mmu {
         serde(serialize_with = "as_hex", deserialize_with = "from_hex_12k")
     )]
     pub aux_bank2_memory: Vec<u8>,
+
+    pub rom_bank: bool,
 
     pub intcxrom: bool,
     pub intc8rom: bool,
@@ -80,11 +88,14 @@ impl Mmu {
     pub fn new() -> Self {
         Mmu {
             cpu_memory: vec![0; 0x10000],
+            alt_cpu_memory: vec![0; 0x10000],
             aux_memory: vec![0; 0x10000],
             bank1_memory: vec![0; 0x3000],
             bank2_memory: vec![0; 0x3000],
             aux_bank1_memory: vec![0; 0x3000],
             aux_bank2_memory: vec![0; 0x3000],
+
+            rom_bank: false,
 
             intcxrom: false,
             intc8rom: false,
@@ -163,6 +174,14 @@ impl Mmu {
         aux_flag
     }
 
+    pub fn set_rom_bank(&mut self, flag: bool) {
+        self.rom_bank = flag
+    }
+
+    pub fn rom_bank(&self) -> bool {
+        self.rom_bank
+    }
+
     pub fn aux_bank(&self) -> u8 {
         self.aux_bank
     }
@@ -184,11 +203,27 @@ impl Mmu {
     }
 
     pub fn mem_read(&self, addr: u16) -> u8 {
-        self.cpu_memory[addr as usize]
+        if (0xc100..=0xffff).contains(&addr) {
+            if !self.rom_bank {
+                self.cpu_memory[addr as usize]
+            } else {
+                self.alt_cpu_memory[addr as usize]
+            }
+        } else {
+            self.cpu_memory[addr as usize]
+        }
     }
 
     pub fn mem_write(&mut self, addr: u16, data: u8) {
-        self.cpu_memory[addr as usize] = data
+        if (0xc100..=0xffff).contains(&addr) {
+            if !self.rom_bank {
+                self.cpu_memory[addr as usize] = data
+            } else {
+                self.alt_cpu_memory[addr as usize] = data
+            }
+        } else {
+            self.cpu_memory[addr as usize] = data
+        }
     }
 
     pub fn mem_bank1_read(&self, addr: u16) -> u8 {
