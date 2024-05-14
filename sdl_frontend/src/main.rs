@@ -773,7 +773,7 @@ FLAGS:
     -r no of pages     Emulate RAMworks III card with 1 to 127 pages
     --rf size          Ramfactor memory size in KB
     -m, --model MODEL  Set apple 2 model. 
-                       Valid value: apple2p,apple2e,apple2ee,apple2c
+                       Valid value: apple2p,apple2e,apple2ee,apple2c,apple2c0
     --d1 PATH          Set the file path for disk 1 drive at Slot 6 Drive 1
     --d2 PATH          Set the file path for disk 2 drive at Slot 6 Drive 2
     --h1 PATH          Set the file path for hard disk 1
@@ -1404,6 +1404,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     //let apple2ee_rom: Vec<u8> = std::fs::read("Apple2e_Enhanced.rom").unwrap();
     let apple2ee_rom: Vec<u8> = include_bytes!("../../Apple2e_Enhanced.rom").to_vec();
     let apple2c_rom: Vec<u8> = include_bytes!("../../Apple2c_RomFF.rom").to_vec();
+    let apple2c0_rom: Vec<u8> = include_bytes!("../../Apple2c_Rom00.rom").to_vec();
 
     // Create bus
     let bus = Bus::default();
@@ -1553,6 +1554,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             "apple2e" => cpu.load(&apple2e_rom, 0xc000),
             "apple2ee" => cpu.load(&apple2ee_rom, 0xc000),
             "apple2c" => cpu.load(&apple2c_rom, 0xc000),
+            "apple2c0" => cpu.load(&apple2c0_rom, 0xc000),
             _ => {}
         }
     }

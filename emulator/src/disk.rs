@@ -152,6 +152,8 @@ pub struct DiskDrive {
     q7: bool,
     pulse: u8,
     bit_buffer: u8,
+    iwm: bool,
+    iwm_mode: u8,
 
     #[cfg_attr(
         feature = "serde_support",
@@ -1326,6 +1328,8 @@ impl DiskDrive {
             prev_latch: 0,
             q6: false,
             q7: false,
+            iwm: false,
+            iwm_mode: 0,
             pulse: 0,
             bit_buffer: 0,
             lss_cycle: 0,
@@ -1345,6 +1349,10 @@ impl DiskDrive {
         self.motor_status(false);
     }
 
+    pub fn set_iwm(&mut self, flag: bool) {
+        self.iwm = flag
+    }
+
     pub fn motor_status(&mut self, flag: bool) {
         if flag {
             self.drive[self.drive_select].motor_status = true;
@@ -1352,7 +1360,12 @@ impl DiskDrive {
                 self.pending_ticks = 0;
             }
         } else if self.drive[self.drive_select].motor_status && self.pending_ticks == 0 {
-            self.pending_ticks = PENDING_WAIT;
+            if !self.iwm || self.iwm_mode & 0x4 == 0 {
+                self.pending_ticks = PENDING_WAIT;
+            } else {
+                // Set the motor off immediately if the IWM timer of 1 second is off
+                self.drive[self.drive_select].motor_status = false;
+            }
         }
     }
 
@@ -2591,7 +2604,7 @@ impl Card for DiskDrive {
         _video: &mut Video,
         addr: u16,
         value: u8,
-        write_mode: bool,
+        write_flag: bool,
     ) -> u8 {
         let slot = (((addr & 0x00ff) - 0x0080) >> 4) as usize;
         let io_addr = ((addr & 0x00ff) - ((slot as u16) << 4)) as u8;
@@ -2651,14 +2664,39 @@ impl Card for DiskDrive {
         self.request_fast_disk();
 
         let mut return_value = 0;
-        if !write_mode {
+        let mode = (self.q7 as u8) << 1 | self.q6 as u8;
+        if !write_flag {
             if addr & 0x1 == 0 {
-                return_value = self.get_value();
+                return_value = if self.iwm {
+                    match mode {
+                        // Q6 on, Q7 off, Read status register.
+                        1 => {
+                            (self.iwm_mode & 0x1f)
+                                | (self.is_motor_on() as u8 & 0x1) << 5
+                                | (self.is_write_protected() as u8 & 0x1) << 7
+                        }
+
+                        // Q6 off, Q7 on, Read handshake register. IWM is always ready.
+                        2 => 0x80,
+
+                        _ => self.get_value(),
+                    }
+                } else {
+                    if mode == 1 {
+                        self.get_value() & 0x7f | (self.is_write_protected() as u8 & 0x1) << 7
+                    } else {
+                        self.get_value()
+                    }
+                };
             } else {
                 return_value = 0
             }
         } else {
-            self.bus = value;
+            if self.iwm && !self.is_motor_on() && mode == 3 {
+                self.iwm_mode = value;
+            } else if mode == 3 {
+                self.bus = value;
+            }
         }
         return_value
     }

@@ -310,6 +310,14 @@ impl Bus {
         self.cycles = cycles;
     }
 
+    pub fn set_apple2c(&mut self, flag: bool) {
+        self.is_apple2c = flag;
+    }
+
+    pub fn set_iwm(&mut self, flag: bool) {
+        self.disk.set_iwm(flag);
+    }
+
     pub fn is_normal_speed(&self) -> bool {
         self.disk.is_normal_disk() || self.audio.is_audio_active()
     }

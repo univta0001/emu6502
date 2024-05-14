@@ -965,7 +965,10 @@ impl CPU {
         self.alt_cpu = false;
 
         if self.is_apple2c() {
-            self.bus.is_apple2c = true;
+            self.bus.set_apple2c(true);
+            if self.bus.mem_read(0xfbbf) != 0xff {
+                self.bus.set_iwm(true);
+            }
         }
 
         self.bus.reset();
