@@ -1554,7 +1554,12 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             "apple2e" => cpu.load(&apple2e_rom, 0xc000),
             "apple2ee" => cpu.load(&apple2ee_rom, 0xc000),
             "apple2c" => cpu.load(&apple2c_rom, 0xc000),
-            "apple2c0" => cpu.load(&apple2c0_rom, 0xc000),
+            "apple2c0" => {
+                cpu.load(&apple2c0_rom[0..0x4000], 0xc000);
+                cpu.bus.mem.rom_bank = true;
+                cpu.load(&apple2c0_rom[0x4000..], 0xc000);
+                cpu.bus.mem.rom_bank = false;
+            }
             _ => {}
         }
     }

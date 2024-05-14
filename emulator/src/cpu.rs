@@ -940,19 +940,8 @@ impl CPU {
     }
 
     pub fn load(&mut self, program: &[u8], offset: u16) {
-        if program.len() <= 0x4000 {
-            for (i, item) in program.iter().enumerate() {
-                self.bus.mem_write(offset + i as u16, *item);
-            }
-        } else {
-            for (i, item) in program[0..0x4000].iter().enumerate() {
-                self.bus.mem_write(offset + i as u16, *item);
-            }
-            self.bus.mem.rom_bank = true;
-            for (i, item) in program[0x4000..].iter().enumerate() {
-                self.bus.mem_write(offset + i as u16, *item);
-            }
-            self.bus.mem.rom_bank = false;
+        for (i, item) in program.iter().enumerate() {
+            self.bus.mem_write(offset + i as u16, *item);
         }
     }
 
