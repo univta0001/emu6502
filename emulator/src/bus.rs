@@ -3,7 +3,7 @@ use crate::disk::DiskDrive;
 use crate::harddisk::HardDisk;
 use crate::mmu::Mmu;
 use crate::mmu::Saturn;
-use crate::mouse::Mouse;
+use crate::mouse::{Mouse, STATUS_MOVE_INTERRUPT, STATUS_VBL_INTERRUPT};
 use crate::noslotclock::NoSlotClock;
 use crate::parallel::ParallelCard;
 use crate::ramfactor::RamFactor;
@@ -312,6 +312,11 @@ impl Bus {
 
     pub fn set_apple2c(&mut self, flag: bool) {
         self.is_apple2c = flag;
+
+        if self.is_apple2c {
+            self.io_slot[4] = IODevice::Mouse;
+            self.io_slot[5] = IODevice::None;
+        }
     }
 
     pub fn set_iwm(&mut self, flag: bool) {
@@ -712,6 +717,7 @@ impl Bus {
 
             0x15 => {
                 if self.is_apple2c {
+                    self.mouse.serve_mouse(&mut self.mem, 4);
                     self.get_io_status(false)
                 } else {
                     self.get_io_status(self.mem.intcxrom)
@@ -722,6 +728,7 @@ impl Bus {
 
             0x17 => {
                 if self.is_apple2c {
+                    self.mouse.serve_mouse(&mut self.mem, 4);
                     self.get_io_status(false)
                 } else {
                     self.get_io_status(self.mem.slotc3rom)
@@ -732,7 +739,8 @@ impl Bus {
 
             0x19 => {
                 if self.is_apple2c {
-                    self.get_keyboard_latch() & 0x7f
+                    let vbl = ((self.mouse.get_interrupt() & STATUS_VBL_INTERRUPT > 0) as u8) << 7;
+                    (self.get_keyboard_latch() & 0x7f) | vbl
                 } else {
                     self.video.io_access(addr, value, write_flag)
                         | (self.get_keyboard_latch() & 0x7f)
@@ -758,6 +766,23 @@ impl Bus {
 
             0x30 => self.audio_io_access(),
 
+            0x40 => {
+                if self.is_apple2c {
+                    self.read_floating_bus() & 0x7f
+                        | ((self.mouse.get_interrupt() & STATUS_MOVE_INTERRUPT > 0) as u8) << 7
+                } else {
+                    self.read_floating_bus()
+                }
+            }
+
+            0x41 => {
+                if self.is_apple2c {
+                    self.read_floating_bus() & 0x7f
+                        | ((self.mouse.get_interrupt() & STATUS_VBL_INTERRUPT > 0) as u8) << 7
+                } else {
+                    self.read_floating_bus()
+                }
+            }
             0x50 => {
                 {
                     self.video.enable_graphics(true);
@@ -823,15 +848,27 @@ impl Bus {
             }
 
             0x58..=0x5d => {
-                self.annunciator[((addr >> 1) & 3) as usize] = (addr & 1) != 0;
+                if !self.iou {
+                    self.annunciator[((addr >> 1) & 3) as usize] = (addr & 1) != 0;
 
-                //SpeedStar DataKey Dongle
-                if self.speedstar {
-                    if self.annunciator[0] {
-                        self.pushbutton_latch[2] =
-                            u8::from(!(self.annunciator[1] & self.annunciator[2])) << 7;
-                    } else {
-                        self.pushbutton_latch[2] = 0x80
+                    //SpeedStar DataKey Dongle
+                    if self.speedstar {
+                        if self.annunciator[0] {
+                            self.pushbutton_latch[2] =
+                                u8::from(!(self.annunciator[1] & self.annunciator[2])) << 7;
+                        } else {
+                            self.pushbutton_latch[2] = 0x80
+                        }
+                    }
+                } else {
+                    match io_addr {
+                        0x5a => self
+                            .mouse
+                            .set_mode(&mut self.mem, 4, STATUS_VBL_INTERRUPT, false),
+                        0x5b => self
+                            .mouse
+                            .set_mode(&mut self.mem, 4, STATUS_VBL_INTERRUPT, true),
+                        _ => {}
                     }
                 }
 
@@ -926,6 +963,10 @@ impl Bus {
 
             0x70 => {
                 self.set_paddle_trigger(self.get_cycles());
+                if self.is_apple2c {
+                    self.mouse.serve_mouse(&mut self.mem, 4);
+                }
+
                 self.read_floating_bus()
             }
 

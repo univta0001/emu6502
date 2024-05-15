@@ -82,10 +82,11 @@ const KEY_POINTER: u16 = 0x6f8;
 const STATUS: u16 = 0x778;
 const MODE: u16 = 0x7f8;
 
+pub const STATUS_MOVE_INTERRUPT: u8 = 0x02;
+pub const STATUS_BUTTON_INTERRUPT: u8 = 0x04;
+pub const STATUS_VBL_INTERRUPT: u8 = 0x08;
+
 const STATUS_LAST_BUTTON1: u8 = 0x01;
-const STATUS_MOVE_INTERRUPT: u8 = 0x02;
-const STATUS_BUTTON_INTERRUPT: u8 = 0x04;
-const STATUS_VBL_INTERRUPT: u8 = 0x08;
 const STATUS_DOWN_BUTTON1: u8 = 0x10;
 const STATUS_MOVED: u8 = 0x20;
 const STATUS_LAST_BUTTON0: u8 = 0x40;
@@ -128,6 +129,21 @@ impl Mouse {
         } else {
             None
         }
+    }
+
+    pub fn get_interrupt(&self) -> u8 {
+        self.interrupt
+    }
+
+    pub fn set_mode(&mut self, mmu: &mut Mmu, slot: u16, value: u8, flag: bool) {
+        if flag {
+            self.mode |= value;
+        } else {
+            self.mode &= !value;
+        }
+
+        // Update mode
+        mmu.mem_write(MODE + slot, self.mode);
     }
 
     fn mouse_status(&mut self, mmu: &mut Mmu, slot: u16) {
@@ -236,7 +252,7 @@ impl Mouse {
         status
     }
 
-    fn serve_mouse(&mut self, mmu: &mut Mmu, slot: u16) {
+    pub fn serve_mouse(&mut self, mmu: &mut Mmu, slot: u16) {
         //eprintln!("ServeMouse");
         let status = self.get_status();
         mmu.mem_write(STATUS + slot, status);
