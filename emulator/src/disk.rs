@@ -2681,22 +2681,18 @@ impl Card for DiskDrive {
 
                         _ => self.get_value(),
                     }
+                } else if mode == 1 {
+                    self.get_value() & 0x7f | (self.is_write_protected() as u8 & 0x1) << 7
                 } else {
-                    if mode == 1 {
-                        self.get_value() & 0x7f | (self.is_write_protected() as u8 & 0x1) << 7
-                    } else {
-                        self.get_value()
-                    }
+                    self.get_value()
                 };
             } else {
                 return_value = 0
             }
-        } else {
-            if self.iwm && !self.is_motor_on() && mode == 3 {
-                self.iwm_mode = value;
-            } else if mode == 3 {
-                self.bus = value;
-            }
+        } else if self.iwm && !self.is_motor_on() && mode == 3 {
+            self.iwm_mode = value;
+        } else if mode == 3 {
+            self.bus = value;
         }
         return_value
     }
