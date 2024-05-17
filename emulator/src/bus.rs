@@ -272,10 +272,6 @@ impl Bus {
         self.annunciator[2] = false;
         self.annunciator[3] = false;
 
-        if self.is_apple2c {
-            self.mem.intcxrom = true;
-        }
-
         if !self.disable_audio {
             self.audio.mboard.iter_mut().for_each(|mb| mb.reset())
         }

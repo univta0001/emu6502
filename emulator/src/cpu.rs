@@ -956,6 +956,7 @@ impl CPU {
 
         // RESET CPU takes 7 cycles;
         self.program_counter = self.bus.mem_read_u16(0xfffc);
+
         for _ in 0..7 {
             self.tick();
         }
@@ -1408,6 +1409,8 @@ impl CPU {
 
         if self.is_apple2c() {
             self.bus.set_apple2c(true);
+            self.bus.mem.intcxrom = true;
+
             if self.bus.mem_read(0xfbbf) != 0xff {
                 self.bus.set_iwm(true);
             }
