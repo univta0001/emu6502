@@ -952,14 +952,6 @@ impl CPU {
         self.stack_pointer = STACK_RESET;
         self.status = CpuFlags::from_bits_truncate(0b00100100);
         self.alt_cpu = false;
-
-        if self.is_apple2c() {
-            self.bus.set_apple2c(true);
-            if self.bus.mem_read(0xfbbf) != 0xff {
-                self.bus.set_iwm(true);
-            }
-        }
-
         self.bus.reset();
 
         // RESET CPU takes 7 cycles;
@@ -1413,6 +1405,14 @@ impl CPU {
         if self.is_apple2e() {
             self.bus.video.set_apple2e(true);
         }
+
+        if self.is_apple2c() {
+            self.bus.set_apple2c(true);
+            if self.bus.mem_read(0xfbbf) != 0xff {
+                self.bus.set_iwm(true);
+            }
+        }
+
         self.m65c02 = self.is_apple2e_enh() || self.is_apple2c();
     }
 
