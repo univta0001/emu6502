@@ -1002,7 +1002,7 @@ impl Bus {
                 if write_flag {
                     self.iou = false;
                     val
-                } else if self.iou {
+                } else if !self.iou {
                     val | 0x80
                 } else {
                     val
