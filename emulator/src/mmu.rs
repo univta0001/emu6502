@@ -134,6 +134,7 @@ impl Mmu {
         self.aux_bank = 0;
         self.intcxrom = false;
         self.saturn_bank = 0;
+        self.rom_bank = false;
     }
 
     pub fn set_saturn_memory(&mut self, flag: bool) {

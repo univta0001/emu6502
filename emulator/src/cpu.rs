@@ -952,11 +952,11 @@ impl CPU {
         self.stack_pointer = STACK_RESET;
         self.status = CpuFlags::from_bits_truncate(0b00100100);
         self.alt_cpu = false;
+
         self.bus.reset();
 
         // RESET CPU takes 7 cycles;
         self.program_counter = self.bus.mem_read_u16(0xfffc);
-
         for _ in 0..7 {
             self.tick();
         }
@@ -1410,7 +1410,6 @@ impl CPU {
         if self.is_apple2c() {
             self.bus.set_apple2c(true);
             self.bus.mem.intcxrom = true;
-
             if self.bus.mem_read(0xfbbf) != 0xff {
                 self.bus.set_iwm(true);
             }

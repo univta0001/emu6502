@@ -272,6 +272,10 @@ impl Bus {
         self.annunciator[2] = false;
         self.annunciator[3] = false;
 
+        if self.is_apple2c {
+            self.mem.intcxrom = true;
+        }
+
         if !self.disable_audio {
             self.audio.mboard.iter_mut().for_each(|mb| mb.reset())
         }
@@ -591,9 +595,9 @@ impl Bus {
 
     fn get_io_status(&self, flag: bool) -> u8 {
         if flag {
-            0x80 | (self.get_keyboard_latch() & 0x7f)
+            0x80 | (self.read_floating_bus() & 0x7f)
         } else {
-            self.get_keyboard_latch() & 0x7f
+            self.read_floating_bus() & 0x7f
         }
     }
 
@@ -779,6 +783,7 @@ impl Bus {
                     self.read_floating_bus()
                 }
             }
+
             0x50 => {
                 {
                     self.video.enable_graphics(true);
@@ -872,21 +877,25 @@ impl Bus {
             }
 
             0x5e => {
-                self.annunciator[3] = false;
                 let val = self.read_floating_bus();
-                if self.video.is_apple2e() {
-                    self.video.enable_dhires(true);
-                    self.video.update_video();
+                if !self.iou {
+                    self.annunciator[3] = false;
+                    if self.video.is_apple2e() {
+                        self.video.enable_dhires(true);
+                        self.video.update_video();
+                    }
                 }
                 val
             }
 
             0x5f => {
-                self.annunciator[3] = true;
                 let val = self.read_floating_bus();
-                if self.video.is_apple2e() {
-                    self.video.enable_dhires(false);
-                    self.video.update_video();
+                if !self.iou {
+                    self.annunciator[3] = true;
+                    if self.video.is_apple2e() {
+                        self.video.enable_dhires(false);
+                        self.video.update_video();
+                    }
                 }
                 val
             }
@@ -959,6 +968,7 @@ impl Bus {
 
             0x70 => {
                 self.set_paddle_trigger(self.get_cycles());
+
                 if self.is_apple2c {
                     self.mouse.serve_mouse(&mut self.mem, 4);
                 }
@@ -992,7 +1002,7 @@ impl Bus {
                 if write_flag {
                     self.iou = false;
                     val
-                } else if !self.iou {
+                } else if self.iou {
                     val | 0x80
                 } else {
                     val

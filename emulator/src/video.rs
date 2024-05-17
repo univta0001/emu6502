@@ -1300,6 +1300,10 @@ impl Video {
         self.video_page2
     }
 
+    pub fn is_vid80_mode(&self) -> bool {
+        self.vid80_mode
+    }
+
     pub fn is_vbl(&self) -> bool {
         let val = self.cycles;
         let row = val / CYCLES_PER_ROW;
