@@ -267,22 +267,26 @@ pub fn adjust_disassemble_addr(bus: &mut Bus, addr: u16, step: i16) -> u16 {
 
 pub fn disassemble(output: &mut String, cpu: &mut CPU) {
     let mut pc = cpu.program_counter;
-    for _ in 0..20 {
+    for i in 0..20 {
+        if i > 0 {
+            output.push_str("\n");
+        }
         let code = cpu.bus.unclocked_addr_read(pc);
         let ops = &OPCODES[code as usize];
         dump_trace(output, cpu, pc, false);
-        output.push_str("\r\n");
         pc = pc.wrapping_add(ops.len as u16);
     }
 }
 
 pub fn disassemble_addr(output: &mut String, cpu: &mut CPU, addr: u16, size: usize) {
     let mut pc = addr;
-    for _ in 0..size {
+    for i in 0..size {
+        if i > 0 {
+            output.push_str("\n");
+        }
         let code = cpu.bus.unclocked_addr_read(pc);
         let ops = &OPCODES[code as usize];
         dump_trace(output, cpu, pc, false);
-        output.push_str("\r\n");
         pc = pc.wrapping_add(ops.len as u16);
     }
 }

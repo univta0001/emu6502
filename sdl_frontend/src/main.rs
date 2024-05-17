@@ -644,7 +644,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                     let addr = adjust_disassemble_addr(&mut cpu.bus, cpu.program_counter, -10);
                     disassemble_addr(&mut output, cpu, addr, 20);
                     eprintln!(
-                        "PC:{:04X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} S:{:02X}\n\n{}",
+                        "PC:{:04X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} S:{:02X}\n\n{}\n",
                         cpu.program_counter,
                         cpu.register_a,
                         cpu.register_x,
