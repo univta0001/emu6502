@@ -1767,8 +1767,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let speed_numerator = [1, 10, 10, 10, 1];
     let speed_denominator = [1, 28, 40, 80, 1];
 
-    cpu.setup_emulator();
     cpu.reset();
+    cpu.setup_emulator();
 
     // Change the refresh video to the start of the VBL instead of end of the VBL
     let mut dcyc = if cpu.bus.video.is_video_50hz() {
