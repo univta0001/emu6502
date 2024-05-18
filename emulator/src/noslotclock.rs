@@ -1,9 +1,9 @@
 //use chrono::prelude::*;
 
-#[cfg(feature = "instant_time")]
-use instant::SystemTime;
+#[cfg(feature = "web_time")]
+use web_time::SystemTime;
 
-#[cfg(not(feature = "instant_time"))]
+#[cfg(not(feature = "web_time"))]
 use std::time::SystemTime;
 
 #[cfg(feature = "serde_support")]

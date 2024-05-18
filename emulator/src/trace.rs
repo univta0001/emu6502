@@ -269,7 +269,7 @@ pub fn disassemble(output: &mut String, cpu: &mut CPU) {
     let mut pc = cpu.program_counter;
     for i in 0..20 {
         if i > 0 {
-            output.push_str("\n");
+            output.push('\n');
         }
         let code = cpu.bus.unclocked_addr_read(pc);
         let ops = &OPCODES[code as usize];
@@ -282,7 +282,7 @@ pub fn disassemble_addr(output: &mut String, cpu: &mut CPU, addr: u16, size: usi
     let mut pc = addr;
     for i in 0..size {
         if i > 0 {
-            output.push_str("\n");
+            output.push('\n');
         }
         let code = cpu.bus.unclocked_addr_read(pc);
         let ops = &OPCODES[code as usize];

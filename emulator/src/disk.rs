@@ -17,7 +17,7 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 
 #[cfg(feature = "serde_support")]
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 
 const DSK_36_40_SIZE: [usize; 5] = [147456, 151552, 155648, 159744, 163840];
 const DSK_IMAGE_SIZE: usize = 143360;
@@ -143,6 +143,7 @@ pub struct Disk {
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_support", serde(default))]
 pub struct DiskDrive {
     drive: Vec<Disk>,
     drive_select: usize,
@@ -154,13 +155,7 @@ pub struct DiskDrive {
     bit_buffer: u8,
     iwm: bool,
     iwm_mode: u8,
-
-    #[cfg_attr(
-        feature = "serde_support",
-        serde(deserialize_with = "deserialize_lss_cycle")
-    )]
     lss_cycle: u8,
-
     lss_state: u8,
     prev_lss_state: u8,
     cycles: usize,
@@ -169,28 +164,8 @@ pub struct DiskDrive {
     override_optimal_timing: u8,
     disable_fast_disk: bool,
     enable_save: bool,
-
-    #[cfg_attr(feature = "serde_support", serde(default))]
     fast_disk_timer: usize,
-
-    #[cfg_attr(feature = "serde_support", serde(default))]
     prev_latch: u8,
-}
-#[cfg(feature = "serde_support")]
-fn deserialize_lss_cycle<'de, D: Deserializer<'de>>(deserializer: D) -> Result<u8, D::Error> {
-    #[derive(Serialize, Deserialize)]
-    #[serde(untagged)]
-    enum Float32OrU8 {
-        Float32(f32),
-        U8(u8),
-    }
-
-    let value = match Float32OrU8::deserialize(deserializer)? {
-        Float32OrU8::Float32(value) => (value * 8.0) as u8,
-        Float32OrU8::U8(value) => value,
-    };
-
-    Ok(value)
 }
 
 // Q0L: Phase 0 OFF

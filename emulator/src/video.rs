@@ -4,10 +4,10 @@ use crate::ntsc::*;
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-#[cfg(feature = "instant_time")]
-use instant::SystemTime;
+#[cfg(feature = "web_time")]
+use web_time::SystemTime;
 
-#[cfg(not(feature = "instant_time"))]
+#[cfg(not(feature = "web_time"))]
 use std::time::SystemTime;
 
 pub type Rgb = [u8; 3];

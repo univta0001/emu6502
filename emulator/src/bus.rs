@@ -601,6 +601,34 @@ impl Bus {
         }
     }
 
+    fn iou_disable_on(&mut self, write_flag: bool) -> u8 {
+        let val = self.read_floating_bus();
+        if !self.video.is_apple2e() {
+            val
+        } else if write_flag {
+            self.iou = false;
+            val
+        } else if !self.iou {
+            self.read_floating_bus_high_bit(0x80)
+        } else {
+            self.read_floating_bus_high_bit(0)
+        }
+    }
+
+    fn iou_disable_off(&mut self, write_flag: bool) -> u8 {
+        let val = self.read_floating_bus();
+        if !self.video.is_apple2e() {
+            val
+        } else if write_flag {
+            self.iou = true;
+            val
+        } else if self.video.is_dhires_mode() {
+            self.read_floating_bus_high_bit(0x80)
+        } else {
+            self.read_floating_bus_high_bit(0x0)
+        }
+    }
+
     pub fn io_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
         let io_addr = (addr & 0xff) as u8;
 
@@ -849,7 +877,17 @@ impl Bus {
             }
 
             0x58..=0x5d => {
-                if !self.iou {
+                if self.is_apple2c && self.iou {
+                    match io_addr {
+                        0x5a => self
+                            .mouse
+                            .set_mode(&mut self.mem, 4, STATUS_VBL_INTERRUPT, false),
+                        0x5b => self
+                            .mouse
+                            .set_mode(&mut self.mem, 4, STATUS_VBL_INTERRUPT, true),
+                        _ => {}
+                    }
+                } else {
                     self.annunciator[((addr >> 1) & 3) as usize] = (addr & 1) != 0;
 
                     //SpeedStar DataKey Dongle
@@ -861,41 +899,32 @@ impl Bus {
                             self.pushbutton_latch[2] = 0x80
                         }
                     }
-                } else {
-                    match io_addr {
-                        0x5a => self
-                            .mouse
-                            .set_mode(&mut self.mem, 4, STATUS_VBL_INTERRUPT, false),
-                        0x5b => self
-                            .mouse
-                            .set_mode(&mut self.mem, 4, STATUS_VBL_INTERRUPT, true),
-                        _ => {}
-                    }
                 }
-
                 self.read_floating_bus()
             }
 
             0x5e => {
                 let val = self.read_floating_bus();
-                if !self.iou {
+                if self.video.is_apple2e() || !self.iou {
+                    self.video.enable_dhires(true);
+                    self.video.update_video();
+                }
+
+                if !self.is_apple2c {
                     self.annunciator[3] = false;
-                    if self.video.is_apple2e() {
-                        self.video.enable_dhires(true);
-                        self.video.update_video();
-                    }
                 }
                 val
             }
 
             0x5f => {
                 let val = self.read_floating_bus();
-                if !self.iou {
+                if self.video.is_apple2e() || !self.iou {
+                    self.video.enable_dhires(false);
+                    self.video.update_video();
+                }
+
+                if !self.is_apple2c {
                     self.annunciator[3] = true;
-                    if self.video.is_apple2e() {
-                        self.video.enable_dhires(false);
-                        self.video.update_video();
-                    }
                 }
                 val
             }
@@ -984,42 +1013,24 @@ impl Bus {
             }
 
             0x78 => {
-                if self.is_apple2c && write_flag {
-                    self.iou = false;
+                if self.is_apple2c {
+                    self.iou_disable_on(write_flag)
+                } else {
+                    self.read_floating_bus()
                 }
-                self.read_floating_bus()
             }
 
             0x79 => {
-                if self.is_apple2c && write_flag {
-                    self.iou = true;
-                }
-                self.read_floating_bus()
-            }
-
-            0x7e => {
-                let val = self.read_floating_bus() & 0x7f;
-                if write_flag {
-                    self.iou = false;
-                    val
-                } else if !self.iou {
-                    val | 0x80
+                if self.is_apple2c {
+                    self.iou_disable_off(write_flag)
                 } else {
-                    val
+                    self.read_floating_bus()
                 }
             }
 
-            0x7f => {
-                let val = self.read_floating_bus() & 0x7f;
-                if write_flag {
-                    self.iou = true;
-                    val
-                } else if self.video.is_dhires_mode() {
-                    val | 0x80
-                } else {
-                    val
-                }
-            }
+            0x7e => self.iou_disable_on(write_flag),
+
+            0x7f => self.iou_disable_off(write_flag),
 
             0x80..=0x8f => self.mem.io_access(addr, value, write_flag),
 
