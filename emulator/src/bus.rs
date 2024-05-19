@@ -534,6 +534,9 @@ impl Bus {
     pub fn set_mouse_state(&mut self, x: i32, y: i32, buttons: &[bool; 2]) {
         self.mouse.tick(self.get_cycles());
         self.mouse.set_state(x, y, buttons);
+        if self.is_apple2c {
+            self.mouse.update_mouse(&mut self.mem, 4);
+        }
     }
 
     pub fn reset_paddle_latch(&mut self, paddle: usize) {
@@ -601,31 +604,23 @@ impl Bus {
         }
     }
 
-    fn iou_disable_on(&mut self, write_flag: bool) -> u8 {
+    fn iou_enable(&mut self, flag: bool, write_flag: bool) -> u8 {
         let val = self.read_floating_bus();
         if !self.video.is_apple2e() {
             val
         } else if write_flag {
-            self.iou = false;
+            self.iou = flag;
             val
+        } else if flag {
+            if self.video.is_dhires_mode() {
+                self.read_floating_bus_high_bit(0x80)
+            } else {
+                self.read_floating_bus_high_bit(0)
+            }
         } else if !self.iou {
             self.read_floating_bus_high_bit(0x80)
         } else {
             self.read_floating_bus_high_bit(0)
-        }
-    }
-
-    fn iou_disable_off(&mut self, write_flag: bool) -> u8 {
-        let val = self.read_floating_bus();
-        if !self.video.is_apple2e() {
-            val
-        } else if write_flag {
-            self.iou = true;
-            val
-        } else if self.video.is_dhires_mode() {
-            self.read_floating_bus_high_bit(0x80)
-        } else {
-            self.read_floating_bus_high_bit(0x0)
         }
     }
 
@@ -1014,7 +1009,7 @@ impl Bus {
 
             0x78 => {
                 if self.is_apple2c {
-                    self.iou_disable_on(write_flag)
+                    self.iou_enable(false, write_flag)
                 } else {
                     self.read_floating_bus()
                 }
@@ -1022,15 +1017,15 @@ impl Bus {
 
             0x79 => {
                 if self.is_apple2c {
-                    self.iou_disable_off(write_flag)
+                    self.iou_enable(true, write_flag)
                 } else {
                     self.read_floating_bus()
                 }
             }
 
-            0x7e => self.iou_disable_on(write_flag),
+            0x7e => self.iou_enable(false, write_flag),
 
-            0x7f => self.iou_disable_off(write_flag),
+            0x7f => self.iou_enable(true, write_flag),
 
             0x80..=0x8f => self.mem.io_access(addr, value, write_flag),
 

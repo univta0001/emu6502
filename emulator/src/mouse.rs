@@ -153,6 +153,8 @@ impl Mouse {
             return;
         }
 
+        mmu.mem_write(KEY_POINTER + slot, 0xff);
+
         let keyboard_pressed = mmu.mem_read(0xc000) > 0x7f;
 
         // Button return value based on AppleMouse User Manual
@@ -194,11 +196,18 @@ impl Mouse {
         self.enabled = value & 0x1 > 0;
         self.mode = value;
 
+        // Update enabled flag
+        if self.enabled {
+            mmu.mem_write(KEY_POINTER + slot, 0xff);
+        } else {
+            mmu.mem_write(KEY_POINTER + slot, 0);
+        }
+
         // Update mode
         mmu.mem_write(MODE + slot, self.mode);
     }
 
-    fn enable_mouse(&mut self, value: u8) {
+    fn enable_mouse(&mut self, mmu: &mut Mmu, slot: u16, value: u8) {
         //eprintln!("EnableMouse");
         if value & 0x01 > 0 {
             self.enabled = true;
@@ -208,6 +217,16 @@ impl Mouse {
             self.enabled = false;
             self.mode &= !1;
         }
+
+        // Update enabled flag
+        if self.enabled {
+            mmu.mem_write(KEY_POINTER + slot, 0xff);
+        } else {
+            mmu.mem_write(KEY_POINTER + slot, 0);
+        }
+
+        // Update mode
+        mmu.mem_write(MODE + slot, self.mode);
     }
 
     fn get_status(&self) -> u8 {
@@ -266,6 +285,24 @@ impl Mouse {
             return;
         }
 
+        // Update absolute x, absolute y and status
+        self.update_mouse(mmu, slot);
+
+        // Update mode
+        mmu.mem_write(MODE + slot, self.mode);
+
+        self.last_x = self.x;
+        self.last_y = self.y;
+        for i in 0..2 {
+            self.last_buttons[i] = self.buttons[i];
+        }
+    }
+
+    pub fn update_mouse(&mut self, mmu: &mut Mmu, slot: u16) {
+        if !self.enabled && mmu.mem_read(KEY_POINTER + slot) != 0xff {
+            return;
+        }
+
         let x_range = self.clamp_max_x - self.clamp_min_x;
         let y_range = self.clamp_max_y - self.clamp_min_y;
         let mut new_x = ((self.x * x_range) / (WIDTH - 1) + self.clamp_min_x) as i16 as i32;
@@ -285,15 +322,6 @@ impl Mouse {
 
         // Update status
         mmu.mem_write(STATUS + slot, status);
-
-        // Update mode
-        mmu.mem_write(MODE + slot, self.mode);
-
-        self.last_x = self.x;
-        self.last_y = self.y;
-        for i in 0..2 {
-            self.last_buttons[i] = self.buttons[i];
-        }
     }
 
     fn clear_mouse(&mut self) {
@@ -452,7 +480,7 @@ impl Card for Mouse {
 
         match map_addr & 0x0f {
             // Execute
-            0 => self.enable_mouse(value),
+            0 => self.enable_mouse(mem, slot, value),
 
             // Status
             1 => self.mouse_status(mem, slot),
