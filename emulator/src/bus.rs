@@ -593,7 +593,8 @@ impl Bus {
     }
 
     pub fn set_keyboard_latch(&mut self, value: u8) {
-        self.keyboard_latch = value
+        self.keyboard_latch = value;
+        self.mem.mem_write(0xc000, value);
     }
 
     fn get_io_status(&self, flag: bool) -> u8 {

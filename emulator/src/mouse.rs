@@ -148,13 +148,6 @@ impl Mouse {
 
     fn mouse_status(&mut self, mmu: &mut Mmu, slot: u16) {
         //eprintln!("MouseStatus");
-        if !self.enabled {
-            mmu.mem_write(KEY_POINTER + slot, 0);
-            return;
-        }
-
-        mmu.mem_write(KEY_POINTER + slot, 0xff);
-
         let keyboard_pressed = mmu.mem_read(0xc000) > 0x7f;
 
         // Button return value based on AppleMouse User Manual
