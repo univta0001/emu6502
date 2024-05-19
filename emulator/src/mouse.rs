@@ -105,10 +105,6 @@ impl Mouse {
             self.interrupt |= STATUS_VBL_INTERRUPT;
         }
 
-        if self.irq_happen == 0 && self.interrupt != 0 {
-            self.irq_happen = cycles;
-        }
-
         if self.mode & 1 > 0 {
             if self.mode & STATUS_MOVE_INTERRUPT > 0 && self.interrupt_move {
                 self.interrupt |= STATUS_MOVE_INTERRUPT;
@@ -120,6 +116,10 @@ impl Mouse {
 
             self.interrupt_move = false;
             self.interrupt_button = false;
+        }
+
+        if self.irq_happen == 0 && self.interrupt != 0 {
+            self.irq_happen = cycles;
         }
     }
 
@@ -279,7 +279,7 @@ impl Mouse {
         }
 
         // Update absolute x, absolute y and status
-        self.update_mouse(mmu, slot);
+        self.update_mouse_status(mmu, slot);
 
         // Update mode
         mmu.mem_write(MODE + slot, self.mode);
@@ -295,7 +295,10 @@ impl Mouse {
         if !self.enabled && mmu.mem_read(KEY_POINTER + slot) != 0xff {
             return;
         }
+        self.update_mouse_status(mmu, slot);
+    }
 
+    pub fn update_mouse_status(&mut self, mmu: &mut Mmu, slot: u16) {
         let x_range = (self.clamp_max_x - self.clamp_min_x) as u32;
         let y_range = (self.clamp_max_y - self.clamp_min_y) as u32;
         let mut new_x = ((self.x as u32 * x_range) / (WIDTH - 1) as u32) as u16 + self.clamp_min_x;
@@ -317,13 +320,21 @@ impl Mouse {
         mmu.mem_write(STATUS + slot, status);
     }
 
-    fn clear_mouse(&mut self) {
+    fn clear_mouse(&mut self, mmu: &mut Mmu, slot: u16) {
         //eprintln!("ClearMouse");
         self.x = 0;
         self.y = 0;
         self.interrupt &= !0xe;
         self.last_x = 0;
         self.last_y = 0;
+
+        mmu.mem_write(X_LOW + slot, 0);
+        mmu.mem_write(X_HIGH + slot, 0);
+
+        // Update the absolute y position
+        mmu.mem_write(Y_LOW + slot, 0);
+        mmu.mem_write(Y_HIGH + slot, 0);
+
         for i in 0..2 {
             self.buttons[i] = false;
             self.last_buttons[i] = false;
@@ -390,8 +401,8 @@ impl Mouse {
 
     fn home_mouse(&mut self) {
         //eprintln!("HomeMouse");
-        self.x = 0;
-        self.y = 0;
+        self.x = self.clamp_min_x;
+        self.y = self.clamp_min_y;
     }
 
     fn init_mouse(&mut self) {
@@ -497,7 +508,7 @@ impl Card for Mouse {
                 INIT_MOUSE => self.init_mouse(),
                 SERVE_MOUSE => self.serve_mouse(mem, slot),
                 READ_MOUSE => self.read_mouse(mem, slot),
-                CLEAR_MOUSE => self.clear_mouse(),
+                CLEAR_MOUSE => self.clear_mouse(mem, slot),
                 POS_MOUSE => self.pos_mouse(mem),
                 HOME_MOUSE => self.home_mouse(),
                 _ => {}
