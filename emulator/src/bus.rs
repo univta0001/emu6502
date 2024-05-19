@@ -763,15 +763,15 @@ impl Bus {
             0x19 => {
                 if self.is_apple2c {
                     let vbl = ((self.mouse.get_interrupt() & STATUS_VBL_INTERRUPT > 0) as u8) << 7;
-                    (self.get_keyboard_latch() & 0x7f) | vbl
+                    (self.read_floating_bus() & 0x7f) | vbl
                 } else {
                     self.video.io_access(addr, value, write_flag)
-                        | (self.get_keyboard_latch() & 0x7f)
+                        | (self.read_floating_bus() & 0x7f)
                 }
             }
 
             0x1a..=0x1f => {
-                self.video.io_access(addr, value, write_flag) | (self.get_keyboard_latch() & 0x7f)
+                self.video.io_access(addr, value, write_flag) | (self.read_floating_bus() & 0x7f)
             }
 
             0x20 => self.read_floating_bus(),
@@ -780,7 +780,12 @@ impl Bus {
 
             0x28 => {
                 if self.is_apple2c && write_flag {
-                    self.mem.set_rom_bank(!self.mem.rom_bank())
+                    if (!self.mem.rom_bank && self.mem.mem_read(0xfbb0) != 0xff)
+                        || self.mem.rom_bank
+                    {
+                        // Only set rom_bank on later Apple IIc editions and not on original IIc
+                        self.mem.set_rom_bank(!self.mem.rom_bank())
+                    }
                 }
                 self.read_floating_bus()
             }
@@ -802,6 +807,15 @@ impl Bus {
                 if self.is_apple2c {
                     self.read_floating_bus() & 0x7f
                         | ((self.mouse.get_interrupt() & STATUS_VBL_INTERRUPT > 0) as u8) << 7
+                } else {
+                    self.read_floating_bus()
+                }
+            }
+
+            0x48 => {
+                if self.is_apple2c {
+                    self.mouse.serve_mouse(&mut self.mem, 4);
+                    self.read_floating_bus()
                 } else {
                     self.read_floating_bus()
                 }
@@ -874,6 +888,12 @@ impl Bus {
             0x58..=0x5d => {
                 if self.is_apple2c && self.iou {
                     match io_addr {
+                        0x58 => self
+                            .mouse
+                            .set_mode(&mut self.mem, 4, STATUS_MOVE_INTERRUPT, false),
+                        0x59 => self
+                            .mouse
+                            .set_mode(&mut self.mem, 4, STATUS_MOVE_INTERRUPT, true),
                         0x5a => self
                             .mouse
                             .set_mode(&mut self.mem, 4, STATUS_VBL_INTERRUPT, false),
@@ -1008,7 +1028,7 @@ impl Bus {
             }
 
             0x73 => {
-                if write_flag {
+                if self.video.is_apple2e() && write_flag {
                     self.mem.set_aux_bank(value);
                 }
                 self.read_floating_bus()
