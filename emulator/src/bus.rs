@@ -948,7 +948,7 @@ impl Bus {
             0x63 => {
                 if self.is_apple2c {
                     let button_status = self.mem.mem_read(0x77c);
-                    self.read_floating_bus_high_bit(button_status)
+                    self.read_floating_bus_high_bit(!button_status)
                 } else if self.video.is_apple2e() {
                     let button_value = self.pushbutton_latch[2];
                     self.read_floating_bus_high_bit(button_value)
