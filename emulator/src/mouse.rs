@@ -15,14 +15,14 @@ Memory map for mouse
 #[derive(Debug, Eq, PartialEq)]
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub struct Mouse {
-    x: i32,
-    y: i32,
-    last_x: i32,
-    last_y: i32,
-    clamp_min_x: i32,
-    clamp_min_y: i32,
-    clamp_max_x: i32,
-    clamp_max_y: i32,
+    x: u16,
+    y: u16,
+    last_x: u16,
+    last_y: u16,
+    clamp_min_x: u16,
+    clamp_min_y: u16,
+    clamp_max_x: u16,
+    clamp_max_y: u16,
     buttons: [bool; 2],
     last_buttons: [bool; 2],
     mode: u8,
@@ -63,8 +63,8 @@ const CLEAR_MOUSE: u8 = 5;
 const POS_MOUSE: u8 = 6;
 const HOME_MOUSE: u8 = 7;
 
-const WIDTH: i32 = 1120;
-const HEIGHT: i32 = 768;
+const WIDTH: u16 = 1120;
+const HEIGHT: u16 = 768;
 
 const KEY_INPUT: u16 = 0x200;
 const CLAMP_MIN_LOW: u16 = 0x478;
@@ -170,13 +170,13 @@ impl Mouse {
         let button_state =
             ((((self.buttons[0] as u8) << 1) + self.last_buttons[0] as u8) ^ 0x3) + 1;
 
-        let x_range = self.clamp_max_x - self.clamp_min_x;
-        let y_range = self.clamp_max_y - self.clamp_min_y;
-        let mut x = ((self.x * x_range) / (WIDTH - 1) + self.clamp_min_x) as i16 as i32;
-        let mut y = ((self.y * y_range) / (HEIGHT - 1) + self.clamp_min_y) as i16 as i32;
+        let x_range = (self.clamp_max_x - self.clamp_min_x) as u32;
+        let y_range = (self.clamp_max_y - self.clamp_min_y) as u32;
+        let mut x = ((self.x as u32 * x_range) / (WIDTH - 1) as u32) as u16 + self.clamp_min_x;
+        let mut y = ((self.y as u32 * y_range) / (HEIGHT - 1) as u32) as u16 + self.clamp_min_y;
 
-        x = i32::max(self.clamp_min_x, i32::min(x, self.clamp_max_x));
-        y = i32::max(self.clamp_min_y, i32::min(y, self.clamp_max_y));
+        x = u16::max(self.clamp_min_x, u16::min(x, self.clamp_max_x));
+        y = u16::max(self.clamp_min_y, u16::min(y, self.clamp_max_y));
 
         let text = if !keyboard_pressed {
             format!("{x},{y},{button_state}\r")
@@ -303,12 +303,12 @@ impl Mouse {
             return;
         }
 
-        let x_range = self.clamp_max_x - self.clamp_min_x;
-        let y_range = self.clamp_max_y - self.clamp_min_y;
-        let mut new_x = ((self.x * x_range) / (WIDTH - 1) + self.clamp_min_x) as i16 as i32;
-        let mut new_y = ((self.y * y_range) / (HEIGHT - 1) + self.clamp_min_y) as i16 as i32;
-        new_x = i32::max(self.clamp_min_x, i32::min(new_x, self.clamp_max_x));
-        new_y = i32::max(self.clamp_min_y, i32::min(new_y, self.clamp_max_y));
+        let x_range = (self.clamp_max_x - self.clamp_min_x) as u32;
+        let y_range = (self.clamp_max_y - self.clamp_min_y) as u32;
+        let mut new_x = ((self.x as u32 * x_range) / (WIDTH - 1) as u32) as u16 + self.clamp_min_x;
+        let mut new_y = ((self.y as u32 * y_range) / (HEIGHT - 1) as u32) as u16 + self.clamp_min_y;
+        new_x = u16::max(self.clamp_min_x, u16::min(new_x, self.clamp_max_x));
+        new_y = u16::max(self.clamp_min_y, u16::min(new_y, self.clamp_max_y));
 
         let status = self.get_status() & !0x0e;
 
@@ -362,10 +362,18 @@ impl Mouse {
     }
 
     fn clamp_mouse(&mut self, mmu: &Mmu, value: usize) {
-        let min = (mmu.mem_read(CLAMP_MIN_HIGH) as i32 * 256 + mmu.mem_read(CLAMP_MIN_LOW) as i32)
-            as i16 as i32;
-        let max = (mmu.mem_read(CLAMP_MAX_HIGH) as i32 * 256 + mmu.mem_read(CLAMP_MAX_LOW) as i32)
-            as i16 as i32;
+        let mut min =
+            mmu.mem_read(CLAMP_MIN_HIGH) as u16 * 256 + mmu.mem_read(CLAMP_MIN_LOW) as u16;
+        let mut max =
+            mmu.mem_read(CLAMP_MAX_HIGH) as u16 * 256 + mmu.mem_read(CLAMP_MAX_LOW) as u16;
+
+        // Blazing Paddles:
+        // . MOUSE_CLAMP(Y, 0xFFEC, 0x00D3)
+        // . MOUSE_CLAMP(X, 0xFFEC, 0x012B)
+        if min > max {
+            max = min.wrapping_add(max);
+            min = 0;
+        }
 
         if value == 0 {
             self.clamp_min_x = min;
@@ -399,8 +407,8 @@ impl Mouse {
     }
 
     pub fn set_state(&mut self, x: i32, y: i32, buttons: &[bool; 2]) {
-        let new_x = x;
-        let new_y = y;
+        let new_x = x as u16;
+        let new_y = y as u16;
 
         if new_x != self.x || new_y != self.y {
             self.interrupt_move = true;
