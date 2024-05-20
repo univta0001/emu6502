@@ -129,7 +129,7 @@ impl Mmu {
         self.wrcardram = false;
         self.bank1 = false;
         self.readbsr = false;
-        self.writebsr = false;
+        self.writebsr = true;
         self.prewrite = false;
         self.aux_bank = 0;
         self.intcxrom = false;

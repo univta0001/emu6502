@@ -71,7 +71,7 @@ PRENTRY         pla
 
 INENTRY3        sta   $c081,y
                 pla
-                lda   $0638,x           ; Get the position buffer for result
+                lda   $06F8-$c0,x       ; Get the position buffer for result from 0x6f8 + slot
                 tax
                 pla
                 tay
@@ -89,7 +89,7 @@ SERVEMOUSE      pha
                 clc
                 bcc   SERVEMOUSE1
 SERVEMOUSE2     sta   $c083,y
-                lda   $06b8,x           ; Check that the interrupt is served
+                lda   $0778-$c0,x       ; Check that the interrupt is served from 0x778 + slot
                 and   #$0e
                 bne   SERVEMOUSE3
                 sec                     ; There is no interrupt return error
