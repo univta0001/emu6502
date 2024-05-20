@@ -174,7 +174,6 @@ impl Mouse {
         y = i16::max(self.clamp_min_y, i16::min(y, self.clamp_max_y));
 
         if keyboard_pressed {
-            mmu.mem_write(0xc000, mmu.mem_read(0xc000) & 0x7f);
             button_state *= -1;
         }
 
