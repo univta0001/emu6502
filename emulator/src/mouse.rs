@@ -376,7 +376,7 @@ impl Mouse {
         }
     }
 
-    fn pos_mouse(&mut self, mmu: &mut Mmu, _slot: u16) {
+    fn pos_mouse(&mut self) {
         /*
         Not required in the emulation as the read_mouse will always return the absolute value
 
