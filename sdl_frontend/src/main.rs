@@ -5,7 +5,7 @@ use emu6502::bus::IODevice;
 use emu6502::video::DisplayMode;
 //use emu6502::bus::Mem;
 //use emu6502::trace::trace;
-use emu6502::cpu::{CpuSpeed, CpuStats, CPU};
+use emu6502::cpu::{CpuFlags, CpuSpeed, CpuStats, CPU};
 use emu6502::mockingboard::Mockingboard;
 use emu6502::trace::{adjust_disassemble_addr, disassemble_addr};
 use image::codecs::png::PngEncoder;
@@ -1869,8 +1869,12 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     // Update mouse state
                     let mouse_state = _event_pump.mouse_state();
                     let buttons = [mouse_state.left(), mouse_state.right()];
-                    _cpu.bus
-                        .set_mouse_state(mouse_state.x(), mouse_state.y(), &buttons);
+                    _cpu.bus.set_mouse_state(
+                        mouse_state.x(),
+                        mouse_state.y(),
+                        &buttons,
+                        _cpu.status.contains(CpuFlags::INTERRUPT_DISABLE),
+                    );
 
                     // Update keyboard akd state
                     _cpu.bus.any_key_down =
