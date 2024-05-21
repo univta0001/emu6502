@@ -26,7 +26,6 @@ pub struct Mouse {
     buttons: [bool; 2],
     last_buttons: [bool; 2],
     mode: u8,
-    enabled: bool,
     irq_happen: usize,
     interrupt: u8,
     interrupt_move: bool,
@@ -39,7 +38,7 @@ const ROM: [u8; 256] = [
     0x48, 0x98, 0x48, 0x8a, 0x48, 0x08, 0x78, 0x20, 0x58, 0xff, 0xba, 0xbd, 0x00, 0x01, 0xaa, 0x0a,
     0x0a, 0x0a, 0x0a, 0xa8, 0x28, 0x50, 0x0f, 0xa5, 0x38, 0xd0, 0x0d, 0x8a, 0x45, 0x39, 0xd0, 0x08,
     0xa9, 0x05, 0x85, 0x38, 0xd0, 0x0b, 0xb0, 0x09, 0x68, 0xaa, 0x68, 0xea, 0x68, 0x99, 0x80, 0xc0,
-    0x60, 0x99, 0x81, 0xc0, 0x68, 0xbd, 0x38, 0x06, 0xaa, 0x68, 0xa8, 0x68, 0xbd, 0x00, 0x02, 0x60,
+    0x60, 0x99, 0x81, 0xc0, 0x68, 0x68, 0xa8, 0x68, 0xa2, 0x11, 0xa9, 0x8d, 0x9d, 0x00, 0x02, 0x60,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc9, 0x10, 0xb0,
     0x3f, 0x99, 0x82, 0xc0, 0x60, 0x48, 0x18, 0x90, 0x39, 0x99, 0x83, 0xc0, 0xbd, 0xb8, 0x06, 0x29,
     0x0e, 0xd0, 0x01, 0x38, 0x68, 0x60, 0xc9, 0x02, 0xb0, 0x26, 0x99, 0x83, 0xc0, 0x60, 0xa9, 0x04,
@@ -93,10 +92,14 @@ const Y_LOW: u16 = 0x4f8;
 const X_HIGH: u16 = 0x578;
 const Y_HIGH: u16 = 0x5f8;
 
-const KEY_POINTER: u16 = 0x6f8;
-
 const STATUS: u16 = 0x778;
 const MODE: u16 = 0x7f8;
+
+const MODE_MOUSE_OFF: u8 = 0;
+const MODE_MOUSE_ON: u8 = 1;
+const MODE_MOVE_INTERRUPT: u8 = 3;
+const _MODE_BUTTON_INTERRUPT: u8 = 5;
+const _MODE_BOTH_INTERRUPT: u8 = 7;
 
 pub const STATUS_MOVE_INTERRUPT: u8 = 0x02;
 pub const STATUS_BUTTON_INTERRUPT: u8 = 0x04;
@@ -121,7 +124,7 @@ impl Mouse {
             self.interrupt |= STATUS_VBL_INTERRUPT;
         }
 
-        if self.mode & 1 > 0 {
+        if self.mode & MODE_MOUSE_ON > 0 {
             if self.mode & STATUS_MOVE_INTERRUPT > 0 && self.interrupt_move {
                 self.interrupt |= STATUS_MOVE_INTERRUPT;
             }
@@ -162,7 +165,7 @@ impl Mouse {
         mmu.mem_write(MODE + slot, self.mode);
     }
 
-    fn mouse_status(&mut self, mmu: &mut Mmu, slot: u16) {
+    fn mouse_status(&mut self, mmu: &mut Mmu, _slot: u16) {
         //eprintln!("MouseStatus");
         let keyboard_pressed = mmu.mem_read(0xc000) > 0x7f;
 
@@ -179,12 +182,10 @@ impl Mouse {
         let mut button_state =
             ((((self.buttons[0] as i8) << 1) + self.last_buttons[0] as i8) ^ 0x3) + 1;
 
-        let x_range = (self.clamp_max_x - self.clamp_min_x) as u32;
-        let y_range = (self.clamp_max_y - self.clamp_min_y) as u32;
-        let mut x =
-            (((self.x as u32 * x_range) / (WIDTH - 1) as u32) as u16) as i16 + self.clamp_min_x;
-        let mut y =
-            (((self.y as u32 * y_range) / (HEIGHT - 1) as u32) as u16) as i16 + self.clamp_min_y;
+        let x_range = (self.clamp_max_x - self.clamp_min_x) as i32;
+        let y_range = (self.clamp_max_y - self.clamp_min_y) as i32;
+        let mut x = (((self.x as i32 * x_range) / (WIDTH - 1) as i32) as i16) + self.clamp_min_x;
+        let mut y = (((self.y as i32 * y_range) / (HEIGHT - 1) as i32) as i16) + self.clamp_min_y;
 
         x = i16::max(self.clamp_min_x, i16::min(x, self.clamp_max_x));
         y = i16::max(self.clamp_min_y, i16::min(y, self.clamp_max_y));
@@ -194,7 +195,7 @@ impl Mouse {
         }
 
         let text = format!(
-            "{x:>+0width$},{y:>+0width$},{button_state:>+0bwidth$}\r",
+            "{x:>+0width$},{y:>+0width$},{button_state:>+0bwidth$}",
             width = 6,
             bwidth = 3
         );
@@ -202,21 +203,12 @@ impl Mouse {
         for (i, c) in text.as_bytes().iter().enumerate() {
             mmu.mem_write(KEY_INPUT + i as u16, c + 128);
         }
-        mmu.mem_write(KEY_POINTER + slot, (text.len() - 1) as u8);
         self.last_buttons[0] = self.buttons[0];
     }
 
     fn set_mouse(&mut self, mmu: &mut Mmu, slot: u16, value: u8) {
         //eprintln!("SetMouse = {:02x}", value);
-        self.enabled = value & 0x1 > 0;
         self.mode = value;
-
-        // Update enabled flag
-        if self.enabled {
-            mmu.mem_write(KEY_POINTER + slot, 0xff);
-        } else {
-            mmu.mem_write(KEY_POINTER + slot, 0);
-        }
 
         // Update mode
         mmu.mem_write(MODE + slot, self.mode);
@@ -225,21 +217,12 @@ impl Mouse {
     fn enable_mouse(&mut self, mmu: &mut Mmu, slot: u16, value: u8) {
         //eprintln!("EnableMouse");
         if value & 0x01 > 0 {
-            self.enabled = true;
             self.reset();
             self.mode |= 1;
         } else {
-            self.enabled = false;
             self.mode &= !1;
         }
-
-        // Update enabled flag
-        if self.enabled {
-            mmu.mem_write(KEY_POINTER + slot, 0xff);
-        } else {
-            mmu.mem_write(KEY_POINTER + slot, 0);
-        }
-
+        
         // Update mode
         mmu.mem_write(MODE + slot, self.mode);
     }
@@ -250,12 +233,12 @@ impl Mouse {
         let y = self.y;
         let moved = self.last_x != x || self.last_y != y;
 
-        if self.interrupt & STATUS_MOVE_INTERRUPT > 0 && moved {
+        if self.interrupt & STATUS_MOVE_INTERRUPT > 0 || moved {
             status |= STATUS_MOVE_INTERRUPT;
         }
 
         if self.interrupt & STATUS_BUTTON_INTERRUPT > 0
-            && (self.buttons[0] != self.last_buttons[0] || self.buttons[1] != self.last_buttons[1])
+            || (self.buttons[0] != self.last_buttons[0] || self.buttons[1] != self.last_buttons[1])
         {
             status |= STATUS_BUTTON_INTERRUPT;
         }
@@ -286,17 +269,18 @@ impl Mouse {
         status
     }
 
-    pub fn serve_mouse(&mut self, mmu: &mut Mmu, slot: u16) {
+    pub fn serve_mouse(&mut self, mmu: &mut Mmu, slot: u16) -> u8 {
         //eprintln!("ServeMouse");
         let status = self.get_status();
         mmu.mem_write(STATUS + slot, status);
         self.interrupt = 0;
         self.irq_happen = 0;
+        status & 0xe
     }
 
     fn read_mouse(&mut self, mmu: &mut Mmu, slot: u16) {
         //eprintln!("ReadMouse");
-        if !self.enabled {
+        if self.mode & 1 == MODE_MOUSE_OFF {
             return;
         }
 
@@ -312,9 +296,10 @@ impl Mouse {
 
     // Only called for Apple IIc system
     pub fn update_mouse(&mut self, mmu: &mut Mmu, slot: u16) {
-        if !self.enabled && mmu.mem_read(KEY_POINTER + slot) != 0xff {
-            return;
+        if mmu.mem_read(MODE + slot) & MODE_MOVE_INTERRUPT == 0 {
+            return
         }
+
         self.update_mouse_status(mmu, slot);
 
         // For IIc the clamp settings is also stored in the screen holes
@@ -329,19 +314,23 @@ impl Mouse {
 
         self.update_clamp_x(min_x, max_x);
         self.update_clamp_y(min_y, max_y);
+
+        self.last_x = self.x;
+        self.last_y = self.y;
+        for i in 0..2 {
+            self.last_buttons[i] = self.buttons[i];
+        }
     }
 
     pub fn update_mouse_status(&mut self, mmu: &mut Mmu, slot: u16) {
-        let x_range = (self.clamp_max_x - self.clamp_min_x) as u32;
-        let y_range = (self.clamp_max_y - self.clamp_min_y) as u32;
+        let x_range = (self.clamp_max_x - self.clamp_min_x) as i32;
+        let y_range = (self.clamp_max_y - self.clamp_min_y) as i32;
         let mut new_x =
-            (((self.x as u32 * x_range) / (WIDTH - 1) as u32) as u16) as i16 + self.clamp_min_x;
+            (((self.x as i32 * x_range) / (WIDTH - 1) as i32) as i16) + self.clamp_min_x;
         let mut new_y =
-            (((self.y as u32 * y_range) / (HEIGHT - 1) as u32) as u16) as i16 + self.clamp_min_y;
+            (((self.y as i32 * y_range) / (HEIGHT - 1) as i32) as i16) + self.clamp_min_y;
         new_x = i16::max(self.clamp_min_x, i16::min(new_x, self.clamp_max_x));
         new_y = i16::max(self.clamp_min_y, i16::min(new_y, self.clamp_max_y));
-
-        let status = self.get_status() & !0x0e;
 
         // Update the absolute x position
         mmu.mem_write(X_LOW + slot, (new_x % 256) as u8);
@@ -352,6 +341,7 @@ impl Mouse {
         mmu.mem_write(Y_HIGH + slot, (new_y / 256) as u8);
 
         // Update status
+        let status = self.get_status() & !0x0e;
         mmu.mem_write(STATUS + slot, status);
     }
 
@@ -363,6 +353,7 @@ impl Mouse {
         self.last_x = 0;
         self.last_y = 0;
 
+        // Update the absolute x position
         mmu.mem_write(X_LOW + slot, 0);
         mmu.mem_write(X_HIGH + slot, 0);
 
@@ -505,7 +496,6 @@ impl Default for Mouse {
             buttons: [false, false],
             last_buttons: [false, false],
             mode: 0,
-            enabled: false,
             irq_happen: 0,
             interrupt: 0,
             interrupt_move: false,
@@ -536,6 +526,7 @@ impl Card for Mouse {
     ) -> u8 {
         let slot = ((addr & 0x00ff) - 0x0080) >> 4;
         let map_addr = ((addr & 0x00ff) - (slot << 4)) as u8;
+        let mut return_value = 0;
 
         match map_addr & 0x0f {
             // Execute
@@ -553,7 +544,9 @@ impl Card for Mouse {
                 CLAMP_MOUSE_X => self.clamp_mouse(mem, 0),
                 CLAMP_MOUSE_Y => self.clamp_mouse(mem, 1),
                 INIT_MOUSE => self.init_mouse(mem, slot),
-                SERVE_MOUSE => self.serve_mouse(mem, slot),
+                SERVE_MOUSE => {
+                    return_value = self.serve_mouse(mem, slot);
+                }
                 READ_MOUSE => self.read_mouse(mem, slot),
                 CLEAR_MOUSE => self.clear_mouse(mem, slot),
                 POS_MOUSE => self.pos_mouse(),
@@ -565,6 +558,6 @@ impl Card for Mouse {
                 //eprintln!("addr={:02x} value={:02x} write={}", addr, value, write_flag);
             }
         };
-        0
+        return_value
     }
 }

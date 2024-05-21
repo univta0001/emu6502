@@ -892,12 +892,14 @@ impl Bus {
             0x58..=0x5d => {
                 if self.is_apple2c && self.iou {
                     match io_addr {
-                        0x58 => self
-                            .mouse
-                            .set_mode(&mut self.mem, 4, STATUS_MOVE_INTERRUPT, false),
-                        0x59 => self
-                            .mouse
-                            .set_mode(&mut self.mem, 4, STATUS_MOVE_INTERRUPT, true),
+                        0x58 => {
+                            self.mouse
+                                .set_mode(&mut self.mem, 4, STATUS_MOVE_INTERRUPT, false);
+                        }
+                        0x59 => {
+                            self.mouse
+                                .set_mode(&mut self.mem, 4, STATUS_MOVE_INTERRUPT, true);
+                        }
                         0x5a => self
                             .mouse
                             .set_mode(&mut self.mem, 4, STATUS_VBL_INTERRUPT, false),

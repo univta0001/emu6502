@@ -71,12 +71,12 @@ PRENTRY         pla
 
 INENTRY3        sta   $c081,y
                 pla
-                lda   $06F8-$c0,x       ; Get the position buffer for result from 0x6f8 + slot
-                tax
                 pla
                 tay
                 pla
-                lda   $0200,x           ; Get the value of the buffer
+                ldx   #17               ; Return 17 bytes of status
+                lda   #$8d
+                sta   $0200,x           ; Get the value of the buffer
                 rts
 
 * = $006d
@@ -88,9 +88,7 @@ SETMOUSE        cmp   #$10              ; Check that the mode is less than 0x10
 SERVEMOUSE      pha
                 clc
                 bcc   SERVEMOUSE1
-SERVEMOUSE2     sta   $c083,y
-                lda   $0778-$c0,x       ; Check that the interrupt is served from 0x778 + slot
-                and   #$0e
+SERVEMOUSE2     lda   $c083,y
                 bne   SERVEMOUSE3
                 sec                     ; There is no interrupt return error
 SERVEMOUSE3     pla
