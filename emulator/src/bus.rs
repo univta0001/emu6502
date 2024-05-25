@@ -768,15 +768,15 @@ impl Bus {
             0x19 => {
                 if self.is_apple2c {
                     let vbl = ((self.mouse.get_interrupt() & STATUS_VBL_INTERRUPT > 0) as u8) << 7;
-                    (self.read_floating_bus() & 0x7f) | vbl
+                    (self.get_keyboard_latch() & 0x7f) | vbl
                 } else {
                     self.video.io_access(addr, value, write_flag)
-                        | (self.read_floating_bus() & 0x7f)
+                        | (self.get_keyboard_latch() & 0x7f)
                 }
             }
 
             0x1a..=0x1f => {
-                self.video.io_access(addr, value, write_flag) | (self.read_floating_bus() & 0x7f)
+                self.video.io_access(addr, value, write_flag) | (self.get_keyboard_latch() & 0x7f)
             }
 
             0x20 => self.read_floating_bus(),
