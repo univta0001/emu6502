@@ -531,15 +531,11 @@ impl Bus {
         self.video.toggle_video_freq();
     }
 
-    pub fn set_mouse_state(&mut self, x: i32, y: i32, buttons: &[bool; 2], irq_disable: bool) {
+    pub fn set_mouse_state(&mut self, x: i32, y: i32, buttons: &[bool; 2]) {
         self.mouse.tick(self.get_cycles());
+        self.mouse.set_state(x, y, buttons);
         if self.is_apple2c {
-            if !irq_disable {
-                self.mouse.set_state(x, y, buttons);
-                self.mouse.update_mouse(&mut self.mem, 4);
-            }
-        } else {
-            self.mouse.set_state(x, y, buttons);
+            self.mouse.update_mouse(&mut self.mem, 4);
         }
     }
 

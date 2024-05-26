@@ -222,7 +222,7 @@ impl Mouse {
         } else {
             self.mode &= !1;
         }
-        
+
         // Update mode
         mmu.mem_write(MODE + slot, self.mode);
     }
@@ -297,7 +297,7 @@ impl Mouse {
     // Only called for Apple IIc system
     pub fn update_mouse(&mut self, mmu: &mut Mmu, slot: u16) {
         if mmu.mem_read(MODE + slot) & MODE_MOVE_INTERRUPT == 0 {
-            return
+            return;
         }
 
         self.update_mouse_status(mmu, slot);

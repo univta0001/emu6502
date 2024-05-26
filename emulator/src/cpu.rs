@@ -1475,7 +1475,7 @@ impl CPU {
                     irq_defer = true
                 } else {
                     self.interrupt(interrupt::IRQ);
-                } 
+                }
             }
         }
 
