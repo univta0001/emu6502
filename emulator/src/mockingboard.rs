@@ -437,10 +437,6 @@ impl W65C22 {
 
         self.t1c = self.t1c.wrapping_sub(1);
 
-        if self.t1_loaded && self.t1c == 0 && self.ifr & 0x40 == 0 {
-            self.irq_happen = cycles;
-        }
-
         if self.t1c == 0xffffffff {
             if self.t1_loaded {
                 self.ifr |= 0x40;
@@ -452,14 +448,13 @@ impl W65C22 {
         }
 
         if self.t1c == 0xfffffffe {
+            if self.ifr & 0x40 != 0 {
+                self.irq_happen = cycles.wrapping_sub(2);
+            }
             self.t1c = self.t1l as u32;
         }
 
         self.t2c = self.t2c.wrapping_sub(1);
-
-        if self.t2_loaded && self.t2c == 0 && self.ifr & 0x20 == 0 {
-            self.irq_happen = cycles;
-        }
 
         if self.t2c == 0xffff {
             if self.t2_loaded {
@@ -468,6 +463,12 @@ impl W65C22 {
 
             if self.acr & 0x20 == 0 {
                 self.t2_loaded = false;
+            }
+        }
+
+        if self.t2c == 0xfffe {
+            if self.ifr & 0x20 != 0 {
+                self.irq_happen = cycles.wrapping_sub(2);
             }
         }
 
@@ -949,21 +950,35 @@ mod test {
     #[test]
     fn w65c22_t1_underflow_irq() {
         let mut w65c22 = W65C22::new("#1");
-        let mut cycles = 0;
+        let mut cycles = 10;
         w65c22.io_access(0x04, 0x00, true);
         w65c22.io_access(0x05, 0x00, true);
-        w65c22.tick(cycles);
 
-        // Run for 3 cycles
-        for _ in 0..3 {
-            cycles += 1;
-            w65c22.tick(cycles);
-        }
-        assert_eq!(w65c22.t1c, 0xffffffff, "T1 counter should be 0xffffffff");
+        // Set counter to 0;
+        w65c22.tick(cycles);
+        cycles += 1;
+
         assert_eq!(
             w65c22.irq_happen, 0x0,
-            "IRQ happen should be 0x0 and set when t1c = 0"
-        );
+            "IRQ happen should be 0x0 when t1c = 0"
+        ); 
+
+        assert_eq!(w65c22.t1c, 0x0, "T1 counter should be 0");
+        assert_eq!(w65c22.ifr, 0x0, "IFR should be 0");
+
+        // Counter at 0xffffffff
+        w65c22.tick(cycles);
+        cycles += 1;
+
+        assert_eq!(w65c22.t1c, 0xffffffff, "T1 counter should be 0xffffffff");
+        assert_eq!(w65c22.ifr, 0x40, "IFR should be 0x40");
+        assert_eq!(w65c22.irq_happen, 0, "irq_happen should be 0");
+
+        // Counter at 0xfffffffe
+        w65c22.tick(cycles);
+
+        assert_eq!(w65c22.t1c, 0, "T1 counter is reset to 0");
+        assert_eq!(w65c22.irq_happen, 10, "irq_happen should be 10");
     }
 
     #[test]
