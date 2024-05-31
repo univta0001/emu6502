@@ -582,19 +582,21 @@ impl CPU {
     }
 
     fn addr_read(&mut self, addr: u16) -> u8 {
+        let value = self.bus.unclocked_addr_read(addr);
         self.tick();
-        self.bus.unclocked_addr_read(addr)
+        value
     }
 
     fn addr_read_u16(&mut self, addr: u16) -> u16 {
+        let value = self.bus.unclocked_addr_read_u16(addr);
         self.tick();
         self.tick();
-        self.bus.unclocked_addr_read_u16(addr)
+        value
     }
 
     fn addr_write(&mut self, addr: u16, value: u8) {
+        self.bus.unclocked_addr_write(addr, value);
         self.tick();
-        self.bus.unclocked_addr_write(addr, value)
     }
 
     pub fn get_zeropage_addr(&mut self) -> u16 {
@@ -1451,7 +1453,7 @@ impl CPU {
 
                 // If the interrupt happens on the last cycle of the opcode, execute the opcode and
                 // then the interrupt handling routine
-                if cycles_elapsed > 1 && cycles_elapsed < 8 {
+                if cycles_elapsed > 1 {
                     self.interrupt(interrupt::IRQ);
                 } else {
                     irq_defer = true;
