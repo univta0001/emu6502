@@ -440,7 +440,9 @@ impl W65C22 {
         if self.t1c == 0xffffffff {
             if self.t1_loaded {
                 self.ifr |= 0x40;
-                self.irq_happen = cycles;
+                if self.irq_happen == 0 {
+                    self.irq_happen = cycles;
+                }
             }
 
             if self.acr & 0x40 == 0 {
@@ -457,7 +459,9 @@ impl W65C22 {
         if self.t2c == 0xffff {
             if self.t2_loaded {
                 self.ifr |= 0x20;
-                self.irq_happen = cycles;
+                if self.irq_happen == 0 {
+                    self.irq_happen = cycles;
+                }
             }
 
             if self.acr & 0x20 == 0 {
@@ -480,8 +484,9 @@ impl W65C22 {
         self.sr = 0;
         self.acr = 0;
         self.pcr = 0;
-        self.ifr = 0x0;
-        self.ier = 0x0;
+        self.ifr = 0;
+        self.irq_happen = 0;
+        self.ier = 0;
 
         self.ay8910.reset();
         self.state = AY_INACTIVE;
@@ -493,7 +498,7 @@ impl W65C22 {
     fn poll_irq(&self) -> Option<usize> {
         let irqb = self.ier & self.ifr;
 
-        if irqb > 0 {
+        if self.irq_happen > 0 && irqb > 0 {
             Some(self.irq_happen)
         } else {
             None
@@ -546,7 +551,7 @@ impl W65C22 {
         }
     }
 
-    fn io_access(&mut self, addr: u8, value: u8, write_flag: bool) -> u8 {
+    fn io_access(&mut self, cycles: usize, addr: u8, value: u8, write_flag: bool) -> u8 {
         let mut return_addr: u8 = 0;
         self.enabled = true;
 
@@ -608,6 +613,11 @@ impl W65C22 {
                     self.t1l = self.t1l & 0xff00 | value as u16;
                 } else {
                     self.ifr &= !0x40;
+                    if self.ifr & 0x60 == 0 {
+                        self.irq_happen = 0;
+                    } else {
+                        self.irq_happen = cycles;
+                    }
                     return_addr = (self.t1c & 0xff) as u8;
                 }
             }
@@ -616,6 +626,11 @@ impl W65C22 {
             0x15 | 0x05 => {
                 if write_flag {
                     self.ifr &= !0x40;
+                    if self.ifr & 0x60 == 0 {
+                        self.irq_happen = 0;
+                    } else {
+                        self.irq_happen = cycles;
+                    }
                     self.t1l = ((value as u16) << 8) | self.t1l & 0x00ff;
                     self.t1c = ((self.t1l & 0xff00) | (self.t1l & 0xff)) as u32;
                     self.t1c = self.t1c.wrapping_add(1);
@@ -638,6 +653,11 @@ impl W65C22 {
             0x17 | 0x07 => {
                 if write_flag {
                     self.ifr &= !0x40;
+                    if self.ifr & 0x60 == 0 {
+                        self.irq_happen = 0;
+                    } else {
+                        self.irq_happen = cycles;
+                    }
                     self.t1l = ((value as u16) << 8) | self.t1l & 0x0ff;
                 } else {
                     return_addr = ((self.t1l & 0xff00) >> 8) as u8;
@@ -651,6 +671,11 @@ impl W65C22 {
                     self.t2c = (self.t2c & 0xff00) | value as u16;
                 } else {
                     self.ifr &= !0x20;
+                    if self.ifr & 0x60 == 0 {
+                        self.irq_happen = 0;
+                    } else {
+                        self.irq_happen = cycles;
+                    }
                     return_addr = (self.t2c & 0xff) as u8;
                 }
             }
@@ -662,6 +687,11 @@ impl W65C22 {
                     self.t2c = self.t2c.wrapping_add(1);
                     self.t2_loaded = true;
                     self.ifr &= !0x20;
+                    if self.ifr & 0x60 == 0 {
+                        self.irq_happen = 0;
+                    } else {
+                        self.irq_happen = cycles;
+                    }
                 } else {
                     return_addr = (self.t2c >> 8) as u8;
                 }
@@ -707,6 +737,11 @@ impl W65C22 {
                     }
                 } else {
                     self.update_ifr(value);
+                    if self.ifr == 0 {
+                        self.irq_happen = 0;
+                    } else {
+                        self.irq_happen = cycles;
+                    }
                 }
             }
 
@@ -826,9 +861,9 @@ impl Card for Mockingboard {
     ) -> u8 {
         let map_addr: u8 = (addr & 0xff) as u8;
         if map_addr < 0x80 {
-            self.w65c22[0].io_access(map_addr, value, write_flag)
+            self.w65c22[0].io_access(self.cycles, map_addr, value, write_flag)
         } else {
-            self.w65c22[1].io_access(map_addr - 0x80, value, write_flag)
+            self.w65c22[1].io_access(self.cycles, map_addr - 0x80, value, write_flag)
         }
     }
 
@@ -852,12 +887,12 @@ mod test {
 
     fn setup(w65c22: &mut W65C22) {
         // Write to T1C-L and T1C-H
-        w65c22.io_access(0x04, 0x05, true);
-        w65c22.io_access(0x08, 0x05, true);
+        w65c22.io_access(0, 0x04, 0x05, true);
+        w65c22.io_access(0, 0x08, 0x05, true);
 
         // Write to T1C-H and T2C-H
-        w65c22.io_access(0x05, 0x00, true);
-        w65c22.io_access(0x09, 0x00, true);
+        w65c22.io_access(0, 0x05, 0x00, true);
+        w65c22.io_access(0, 0x09, 0x00, true);
     }
 
     #[test]
@@ -923,7 +958,7 @@ mod test {
         for _ in 0..8 {
             w65c22.tick(0);
         }
-        w65c22.io_access(0x04, 0x00, false);
+        w65c22.io_access(0, 0x04, 0x00, false);
         assert_eq!(w65c22.ifr & 0x40 == 0, true, "T1 IFR should be cleared");
         assert_eq!(w65c22.t1c, 0x05, "T1 counter should be reset to 5");
         assert_eq!(w65c22.t2c, 0xfffe, "T2 counter should be 0xfffe");
@@ -944,8 +979,8 @@ mod test {
     fn w65c22_t1_underflow_irq() {
         let mut w65c22 = W65C22::new("#1");
         let mut cycles = 10;
-        w65c22.io_access(0x04, 0x00, true);
-        w65c22.io_access(0x05, 0x00, true);
+        w65c22.io_access(0, 0x04, 0x00, true);
+        w65c22.io_access(0, 0x05, 0x00, true);
 
         // Set counter to 0;
         w65c22.tick(cycles);
@@ -1004,25 +1039,25 @@ mod test {
         let mut w65c22 = W65C22::new("#1");
         w65c22.reset();
 
-        w65c22.io_access(0x01, 0x00, true);
-        w65c22.io_access(0x00, AY_SET_PSG_REG, true);
-        w65c22.io_access(0x03, 0xff, true);
-        w65c22.io_access(0x01, 0x42, true);
+        w65c22.io_access(0, 0x01, 0x00, true);
+        w65c22.io_access(0, 0x00, AY_SET_PSG_REG, true);
+        w65c22.io_access(0, 0x03, 0xff, true);
+        w65c22.io_access(0, 0x01, 0x42, true);
 
         // AY8910 reset should invalidate all latch address
         // and clear all the registers
-        w65c22.io_access(0x00, AY_RESET, true);
+        w65c22.io_access(0, 0x00, AY_RESET, true);
 
-        w65c22.io_access(0x00, AY_WRITE_DATA, true);
-        w65c22.io_access(0x03, 0x00, true);
+        w65c22.io_access(0, 0x00, AY_WRITE_DATA, true);
+        w65c22.io_access(0, 0x03, 0x00, true);
 
         // Read back on the register value
-        w65c22.io_access(0x01, 0x00, true);
-        w65c22.io_access(0x00, AY_SET_PSG_REG, true);
-        w65c22.io_access(0x00, AY_READ_DATA, true);
+        w65c22.io_access(0, 0x01, 0x00, true);
+        w65c22.io_access(0, 0x00, AY_SET_PSG_REG, true);
+        w65c22.io_access(0, 0x00, AY_READ_DATA, true);
 
         assert_eq!(
-            w65c22.io_access(0x01, 00, false),
+            w65c22.io_access(0, 0x01, 00, false),
             0xff,
             "Expecting 0xff when reading AY current register"
         );
@@ -1033,13 +1068,13 @@ mod test {
         let mut w65c22 = W65C22::new("#1");
         w65c22.reset();
         assert_eq!(
-            w65c22.io_access(0x00, 0x00, false),
+            w65c22.io_access(0, 0x00, 0x00, false),
             0xff,
             "Expecting 0xff in ORB when W65c22 is reset"
         );
 
         assert_eq!(
-            w65c22.io_access(0x01, 0x00, false),
+            w65c22.io_access(0, 0x01, 0x00, false),
             0xff,
             "Expecting 0xff in ORA when W65c22 is reset"
         );
