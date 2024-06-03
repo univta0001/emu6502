@@ -13,7 +13,7 @@ serde = { version = "1.0.203", features = ["derive"],  optional = true }
 iz80 = { path = "iz80", optional = true }
 time = { version = "0.3.36", features = ["local-offset","wasm-bindgen"] }
 fastrand = "2.1.0"
-educe = { version = "0.5.11", default-features = false, features = ["Debug"], optional = true }
+educe = { version = "0.6.0", default-features = false, features = ["Debug"], optional = true }
 
 [dev-dependencies]
 regex = "1.10.4"
