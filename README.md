@@ -38,7 +38,7 @@ Features in the emulator
 
 - `emu6502 --help` will display:
 
-      emu6502 0.8.9 (4e803f7226ad5a1942f9838328f6d22cbbc31e1b)
+      emu6502 0.8.10 (5c7d06f915d8f78b267a26d35fd5e61833f073f8)
 
       USAGE:
       emu6502 [FLAGS] [disk 1] [disk 2]
@@ -103,6 +103,7 @@ Features in the emulator
       Ctrl-Shift-F1      Display emulation speed
       Ctrl-Shift-F2      Disassemble current instructions
       Ctrl-Shift-F3      Dump track sector information
+      Ctrl-Shift-F4      Dump disk WOZ information
       Ctrl-F1            Eject Disk 1
       Ctrl-F2            Eject Disk 2
       Ctrl-F3            Save state in YAML file
