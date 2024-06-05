@@ -849,16 +849,6 @@ impl CPU {
         }
     }
 
-    fn read_operand(&mut self, op: &OpCode) -> u8 {
-        let addr = self.get_operand_address(op, self.program_counter);
-        self.addr_read(addr)
-    }
-
-    fn last_tick_read_operand(&mut self, op: &OpCode) -> u8 {
-        let addr = self.get_operand_address(op, self.program_counter);
-        self.last_tick_addr_read(addr)
-    }
-
     //    02     03     04     07     0B     0C     0F
     //    -----  -----  -----  -----  -----  -----  -----
     // 00  2 2    1 1    . .    1 1 a  1 1    . .    1 1 b
@@ -879,7 +869,8 @@ impl CPU {
     // F0  . .    1 1    2 4    1 1 c  1 1    3 4    1 1 d
 
     fn nop_read(&mut self, op: &OpCode) {
-        self.last_tick_read_operand(op);
+        let addr = self.get_operand_address(op, self.program_counter);
+        self.last_tick_addr_read(addr);
     }
 
     fn ldy(&mut self, addr: u16) {
@@ -1079,21 +1070,25 @@ impl CPU {
     }
 
     fn sbc(&mut self, op: &OpCode) {
-        let data = self.last_tick_read_operand(op);
+        let addr = self.get_operand_address(op, self.program_counter);
+        let data = self.bus.unclocked_addr_read(addr);
         self.add_to_register_a(data.wrapping_neg().wrapping_sub(1), true);
 
         if self.m65c02 && self.status.contains(CpuFlags::DECIMAL_MODE) {
             self.tick();
         }
+        self.last_tick();
     }
 
     fn adc(&mut self, op: &OpCode) {
-        let data = self.last_tick_read_operand(op);
+        let addr = self.get_operand_address(op, self.program_counter);
+        let data = self.bus.unclocked_addr_read(addr);
         self.add_to_register_a(data, false);
 
         if self.m65c02 && self.status.contains(CpuFlags::DECIMAL_MODE) {
-            self.last_tick();
+            self.tick();
         }
+        self.last_tick();
     }
 
     fn stack_pop(&mut self) -> u8 {
@@ -2475,7 +2470,8 @@ impl CPU {
                 /* NOP read */
                 0x82 | 0xc2 | 0xe2 | 0x44 | 0x54 | 0xd4 | 0xf4 | 0x5c | 0xdc | 0xfc => {
                     if opcode.code == 0x5c {
-                        self.read_operand(opcode);
+                        let addr = self.get_operand_address(opcode, self.program_counter);
+                        self.addr_read(addr);
                         self.tick();
                         self.tick();
                         self.tick();

@@ -459,9 +459,6 @@ impl W65C22 {
         if self.t2c == 0xffff {
             if self.t2_loaded {
                 self.ifr |= 0x20;
-                if self.irq_happen == 0 {
-                    self.irq_happen = cycles;
-                }
             }
 
             if self.acr & 0x20 == 0 {
@@ -906,8 +903,21 @@ mod test {
         let mut w65c22 = W65C22::new("#1");
         setup(&mut w65c22);
         assert_eq!(w65c22.ifr & 0x40 == 0, true, "T1 IFR should be cleared");
-        w65c22.tick(0);
-        assert_eq!(w65c22.t1c, 0x05, "T1 counter should be 5");
+        for (i, &v) in [5,4,3,2,1,0,0xffffffff,5,4,3].iter().enumerate() {
+            w65c22.tick(i);
+            assert_eq!(w65c22.t1c, v, "T1 counter should be {v}");
+        }
+    }
+
+    #[test]
+    fn w65c22_t2_load_value() {
+        let mut w65c22 = W65C22::new("#1");
+        setup(&mut w65c22);
+        assert_eq!(w65c22.ifr & 0x20 == 0, true, "T2 IFR should be cleared");
+        for (i, &v) in [5,4,3,2,1,0,0xffff,0xfffe,0xfffd,0xfffc].iter().enumerate() {
+            w65c22.tick(i);
+            assert_eq!(w65c22.t2c, v, "T2 counter should be {v}");
+        }
     }
 
     #[test]
