@@ -1013,6 +1013,20 @@ mod test {
     }
 
     #[test]
+    fn w65c22_t2_set_lower() {
+        let mut w65c22 = W65C22::new("#1");
+        setup(&mut w65c22);
+
+        w65c22.tick(0);
+        assert_eq!(w65c22.t2c, 0x05, "T2 counter should be 5");
+
+        // Set lower t2 counter to zero
+        w65c22.io_access(0x08, 0x00, true);
+
+        assert_eq!(w65c22.t2c == 0x05,  true, "T2 counter is affected by the set lower operation");
+    }
+
+    #[test]
     fn detect_mockingboard() {
         let mut bus = Bus::new();
         bus.io_slot[4] = IODevice::Mockingboard(0);
