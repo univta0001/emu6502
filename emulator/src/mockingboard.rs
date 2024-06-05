@@ -902,7 +902,7 @@ mod test {
         let mut w65c22 = W65C22::new("#1");
         setup(&mut w65c22);
         assert_eq!(w65c22.ifr & 0x40 == 0, true, "T1 IFR should be cleared");
-        for (i, &v) in [5,4,3,2,1,0,0xffffffff,5,4,3].iter().enumerate() {
+        for (i, &v) in [5, 4, 3, 2, 1, 0, 0xffffffff, 5, 4, 3].iter().enumerate() {
             w65c22.tick(i);
             assert_eq!(w65c22.t1c, v, "T1 counter should be {v}");
         }
@@ -913,7 +913,10 @@ mod test {
         let mut w65c22 = W65C22::new("#1");
         setup(&mut w65c22);
         assert_eq!(w65c22.ifr & 0x20 == 0, true, "T2 IFR should be cleared");
-        for (i, &v) in [5,4,3,2,1,0,0xffff,0xfffe,0xfffd,0xfffc].iter().enumerate() {
+        for (i, &v) in [5, 4, 3, 2, 1, 0, 0xffff, 0xfffe, 0xfffd, 0xfffc]
+            .iter()
+            .enumerate()
+        {
             w65c22.tick(i);
             assert_eq!(w65c22.t2c, v, "T2 counter should be {v}");
         }
