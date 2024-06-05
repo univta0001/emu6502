@@ -663,7 +663,6 @@ impl W65C22 {
             0x18 | 0x08 => {
                 if write_flag {
                     self.t2ll = value;
-                    self.t2c = (self.t2c & 0xff00) | value as u16;
                 } else {
                     self.ifr &= !0x20;
                     if self.ifr & 0x60 == 0 {
