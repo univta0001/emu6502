@@ -833,19 +833,15 @@ impl CPU {
 
     fn tick(&mut self) {
         self.bus.tick();
-        if !self.status.contains(CpuFlags::INTERRUPT_DISABLE) {
-            if self.bus.irq().is_some() {
-                self.irq_last_tick = true;
-            }
+        if !self.status.contains(CpuFlags::INTERRUPT_DISABLE) && self.bus.irq().is_some() {
+            self.irq_last_tick = true;
         }
     }
 
     fn last_tick(&mut self) {
         self.bus.tick();
-        if !self.status.contains(CpuFlags::INTERRUPT_DISABLE) {
-            if self.bus.irq().is_some() {
-                self.irq_last_tick = !self.irq_last_tick;
-            }
+        if !self.status.contains(CpuFlags::INTERRUPT_DISABLE) && self.bus.irq().is_some() {
+            self.irq_last_tick = !self.irq_last_tick;
         }
     }
 
@@ -1495,12 +1491,13 @@ impl CPU {
 
         if let Some(_nmi) = self.bus.poll_nmi_status() {
             self.interrupt(interrupt::NMI);
-        } else if !self.status.contains(CpuFlags::INTERRUPT_DISABLE) {
-            if self.bus.irq().is_some() && !self.irq_last_tick { 
-                // If the interrupt happens on the last cycle of the opcode, execute the opcode and
-                // then the interrupt handling routine
-                self.interrupt(interrupt::IRQ);
-            }
+        } else if !self.status.contains(CpuFlags::INTERRUPT_DISABLE)
+            && self.bus.irq().is_some()
+            && !self.irq_last_tick
+        {
+            // If the interrupt happens on the last cycle of the opcode, execute the opcode and
+            // then the interrupt handling routine
+            self.interrupt(interrupt::IRQ);
         }
 
         self.irq_last_tick = false;
