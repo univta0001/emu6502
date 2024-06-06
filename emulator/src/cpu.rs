@@ -434,6 +434,7 @@ pub struct CPU {
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub halt_cpu: bool,
 
+    #[cfg_attr(feature = "serde_support", serde(skip))]
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub irq_last_tick: bool,
 
