@@ -4,6 +4,8 @@ debug/
 ref/
 lib/
 emu6502_raw/
+a2stream/
+
 zig-6502
 emu6502
 
