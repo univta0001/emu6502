@@ -1866,12 +1866,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         handle_event(_cpu, event_value, &mut event_param);
                     }
 
-                    // Update mouse state
-                    let mouse_state = _event_pump.mouse_state();
-                    let buttons = [mouse_state.left(), mouse_state.right()];
-                    _cpu.bus
-                        .set_mouse_state(mouse_state.x(), mouse_state.y(), &buttons);
-
                     // Update keyboard akd state
                     _cpu.bus.any_key_down =
                         _event_pump.keyboard_state().pressed_scancodes().count() > 0;
@@ -1902,6 +1896,18 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                             _cpu.bus.video.invalidate_video_cache();
                         }
                     }
+
+                    // Update mouse state
+                    let (width, height) = canvas.window().size();
+                    let mouse_state = _event_pump.mouse_state();
+                    let buttons = [mouse_state.left(), mouse_state.right()];
+                    _cpu.bus.set_mouse_state(
+                        width,
+                        height,
+                        mouse_state.x(),
+                        mouse_state.y(),
+                        &buttons,
+                    );
                 } else {
                     _cpu.bus.video.skip_update = true;
                 }
