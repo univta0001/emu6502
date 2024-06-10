@@ -36,6 +36,8 @@ pub struct Mouse {
     interrupt_button: bool,
     delta_x: i16,
     delta_y: i16,
+    prev_delta_x: i16,
+    prev_delta_y: i16,
 }
 
 const ROM: [u8; 256] = [
@@ -196,11 +198,19 @@ impl Mouse {
     }
 
     pub fn get_delta_x(&mut self) -> i16 {
-        self.delta_x
+        if self.delta_x != 0 {
+            self.delta_x
+        } else {
+            self.prev_delta_x
+        }
     }
 
     pub fn get_delta_y(&mut self) -> i16 {
-        self.delta_y
+        if self.delta_y != 0 {
+            self.delta_y
+        } else {
+            self.prev_delta_y
+        }
     }
 
     fn mouse_status(&mut self, mmu: &mut Mmu, _slot: u16) {
@@ -473,6 +483,8 @@ impl Mouse {
     }
 
     pub fn set_state(&mut self, x: i32, y: i32, buttons: &[bool; 2]) {
+        self.prev_delta_x = self.delta_x;
+        self.prev_delta_y = self.delta_y;
         self.delta_x = x as i16;
         self.delta_y = y as i16;
 
@@ -524,6 +536,8 @@ impl Default for Mouse {
             interrupt_button: false,
             delta_x: 0,
             delta_y: 0,
+            prev_delta_x: 0,
+            prev_delta_y: 0,
         }
     }
 }
