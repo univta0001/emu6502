@@ -1898,16 +1898,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     }
 
                     // Update mouse state
-                    let (width, height) = canvas.window().size();
-                    let mouse_state = _event_pump.mouse_state();
+                    let mouse_state = _event_pump.relative_mouse_state();
                     let buttons = [mouse_state.left(), mouse_state.right()];
-                    _cpu.bus.set_mouse_state(
-                        width,
-                        height,
-                        mouse_state.x(),
-                        mouse_state.y(),
-                        &buttons,
-                    );
+                    _cpu.bus
+                        .set_mouse_state(mouse_state.x(), mouse_state.y(), &buttons);
                 } else {
                     _cpu.bus.video.skip_update = true;
                 }

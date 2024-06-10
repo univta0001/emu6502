@@ -32,14 +32,8 @@ pub struct Mouse {
     interrupt: u8,
     interrupt_move: bool,
     interrupt_button: bool,
-    delta_x: bool,
-    delta_y: bool,
-
-    #[cfg_attr(feature = "serde_support", serde(skip))]
-    width: u32,
-
-    #[cfg_attr(feature = "serde_support", serde(skip))]
-    height: u32,
+    delta_x: i16,
+    delta_y: i16,
 }
 
 const ROM: [u8; 256] = [
@@ -190,11 +184,11 @@ impl Mouse {
         self.buttons[0]
     }
 
-    pub fn get_delta_x(&mut self) -> bool {
+    pub fn get_delta_x(&mut self) -> i16 {
         self.delta_x
     }
 
-    pub fn get_delta_y(&mut self) -> bool {
+    pub fn get_delta_y(&mut self) -> i16 {
         self.delta_y
     }
 
@@ -329,13 +323,9 @@ impl Mouse {
     }
 
     // Only called for Apple IIc system
-    pub fn update_mouse(&mut self, mmu: &mut Mmu, slot: u16) {
+    pub fn update_mouse_2c(&mut self, mmu: &mut Mmu, slot: u16) {
         if mmu.mem_read(MODE + slot) & !0xf > 0 || mmu.mem_read(MODE + slot) & 1 == 0 {
-            let status = self.get_status();
-            if status & 0x20 > 0 {
-                self.delta_x = self.x > self.last_x;
-                self.delta_y = self.y < self.last_y;
-            }
+            self.update_mouse_2e();
 
             self.last_x = self.x;
             self.last_y = self.y;
@@ -347,14 +337,8 @@ impl Mouse {
         }
 
         // Update movement
+        self.update_mouse_2e();
         self.update_mouse_status(mmu, slot);
-
-        // Update movement status only
-        let status = self.get_status();
-        if status & 0x20 > 0 {
-            self.delta_x = self.x > self.last_x;
-            self.delta_y = self.y < self.last_y;
-        }
 
         // For IIc the clamp settings is also stored in the screen holes
         let min_x = (mmu.mem_read(CLAMP_MIN_HIGH_X) as u16 * 256) as i16
@@ -376,6 +360,13 @@ impl Mouse {
         }
     }
 
+    pub fn update_mouse_2e(&mut self) {
+        self.x = self.x.wrapping_add(self.delta_x);
+        self.y = self.y.wrapping_add(self.delta_y);
+        self.x = i16::max(self.clamp_min_x, i16::min(self.x, self.clamp_max_x));
+        self.y = i16::max(self.clamp_min_y, i16::min(self.y, self.clamp_max_y));
+    }
+
     pub fn update_mouse_status(&mut self, mmu: &mut Mmu, slot: u16) {
         let (x, y) = self.get_mouse_position();
 
@@ -392,33 +383,8 @@ impl Mouse {
         let mut x = self.x;
         let mut y = self.y;
 
-        let x_range =
-            (self.clamp_max_x.min((self.width as i16).wrapping_sub(1)) - self.clamp_min_x) as i32;
-        let y_range =
-            (self.clamp_max_y.min((self.height as i16).wrapping_sub(1)) - self.clamp_min_y) as i32;
-
-        x = (((x as i32 * x_range) / (self.width.wrapping_sub(1)) as i32) as i16)
-            + self.clamp_min_x;
-        y = (((y as i32 * y_range) / (self.height.wrapping_sub(1)) as i32) as i16)
-            + self.clamp_min_y;
-
         x = i16::max(self.clamp_min_x, i16::min(x, self.clamp_max_x));
         y = i16::max(self.clamp_min_y, i16::min(y, self.clamp_max_y));
-
-        (x, y)
-    }
-
-    pub fn convert_mouse_position(&self, pos_x: i16, pos_y: i16) -> (i16, i16) {
-        let mut x = pos_x;
-        let mut y = pos_y;
-
-        let x_range = (self.clamp_max_x - self.clamp_min_x) as i32;
-        let y_range = (self.clamp_max_y - self.clamp_min_y) as i32;
-
-        x = ((x as i32 * ((self.width as i32).wrapping_sub(1)) - self.clamp_min_x as i32) / x_range)
-            as i16;
-        y = ((y as i32 * ((self.height as i32).wrapping_sub(1)) - self.clamp_min_y as i32)
-            / y_range) as i16;
 
         (x, y)
     }
@@ -449,10 +415,8 @@ impl Mouse {
         let pos_x = mmu.mem_read(X_HIGH + slot) as i16 * 256 + mmu.mem_read(X_LOW + slot) as i16;
         let pos_y = mmu.mem_read(Y_HIGH + slot) as i16 * 256 + mmu.mem_read(Y_LOW + slot) as i16;
 
-        let (x, y) = self.convert_mouse_position(pos_x, pos_y);
-
-        self.x = x;
-        self.y = y;
+        self.x = pos_x;
+        self.y = pos_y;
     }
 
     fn clamp_mouse(&mut self, mmu: &Mmu, value: usize) {
@@ -521,19 +485,16 @@ impl Mouse {
         self.set_mouse(mmu, slot, 0);
     }
 
-    pub fn set_state(&mut self, width: u32, height: u32, x: i32, y: i32, buttons: &[bool; 2]) {
-        self.width = width;
-        self.height = height;
+    pub fn set_state(&mut self, x: i32, y: i32, buttons: &[bool; 2]) {
+        let delta_x = x as i16;
+        let delta_y = y as i16;
 
-        let new_x = x as i16;
-        let new_y = y as i16;
-
-        if new_x != self.x || new_y != self.y {
+        if delta_x != 0 || delta_y != 0 {
             self.interrupt_move = true;
         }
 
-        self.x = new_x;
-        self.y = new_y;
+        self.delta_x = delta_x;
+        self.delta_y = delta_y;
 
         if self.buttons[0] != buttons[0] || self.buttons[1] != buttons[1] {
             self.interrupt_button = true;
@@ -579,10 +540,8 @@ impl Default for Mouse {
             interrupt: 0,
             interrupt_move: false,
             interrupt_button: false,
-            delta_x: false,
-            delta_y: false,
-            width: 0,
-            height: 0,
+            delta_x: 0,
+            delta_y: 0,
         }
     }
 }

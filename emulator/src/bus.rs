@@ -532,18 +532,13 @@ impl Bus {
         self.video.toggle_video_freq();
     }
 
-    pub fn set_mouse_state(
-        &mut self,
-        width: u32,
-        height: u32,
-        x: i32,
-        y: i32,
-        buttons: &[bool; 2],
-    ) {
+    pub fn set_mouse_state(&mut self, x: i32, y: i32, buttons: &[bool; 2]) {
         self.mouse.tick(self.get_cycles());
-        self.mouse.set_state(width, height, x, y, buttons);
+        self.mouse.set_state(x, y, buttons);
         if self.is_apple2c {
-            self.mouse.update_mouse(&mut self.mem, 4);
+            self.mouse.update_mouse_2c(&mut self.mem, 4);
+        } else {
+            self.mouse.update_mouse_2e();
         }
     }
 
@@ -1026,7 +1021,7 @@ impl Bus {
                         0x0
                     }
                 } else {
-                    (self.mouse.get_delta_x() as u8) << 7 | self.read_floating_bus() & 0x7f
+                    ((self.mouse.get_delta_x() > 0) as u8) << 7 | self.read_floating_bus() & 0x7f
                 }
             }
 
@@ -1040,7 +1035,7 @@ impl Bus {
                         0x0
                     }
                 } else {
-                    (self.mouse.get_delta_y() as u8) << 7 | self.read_floating_bus() & 0x7f
+                    ((self.mouse.get_delta_y() < 0) as u8) << 7 | self.read_floating_bus() & 0x7f
                 }
             }
 
