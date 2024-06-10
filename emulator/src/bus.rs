@@ -536,7 +536,8 @@ impl Bus {
     }
 
     pub fn set_mouse_state(&mut self, x: i32, y: i32, buttons: &[bool; 2]) {
-        self.mouse.tick(self.get_cycles());
+        let vbl = self.video.io_access(0xc019, 0, false) == 0;
+        self.mouse.tick(self.get_cycles(), vbl);
         self.mouse.set_state(x, y, buttons);
         if self.is_apple2c {
             self.mouse.update_mouse_2c();

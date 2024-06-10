@@ -1795,6 +1795,15 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         CPU_CYCLES_PER_FRAME_60HZ - 65 * 192
     };
 
+    let mut mcyc = if cpu.bus.video.is_video_50hz() {
+        CPU_CYCLES_PER_FRAME_50HZ - 65 * 192
+    } else {
+        CPU_CYCLES_PER_FRAME_60HZ - 65 * 192
+    };
+
+    let mut prev_x: i32 = 0;
+    let mut prev_y: i32 = 0;
+
     loop {
         if reload_cpu {
             reload_cpu = false;
@@ -1803,6 +1812,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         cpu.run_with_callback(|_cpu| {
             let current_cycles = _cpu.bus.get_cycles();
             dcyc += current_cycles - previous_cycles;
+            mcyc += current_cycles - previous_cycles;
             previous_cycles = current_cycles;
 
             let mut cpu_cycles = CPU_CYCLES_PER_FRAME_60HZ;
@@ -1824,6 +1834,23 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             if _cpu.bus.video.is_video_50hz() {
                 cpu_cycles = CPU_CYCLES_PER_FRAME_50HZ;
                 cpu_period = 20_000;
+            }
+
+            // Mouse movements need to update a least twice as fast
+            if mcyc >= cpu_cycles / 2 {
+                // Update mouse state
+                let mut x = 0;
+                let mut y = 0;
+                let _ = unsafe { sdl2::sys::SDL_GetGlobalMouseState(&mut x, &mut y) };
+                let mouse_state = _event_pump.mouse_state();
+                let buttons = [mouse_state.left(), mouse_state.right()];
+
+                let delta_x = x.wrapping_sub(prev_x);
+                let delta_y = y.wrapping_sub(prev_y);
+                prev_x = x;
+                prev_y = y;
+                _cpu.bus.set_mouse_state(delta_x, delta_y, &buttons);
+                mcyc -= cpu_cycles / 2;
             }
 
             if dcyc >= cpu_cycles {
@@ -1896,12 +1923,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                             _cpu.bus.video.invalidate_video_cache();
                         }
                     }
-
-                    // Update mouse state
-                    let mouse_state = _event_pump.relative_mouse_state();
-                    let buttons = [mouse_state.left(), mouse_state.right()];
-                    _cpu.bus
-                        .set_mouse_state(mouse_state.x(), mouse_state.y(), &buttons);
                 } else {
                     _cpu.bus.video.skip_update = true;
                 }
