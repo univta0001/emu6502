@@ -31,6 +31,8 @@ pub struct Mouse {
     irq_happen: usize,
     interrupt: u8,
     interrupt_move: bool,
+    interrupt_move_x0: bool,
+    interrupt_move_y0: bool,
     interrupt_button: bool,
     delta_x: i16,
     delta_y: i16,
@@ -79,14 +81,14 @@ const CLAMP_MAX_HIGH: u16 = 0x5f8;
 // $4FD MinYL, $6FD MaxYL
 // $5FD MinYH, $7FD MaxYH
 
-const CLAMP_MIN_LOW_X: u16 = 0x47d;
-const CLAMP_MIN_HIGH_X: u16 = 0x57d;
-const CLAMP_MAX_LOW_X: u16 = 0x67d;
-const CLAMP_MAX_HIGH_X: u16 = 0x77d;
-const CLAMP_MIN_LOW_Y: u16 = 0x4fd;
-const CLAMP_MIN_HIGH_Y: u16 = 0x5fd;
-const CLAMP_MAX_LOW_Y: u16 = 0x6fd;
-const CLAMP_MAX_HIGH_Y: u16 = 0x7fd;
+const _CLAMP_MIN_LOW_X: u16 = 0x47d;
+const _CLAMP_MIN_HIGH_X: u16 = 0x57d;
+const _CLAMP_MAX_LOW_X: u16 = 0x67d;
+const _CLAMP_MAX_HIGH_X: u16 = 0x77d;
+const _CLAMP_MIN_LOW_Y: u16 = 0x4fd;
+const _CLAMP_MIN_HIGH_Y: u16 = 0x5fd;
+const _CLAMP_MAX_LOW_Y: u16 = 0x6fd;
+const _CLAMP_MAX_HIGH_Y: u16 = 0x7fd;
 
 const X_LOW: u16 = 0x478;
 const Y_LOW: u16 = 0x4f8;
@@ -105,6 +107,8 @@ const _MODE_BOTH_INTERRUPT: u8 = 7;
 pub const STATUS_MOVE_INTERRUPT: u8 = 0x02;
 pub const STATUS_BUTTON_INTERRUPT: u8 = 0x04;
 pub const STATUS_VBL_INTERRUPT: u8 = 0x08;
+pub const STATUS_MOVE_INTERRUPT_X0: u8 = 0x10;
+pub const STATUS_MOVE_INTERRUPT_Y0: u8 = 0x20;
 
 const STATUS_MOVED: u8 = 0x20;
 const STATUS_LAST_BUTTON: u8 = 0x40;
@@ -123,11 +127,16 @@ impl Mouse {
             self.set_interrupt(STATUS_VBL_INTERRUPT, cycles);
         }
 
-        if (self.mode & MODE_MOVE_INTERRUPT == MODE_MOVE_INTERRUPT
-            || self.iou_mode & STATUS_MOVE_INTERRUPT != 0)
-            && self.interrupt_move
-        {
+        if self.mode & MODE_MOVE_INTERRUPT == MODE_MOVE_INTERRUPT && self.interrupt_move {
             self.set_interrupt(STATUS_MOVE_INTERRUPT, cycles);
+        }
+
+        if self.iou_mode & STATUS_MOVE_INTERRUPT != 0 && self.interrupt_move_x0 {
+            self.set_interrupt(STATUS_MOVE_INTERRUPT_X0, cycles);
+        }
+
+        if self.iou_mode & STATUS_MOVE_INTERRUPT != 0 && self.interrupt_move_y0 {
+            self.set_interrupt(STATUS_MOVE_INTERRUPT_Y0, cycles);
         }
 
         if (self.mode & MODE_BUTTON_INTERRUPT == MODE_BUTTON_INTERRUPT
@@ -138,6 +147,8 @@ impl Mouse {
         }
 
         self.interrupt_move = false;
+        self.interrupt_move_x0 = false;
+        self.interrupt_move_y0 = false;
         self.interrupt_button = false;
     }
 
@@ -323,40 +334,12 @@ impl Mouse {
     }
 
     // Only called for Apple IIc system
-    pub fn update_mouse_2c(&mut self, mmu: &mut Mmu, slot: u16) {
-        if mmu.mem_read(MODE + slot) & !0xf > 0 || mmu.mem_read(MODE + slot) & 1 == 0 {
-            self.update_mouse_2e();
-
-            self.last_x = self.x;
-            self.last_y = self.y;
-            for i in 0..2 {
-                self.last_buttons[i] = self.buttons[i];
-            }
-
-            return;
+    pub fn update_mouse_2c(&mut self) {
+        if self.delta_x != 0 {
+            self.interrupt_move_x0 = true;
         }
-
-        // Update movement
-        self.update_mouse_2e();
-        self.update_mouse_status(mmu, slot);
-
-        // For IIc the clamp settings is also stored in the screen holes
-        let min_x = (mmu.mem_read(CLAMP_MIN_HIGH_X) as u16 * 256) as i16
-            + mmu.mem_read(CLAMP_MIN_LOW_X) as i16;
-        let max_x = (mmu.mem_read(CLAMP_MAX_HIGH_X) as u16 * 256) as i16
-            + mmu.mem_read(CLAMP_MAX_LOW_X) as i16;
-        let min_y = (mmu.mem_read(CLAMP_MIN_HIGH_Y) as u16 * 256) as i16
-            + mmu.mem_read(CLAMP_MIN_LOW_Y) as i16;
-        let max_y = (mmu.mem_read(CLAMP_MAX_HIGH_Y) as u16 * 256) as i16
-            + mmu.mem_read(CLAMP_MAX_LOW_Y) as i16;
-
-        self.update_clamp_x(min_x, max_x);
-        self.update_clamp_y(min_y, max_y);
-
-        self.last_x = self.x;
-        self.last_y = self.y;
-        for i in 0..2 {
-            self.last_buttons[i] = self.buttons[i];
+        if self.delta_y != 0 {
+            self.interrupt_move_y0 = true;
         }
     }
 
@@ -365,6 +348,10 @@ impl Mouse {
         self.y = self.y.wrapping_add(self.delta_y);
         self.x = i16::max(self.clamp_min_x, i16::min(self.x, self.clamp_max_x));
         self.y = i16::max(self.clamp_min_y, i16::min(self.y, self.clamp_max_y));
+
+        if self.delta_x != 0 || self.delta_y != 0 {
+            self.interrupt_move = true;
+        }
     }
 
     pub fn update_mouse_status(&mut self, mmu: &mut Mmu, slot: u16) {
@@ -486,15 +473,8 @@ impl Mouse {
     }
 
     pub fn set_state(&mut self, x: i32, y: i32, buttons: &[bool; 2]) {
-        let delta_x = x as i16;
-        let delta_y = y as i16;
-
-        if delta_x != 0 || delta_y != 0 {
-            self.interrupt_move = true;
-        }
-
-        self.delta_x = delta_x;
-        self.delta_y = delta_y;
+        self.delta_x = x as i16;
+        self.delta_y = y as i16;
 
         if self.buttons[0] != buttons[0] || self.buttons[1] != buttons[1] {
             self.interrupt_button = true;
@@ -539,6 +519,8 @@ impl Default for Mouse {
             irq_happen: 0,
             interrupt: 0,
             interrupt_move: false,
+            interrupt_move_x0: false,
+            interrupt_move_y0: false,
             interrupt_button: false,
             delta_x: 0,
             delta_y: 0,

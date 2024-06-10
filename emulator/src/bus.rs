@@ -3,7 +3,10 @@ use crate::disk::DiskDrive;
 use crate::harddisk::HardDisk;
 use crate::mmu::Mmu;
 use crate::mmu::Saturn;
-use crate::mouse::{Mouse, STATUS_MOVE_INTERRUPT, STATUS_VBL_INTERRUPT};
+use crate::mouse::{
+    Mouse, STATUS_MOVE_INTERRUPT, STATUS_MOVE_INTERRUPT_X0, STATUS_MOVE_INTERRUPT_Y0,
+    STATUS_VBL_INTERRUPT,
+};
 use crate::noslotclock::NoSlotClock;
 use crate::parallel::ParallelCard;
 use crate::ramfactor::RamFactor;
@@ -536,7 +539,7 @@ impl Bus {
         self.mouse.tick(self.get_cycles());
         self.mouse.set_state(x, y, buttons);
         if self.is_apple2c {
-            self.mouse.update_mouse_2c(&mut self.mem, 4);
+            self.mouse.update_mouse_2c();
         } else {
             self.mouse.update_mouse_2e();
         }
@@ -747,7 +750,7 @@ impl Bus {
             0x15 => {
                 if self.is_apple2c {
                     let flag =
-                        ((self.mouse.get_interrupt() & STATUS_MOVE_INTERRUPT > 0) as u8) << 7;
+                        ((self.mouse.get_interrupt() & STATUS_MOVE_INTERRUPT_X0 > 0) as u8) << 7;
                     (self.get_keyboard_latch() & 0x7f) | flag
                 } else {
                     self.get_io_status(self.mem.intcxrom)
@@ -759,7 +762,7 @@ impl Bus {
             0x17 => {
                 if self.is_apple2c {
                     let flag =
-                        ((self.mouse.get_interrupt() & STATUS_MOVE_INTERRUPT > 0) as u8) << 7;
+                        ((self.mouse.get_interrupt() & STATUS_MOVE_INTERRUPT_Y0 > 0) as u8) << 7;
                     (self.get_keyboard_latch() & 0x7f) | flag
                 } else {
                     self.get_io_status(self.mem.slotc3rom)
@@ -822,7 +825,9 @@ impl Bus {
             0x48 => {
                 if self.is_apple2c {
                     self.mouse
-                        .clear_irq_mouse(&mut self.mem, 4, STATUS_MOVE_INTERRUPT);
+                        .clear_irq_mouse(&mut self.mem, 4, STATUS_MOVE_INTERRUPT_X0);
+                    self.mouse
+                        .clear_irq_mouse(&mut self.mem, 4, STATUS_MOVE_INTERRUPT_Y0);
                     self.read_floating_bus()
                 } else {
                     self.read_floating_bus()
@@ -898,11 +903,11 @@ impl Bus {
                     match io_addr {
                         0x58 => {
                             self.mouse
-                                .set_iou_mode(&mut self.mem, 4, STATUS_MOVE_INTERRUPT, false)
+                                .set_iou_mode(&mut self.mem, 4, STATUS_MOVE_INTERRUPT, false);
                         }
                         0x59 => {
                             self.mouse
-                                .set_iou_mode(&mut self.mem, 4, STATUS_MOVE_INTERRUPT, true)
+                                .set_iou_mode(&mut self.mem, 4, STATUS_MOVE_INTERRUPT, true);
                         }
                         0x5a => {
                             self.mouse
