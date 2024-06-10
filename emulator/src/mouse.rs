@@ -66,9 +66,6 @@ const CLEAR_MOUSE: u8 = 5;
 const POS_MOUSE: u8 = 6;
 const HOME_MOUSE: u8 = 7;
 
-const WIDTH: i16 = 1120;
-const HEIGHT: i16 = 768;
-
 const KEY_INPUT: u16 = 0x200;
 
 const CLAMP_MIN_LOW: u16 = 0x478;
@@ -212,10 +209,8 @@ impl Mouse {
         let mut button_state =
             ((((self.buttons[0] as i8) << 1) + self.last_buttons[0] as i8) ^ 0x3) + 1;
 
-        let x_range = (self.clamp_max_x - self.clamp_min_x) as i32;
-        let y_range = (self.clamp_max_y - self.clamp_min_y) as i32;
-        let mut x = (((self.x as i32 * x_range) / (WIDTH - 1) as i32) as i16) + self.clamp_min_x;
-        let mut y = (((self.y as i32 * y_range) / (HEIGHT - 1) as i32) as i16) + self.clamp_min_y;
+        let mut x = self.x;
+        let mut y = self.y;
 
         x = i16::max(self.clamp_min_x, i16::min(x, self.clamp_max_x));
         y = i16::max(self.clamp_min_y, i16::min(y, self.clamp_max_y));
@@ -381,12 +376,8 @@ impl Mouse {
     }
 
     pub fn update_mouse_status(&mut self, mmu: &mut Mmu, slot: u16) {
-        let x_range = (self.clamp_max_x - self.clamp_min_x) as i32;
-        let y_range = (self.clamp_max_y - self.clamp_min_y) as i32;
-        let mut new_x =
-            (((self.x as i32 * x_range) / (WIDTH - 1) as i32) as i16) + self.clamp_min_x;
-        let mut new_y =
-            (((self.y as i32 * y_range) / (HEIGHT - 1) as i32) as i16) + self.clamp_min_y;
+        let mut new_x = self.x;
+        let mut new_y = self.y;
         new_x = i16::max(self.clamp_min_x, i16::min(new_x, self.clamp_max_x));
         new_y = i16::max(self.clamp_min_y, i16::min(new_y, self.clamp_max_y));
 
@@ -421,25 +412,11 @@ impl Mouse {
         }
     }
 
-    fn pos_mouse(&mut self) {
-        /*
-        Not required in the emulation as the read_mouse will always return the absolute value
-
-        let pos_x = mmu.mem_read(X_HIGH) as i16 * 256 + mmu.mem_read(X_LOW) as i16;
-        let pos_y = mmu.mem_read(Y_HIGH) as i16 * 256 + mmu.mem_read(Y_LOW) as i16;
-        let x_range = self.clamp_max_x - self.clamp_min_x;
-        let y_range = self.clamp_max_y - self.clamp_min_y;
-        let mut x =
-            (((pos_x - self.clamp_min_x) as i32 * (WIDTH - 1) as i32) / x_range as i32) as i16;
-        let mut y =
-            (((pos_y - self.clamp_min_y) as i32 * (HEIGHT - 1) as i32) / y_range as i32) as i16;
-
-        x = i16::max(0, i16::min(x, WIDTH - 1));
-        y = HEIGHT - 1 - i16::max(0, i16::min(y, HEIGHT - 1));
-
-        self.x = x;
-        self.y = y;
-        */
+    fn pos_mouse(&mut self, mmu: &Mmu, slot: u16) {
+        let pos_x = mmu.mem_read(X_HIGH + slot) as i16 * 256 + mmu.mem_read(X_LOW + slot) as i16;
+        let pos_y = mmu.mem_read(Y_HIGH + slot) as i16 * 256 + mmu.mem_read(Y_LOW + slot) as i16;
+        self.x = pos_x;
+        self.y = pos_y;
     }
 
     fn clamp_mouse(&mut self, mmu: &Mmu, value: usize) {
@@ -466,10 +443,6 @@ impl Mouse {
         }
         self.clamp_min_x = min;
         self.clamp_max_x = max;
-
-        if self.clamp_max_x == 32767 {
-            self.clamp_max_x = WIDTH - 1
-        }
     }
 
     fn update_clamp_y(&mut self, min: i16, max: i16) {
@@ -481,14 +454,9 @@ impl Mouse {
         }
         self.clamp_min_y = min;
         self.clamp_max_y = max;
-
-        if self.clamp_max_y == 32767 {
-            self.clamp_max_y = HEIGHT - 1
-        }
     }
 
     fn home_mouse(&mut self, mmu: &mut Mmu, slot: u16) {
-        eprintln!("HomeMouse");
         self.x = self.clamp_min_x;
         self.y = self.clamp_min_y;
 
@@ -623,7 +591,7 @@ impl Card for Mouse {
                 }
                 READ_MOUSE => self.read_mouse(mem, slot),
                 CLEAR_MOUSE => self.clear_mouse(mem, slot),
-                POS_MOUSE => self.pos_mouse(),
+                POS_MOUSE => self.pos_mouse(mem, slot),
                 HOME_MOUSE => self.home_mouse(mem, slot),
                 _ => {}
             },
