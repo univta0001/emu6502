@@ -53,6 +53,7 @@ https://github.com/AppleWin/AppleWin/blob/master/source/Harddisk.cpp
     derive(Serialize, Deserialize, educe::Educe),
     educe(Debug)
 )]
+#[cfg_attr(not(feature = "serde_support"), derive(Debug))]
 struct Disk {
     #[cfg_attr(feature = "serde_support", serde(skip))]
     #[cfg_attr(feature = "serde_support", serde(default))]

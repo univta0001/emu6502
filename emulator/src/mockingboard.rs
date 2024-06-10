@@ -1023,7 +1023,11 @@ mod test {
         // Set lower t2 counter to zero
         w65c22.io_access(0x08, 0x00, true);
 
-        assert_eq!(w65c22.t2c == 0x05,  true, "T2 counter is affected by the set lower operation");
+        assert_eq!(
+            w65c22.t2c == 0x05,
+            true,
+            "T2 counter is affected by the set lower operation"
+        );
     }
 
     #[test]
