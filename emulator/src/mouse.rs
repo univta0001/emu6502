@@ -122,12 +122,10 @@ impl Mouse {
     }
 
     // Tick is called every video refresh to approximate the VBL refresh
-    pub fn tick(&mut self, cycles: usize, vbl: bool) {
+    pub fn tick(&mut self, cycles: usize) {
         // If mode is set to generate VBL Interrupt, VBL Interrupt is generated even if
         // the mouse mode is off. Tested using Jeeves 1.0 NSC.dsk
-        if vbl
-            && (self.mode & STATUS_VBL_INTERRUPT != 0 || self.iou_mode & STATUS_VBL_INTERRUPT != 0)
-        {
+        if self.mode & STATUS_VBL_INTERRUPT != 0 || self.iou_mode & STATUS_VBL_INTERRUPT != 0 {
             self.set_interrupt(STATUS_VBL_INTERRUPT, cycles);
         }
 
