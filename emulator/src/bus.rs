@@ -100,9 +100,6 @@ pub struct Bus {
     pub noslotclock: NoSlotClock,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
-    pub iou: bool,
-
-    #[cfg_attr(feature = "serde_support", serde(default))]
     pub halt_cpu: bool,
     //bad_softswitch_addr: HashMap<u16, bool>,
     #[cfg_attr(
@@ -220,7 +217,6 @@ impl Bus {
             disable_audio: false,
             //bad_softswitch_addr: HashMap::new(),
             mem,
-            iou: false,
             halt_cpu: false,
             io_slot: default_io_slot(),
             extended_rom: 0,
