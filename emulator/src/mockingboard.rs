@@ -395,7 +395,7 @@ struct W65C22 {
     ifr: u8,
     ier: u8,
     state: u8,
-    ay8910: AY8910,
+    ay8910: [AY8910; 2],
     irq_happen: usize,
     enabled: bool,
     latch_addr_valid: bool,
@@ -422,7 +422,7 @@ impl W65C22 {
             ifr: 0x0,
             ier: 0x0,
             state: 0,
-            ay8910: AY8910::new(name),
+            ay8910: [AY8910::new(name), AY8910::new(name)],
             irq_happen: 0,
             enabled: false,
             latch_addr_valid: false,
@@ -471,7 +471,8 @@ impl W65C22 {
         }
 
         if cycles % 8 == 0 {
-            self.ay8910.tick();
+            self.ay8910[0].tick();
+            self.ay8910[1].tick();
         }
     }
 
@@ -489,7 +490,8 @@ impl W65C22 {
         self.irq_happen = 0;
         self.ier = 0;
 
-        self.ay8910.reset();
+        self.ay8910[0].reset();
+        self.ay8910[1].reset();
         self.state = AY_INACTIVE;
         self.enabled = false;
         self.latch_addr_valid = false;
@@ -506,9 +508,9 @@ impl W65C22 {
         }
     }
 
-    fn ay8910_write(&mut self, value: u8) {
+    fn ay8910_write(&mut self, device: usize, value: u8) {
         if value & 0x07 == AY_RESET {
-            self.ay8910.reset();
+            self.ay8910[device].reset();
             self.latch_addr_valid = false;
             self.driving_bus = false;
         } else if self.state == AY_INACTIVE {
@@ -516,18 +518,18 @@ impl W65C22 {
                 AY_READ_DATA => {
                     if self.latch_addr_valid {
                         self.driving_bus = true;
-                        self.ora = self.ay8910.read_register() & (self.ddra ^ 0xff)
+                        self.ora = self.ay8910[device].read_register() & (self.ddra ^ 0xff)
                     }
                 }
                 AY_WRITE_DATA => {
                     if self.latch_addr_valid {
-                        self.ay8910.write_register(self.ora)
+                        self.ay8910[device].write_register(self.ora)
                     }
                 }
                 AY_SET_PSG_REG => {
                     if self.ora <= 0x0f {
                         self.latch_addr_valid = true;
-                        self.ay8910.set_register(self.ora & 0xf);
+                        self.ay8910[device].set_register(self.ora & 0xf);
                     }
                 }
                 _ => {}
@@ -556,13 +558,13 @@ impl W65C22 {
         let mut return_addr: u8 = 0;
         self.enabled = true;
 
-        match addr {
+        match addr & 0x7f {
             // ORB
             0x10 | 0x00 => {
                 if write_flag {
                     //eprintln!("Write ORB {:02X} with {:02X}", addr, value);
                     self.orb = value;
-                    self.ay8910_write(value & 0xf);
+                    self.ay8910_write(addr as usize / 0x80, value & 0xf);
                 } else {
                     //eprintln!("Read ORB {:02X} with {:02X}", addr, self.orb);
                     self.ifr &= !0x18;
@@ -811,33 +813,65 @@ impl Mockingboard {
     }
 
     pub fn get_tone_level(&self, chip: usize, channel: usize) -> bool {
-        self.w65c22[chip].ay8910.tone[channel].level
+        if !self.mb4c {
+            self.w65c22[chip].ay8910[0].tone[channel].level
+        } else {
+            self.w65c22[0].ay8910[chip].tone[channel].level
+        }
     }
 
     pub fn get_tone_period(&self, chip: usize, channel: usize) -> usize {
-        self.w65c22[chip].ay8910.tone[channel].period as usize
+        if !self.mb4c {
+            self.w65c22[chip].ay8910[0].tone[channel].period as usize
+        } else {
+            self.w65c22[0].ay8910[chip].tone[channel].period as usize
+        }
     }
 
     pub fn get_tone_volume(&self, chip: usize, channel: usize) -> usize {
-        let vol = self.w65c22[chip].ay8910.tone[channel].volume as usize;
+        if !self.mb4c && !self.w65c22[chip].enabled || self.mb4c && !self.w65c22[0].enabled {
+            return 0;
+        }
+        let vol = if !self.mb4c {
+            self.w65c22[chip].ay8910[0].tone[channel].volume as usize
+        } else {
+            self.w65c22[0].ay8910[chip].tone[channel].volume as usize
+        };
+
         if vol & 0x10 > 0 {
             // Envelope volume mode
-            self.w65c22[chip].ay8910.envelope.volume as usize & 0xf
+            if !self.mb4c {
+                self.w65c22[chip].ay8910[0].envelope.volume as usize & 0xf
+            } else {
+                self.w65c22[0].ay8910[chip].envelope.volume as usize & 0xf
+            }
         } else {
             vol & 0xf
         }
     }
 
     pub fn get_noise_level(&self, chip: usize) -> bool {
-        self.w65c22[chip].ay8910.noise.level
+        if !self.mb4c {
+            self.w65c22[chip].ay8910[0].noise.level
+        } else {
+            self.w65c22[0].ay8910[chip].noise.level
+        }
     }
 
     pub fn get_noise_period(&self, chip: usize) -> usize {
-        self.w65c22[chip].ay8910.noise.period as usize
+        if !self.mb4c {
+            self.w65c22[chip].ay8910[0].noise.period as usize
+        } else {
+            self.w65c22[0].ay8910[chip].noise.period as usize
+        }
     }
 
     pub fn get_channel_enable(&self, chip: usize) -> u8 {
-        self.w65c22[chip].ay8910.get_enable()
+        if !self.mb4c {
+            self.w65c22[chip].ay8910[0].get_enable()
+        } else {
+            self.w65c22[0].ay8910[chip].get_enable()
+        }
     }
 }
 
@@ -858,12 +892,8 @@ impl Card for Mockingboard {
         write_flag: bool,
     ) -> u8 {
         let map_addr: u8 = (addr & 0xff) as u8;
-        if map_addr < 0x80 || self.mb4c {
-            let mut addr = map_addr;
-            if self.mb4c {
-                addr = map_addr & 0xf;
-            }
-            self.w65c22[0].io_access(addr, value, write_flag)
+        if self.mb4c || map_addr < 0x80 {
+            self.w65c22[0].io_access(map_addr, value, write_flag)
         } else {
             self.w65c22[1].io_access(map_addr - 0x80, value, write_flag)
         }
@@ -1120,15 +1150,15 @@ mod test {
     fn ay8910_envelope() {
         let mut w65c22 = W65C22::new("#1");
         w65c22.reset();
-        w65c22.ay8910.envelope.set_period(1, 0);
-        w65c22.ay8910.envelope.set_shape(8);
+        w65c22.ay8910[0].envelope.set_period(1, 0);
+        w65c22.ay8910[0].envelope.set_shape(8);
 
         let mut result = Vec::new();
-        result.push(w65c22.ay8910.envelope.volume);
+        result.push(w65c22.ay8910[0].envelope.volume);
         for _ in 0..31 {
-            w65c22.ay8910.update_envelope();
-            w65c22.ay8910.update_envelope();
-            result.push(w65c22.ay8910.envelope.volume);
+            w65c22.ay8910[0].update_envelope();
+            w65c22.ay8910[0].update_envelope();
+            result.push(w65c22.ay8910[0].envelope.volume);
         }
 
         let expected_ans = [
@@ -1138,14 +1168,14 @@ mod test {
 
         assert_eq!(&result[..], expected_ans, "Expecting the sawtooth envelope");
 
-        w65c22.ay8910.envelope.count = 0;
-        w65c22.ay8910.envelope.set_shape(10);
+        w65c22.ay8910[0].envelope.count = 0;
+        w65c22.ay8910[0].envelope.set_shape(10);
         result.clear();
-        result.push(w65c22.ay8910.envelope.volume);
+        result.push(w65c22.ay8910[0].envelope.volume);
         for _ in 0..31 {
-            w65c22.ay8910.update_envelope();
-            w65c22.ay8910.update_envelope();
-            result.push(w65c22.ay8910.envelope.volume);
+            w65c22.ay8910[0].update_envelope();
+            w65c22.ay8910[0].update_envelope();
+            result.push(w65c22.ay8910[0].envelope.volume);
         }
 
         let expected_ans = [

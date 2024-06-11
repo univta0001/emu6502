@@ -500,7 +500,7 @@ impl Bus {
 
             if self.is_apple2c
                 && self.audio.mboard[0].get_mb4c()
-                && (0xc400..=0xc40f).contains(&addr)
+                && (0xc400..=0xc4ff).contains(&addr)
             {
                 let device = &mut self.audio.mboard[0];
                 device.rom_access(&mut self.mem, &mut self.video, addr, value, write_flag)
