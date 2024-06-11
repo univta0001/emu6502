@@ -8,7 +8,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.8.12"
+version = "0.8.13"
 
 [profile.test]
 opt-level = 3
