@@ -320,6 +320,7 @@ impl Bus {
             self.io_slot[2] = IODevice::None;
             self.io_slot[4] = IODevice::Mouse;
             self.io_slot[5] = IODevice::None;
+            self.audio.mboard[0].set_mb4c(false);
         }
     }
 
