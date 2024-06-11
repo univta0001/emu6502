@@ -343,6 +343,20 @@ impl Mouse {
         }
     }
 
+    pub fn set_state(&mut self, x: i32, y: i32, buttons: &[bool; 2]) {
+        self.prev_delta_x = self.delta_x;
+        self.prev_delta_y = self.delta_y;
+        self.delta_x = x as i16;
+        self.delta_y = y as i16;
+
+        if self.buttons[0] != buttons[0] || self.buttons[1] != buttons[1] {
+            self.interrupt_button = true;
+        }
+
+        self.buttons[0] = buttons[0];
+        self.buttons[1] = buttons[1];
+    }
+
     // Only called for Apple IIc system
     pub fn update_mouse_2c(&mut self) {
         if self.delta_x != 0 {
@@ -480,20 +494,6 @@ impl Mouse {
 
         self.home_mouse(mmu, slot);
         self.set_mouse(mmu, slot, 0);
-    }
-
-    pub fn set_state(&mut self, x: i32, y: i32, buttons: &[bool; 2]) {
-        self.prev_delta_x = self.delta_x;
-        self.prev_delta_y = self.delta_y;
-        self.delta_x = x as i16;
-        self.delta_y = y as i16;
-
-        if self.buttons[0] != buttons[0] || self.buttons[1] != buttons[1] {
-            self.interrupt_button = true;
-        }
-
-        self.buttons[0] = buttons[0];
-        self.buttons[1] = buttons[1];
     }
 
     pub fn reset(&mut self) {

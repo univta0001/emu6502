@@ -1874,10 +1874,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         _event_pump.keyboard_state().pressed_scancodes().count() > 0;
 
                     // Update mouse state
-                    let mut x = 0;
-                    let mut y = 0;
-                    let _ = unsafe { sdl2::sys::SDL_GetGlobalMouseState(&mut x, &mut y) };
                     let mouse_state = _event_pump.mouse_state();
+                    let x = mouse_state.x();
+                    let y = mouse_state.y();
                     let buttons = [mouse_state.left(), mouse_state.right()];
                     let delta_x = x.wrapping_sub(prev_x);
                     let delta_y = y.wrapping_sub(prev_y);
