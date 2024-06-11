@@ -417,11 +417,7 @@ impl Bus {
             if let Some(device) = return_value {
                 device.io_access(&mut self.mem, &mut self.video, addr, value, write_flag)
             } else {
-                if !self.is_apple2c {
-                    self.read_floating_bus()
-                } else {
-                    0
-                }
+                self.read_floating_bus() & 0x7f
             }
         } else {
             self.read_floating_bus()
