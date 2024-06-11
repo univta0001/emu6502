@@ -493,7 +493,20 @@ impl Bus {
                 self.read_floating_bus()
             }
         } else {
-            self.mem_read(addr)
+            if self.is_apple2c && write_flag && (0xc400..=0xc40f).contains(&addr) {
+                let device = &mut self.audio.mboard[0];
+                device.set_mb4c(true);
+            }
+
+            if self.is_apple2c
+                && self.audio.mboard[0].get_mb4c()
+                && (0xc400..=0xc40f).contains(&addr)
+            {
+                let device = &mut self.audio.mboard[0];
+                device.rom_access(&mut self.mem, &mut self.video, addr, value, write_flag)
+            } else {
+                self.mem_read(addr)
+            }
         }
     }
 

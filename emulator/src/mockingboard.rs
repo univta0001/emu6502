@@ -765,6 +765,7 @@ pub struct Mockingboard {
     w65c22: [W65C22; 2],
     rng: usize,
     cycles: usize,
+    mb4c: bool,
 }
 
 impl Mockingboard {
@@ -773,6 +774,7 @@ impl Mockingboard {
             w65c22: [W65C22::new("#1"), W65C22::new("#2")],
             rng: 1,
             cycles: 0,
+            mb4c: false,
         }
     }
 
@@ -798,6 +800,14 @@ impl Mockingboard {
         } else {
             None
         }
+    }
+
+    pub fn set_mb4c(&mut self, flag: bool) {
+        self.mb4c = flag
+    }
+
+    pub fn get_mb4c(&self) -> bool {
+        self.mb4c
     }
 
     pub fn get_tone_level(&self, chip: usize, channel: usize) -> bool {
@@ -848,8 +858,12 @@ impl Card for Mockingboard {
         write_flag: bool,
     ) -> u8 {
         let map_addr: u8 = (addr & 0xff) as u8;
-        if map_addr < 0x80 {
-            self.w65c22[0].io_access(map_addr, value, write_flag)
+        if map_addr < 0x80 || self.mb4c {
+            let mut addr = map_addr;
+            if self.mb4c {
+                addr = map_addr & 0xf;
+            }
+            self.w65c22[0].io_access(addr, value, write_flag)
         } else {
             self.w65c22[1].io_access(map_addr - 0x80, value, write_flag)
         }
