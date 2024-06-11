@@ -611,24 +611,24 @@ impl Bus {
         }
     }
 
-    fn iou_enable(&mut self, flag: bool, write_flag: bool) -> u8 {
+    fn iou_enable(&mut self, on: bool, write_flag: bool) -> u8 {
+        let val = self.read_floating_bus();
         if write_flag {
             self.mouse
                 .clear_irq_mouse(&mut self.mem, 4, STATUS_VBL_INTERRUPT);
-        }
-        let val = self.read_floating_bus();
-        if write_flag {
-            self.mouse.set_iou(flag);
+            self.mouse.set_iou(on);
             val
-        } else if flag {
-            if self.video.is_dhires_mode() {
+        } else if on {
+            if !self.video.is_dhires_mode() {
                 self.read_floating_bus_high_bit(0x80)
             } else {
                 self.read_floating_bus_high_bit(0)
             }
         } else if !self.mouse.get_iou() {
+            // IOUDISON, IOU is disabled
             self.read_floating_bus_high_bit(0x80)
         } else {
+            // IOU is enabled
             self.read_floating_bus_high_bit(0)
         }
     }
