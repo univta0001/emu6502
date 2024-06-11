@@ -198,19 +198,11 @@ impl Mouse {
     }
 
     pub fn get_delta_x(&mut self) -> i16 {
-        if self.delta_x != 0 {
-            self.delta_x
-        } else {
-            self.prev_delta_x
-        }
+        self.prev_delta_x
     }
 
     pub fn get_delta_y(&mut self) -> i16 {
-        if self.delta_y != 0 {
-            self.delta_y
-        } else {
-            self.prev_delta_y
-        }
+        self.prev_delta_y
     }
 
     fn mouse_status(&mut self, mmu: &mut Mmu, _slot: u16) {
