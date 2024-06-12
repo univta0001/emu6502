@@ -318,7 +318,7 @@ impl Bus {
     pub fn reset_apple2c_slot(&mut self) {
         if self.is_apple2c {
             self.io_slot[2] = IODevice::None;
-            self.io_slot[4] = IODevice::Mouse;
+            self.io_slot[4] = IODevice::None;
             self.io_slot[5] = IODevice::None;
             self.audio.mboard[0].set_mb4c(false);
         }
@@ -629,7 +629,7 @@ impl Bus {
         let val = self.read_floating_bus();
         if write_flag {
             self.mouse
-                .clear_irq_mouse(&mut self.mem, 4, STATUS_VBL_INTERRUPT);
+                .clear_irq_mouse(STATUS_VBL_INTERRUPT);
             self.mouse.set_iou(on);
             val
         } else if on {
@@ -836,9 +836,9 @@ impl Bus {
             0x48 => {
                 if self.is_apple2c {
                     self.mouse
-                        .clear_irq_mouse(&mut self.mem, 4, STATUS_MOVE_INTERRUPT_X0);
+                        .clear_irq_mouse(STATUS_MOVE_INTERRUPT_X0);
                     self.mouse
-                        .clear_irq_mouse(&mut self.mem, 4, STATUS_MOVE_INTERRUPT_Y0);
+                        .clear_irq_mouse(STATUS_MOVE_INTERRUPT_Y0);
                     self.read_floating_bus()
                 } else {
                     self.read_floating_bus()
@@ -914,19 +914,19 @@ impl Bus {
                     match io_addr {
                         0x58 => {
                             self.mouse
-                                .set_iou_mode(&mut self.mem, 4, STATUS_MOVE_INTERRUPT, false);
+                                .set_iou_mode(STATUS_MOVE_INTERRUPT, false);
                         }
                         0x59 => {
                             self.mouse
-                                .set_iou_mode(&mut self.mem, 4, STATUS_MOVE_INTERRUPT, true);
+                                .set_iou_mode(STATUS_MOVE_INTERRUPT, true);
                         }
                         0x5a => {
                             self.mouse
-                                .set_iou_mode(&mut self.mem, 4, STATUS_VBL_INTERRUPT, false)
+                                .set_iou_mode(STATUS_VBL_INTERRUPT, false)
                         }
                         0x5b => {
                             self.mouse
-                                .set_iou_mode(&mut self.mem, 4, STATUS_VBL_INTERRUPT, true)
+                                .set_iou_mode(STATUS_VBL_INTERRUPT, true)
                         }
                         _ => {}
                     }
@@ -995,7 +995,7 @@ impl Bus {
 
             0x63 => {
                 if self.is_apple2c {
-                    let button_status = (self.mouse.get_button_status(&mut self.mem, 4) as u8) << 7;
+                    let button_status = (self.mouse.get_button_status() as u8) << 7;
                     self.read_floating_bus_high_bit(!button_status)
                 } else if self.video.is_apple2e() {
                     let button_value = self.pushbutton_latch[2];
@@ -1060,7 +1060,7 @@ impl Bus {
 
                 if self.is_apple2c {
                     self.mouse
-                        .clear_irq_mouse(&mut self.mem, 4, STATUS_VBL_INTERRUPT);
+                        .clear_irq_mouse(STATUS_VBL_INTERRUPT);
                 }
 
                 self.read_floating_bus()

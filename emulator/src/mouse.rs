@@ -185,7 +185,7 @@ impl Mouse {
         self.iou_mode
     }
 
-    pub fn set_iou_mode(&mut self, _mmu: &mut Mmu, _slot: u16, value: u8, flag: bool) {
+    pub fn set_iou_mode(&mut self, value: u8, flag: bool) {
         if flag {
             self.iou_mode |= value;
         } else {
@@ -193,7 +193,7 @@ impl Mouse {
         }
     }
 
-    pub fn get_button_status(&mut self, _mmu: &mut Mmu, _slot: u16) -> bool {
+    pub fn get_button_status(&mut self) -> bool {
         self.buttons[0]
     }
 
@@ -309,7 +309,7 @@ impl Mouse {
         status
     }
 
-    pub fn clear_irq_mouse(&mut self, _mmu: &mut Mmu, _slot: u16, value: u8) {
+    pub fn clear_irq_mouse(&mut self, value: u8) {
         self.interrupt &= !value;
         if self.interrupt == 0 {
             self.irq_happen = 0;
