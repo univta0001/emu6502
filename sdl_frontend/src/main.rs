@@ -1576,7 +1576,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 cpu.load(&apple2c0_rom[0x4000..], 0xc000);
                 cpu.bus.mem.rom_bank = false;
             }
-            _ => {}
+            _ => {
+                panic!("Model supported: apple2, apple2p, apple2e, apple2ee, apple2c, apple2c0")
+            }
         }
     }
 
