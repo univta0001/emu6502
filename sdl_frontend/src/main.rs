@@ -12,6 +12,7 @@ use image::codecs::png::PngEncoder;
 use image::ColorType;
 use image::ImageEncoder;
 use rfd::FileDialog;
+use sdl2::audio::AudioQueue;
 use sdl2::audio::AudioSpecDesired;
 use sdl2::controller::Axis;
 use sdl2::controller::Button;
@@ -20,6 +21,7 @@ use sdl2::event::Event;
 use sdl2::event::EventType::DropFile;
 use sdl2::keyboard::Keycode;
 use sdl2::keyboard::Mod;
+use sdl2::mouse::MouseButton;
 use sdl2::pixels::Color;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::rect::Point;
@@ -715,7 +717,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         }
 
         Event::MouseButtonDown {
-            mouse_btn: sdl2::mouse::MouseButton::Middle,
+            mouse_btn: MouseButton::Middle,
             ..
         } => {
             if event_param.clipboard_text.is_empty() {
@@ -1239,11 +1241,7 @@ fn dump_track_sector_info(cpu: &CPU) {
     */
 }
 
-fn update_audio(
-    cpu: &mut CPU,
-    audio_device: &Option<sdl2::audio::AudioQueue<i16>>,
-    normal_speed: bool,
-) {
+fn update_audio(cpu: &mut CPU, audio_device: &Option<AudioQueue<i16>>, normal_speed: bool) {
     let snd = &mut cpu.bus.audio;
 
     let video_50hz = cpu.bus.video.is_video_50hz();
