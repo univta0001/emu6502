@@ -804,10 +804,7 @@ impl Bus {
             0x21 => self.video.io_access(addr, value, write_flag),
 
             0x28 => {
-                if write_flag
-                    && self.is_apple2c
-                    && (self.mem.rom_bank || self.mem.mem_read(0xfbb0) != 0xff)
-                {
+                if write_flag && self.is_apple2c && self.mem.mem_read(0xfbb0) != 0xff {
                     // Only set rom_bank on later Apple IIc editions and not on original IIc
                     self.mem.set_rom_bank(!self.mem.rom_bank())
                 }
