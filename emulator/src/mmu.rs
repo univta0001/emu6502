@@ -310,10 +310,12 @@ impl Mmu {
             0xea0 => self.mig_bank = 0,
 
             _ => {
+                /*
                 println!(
                     "Unrecognized MIG command {:04x} {:02x} Write_Flag:{} {:02x}",
                     map_addr, value, write_flag, ret_value
                 )
+                */
             }
         }
 

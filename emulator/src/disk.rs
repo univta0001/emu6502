@@ -2481,8 +2481,7 @@ impl Tick for DiskDrive {
         }
 
         // Update rotor pending ticks
-        for drive in 0..self.drive.len() {
-            let disk = &mut self.drive[drive];
+        for disk in &mut self.drive {
             disk.tick();
         }
 

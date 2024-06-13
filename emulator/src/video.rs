@@ -893,16 +893,16 @@ impl Video {
             0x0e => {
                 if self.apple2e && write_flag {
                     self.altchar = false;
-                    for i in 0..self.video_dirty.len() {
-                        self.video_dirty[i] = 1;
+                    for item in &mut self.video_dirty {
+                        *item = 1;
                     }
                 }
             }
             0x0f => {
                 if self.apple2e && write_flag {
                     self.altchar = true;
-                    for i in 0..self.video_dirty.len() {
-                        self.video_dirty[i] = 1;
+                    for item in &mut self.video_dirty {
+                        *item = 1;
                     }
                 }
             }
@@ -1008,8 +1008,8 @@ impl Video {
         let mut found = false;
         let mut start = 0;
         let mut end = 0;
-        for i in 0..24 {
-            if self.video_dirty[i] > 0 {
+        for (i, &item) in self.video_dirty.iter().enumerate() {
+            if item > 0 {
                 if !found {
                     start = i;
                     end = i;
@@ -1031,8 +1031,8 @@ impl Video {
     }
 
     pub fn invalidate_video_cache(&mut self) {
-        for i in 0..self.video_cache.len() {
-            self.video_cache[i] = u32::MAX;
+        for item in &mut self.video_cache {
+            *item = u32::MAX;
         }
     }
 
