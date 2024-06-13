@@ -288,8 +288,11 @@ impl Mmu {
             0xe20..=0xe3f => {
                 if write_flag {
                     self.mig[self.mig_bank + (map_addr & 0x1f)] = value;
+                    self.mig_bank = (self.mig_bank + 0x20) & 0x7ff;
+                } else {
+                    ret_value = self.mig[self.mig_bank + (map_addr & 0x1f)];
+                    self.mig_bank = (self.mig_bank + 0x20) & 0x7ff;
                 }
-                self.mig_bank = (self.mig_bank + 0x20) & 0xfff;
             }
 
             0xe40..=0xe5f => {
@@ -304,15 +307,13 @@ impl Mmu {
                 }
             }
 
-            0xea0..=0xebf => self.mig_bank = 0,
+            0xea0 => self.mig_bank = 0,
 
             _ => {
-                /*
                 println!(
-                    "Unrecognized MIG command {:04x} {:02x} Write_Flag:{}",
-                    map_addr, value, write_flag
+                    "Unrecognized MIG command {:04x} {:02x} Write_Flag:{} {:02x}",
+                    map_addr, value, write_flag, ret_value
                 )
-                */
             }
         }
 
