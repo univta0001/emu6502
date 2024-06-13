@@ -216,15 +216,7 @@ impl Mmu {
     }
 
     pub fn mem_write(&mut self, addr: u16, data: u8) {
-        if (0xc100..=0xffff).contains(&addr) {
-            if !self.rom_bank {
-                self.cpu_memory[addr as usize] = data
-            } else {
-                self.alt_cpu_memory[addr as usize] = data
-            }
-        } else {
-            self.cpu_memory[addr as usize] = data
-        }
+        self.cpu_memory[addr as usize] = data
     }
 
     pub fn mem_bank1_read(&self, addr: u16) -> u8 {

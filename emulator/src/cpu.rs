@@ -971,8 +971,12 @@ impl CPU {
     }
 
     pub fn load(&mut self, program: &[u8], offset: u16) {
-        for (i, item) in program.iter().enumerate() {
-            self.bus.mem_write(offset + i as u16, *item);
+        for (i, &item) in program.iter().enumerate() {
+            if !self.bus.mem.rom_bank {
+                self.bus.mem.cpu_memory[offset as usize + i] = item;
+            } else {
+                self.bus.mem.alt_cpu_memory[offset as usize + i] = item;
+            }
         }
     }
 

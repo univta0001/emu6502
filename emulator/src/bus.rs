@@ -628,8 +628,7 @@ impl Bus {
     fn iou_enable(&mut self, on: bool, write_flag: bool) -> u8 {
         let val = self.read_floating_bus();
         if write_flag {
-            self.mouse
-                .clear_irq_mouse(STATUS_VBL_INTERRUPT);
+            self.mouse.clear_irq_mouse(STATUS_VBL_INTERRUPT);
             self.mouse.set_iou(on);
             val
         } else if on {
@@ -835,10 +834,8 @@ impl Bus {
 
             0x48 => {
                 if self.is_apple2c {
-                    self.mouse
-                        .clear_irq_mouse(STATUS_MOVE_INTERRUPT_X0);
-                    self.mouse
-                        .clear_irq_mouse(STATUS_MOVE_INTERRUPT_Y0);
+                    self.mouse.clear_irq_mouse(STATUS_MOVE_INTERRUPT_X0);
+                    self.mouse.clear_irq_mouse(STATUS_MOVE_INTERRUPT_Y0);
                     self.read_floating_bus()
                 } else {
                     self.read_floating_bus()
@@ -913,21 +910,13 @@ impl Bus {
                 if self.is_apple2c && self.mouse.get_iou() {
                     match io_addr {
                         0x58 => {
-                            self.mouse
-                                .set_iou_mode(STATUS_MOVE_INTERRUPT, false);
+                            self.mouse.set_iou_mode(STATUS_MOVE_INTERRUPT, false);
                         }
                         0x59 => {
-                            self.mouse
-                                .set_iou_mode(STATUS_MOVE_INTERRUPT, true);
+                            self.mouse.set_iou_mode(STATUS_MOVE_INTERRUPT, true);
                         }
-                        0x5a => {
-                            self.mouse
-                                .set_iou_mode(STATUS_VBL_INTERRUPT, false)
-                        }
-                        0x5b => {
-                            self.mouse
-                                .set_iou_mode(STATUS_VBL_INTERRUPT, true)
-                        }
+                        0x5a => self.mouse.set_iou_mode(STATUS_VBL_INTERRUPT, false),
+                        0x5b => self.mouse.set_iou_mode(STATUS_VBL_INTERRUPT, true),
                         _ => {}
                     }
                 } else {
@@ -1059,8 +1048,7 @@ impl Bus {
                 self.set_paddle_trigger(self.get_cycles());
 
                 if self.is_apple2c {
-                    self.mouse
-                        .clear_irq_mouse(STATUS_VBL_INTERRUPT);
+                    self.mouse.clear_irq_mouse(STATUS_VBL_INTERRUPT);
                 }
 
                 self.read_floating_bus()

@@ -1322,6 +1322,7 @@ impl DiskDrive {
 
     pub fn reset(&mut self) {
         self.motor_status(false);
+        self.iwm_mode = 0;
     }
 
     pub fn set_iwm(&mut self, flag: bool) {
