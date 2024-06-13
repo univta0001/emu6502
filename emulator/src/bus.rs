@@ -274,6 +274,7 @@ impl Bus {
         if self.is_apple2c {
             self.mem.intcxrom = true;
             self.reset_apple2c_slot();
+            self.mem.reset_mig();
         }
 
         if !self.disable_audio {
@@ -321,6 +322,10 @@ impl Bus {
             self.io_slot[4] = IODevice::None;
             self.io_slot[5] = IODevice::None;
             self.audio.mboard[0].set_mb4c(false);
+
+            if self.mem.cpu_memory[0xfbbf] == 0x5 {
+                self.mem.a2cp = true;
+            }
         }
     }
 
@@ -505,6 +510,15 @@ impl Bus {
             {
                 let device = &mut self.audio.mboard[0];
                 device.rom_access(&mut self.mem, &mut self.video, addr, value, write_flag)
+            } else if self.mem.a2cp
+                && self.mem.rom_bank
+                && ((0xce00..=0xceff).contains(&addr)
+                    || (0xcc00..=0xccff).contains(&addr)
+                    || (0xde00..=0xdeff).contains(&addr))
+            {
+                let ret_value = self.read_floating_bus();
+                self.mem
+                    .mig_io_access(&mut self.disk, addr, value, ret_value, write_flag)
             } else {
                 self.mem_read(addr)
             }
@@ -805,6 +819,7 @@ impl Bus {
             0x28 => {
                 if write_flag && self.is_apple2c && self.mem.cpu_memory[0xfbbf] != 0xff {
                     // Only set rom_bank on later Apple IIc editions and not on original IIc
+                    self.mem.reset_mig_bank();
                     self.mem.set_rom_bank(!self.mem.rom_bank())
                 }
                 self.read_floating_bus()
@@ -1158,7 +1173,18 @@ impl Mem for Bus {
                         self.mem.intc8rom = false;
                     }
                     if self.mem.intcxrom || self.mem.intc8rom || self.is_apple2c {
-                        self.mem_read(addr)
+                        if self.mem.a2cp
+                            && self.mem.rom_bank
+                            && ((0xce00..=0xceff).contains(&addr)
+                                || (0xcc00..=0xccff).contains(&addr)
+                                || (0xde00..=0xdeff).contains(&addr))
+                        {
+                            let ret_value = self.read_floating_bus();
+                            self.mem
+                                .mig_io_access(&mut self.disk, addr, 0, ret_value, false)
+                        } else {
+                            self.mem_read(addr)
+                        }
                     } else {
                         self.iodevice_rom_access(addr, 0, false)
                     }
@@ -1189,6 +1215,9 @@ impl Mem for Bus {
                         addr, data
                     );
                     */
+                    if self.mem.a2cp && self.mem.rom_bank {
+                        self.iodevice_rom_access(addr, data, true);
+                    }
                 }
 
                 0xcfff => {

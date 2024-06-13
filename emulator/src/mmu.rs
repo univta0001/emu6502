@@ -1,4 +1,5 @@
 use crate::bus::{Card, ROM_END, ROM_START};
+use crate::disk::DiskDrive;
 use crate::video::Video;
 
 #[cfg(feature = "serde_support")]
@@ -79,6 +80,12 @@ pub struct Mmu {
     )]
     pub ext_aux_mem: Option<Vec<u8>>,
 
+    pub a2cp: bool,
+
+    mig: Vec<u8>,
+    mig_state: usize,
+    mig_bank: usize,
+
     saturn_flag: bool,
     saturn_bank: u8,
     saturn_slot: u8,
@@ -116,9 +123,15 @@ impl Mmu {
             aux_bank: 0,
             ext_aux_mem: None,
 
+            a2cp: false,
+
             saturn_flag: false,
             saturn_bank: 0,
             saturn_slot: 0,
+
+            mig: vec![0; 0x800],
+            mig_bank: 0,
+            mig_state: 0,
         }
     }
 
@@ -135,6 +148,22 @@ impl Mmu {
         self.intcxrom = false;
         self.saturn_bank = 0;
         self.rom_bank = false;
+        self.a2cp = false;
+        self.mig_bank = 0;
+    }
+
+    pub fn reset_mig(&mut self) {
+        self.reset_mig_bank();
+        self.mig_state = 0;
+        self.rom_bank = false;
+    }
+
+    pub fn reset_mig_bank(&mut self) {
+        self.mig_bank = 0
+    }
+
+    pub fn get_mig_state(&self) -> usize {
+        self.mig_state
     }
 
     pub fn set_saturn_memory(&mut self, flag: bool) {
@@ -217,6 +246,77 @@ impl Mmu {
 
     pub fn mem_write(&mut self, addr: u16, data: u8) {
         self.cpu_memory[addr as usize] = data
+    }
+
+    fn mig_change_state(&mut self, drive: &mut DiskDrive, new_state: usize) {
+        let motor_on = drive.is_motor_on();
+        let invert = new_state != 0 && motor_on;
+        let old_invert = self.mig_state != 0 && motor_on;
+        if invert != old_invert {
+            let drive_select = drive.drive_selected();
+            drive.drive_select(drive_select ^ 1);
+        }
+        self.mig_state = new_state;
+    }
+
+    pub fn mig_io_access(
+        &mut self,
+        drive: &mut DiskDrive,
+        addr: u16,
+        value: u8,
+        return_value: u8,
+        write_flag: bool,
+    ) -> u8 {
+        let map_addr = (addr & 0xfff) as usize;
+        let mut ret_value = return_value;
+
+        match map_addr {
+            0xc40..=0xc5f if write_flag => drive.reset(),
+
+            0xc80..=0xc9f if write_flag => self.mig_change_state(drive, self.mig_state | 2),
+
+            0xcc0..=0xcdf if write_flag => self.mig_change_state(drive, self.mig_state & !2),
+
+            0xe00..=0xe1f => {
+                if write_flag {
+                    self.mig[self.mig_bank + (map_addr & 0x1f)] = value;
+                } else {
+                    ret_value = self.mig[self.mig_bank + (map_addr & 0x1f)];
+                }
+            }
+
+            0xe20..=0xe3f => {
+                if write_flag {
+                    self.mig[self.mig_bank + (map_addr & 0x1f)] = value;
+                }
+                self.mig_bank = (self.mig_bank + 0x20) & 0xfff;
+            }
+
+            0xe40..=0xe5f => {
+                if write_flag {
+                    self.mig_change_state(drive, self.mig_state | 1)
+                }
+            }
+
+            0xe60..=0xe7f => {
+                if write_flag {
+                    self.mig_change_state(drive, self.mig_state & !1)
+                }
+            }
+
+            0xea0..=0xebf => self.mig_bank = 0,
+
+            _ => {
+                /*
+                println!(
+                    "Unrecognized MIG command {:04x} {:02x} Write_Flag:{}",
+                    map_addr, value, write_flag
+                )
+                */
+            }
+        }
+
+        ret_value
     }
 
     pub fn mem_bank1_read(&self, addr: u16) -> u8 {

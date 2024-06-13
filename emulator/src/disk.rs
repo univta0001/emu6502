@@ -2576,7 +2576,7 @@ impl Card for DiskDrive {
 
     fn io_access(
         &mut self,
-        _mem: &mut Mmu,
+        mem: &mut Mmu,
         _video: &mut Video,
         addr: u16,
         value: u8,
@@ -2647,9 +2647,16 @@ impl Card for DiskDrive {
                     match mode {
                         // Q6 on, Q7 off, Read status register.
                         1 => {
+                            let mut status = self.is_write_protected() as u8 & 0x1;
+
+                            // Return status = 1 for Disk 3.5 or Internal Drive
+                            if mem.get_mig_state() & 3 != 0 {
+                                status = 1;
+                            }
+
                             (self.iwm_mode & 0x1f)
                                 | (self.is_motor_on() as u8 & 0x1) << 5
-                                | (self.is_write_protected() as u8 & 0x1) << 7
+                                | status << 7
                         }
 
                         // Q6 off, Q7 on, Read handshake register. IWM is always ready.
