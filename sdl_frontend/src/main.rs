@@ -785,21 +785,21 @@ USAGE:
 FLAGS:
     -h, --help         Prints help information
     -V, --version      Prints version information
-    --50hz             Enable 50 Hz emulation     
+    --50hz             Enable 50 Hz emulation
     --nojoystick       Disable joystick
     --xtrim            Set joystick x-trim value
     --ytrim            Set joystick y-trim value
     --swapbuttons      Swap the paddle 0 and paddle 1 buttons
     -r no of pages     Emulate RAMworks III card with 1 to 127 pages
     --rf size          Ramfactor memory size in KB
-    -m, --model MODEL  Set apple 2 model. 
+    -m, --model MODEL  Set apple 2 model.
                        Valid value: apple2p,apple2e,apple2ee,apple2c,apple2c0,
                                     apple2c3,apple2c4,apple2cp
     --d1 PATH          Set the file path for disk 1 drive at Slot 6 Drive 1
     --d2 PATH          Set the file path for disk 2 drive at Slot 6 Drive 2
     --h1 PATH          Set the file path for hard disk 1
     --h2 PATH          Set the file path for hard disk 2
-    --s1 device        Device slot 1 
+    --s1 device        Device slot 1
                        Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
                               diskii,diskii13,saturn
     --s2 device        Device slot 2
