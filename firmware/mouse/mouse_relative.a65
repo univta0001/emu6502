@@ -26,7 +26,7 @@ findmouse       lda    #$ff
                 sta    $27
 notfound        inc    $27
                 lda    $27
-                cmp    #$c7
+                cmp    #$c8
                 bcs    notfound1
                 ldy    #$05
                 lda    ($26),y
