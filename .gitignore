@@ -37,3 +37,4 @@ Cargo.lock
 *.py
 *.class
 *.java
+*.rom

@@ -793,7 +793,8 @@ FLAGS:
     -r no of pages     Emulate RAMworks III card with 1 to 127 pages
     --rf size          Ramfactor memory size in KB
     -m, --model MODEL  Set apple 2 model. 
-                       Valid value: apple2p,apple2e,apple2ee,apple2c,apple2c0
+                       Valid value: apple2p,apple2e,apple2ee,apple2c,apple2c0,
+                                    apple2c3,apple2c4,apple2cp
     --d1 PATH          Set the file path for disk 1 drive at Slot 6 Drive 1
     --d2 PATH          Set the file path for disk 2 drive at Slot 6 Drive 2
     --h1 PATH          Set the file path for hard disk 1
@@ -1421,6 +1422,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let apple2ee_rom: Vec<u8> = include_bytes!("../../Apple2e_Enhanced.rom").to_vec();
     let apple2c_rom: Vec<u8> = include_bytes!("../../Apple2c_RomFF.rom").to_vec();
     let apple2c0_rom: Vec<u8> = include_bytes!("../../Apple2c_Rom00.rom").to_vec();
+    let apple2c3_rom: Vec<u8> = include_bytes!("../../Apple2c_Rom03.rom").to_vec();
+    let apple2c4_rom: Vec<u8> = include_bytes!("../../Apple2c_Rom04.rom").to_vec();
+    let apple2cp_rom: Vec<u8> = include_bytes!("../../Apple2c_plus.rom").to_vec();
 
     // Create bus
     let bus = Bus::default();
@@ -1562,22 +1566,20 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut apple2p = false;
     if let Some(model) = pargs.opt_value_from_str::<_, String>(["-m", "--model"])? {
         match &model[..] {
-            "apple2" => cpu.load(&apple2_rom, 0xd000),
+            "apple2" => initialize_apple_system(&mut cpu, &apple2_rom, 0xd000, false),
             "apple2p" => {
                 apple2p = true;
-                cpu.load(&apple2p_rom, 0xd000)
+                initialize_apple_system(&mut cpu, &apple2p_rom, 0xd000, false)
             }
-            "apple2e" => cpu.load(&apple2e_rom, 0xc000),
-            "apple2ee" => cpu.load(&apple2ee_rom, 0xc000),
-            "apple2c" => cpu.load(&apple2c_rom, 0xc000),
-            "apple2c0" => {
-                cpu.load(&apple2c0_rom[0..0x4000], 0xc000);
-                cpu.bus.mem.rom_bank = true;
-                cpu.load(&apple2c0_rom[0x4000..], 0xc000);
-                cpu.bus.mem.rom_bank = false;
-            }
+            "apple2e" => initialize_apple_system(&mut cpu, &apple2e_rom, 0xc000, false),
+            "apple2ee" => initialize_apple_system(&mut cpu, &apple2ee_rom, 0xc000, false),
+            "apple2c" => initialize_apple_system(&mut cpu, &apple2c_rom, 0xc000, false),
+            "apple2c0" => initialize_apple_system(&mut cpu, &apple2c0_rom, 0xc000, true),
+            "apple2c3" => initialize_apple_system(&mut cpu, &apple2c3_rom, 0xc000, true),
+            "apple2c4" => initialize_apple_system(&mut cpu, &apple2c4_rom, 0xc000, true),
+            "apple2cp" => initialize_apple_system(&mut cpu, &apple2cp_rom, 0xc000, true),
             _ => {
-                panic!("Model supported: apple2, apple2p, apple2e, apple2ee, apple2c, apple2c0")
+                panic!("Model supported: apple2, apple2p, apple2e, apple2ee, apple2c, apple2c0, apple2c3, apple2c4, apple2cp");
             }
         }
     }
@@ -1968,4 +1970,15 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     */
 
     Ok(())
+}
+
+fn initialize_apple_system(cpu: &mut CPU, rom_image: &[u8], offset: u16, extended_rom: bool) {
+    if !extended_rom {
+        cpu.load(rom_image, offset);
+    } else {
+        cpu.load(&rom_image[0..0x4000], 0xc000);
+        cpu.bus.mem.rom_bank = true;
+        cpu.load(&rom_image[0x4000..], 0xc000);
+        cpu.bus.mem.rom_bank = false;
+    }
 }
