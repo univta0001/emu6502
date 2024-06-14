@@ -323,8 +323,12 @@ impl Bus {
             self.io_slot[5] = IODevice::None;
             self.audio.mboard[0].set_mb4c(false);
 
-            if self.mem.cpu_memory[0xfbbf] == 0x5 {
-                self.mem.a2cp = true;
+            if self.mem.cpu_memory[0xfbbf] >= 0x3 && self.mem.cpu_memory[0xfbbf] <= 5 {
+                self.io_slot[4] = IODevice::RamFactor;
+            }
+
+            if self.mem.cpu_memory[0xfbbf] == 5 {
+                self.mem.a2cp = true
             }
         }
     }
@@ -817,7 +821,7 @@ impl Bus {
             0x21 => self.video.io_access(addr, value, write_flag),
 
             0x28 => {
-                if write_flag && self.is_apple2c && self.mem.cpu_memory[0xfbbf] != 0xff {
+                if self.is_apple2c && self.mem.cpu_memory[0xfbbf] != 0xff {
                     // Only set rom_bank on later Apple IIc editions and not on original IIc
                     self.mem.reset_mig_bank();
                     self.mem.set_rom_bank(!self.mem.rom_bank())
