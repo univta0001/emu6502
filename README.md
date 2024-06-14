@@ -1,4 +1,4 @@
-# Apple //e / ][+ emulator in Rust
+# Apple IIc / //e / ][+ emulator in Rust
 
 ## What is this?
 
