@@ -514,12 +514,7 @@ impl Bus {
             {
                 let device = &mut self.audio.mboard[0];
                 device.rom_access(&mut self.mem, &mut self.video, addr, value, write_flag)
-            } else if self.mem.a2cp
-                && self.mem.rom_bank
-                && ((0xce00..=0xceff).contains(&addr)
-                    || (0xcc00..=0xccff).contains(&addr)
-                    || (0xde00..=0xdeff).contains(&addr))
-            {
+            } else if self.mem.a2cp && self.mem.rom_bank && (0xcc00..=0xceff).contains(&addr) {
                 let ret_value = self.mem_read(addr);
                 self.mem
                     .mig_io_access(&mut self.disk, addr, value, ret_value, write_flag)
@@ -1177,12 +1172,7 @@ impl Mem for Bus {
                         self.mem.intc8rom = false;
                     }
                     if self.mem.intcxrom || self.mem.intc8rom || self.is_apple2c {
-                        if self.mem.a2cp
-                            && self.mem.rom_bank
-                            && ((0xce00..=0xceff).contains(&addr)
-                                || (0xcc00..=0xccff).contains(&addr)
-                                || (0xde00..=0xdeff).contains(&addr))
-                        {
+                        if self.mem.a2cp && self.mem.rom_bank && (0xcc00..=0xceff).contains(&addr) {
                             let ret_value = self.mem_read(addr);
                             self.mem
                                 .mig_io_access(&mut self.disk, addr, 0, ret_value, false)

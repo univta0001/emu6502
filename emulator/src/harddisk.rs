@@ -250,7 +250,7 @@ impl HardDisk {
     fn low_disk_block_size(&mut self) -> u8 {
         let disk = &mut self.drive[self.drive_select];
         if !disk.loaded {
-            return 0
+            return 0;
         }
         ((disk.data_len / HD_BLOCK_SIZE) & 0xff) as u8
     }
@@ -258,7 +258,7 @@ impl HardDisk {
     fn high_disk_block_size(&mut self) -> u8 {
         let disk = &mut self.drive[self.drive_select];
         if !disk.loaded {
-            return 0
+            return 0;
         }
         (((disk.data_len / HD_BLOCK_SIZE) & 0xff00) >> 8) as u8
     }
