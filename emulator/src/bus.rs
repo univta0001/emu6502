@@ -520,7 +520,7 @@ impl Bus {
                     || (0xcc00..=0xccff).contains(&addr)
                     || (0xde00..=0xdeff).contains(&addr))
             {
-                let ret_value = self.self.mem_read(addr);
+                let ret_value = self.mem_read(addr);
                 self.mem
                     .mig_io_access(&mut self.disk, addr, value, ret_value, write_flag)
             } else {
@@ -1183,7 +1183,7 @@ impl Mem for Bus {
                                 || (0xcc00..=0xccff).contains(&addr)
                                 || (0xde00..=0xdeff).contains(&addr))
                         {
-                            let ret_value = self.self.mem_read(addr);
+                            let ret_value = self.mem_read(addr);
                             self.mem
                                 .mig_io_access(&mut self.disk, addr, 0, ret_value, false)
                         } else {
