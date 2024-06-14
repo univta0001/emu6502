@@ -57,8 +57,8 @@ hd_command = $c082
 hd_unitnum = $c083
 hd_memblock  = $c084
 hd_diskblock = $c086
-hd_disklen_low = $c088
-hd_disklen_high = $c089
+hd_disklen_low = $c089
+hd_disklen_high = $c08a
 
 ;hd_nextbyte = $c088	; legacy read-only port (still supported by AppleWin)
 

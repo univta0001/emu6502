@@ -22,12 +22,12 @@ findmouse       lda    #$ff
                 sta    $07
                 lda    #$00
                 sta    $26
-                lda    #$c0
+                lda    #$c8
+                ldx    #$08
                 sta    $27
-notfound        inc    $27
-                lda    $27
-                cmp    #$c8
-                bcs    notfound1
+notfound        dec    $27
+                dex
+                beq    notfound1
                 ldy    #$05
                 lda    ($26),y
                 cmp    #$38
@@ -49,10 +49,8 @@ notfound        inc    $27
                 cmp    #$20
                 bne    notfound
                 lda    $27
-                ora    #$c0
                 sta    $07
                 sta    mouse_entry1+2
-                lda    $27
                 asl
                 asl
                 asl
