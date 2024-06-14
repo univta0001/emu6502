@@ -829,9 +829,6 @@ impl Mockingboard {
     }
 
     pub fn get_tone_volume(&self, chip: usize, channel: usize) -> usize {
-        if !self.mb4c && !self.w65c22[chip].enabled || self.mb4c && !self.w65c22[0].enabled {
-            return 0;
-        }
         let vol = if !self.mb4c {
             self.w65c22[chip].ay8910[0].tone[channel].volume as usize
         } else {
