@@ -120,11 +120,11 @@ fn translate_key_to_apple_key(
         return (false, 0);
     }
 
-    if keycode as u16 >= 0x100 {
+    if keycode.into_i32() >= 0x100 {
         return (false, 0);
     }
 
-    let mut value = keycode as i16 & 0x7f;
+    let mut value = keycode.into_i32() as i16 & 0x7f;
     let shift_mode = keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD);
     let ctrl_mode = keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD);
 
