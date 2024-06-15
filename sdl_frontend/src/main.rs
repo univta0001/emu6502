@@ -105,6 +105,21 @@ fn translate_key_to_apple_key(
         return (false, 0);
     }
 
+    if [
+        Keycode::Pause,
+        Keycode::Home,
+        Keycode::PageUp,
+        Keycode::PageDown,
+        Keycode::End,
+        Keycode::Application,
+        Keycode::LGui,
+        Keycode::RGui,
+    ]
+    .contains(&keycode)
+    {
+        return (false, 0);
+    }
+
     if keycode as u16 >= 0x100 {
         return (false, 0);
     }
