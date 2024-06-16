@@ -99,6 +99,9 @@ impl Envelope {
 
     fn set_period(&mut self, fine: u8, coarse: u8) {
         self.period = (coarse as u16) * 256 + (fine as u16)
+        if self.period == 0 {
+            self.period = 1;
+        }
     }
 
     fn set_shape(&mut self, shape: u8) {
