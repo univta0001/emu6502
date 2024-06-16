@@ -99,9 +99,6 @@ impl Envelope {
 
     fn set_period(&mut self, fine: u8, coarse: u8) {
         self.period = (coarse as u16) * 256 + (fine as u16)
-        if self.period == 0 {
-            self.period = 1;
-        }
     }
 
     fn set_shape(&mut self, shape: u8) {
@@ -214,10 +211,10 @@ impl AY8910 {
 
     fn update_envelope(&mut self) {
         let item = &mut self.envelope;
+        let mut env_period = item.period as usize * 2;
         if item.period == 0 {
-            return;
+            env_period = 1;
         }
-        let env_period = item.period as usize * 2;
         if !item.holding {
             item.count += 1;
             if item.count >= env_period {
