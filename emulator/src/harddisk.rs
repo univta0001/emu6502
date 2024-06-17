@@ -51,7 +51,11 @@ const ROM: [u8; 256] = [
 */
 
 const HD_BLOCK_SIZE: usize = 512;
-const CYCLES_FOR_RW_BLOCK: usize = HD_BLOCK_SIZE * 8;
+const CYCLES_FOR_RW_BLOCK: usize = HD_BLOCK_SIZE;
+const BLK_CMD_STATUS: u8 = 0x00;
+const BLK_CMD_READ: u8 = 0x01;
+const BLK_CMD_WRITE: u8 = 0x02;
+const BLK_CMD_FORMAT: u8 = 0x03;
 
 /*
 Memory map for hard disk (derived from AppleWin)
@@ -132,6 +136,7 @@ pub enum DeviceStatus {
     DeviceIoError = 0x27,
     DeviceNotConnected = 0x28,
     DeviceWriteProtected = 0x2b,
+    DeviceBadControl = 0x21,
     DeviceOffline = 0x2f,
 }
 
@@ -247,20 +252,33 @@ impl HardDisk {
         Ok(absolute_path)
     }
 
-    fn low_disk_block_size(&mut self) -> u8 {
-        let disk = &mut self.drive[self.drive_select];
+    fn low_disk_block_size(&self) -> u8 {
+        let disk = &self.drive[self.drive_select];
         if !disk.loaded {
             return 0;
         }
         ((disk.data_len / HD_BLOCK_SIZE) & 0xff) as u8
     }
 
-    fn high_disk_block_size(&mut self) -> u8 {
-        let disk = &mut self.drive[self.drive_select];
+    fn high_disk_block_size(&self) -> u8 {
+        let disk = &self.drive[self.drive_select];
         if !disk.loaded {
             return 0;
         }
         (((disk.data_len / HD_BLOCK_SIZE) & 0xff00) >> 8) as u8
+    }
+
+    fn write_data_to_mmu(mmu: &mut Mmu, video: &mut Video, addr: u16, data: u8) {
+        mmu.unclocked_addr_write(addr, data);
+
+        // Shadow it to the video ram
+        if (0x400..=0xbff).contains(&addr) || (0x2000..=0x5fff).contains(&addr) {
+            if mmu.is_aux_memory(addr, true) {
+                video.video_aux[addr as usize] = data;
+            } else {
+                video.video_main[addr as usize] = data;
+            }
+        }
     }
 }
 
@@ -365,7 +383,7 @@ impl Card for HardDisk {
                 if disk.loaded {
                     match self.command {
                         // Status
-                        0x0 => {
+                        BLK_CMD_STATUS => {
                             if disk.data_len == 0 {
                                 disk.error = 1;
                                 DeviceStatus::DeviceIoError as u8
@@ -375,7 +393,7 @@ impl Card for HardDisk {
                         }
 
                         // Read Block
-                        0x1 => {
+                        BLK_CMD_READ => {
                             let block_offset = disk.disk_block as usize * HD_BLOCK_SIZE;
                             let start = block_offset + disk.offset;
                             let end = block_offset + disk.offset + HD_BLOCK_SIZE;
@@ -392,18 +410,7 @@ impl Card for HardDisk {
                                         return DeviceStatus::DeviceIoError as u8;
                                     }
 
-                                    mmu.unclocked_addr_write(addr, *data);
-
-                                    // Shadow it to the video ram
-                                    if (0x400..=0xbff).contains(&addr)
-                                        || (0x2000..=0x5fff).contains(&addr)
-                                    {
-                                        if mmu.is_aux_memory(addr, true) {
-                                            video.video_aux[addr as usize] = *data;
-                                        } else {
-                                            video.video_main[addr as usize] = *data;
-                                        }
-                                    }
+                                    Self::write_data_to_mmu(mmu, video, addr, *data);
                                 }
                                 disk.error = 0;
                                 disk.busy_cycle = CYCLES_FOR_RW_BLOCK;
@@ -415,7 +422,7 @@ impl Card for HardDisk {
                         }
 
                         // Write Block
-                        0x2 => {
+                        BLK_CMD_WRITE => {
                             if disk.write_protect {
                                 disk.error = 1;
                                 return DeviceStatus::DeviceWriteProtected as u8;
@@ -479,7 +486,7 @@ impl Card for HardDisk {
                         }
 
                         // Format
-                        0x3 => {
+                        BLK_CMD_FORMAT => {
                             if disk.data_len == 0 {
                                 disk.error = 1;
                                 return DeviceStatus::DeviceOffline as u8;
@@ -592,13 +599,18 @@ impl Card for HardDisk {
                 ((disk.disk_block & 0xff00) >> 8) as u8
             }
 
-            // 24 bit High Disk Block
+            // Support AppleWin Legacy I/O for old HDD firmware
             0x8 => {
                 let disk = &mut self.drive[self.drive_select];
-                if write_flag {
-                    disk.disk_block = disk.disk_block & 0xffff | (value as u32) << 16
+                if !write_flag {
+                    let ret_value = disk.raw_data[disk.offset];
+                    if disk.offset + 1 < disk.data_len {
+                        disk.offset += 1
+                    }
+                    ret_value
+                } else {
+                    0
                 }
-                ((disk.disk_block & 0xff0000) >> 16) as u8
             }
 
             // Low Disk Len block
