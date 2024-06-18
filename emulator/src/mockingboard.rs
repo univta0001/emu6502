@@ -52,10 +52,7 @@ impl Noise {
 
     fn set_period(&mut self, value: u8) {
         self.period = value & 0x1f;
-        if self.period == 0 {
-            self.period = 0x1f;
-        }
-        self.count = 0;
+        self.count = (2 * self.period) as usize;
     }
 }
 
@@ -201,9 +198,9 @@ impl AY8910 {
 
     fn update_noise(&mut self) {
         let env_period = self.noise.period as usize * 2;
-        self.noise.count += 1;
-        if self.noise.count >= env_period {
-            self.noise.count -= env_period;
+        self.noise.count = self.noise.count.wrapping_sub(1) & 0x1f;
+        if self.noise.count == 0 {
+            self.noise.count = env_period;
             let rng_value = self.get_noise_value();
             self.noise.level = rng_value & 0x1 > 0;
         }
