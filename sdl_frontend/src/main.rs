@@ -120,7 +120,7 @@ fn translate_key_to_apple_key(
         return (false, 0);
     }
 
-    if keycode.into_i32() >= 0x100 {
+    if keycode.into_i32() as i16 >= 0x100 {
         return (false, 0);
     }
 

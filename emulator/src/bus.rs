@@ -271,6 +271,9 @@ impl Bus {
         self.annunciator[2] = false;
         self.annunciator[3] = false;
 
+        // Configure the smartport for hard disk
+        self.reset_smartport();
+
         if self.is_apple2c {
             self.mem.intcxrom = true;
             self.reset_apple2c_slot();
@@ -314,6 +317,18 @@ impl Bus {
     pub fn set_apple2c(&mut self, flag: bool) {
         self.is_apple2c = flag;
         self.reset_apple2c_slot();
+    }
+
+    pub fn reset_smartport(&mut self) {
+        let a2c = self.is_apple2c
+            && self.mem.cpu_memory[0xfbbf] >= 0x3
+            && self.mem.cpu_memory[0xfbbf] <= 5;
+        let a2ee = self.mem.cpu_memory[0xfbb3] == 0x06 && self.mem.cpu_memory[0xfbc0] == 0xe0;
+        if a2c || a2ee {
+            self.harddisk.set_smartport(true);
+        } else {
+            self.harddisk.set_smartport(false);
+        }
     }
 
     pub fn reset_apple2c_slot(&mut self) {
