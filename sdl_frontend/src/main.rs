@@ -1429,17 +1429,17 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     //let _function_test: Vec<u8> = std::fs::read("6502_functional_test.bin").unwrap();
     //let _function_test: Vec<u8> = std::fs::read("65C02_extended_opcodes_test.bin").unwrap();
     //let apple2_rom: Vec<u8> = std::fs::read("Apple2_Plus.rom").unwrap();
-    let apple2_rom: Vec<u8> = include_bytes!("../../Apple2.rom").to_vec();
-    let apple2p_rom: Vec<u8> = include_bytes!("../../Apple2_Plus.rom").to_vec();
+    let apple2_rom: Vec<u8> = include_bytes!("../../resource/Apple2.rom").to_vec();
+    let apple2p_rom: Vec<u8> = include_bytes!("../../resource/Apple2_Plus.rom").to_vec();
     //let apple2e_rom: Vec<u8> = std::fs::read("Apple2e.rom").unwrap();
-    let apple2e_rom: Vec<u8> = include_bytes!("../../Apple2e.rom").to_vec();
+    let apple2e_rom: Vec<u8> = include_bytes!("../../resource/Apple2e.rom").to_vec();
     //let apple2ee_rom: Vec<u8> = std::fs::read("Apple2e_Enhanced.rom").unwrap();
-    let apple2ee_rom: Vec<u8> = include_bytes!("../../Apple2e_Enhanced.rom").to_vec();
-    let apple2c_rom: Vec<u8> = include_bytes!("../../Apple2c_RomFF.rom").to_vec();
-    let apple2c0_rom: Vec<u8> = include_bytes!("../../Apple2c_Rom00.rom").to_vec();
-    let apple2c3_rom: Vec<u8> = include_bytes!("../../Apple2c_Rom03.rom").to_vec();
-    let apple2c4_rom: Vec<u8> = include_bytes!("../../Apple2c_Rom04.rom").to_vec();
-    let apple2cp_rom: Vec<u8> = include_bytes!("../../Apple2c_plus.rom").to_vec();
+    let apple2ee_rom: Vec<u8> = include_bytes!("../../resource/Apple2e_Enhanced.rom").to_vec();
+    let apple2c_rom: Vec<u8> = include_bytes!("../../resource/Apple2c_RomFF.rom").to_vec();
+    let apple2c0_rom: Vec<u8> = include_bytes!("../../resource/Apple2c_Rom00.rom").to_vec();
+    let apple2c3_rom: Vec<u8> = include_bytes!("../../resource/Apple2c_Rom03.rom").to_vec();
+    let apple2c4_rom: Vec<u8> = include_bytes!("../../resource/Apple2c_Rom04.rom").to_vec();
+    let apple2cp_rom: Vec<u8> = include_bytes!("../../resource/Apple2c_plus.rom").to_vec();
 
     // Create bus
     let bus = Bus::default();
