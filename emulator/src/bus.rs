@@ -119,6 +119,9 @@ pub struct Bus {
     pub extended_rom: u8,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
+    pub latch_extended_rom: u8,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
     pub is_apple2c: bool,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
@@ -223,6 +226,7 @@ impl Bus {
             halt_cpu: false,
             io_slot: default_io_slot(),
             extended_rom: 0,
+            latch_extended_rom: 0,
             any_key_down: false,
             #[cfg(not(target_os = "wasi"))]
             uthernet2: Uthernet2::new(),
@@ -260,6 +264,7 @@ impl Bus {
 
     pub fn reset(&mut self) {
         self.extended_rom = 0;
+        self.latch_extended_rom = 0;
 
         self.mem.reset();
         self.video.reset();
@@ -481,7 +486,7 @@ impl Bus {
                 }
 
                 let audio = &mut self.audio;
-                self.extended_rom = slot as u8;
+                self.latch_extended_rom = slot as u8;
                 let return_value: Option<&mut dyn Card> = match slot_value {
                     IODevice::Printer => Some(&mut self.parallel),
                     IODevice::RamFactor => Some(&mut self.ramfactor),
@@ -1185,6 +1190,7 @@ impl Mem for Bus {
                 0xc800..=0xcfff => {
                     if addr == 0xcfff {
                         self.mem.intc8rom = false;
+                        self.extended_rom = self.latch_extended_rom;
                     }
                     if self.mem.intcxrom || self.mem.intc8rom || self.is_apple2c {
                         if self.mem.a2cp && self.mem.rom_bank && (0xcc00..=0xceff).contains(&addr) {
@@ -1231,6 +1237,7 @@ impl Mem for Bus {
 
                 0xcfff => {
                     self.mem.intc8rom = false;
+                    self.extended_rom = self.latch_extended_rom;
                 }
 
                 _ => unreachable!("Addr should be unreachable: {:04x}", addr),
