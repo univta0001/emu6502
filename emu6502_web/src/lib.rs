@@ -183,7 +183,7 @@ impl Emulator {
 pub async fn init_emul() -> Emulator {
     console_error_panic_hook::set_once();
 
-    let apple2ee_rom: Vec<u8> = include_bytes!("../../Apple2e_enhanced.rom").to_vec();
+    let apple2ee_rom: Vec<u8> = include_bytes!("../../resource/Apple2e_enhanced.rom").to_vec();
     let mut cpu = CPU::new(Bus::default());
 
     cpu.load(&apple2ee_rom, 0xc000);
