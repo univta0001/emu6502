@@ -592,13 +592,15 @@ impl Uthernet2 {
         self.mem[addr] = value;
         let protocol = value & W5100_SN_MR_PROTO_MASK;
 
-        match protocol {
-            W5100_SN_MR_CLOSED => u2_debug!("Socket #{i} mode: CLOSED"),
-            W5100_SN_MR_TCP | W5100_SN_MR_TCP_DNS => u2_debug!("Socket #{i} mode: TCP"),
-            W5100_SN_MR_UDP | W5100_SN_MR_UDP_DNS => u2_debug!("Socket #{i} mode: UDP"),
-            W5100_SN_MR_IPRAW | W5100_SN_MR_IPRAW_DNS => u2_debug!("Socket #{i} mode: IPRAW"),
-            W5100_SN_MR_MACRAW => u2_debug!("Socket #{i} mode: MACRAW"),
-            _ => u2_debug!("Socket #{i} mode: Unknown = {protocol:02X}"),
+        if U2_DEBUG {
+            match protocol {
+                W5100_SN_MR_CLOSED => u2_debug!("Socket #{i} mode: CLOSED"),
+                W5100_SN_MR_TCP | W5100_SN_MR_TCP_DNS => u2_debug!("Socket #{i} mode: TCP"),
+                W5100_SN_MR_UDP | W5100_SN_MR_UDP_DNS => u2_debug!("Socket #{i} mode: UDP"),
+                W5100_SN_MR_IPRAW | W5100_SN_MR_IPRAW_DNS => u2_debug!("Socket #{i} mode: IPRAW"),
+                W5100_SN_MR_MACRAW => u2_debug!("Socket #{i} mode: MACRAW"),
+                _ => u2_debug!("Socket #{i} mode: Unknown = {protocol:02X}"),
+            }
         }
     }
 
@@ -895,30 +897,11 @@ impl Uthernet2 {
         let socket = &mut self.socket[i];
 
         if socket.is_open() {
-            /*
-            match &mut socket.socket_handle {
-                Proto::Tcp(stream) => {
-                    let result = stream.write(data);
-
-                    if result.is_err() {
-                        if let Err(error) = result {
-                            match error.kind() {
-                                ErrorKind::WouldBlock => {},
-                                _ => self.clear_socket(i),
-                            }
-                        }
-                    }
-                }
-                _ => {}
-            }
-            */
             if let Proto::Tcp(stream) = &mut socket.socket_handle {
                 let result = stream.write_all(data);
-                if result.is_err() {
-                    if let Err(error) = result {
-                        if !(matches!(error.kind(), ErrorKind::WouldBlock)) {
-                            self.clear_socket(i);
-                        }
+                if let Err(error) = result {
+                    if !(matches!(error.kind(), ErrorKind::WouldBlock)) {
+                        self.clear_socket(i);
                     }
                 }
             }
