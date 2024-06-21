@@ -577,7 +577,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             } else {
                 *event_param.speed_index = (*event_param.speed_index + 1) % speed_mode.len();
             }
-            cpu.full_speed = speed_mode[*event_param.speed_index];
+            cpu.set_speed(speed_mode[*event_param.speed_index]);
         }
 
         Event::KeyDown {
@@ -1518,9 +1518,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     let mut ntsc_luma = NTSC_LUMA_BANDWIDTH;
     let mut ntsc_chroma = NTSC_CHROMA_BANDWIDTH;
-
-    // Disable rockwell instructions
-    cpu.m65c02_rockwell_disable = true;
 
     // Enable save for disk
     cpu.bus.disk.set_enable_save_disk(true);

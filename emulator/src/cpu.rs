@@ -550,7 +550,7 @@ impl CPU {
             status: CpuFlags::from_bits_truncate(0b100100),
             bus,
             m65c02: false,
-            m65c02_rockwell_disable: false,
+            m65c02_rockwell_disable: true,
             halt_cpu: false,
             alt_cpu: false,
             self_test: false,
@@ -560,6 +560,10 @@ impl CPU {
             #[cfg(feature = "z80")]
             z80cpu: default_z80cpu(),
         }
+    }
+
+    pub fn set_speed(&mut self, speed: CpuSpeed) {
+        self.full_speed = speed;
     }
 
     fn page_cross(&mut self, addr1: u16, addr2: u16) -> bool {
@@ -3008,6 +3012,7 @@ mod test {
         let bus = Bus::default();
         let mut cpu = CPU::new(bus);
         cpu.m65c02 = true;
+        cpu.m65c02_rockwell_disable = false;
         for i in 1..cycles.len() {
             let mut v = vec![0; 8];
 
@@ -3086,6 +3091,7 @@ mod test {
         cpu.bus.disable_audio = true;
         cpu.bus.disable_video = true;
         cpu.bus.disable_disk = true;
+        cpu.m65c02_rockwell_disable = false;
         cpu.run();
         assert_eq!(
             cpu.bus.addr_read(0x202),
