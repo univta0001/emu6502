@@ -1125,6 +1125,12 @@ impl CPU {
         hi << 8 | lo
     }
 
+    fn last_tick_stack_pop_u16(&mut self) -> u16 {
+        let lo = self.stack_pop() as u16;
+        let hi = self.last_tick_stack_pop() as u16;
+        hi << 8 | lo
+    }
+
     fn asl_accumulator(&mut self) {
         let mut data = self.register_a;
 
@@ -2153,9 +2159,9 @@ impl CPU {
                 /* RTI */
                 0x40 => {
                     self.tick();
-                    self.last_tick();
+                    self.tick();
                     *self.status.0.bits_mut() = self.stack_pop();
-                    self.program_counter = self.stack_pop_u16();
+                    self.program_counter = self.last_tick_stack_pop_u16();
                     self.status.remove(CpuFlags::BREAK | CpuFlags::UNUSED);
                 }
 
