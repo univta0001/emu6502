@@ -4,6 +4,7 @@ use crate::video::Video;
 use std::io::ErrorKind;
 use std::io::{Read, Write};
 use std::net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
+use std::time::Duration;
 
 #[cfg(feature = "serde_support")]
 use crate::marshal::{as_hex, from_hex_32k};
@@ -760,9 +761,16 @@ impl Uthernet2 {
             IpAddr::V4(Ipv4Addr::new(dest[0], dest[1], dest[2], dest[3])),
             port,
         );
-        u2_debug!("Connect Socket on #{i} to {sock_addr:?} ...");
+        let rtr_bytes = [self.mem[W5100_RTR0], self.mem[W5100_RTR1]];
+        let rtr = u16::from_be_bytes(rtr_bytes) as u64;
 
-        if let Ok(stream) = TcpStream::connect(sock_addr) {
+        u2_debug!(
+            "Connect Socket on #{i} to {sock_addr:?} with timeout = {} µs ...",
+            rtr * 100
+        );
+
+        if let Ok(stream) = TcpStream::connect_timeout(&sock_addr, Duration::from_micros(rtr * 100))
+        {
             u2_debug!("Connect Socket on #{i} to {sock_addr:?} - OK");
             stream
                 .set_nonblocking(true)
