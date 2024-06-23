@@ -12,4 +12,4 @@ To prepare an .a2stream file for streaming:
             cd to the directory containing the file you want to stream and enter python -m SimpleHTTPServer or python3 -m http.server depending on the Python version you want to use
 
 Extract audio 
-ffmpeg -i Sample.avi -vn -ar 44100 -ac 2 -ab 192k -f mp3 Sample.mp3
+ffmpeg -i Sample.avi -vn -ar 44100 -ac 1 -ab 192k -f mp3 Sample.mp3

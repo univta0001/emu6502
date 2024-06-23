@@ -111,7 +111,6 @@ pub struct Disk {
     optimal_timing: u8,
     track: i32,
     last_track: i32,
-    phase: usize,
     head: usize,
     head_mask: usize,
     head_bit: usize,
@@ -136,9 +135,6 @@ pub struct Disk {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     mc3470_read_pulse: usize,
-
-    #[cfg_attr(feature = "serde_support", serde(default))]
-    rotor_pending_ticks: usize,
 }
 
 #[derive(Debug)]
@@ -166,6 +162,12 @@ pub struct DiskDrive {
     enable_save: bool,
     fast_disk_timer: usize,
     prev_latch: u8,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    phase: usize,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    rotor_pending_ticks: usize,
 }
 
 // Q0L: Phase 0 OFF
@@ -1317,6 +1319,8 @@ impl DiskDrive {
             disable_fast_disk: false,
             enable_save: false,
             fast_disk_timer: 0,
+            phase: 0,
+            rotor_pending_ticks: 0,
         }
     }
 
@@ -1378,20 +1382,13 @@ impl DiskDrive {
     }
 
     fn set_phase(&mut self, phase: usize, flag: bool) {
-        let disk = &mut self.drive[self.drive_select];
-
-        // Do nothing if motor is not on
-        if !disk.motor_status {
-            return;
-        }
-
         if flag {
-            disk.phase |= 1 << phase;
+            self.phase |= 1 << phase;
         } else {
-            disk.phase &= !(1 << phase);
+            self.phase &= !(1 << phase);
         }
 
-        disk.rotor_pending_ticks = 1000;
+        self.rotor_pending_ticks = 1000;
         /*
         let position = MAGNET_TO_POSITION[disk.phase];
 
@@ -2448,6 +2445,28 @@ impl Tick for DiskDrive {
     fn tick(&mut self) {
         self.cycles += 1;
 
+        if self.rotor_pending_ticks > 0 {
+            self.rotor_pending_ticks -= 1;
+            if self.rotor_pending_ticks == 0 {
+                let position = MAGNET_TO_POSITION[self.phase];
+
+                if position >= 0 {
+                    let disk = &mut self.drive[self.drive_select];
+                    let last_position = disk.track & 7;
+                    let direction =
+                        POSITION_TO_DIRECTION[last_position as usize][position as usize];
+
+                    disk.track += direction;
+
+                    if disk.track < 0 {
+                        disk.track = 0;
+                    } else if disk.track >= disk.tmap_data.len() as i32 {
+                        disk.track = (disk.tmap_data.len() - 1) as i32;
+                    }
+                }
+            }
+        }
+
         if !self.is_motor_on() {
             return;
         }
@@ -2480,11 +2499,6 @@ impl Tick for DiskDrive {
             }
         }
 
-        // Update rotor pending ticks
-        for disk in &mut self.drive {
-            disk.tick();
-        }
-
         self.prev_latch = self.latch;
 
         self.move_head_woz();
@@ -2507,7 +2521,6 @@ impl Disk {
             track: 0,
             last_track: 0,
             track_size: 0,
-            phase: 0,
             head: 0,
             head_mask: 0x80,
             head_bit: 0,
@@ -2521,30 +2534,6 @@ impl Disk {
             force_disk_rom13: false,
             mc3470_counter: 0,
             mc3470_read_pulse: 0,
-            rotor_pending_ticks: 0,
-        }
-    }
-
-    fn tick(&mut self) {
-        if self.rotor_pending_ticks > 0 {
-            self.rotor_pending_ticks -= 1;
-            if self.rotor_pending_ticks == 0 {
-                let position = MAGNET_TO_POSITION[self.phase];
-
-                if position >= 0 {
-                    let last_position = self.track & 7;
-                    let direction =
-                        POSITION_TO_DIRECTION[last_position as usize][position as usize];
-
-                    self.track += direction;
-
-                    if self.track < 0 {
-                        self.track = 0;
-                    } else if self.track >= self.tmap_data.len() as i32 {
-                        self.track = (self.tmap_data.len() - 1) as i32;
-                    }
-                }
-            }
         }
     }
 }
