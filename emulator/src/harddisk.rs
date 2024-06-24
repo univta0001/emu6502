@@ -52,7 +52,7 @@ const ROM: [u8; 256] = [
 
 const HD_ID_STRING: &str = "emu6502 SP";
 const HD_MAJOR_VERSION: u8 = 0;
-const HD_MINOR_VERSION: u8 = 8;
+const HD_MINOR_VERSION: u8 = 9;
 
 const HD_BLOCK_SIZE: usize = 512;
 const CYCLES_FOR_RW_BLOCK: usize = HD_BLOCK_SIZE;
