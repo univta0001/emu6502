@@ -365,7 +365,6 @@ impl HardDisk {
                 }
 
                 _ => {
-                    disk.error = 1;
                     ret_value = DeviceStatus::DeviceBadControl as u8;
                 }
             }
@@ -394,13 +393,12 @@ impl HardDisk {
                     }
                 }
                 _ => {
-                    disk.error = 1;
                     ret_value = DeviceStatus::DeviceBadControl as u8;
                 }
             }
         }
-
-        ret_value
+        disk.error = ret_value;
+        self.block_cmd_status()
     }
 
     fn write_data_to_mmu(mmu: &mut Mmu, video: &mut Video, addr: u16, data: u8) {
