@@ -713,7 +713,7 @@ impl Card for HardDisk {
                 if write_flag {
                     if self.command & 0x80 == 0 {
                         self.drive_select = (value >> 7) as usize;
-                    } else if value == 0 {
+                    } else if value & 0xf == 0 {
                         self.drive_select = 0;
                     } else {
                         self.drive_select = (value & 0xf) as usize - 1
