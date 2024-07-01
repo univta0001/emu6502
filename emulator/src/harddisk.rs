@@ -431,6 +431,96 @@ impl HardDisk {
         ret
     }
 
+    fn block_cmd_read(&mut self, mmu: &mut Mmu, video: &mut Video) -> u8 {
+        let disk = &mut self.drive[self.drive_select];
+        let block_offset = disk.disk_block as usize * HD_BLOCK_SIZE;
+        let start = block_offset + disk.offset;
+        let end = block_offset + disk.offset + HD_BLOCK_SIZE;
+
+        //eprintln!("Reading ${:04x} ${:04x} ${:04x}", block_offset, start, end);
+
+        if block_offset < disk.offset + disk.data_len {
+            let mut buf = [0u8; HD_BLOCK_SIZE];
+            buf[..].copy_from_slice(&disk.raw_data[start..end]);
+            for (i, data) in buf.iter().enumerate() {
+                let addr = disk.mem_block.wrapping_add(i as u16);
+
+                if (0xc000..=0xcfff).contains(&addr) {
+                    disk.error = DeviceStatus::DeviceIoError as u8;
+                    return self.block_cmd_status();
+                }
+                Self::write_data_to_mmu(mmu, video, addr, *data);
+            }
+            disk.error = DeviceStatus::DeviceOk as u8;
+            disk.busy_cycle = CYCLES_FOR_RW_BLOCK;
+        } else {
+            disk.error = DeviceStatus::DeviceIoError as u8;
+        }
+        self.block_cmd_status()
+    }
+
+    fn block_cmd_write(&mut self, mmu: &mut Mmu, _video: &mut Video) -> u8 {
+        let disk = &mut self.drive[self.drive_select];
+        if disk.write_protect {
+            disk.error = DeviceStatus::DeviceWriteProtected as u8;
+        }
+
+        let block_offset = disk.disk_block as usize * HD_BLOCK_SIZE;
+        let start = block_offset + disk.offset;
+        let end = block_offset + disk.offset + HD_BLOCK_SIZE;
+
+        if block_offset >= disk.offset + disk.data_len {
+            disk.error = DeviceStatus::DeviceIoError as u8;
+            return self.block_cmd_status();
+        }
+
+        let mut buf = [0u8; HD_BLOCK_SIZE];
+
+        for (i, item) in buf.iter_mut().enumerate() {
+            let addr = disk.mem_block.wrapping_add(i as u16);
+            if (0xc000..=0xcfff).contains(&addr) {
+                disk.error = DeviceStatus::DeviceIoError as u8;
+                return self.block_cmd_status();
+            }
+            *item = mmu.unclocked_addr_read(addr);
+        }
+
+        if self.enable_save {
+            // Try to write the block to disk
+            // If failed, don't update the memory copy
+            if let Some(filename) = &disk.filename {
+                if let Ok(metadata) = std::fs::metadata(filename) {
+                    //eprintln!("start={:08x} end={:08x} len={:08x}",start,end,metadata.len());
+                    if start as u64 > metadata.len()
+                        || end as u64 > metadata.len()
+                        || metadata.len() == 0
+                    {
+                        disk.error = DeviceStatus::DeviceIoError as u8;
+                        return self.block_cmd_status();
+                    }
+                }
+
+                if let Ok(mut f) = OpenOptions::new().write(true).open(filename) {
+                    let result = f
+                        .seek(SeekFrom::Start(start as u64))
+                        .and_then(|_| f.write_all(&buf));
+                    if result.is_err() {
+                        disk.error = DeviceStatus::DeviceIoError as u8;
+                        return self.block_cmd_status();
+                    }
+                } else {
+                    eprintln!("Unable to open {}", filename);
+                    disk.error = DeviceStatus::DeviceIoError as u8;
+                    return self.block_cmd_status();
+                }
+            }
+        }
+
+        disk.error = DeviceStatus::DeviceOk as u8;
+        disk.raw_data[start..end].copy_from_slice(&buf);
+        self.block_cmd_status()
+    }
+
     fn block_cmd_execute(&mut self, mmu: &mut Mmu, video: &mut Video) -> u8 {
         let disk = &mut self.drive[self.drive_select];
 
@@ -454,94 +544,10 @@ impl HardDisk {
             SMARTPORT_CMD_STATUS => self.smartport_status(mmu, video, self.drive_select),
 
             // Read Block
-            BLK_CMD_READ | SMARTPORT_CMD_READ => {
-                let block_offset = disk.disk_block as usize * HD_BLOCK_SIZE;
-                let start = block_offset + disk.offset;
-                let end = block_offset + disk.offset + HD_BLOCK_SIZE;
-
-                //eprintln!("Reading ${:04x} ${:04x} ${:04x}",block_offset,start,end);
-
-                if block_offset < disk.offset + disk.data_len {
-                    let mut buf = [0u8; HD_BLOCK_SIZE];
-                    buf[..].copy_from_slice(&disk.raw_data[start..end]);
-                    for (i, data) in buf.iter().enumerate() {
-                        let addr = disk.mem_block.wrapping_add(i as u16);
-
-                        if (0xc000..=0xcfff).contains(&addr) {
-                            disk.error = DeviceStatus::DeviceIoError as u8;
-                            return self.block_cmd_status();
-                        }
-                        Self::write_data_to_mmu(mmu, video, addr, *data);
-                    }
-                    disk.error = DeviceStatus::DeviceOk as u8;
-                    disk.busy_cycle = CYCLES_FOR_RW_BLOCK;
-                } else {
-                    disk.error = DeviceStatus::DeviceIoError as u8;
-                }
-                self.block_cmd_status()
-            }
+            BLK_CMD_READ | SMARTPORT_CMD_READ => self.block_cmd_read(mmu, video),
 
             // Write Block
-            BLK_CMD_WRITE | SMARTPORT_CMD_WRITE => {
-                if disk.write_protect {
-                    disk.error = DeviceStatus::DeviceWriteProtected as u8;
-                }
-
-                let block_offset = disk.disk_block as usize * HD_BLOCK_SIZE;
-                let start = block_offset + disk.offset;
-                let end = block_offset + disk.offset + HD_BLOCK_SIZE;
-
-                if block_offset >= disk.offset + disk.data_len {
-                    disk.error = DeviceStatus::DeviceIoError as u8;
-                    return self.block_cmd_status();
-                }
-
-                let mut buf = [0u8; HD_BLOCK_SIZE];
-
-                for (i, item) in buf.iter_mut().enumerate() {
-                    let addr = disk.mem_block.wrapping_add(i as u16);
-                    if (0xc000..=0xcfff).contains(&addr) {
-                        disk.error = DeviceStatus::DeviceIoError as u8;
-                        return self.block_cmd_status();
-                    }
-                    *item = mmu.unclocked_addr_read(addr);
-                }
-
-                if self.enable_save {
-                    // Try to write the block to disk
-                    // If failed, don't update the memory copy
-                    if let Some(filename) = &disk.filename {
-                        if let Ok(metadata) = std::fs::metadata(filename) {
-                            //eprintln!("start={:08x} end={:08x} len={:08x}",start,end,metadata.len());
-                            if start as u64 > metadata.len()
-                                || end as u64 > metadata.len()
-                                || metadata.len() == 0
-                            {
-                                disk.error = DeviceStatus::DeviceIoError as u8;
-                                return self.block_cmd_status();
-                            }
-                        }
-
-                        if let Ok(mut f) = OpenOptions::new().write(true).open(filename) {
-                            let result = f
-                                .seek(SeekFrom::Start(start as u64))
-                                .and_then(|_| f.write_all(&buf));
-                            if result.is_err() {
-                                disk.error = DeviceStatus::DeviceIoError as u8;
-                                return self.block_cmd_status();
-                            }
-                        } else {
-                            eprintln!("Unable to open {}", filename);
-                            disk.error = DeviceStatus::DeviceIoError as u8;
-                            return self.block_cmd_status();
-                        }
-                    }
-                }
-
-                disk.error = DeviceStatus::DeviceOk as u8;
-                disk.raw_data[start..end].copy_from_slice(&buf);
-                self.block_cmd_status()
-            }
+            BLK_CMD_WRITE | SMARTPORT_CMD_WRITE => self.block_cmd_write(mmu, video),
 
             // Format
             BLK_CMD_FORMAT => {
