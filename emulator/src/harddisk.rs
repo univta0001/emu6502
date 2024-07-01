@@ -545,6 +545,7 @@ impl HardDisk {
 
             // Format
             BLK_CMD_FORMAT => {
+                /*
                 if disk.data_len == 0 {
                     disk.error = DeviceStatus::DeviceOffline as u8;
                     return self.block_cmd_status();
@@ -574,8 +575,10 @@ impl HardDisk {
                         }
                     }
                 }
-
                 disk.error = DeviceStatus::DeviceOk as u8;
+                */
+                // Format not supported
+                disk.error = DeviceStatus::DeviceIoError as u8;
                 self.block_cmd_status()
             }
 
