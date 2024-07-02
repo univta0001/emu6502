@@ -387,11 +387,15 @@ impl Bus {
 
     pub fn register_device(&mut self, device: IODevice, slot: usize) {
         if slot < self.io_slot.len() {
-            if device == IODevice::Disk || device == IODevice::Disk13 {
+            if device == IODevice::Disk
+                || device == IODevice::Disk13
+                || device == IODevice::HardDisk
+            {
                 for i in 1..8 {
                     if i != slot
                         && (self.io_slot[i] == IODevice::Disk
-                            || self.io_slot[i] == IODevice::Disk13)
+                            || self.io_slot[i] == IODevice::Disk13
+                            || self.io_slot[i] == IODevice::HardDisk)
                     {
                         self.io_slot[i] = IODevice::None
                     }
