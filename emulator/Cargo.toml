@@ -14,6 +14,7 @@ iz80 = { path = "iz80", optional = true }
 time = { version = "0.3.36", features = ["local-offset","wasm-bindgen"] }
 fastrand = "2.1.0"
 educe = { version = "0.6.0", default-features = false, features = ["Debug"], optional = true }
+pcap = { version = "2.0.0", default-features = false, optional = true }
 
 [dev-dependencies]
 regex = "1.10.5"
@@ -33,6 +34,7 @@ serde_support = ["dep:serde", "dep:educe"]
 z80 = ["dep:iz80"]
 web_time = ["dep:web-time"]
 flate = ["dep:flate2"]
+pcap = ["dep:pcap"]
 
 [[bench]]
 name = "cpu_bench"

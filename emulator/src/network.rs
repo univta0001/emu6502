@@ -6,6 +6,12 @@ use std::io::{Read, Write};
 use std::net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::time::Duration;
 
+#[cfg(feature = "pcap")]
+use std::fmt;
+
+#[cfg(feature = "pcap")]
+use std::fmt::{Debug, Formatter};
+
 #[cfg(feature = "serde_support")]
 use crate::marshal::{as_hex, from_hex_32k};
 
@@ -164,12 +170,25 @@ macro_rules! u2_debug {
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "pcap")]
+struct PcapCapture(pcap::Capture<pcap::Active>);
+
+#[cfg(feature = "pcap")]
+impl Debug for PcapCapture {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "PcapCapture BlockMode: {}", self.0.is_nonblock())
+    }
+}
+
 #[derive(Debug, Default)]
 enum Proto {
     #[default]
     None,
     Tcp(TcpStream),
     TcpListener(TcpListener),
+
+    #[cfg(feature = "pcap")]
+    MacRaw(PcapCapture),
 }
 
 #[derive(Debug, Default)]
@@ -196,6 +215,7 @@ impl Socket {
     }
 
     fn set_socket_handle(&mut self, proto: Proto) {
+        self.clear_socket_handle();
         self.socket_handle = proto
     }
 
@@ -396,6 +416,41 @@ impl Uthernet2 {
                     u2_debug!("Received Socket #{i} Unknown mode: 0x{:02X}", socket.status)
                 }
             }
+        } else if socket.status == W5100_SN_SR_SOCK_MACRAW {
+            #[cfg(feature = "pcap")]
+            self.receive_one_raw_packet_from_socket(i)
+        }
+    }
+
+    #[cfg(feature = "pcap")]
+    fn receive_one_raw_packet_from_socket(&mut self, i: usize) {
+        let base_addr = self.get_base_socket_addr(i);
+        let socket = &mut self.socket[i];
+        if let Proto::MacRaw(pcap_capture) = &mut socket.socket_handle {
+            let result = pcap_capture.0.next_packet();
+            if let Ok(packet) = result {
+                let buffer = Vec::from(packet.data);
+                let mac = &self.mem[W5100_SHAR0..=W5100_SHAR5];
+                let broadcast = [0xff, 0xff, 0xff, 0xff, 0xff, 0xff];
+                let mr = self.mem[base_addr + W5100_SN_MR];
+                let accept_all = mr & _W5100_SN_MR_MF == 0;
+
+                if accept_all || *mac == buffer[0..6] || broadcast == buffer[0..6] {
+                    self.write_raw_data_for_protocol(i, &buffer);
+                }
+            } else if let Err(error) = result {
+                let mut close_flag = true;
+                if error == pcap::Error::TimeoutExpired {
+                    close_flag = false;
+                }
+                if close_flag {
+                    u2_debug!(
+                        "Read bytes received from peer ERROR {:?} - Closing socket",
+                        error
+                    );
+                    self.clear_socket(i);
+                }
+            }
         }
     }
 
@@ -438,6 +493,34 @@ impl Uthernet2 {
             self.mem[base_addr + W5100_SN_RX_RSR0],
             self.mem[base_addr + W5100_SN_RX_RSR1],
         ]) as usize;
+        for item in data {
+            self.mem[socket.receive_addr + socket.receive_pointer] = *item;
+            socket.receive_pointer = (socket.receive_pointer + 1) % socket.receive_size;
+            rsr += 1;
+        }
+        let size = u16::to_be_bytes(rsr as u16);
+        self.mem[base_addr + W5100_SN_RX_RSR0] = size[0];
+        self.mem[base_addr + W5100_SN_RX_RSR1] = size[1];
+    }
+
+    #[cfg(feature = "pcap")]
+    fn write_raw_data_for_protocol(&mut self, i: usize, data: &[u8]) {
+        let base_addr = self.get_base_socket_addr(i);
+        let socket = &mut self.socket[i];
+        let mut rsr = u16::from_be_bytes([
+            self.mem[base_addr + W5100_SN_RX_RSR0],
+            self.mem[base_addr + W5100_SN_RX_RSR1],
+        ]) as usize;
+
+        let len = (2 + data.len()) & 0xffff;
+        let buffer_len = [((len & 0xff00) >> 8) as u8, (len & 0xff) as u8];
+
+        for item in buffer_len {
+            self.mem[socket.receive_addr + socket.receive_pointer] = item;
+            socket.receive_pointer = (socket.receive_pointer + 1) % socket.receive_size;
+            rsr += 1;
+        }
+
         for item in data {
             self.mem[socket.receive_addr + socket.receive_pointer] = *item;
             socket.receive_pointer = (socket.receive_pointer + 1) % socket.receive_size;
@@ -686,7 +769,13 @@ impl Uthernet2 {
             W5100_SN_MR_IPRAW | W5100_SN_MR_IPRAW_DNS => {
                 self.set_socket_status(i, W5100_SN_SR_SOCK_IPRAW)
             }
-            W5100_SN_MR_MACRAW => self.set_socket_status(i, W5100_SN_SR_SOCK_MACRAW),
+            W5100_SN_MR_MACRAW => {
+                #[cfg(feature = "pcap")]
+                self.assign_interface_to_raw_protocol(i);
+
+                self.set_socket_status(i, W5100_SN_SR_SOCK_MACRAW);
+            }
+
             W5100_SN_MR_TCP | W5100_SN_MR_TCP_DNS => {
                 self.set_socket_status(i, W5100_SN_SR_SOCK_INIT);
             }
@@ -705,6 +794,69 @@ impl Uthernet2 {
         }
 
         self.reset_rxtx_buffers(i);
+    }
+
+    #[cfg(feature = "pcap")]
+    fn assign_interface_to_raw_protocol(&mut self, i: usize) {
+        let device = if let Some(name) = &self.interface {
+            if let Ok(devices) = pcap::Device::list() {
+                devices
+                    .into_iter()
+                    .filter(|device| {
+                        if device.name.to_lowercase().contains(&name.to_lowercase()) {
+                            true
+                        } else {
+                            device
+                                .desc
+                                .as_ref()
+                                .map_or(false, |s| s.to_lowercase().contains(&name.to_lowercase()))
+                        }
+                    })
+                    .nth(0)
+            } else {
+                u2_debug!("Unable to list pcap devices");
+                None
+            }
+        } else {
+            // No interface provide, try to get default capture device from pcap
+            if let Ok(Some(device)) = pcap::Device::lookup() {
+                Some(device)
+            } else {
+                None
+            }
+        };
+
+        if let Some(device) = device {
+            u2_debug!("Using device name: {} desc: {:?}", device.name, device.desc);
+
+            let cap_active = self.get_pcap_device(&device);
+
+            // Try to convert capture<active> to non-blocking
+            if let Some(tcap_active) = cap_active {
+                if let Ok(nonblock_cap) = tcap_active.setnonblock() {
+                    self.socket[i].set_socket_handle(Proto::MacRaw(PcapCapture(nonblock_cap)));
+                } else {
+                    // Fallback to blocking with timeout of 20 ms if failed to set non-blocking
+                    let cap_active = self.get_pcap_device(&device);
+                    if let Some(tcap_active) = cap_active {
+                        self.socket[i].set_socket_handle(Proto::MacRaw(PcapCapture(tcap_active)));
+                    }
+                }
+            }
+        }
+    }
+
+    #[cfg(feature = "pcap")]
+    fn get_pcap_device(&self, device: &pcap::Device) -> Option<pcap::Capture<pcap::Active>> {
+        if let Ok(cap) = pcap::Capture::from_device(device.clone()) {
+            if let Ok(cap) = cap.snaplen(1700).promisc(true).timeout(20).open() {
+                Some(cap)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 
     fn clear_socket_dest(&mut self, i: usize) {
@@ -912,6 +1064,9 @@ impl Uthernet2 {
                 W5100_SN_SR_SOCK_ESTABLISHED => self.send_data_to_socket(i, &data),
                 _ => u2_debug!("Send data Socket#{i} Unknown mode: 0x{:02X}", socket.status),
             }
+        } else if socket.status == W5100_SN_SR_SOCK_MACRAW {
+            #[cfg(feature = "pcap")]
+            self.send_raw_data_to_socket(i, &data);
         }
     }
 
@@ -926,6 +1081,19 @@ impl Uthernet2 {
                         self.clear_socket(i);
                     }
                 }
+            }
+        }
+    }
+
+    #[cfg(feature = "pcap")]
+    fn send_raw_data_to_socket(&mut self, i: usize, data: &[u8]) {
+        let socket = &mut self.socket[i];
+
+        if let Proto::MacRaw(pcap_capture) = &mut socket.socket_handle {
+            let result = pcap_capture.0.sendpacket(data);
+            if let Err(error) = result {
+                u2_debug!("Send Raw data Socket#{i} Error: {:?}", error);
+                self.clear_socket(i);
             }
         }
     }

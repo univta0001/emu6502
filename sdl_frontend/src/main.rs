@@ -847,6 +847,7 @@ FLAGS:
     --z80_cirtech      Enable Z80 Cirtech address translation
     --saturn           Enable Saturn memory (Only available in Apple 2+)
     --speedstar        Enable SpeedStar datakey dongle
+    --interface name   Set the interface name for Uthernet2 (Default is None. For e.g. eth0)
 
 ARGS:
     [disk 1]           Disk 1 file (woz, dsk, do, po file). File can be in gz format
