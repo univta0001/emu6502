@@ -225,6 +225,8 @@ pub struct Uthernet2 {
     mem: Vec<u8>,
 
     socket: Vec<Socket>,
+
+    interface: Option<String>,
 }
 
 impl Default for Uthernet2 {
@@ -238,6 +240,7 @@ impl Default for Uthernet2 {
             addr: 0,
             mem: vec![0; 0x8000],
             socket,
+            interface: None,
         };
         instance.reset();
         instance
@@ -257,17 +260,17 @@ impl Uthernet2 {
         for i in 0..4 {
             self.reset_rxtx_buffers(i);
             let addr = 0x400 + (i << 8);
-            self.mem[addr + W5100_SN_DHAR0] = 0xFF;
-            self.mem[addr + W5100_SN_DHAR1] = 0xFF;
-            self.mem[addr + W5100_SN_DHAR2] = 0xFF;
-            self.mem[addr + W5100_SN_DHAR3] = 0xFF;
-            self.mem[addr + W5100_SN_DHAR4] = 0xFF;
-            self.mem[addr + W5100_SN_DHAR5] = 0xFF;
+            self.mem[addr + W5100_SN_DHAR0] = 0xff;
+            self.mem[addr + W5100_SN_DHAR1] = 0xff;
+            self.mem[addr + W5100_SN_DHAR2] = 0xff;
+            self.mem[addr + W5100_SN_DHAR3] = 0xff;
+            self.mem[addr + W5100_SN_DHAR4] = 0xff;
+            self.mem[addr + W5100_SN_DHAR5] = 0xff;
             self.mem[addr + W5100_SN_TTL] = 0x80;
         }
 
         self.mem[W5100_RTR0] = 0x07;
-        self.mem[W5100_RTR1] = 0xD0;
+        self.mem[W5100_RTR1] = 0xd0;
         self.mem[W5100_RCR] = 0x08;
 
         self.set_receive_size(W5100_RMSR, 0x55);
@@ -276,6 +279,14 @@ impl Uthernet2 {
         // Always use Virtual DNS. Only supports UDP/TCP-based transports protocol
         // Actual real W5100, value should be 0x28
         self.mem[W5100_PTIMER] = 0x0;
+    }
+
+    pub fn set_interface(&mut self, name: String) {
+        self.interface = Some(name);
+    }
+
+    pub fn get_interface(&self) -> Option<String> {
+        self.interface.clone()
     }
 
     fn auto_increment(&mut self) {

@@ -1730,6 +1730,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         }
     }
 
+    if let Some(name) = pargs.opt_value_from_str::<_, String>("--interface")? {
+        cpu.bus.uthernet2.set_interface(name);
+    }
+
     let remaining = pargs.finish();
 
     // Check that there are no more flags in the remaining arguments
