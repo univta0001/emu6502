@@ -243,9 +243,7 @@ pub struct Uthernet2 {
         serde(serialize_with = "as_hex", deserialize_with = "from_hex_32k")
     )]
     mem: Vec<u8>,
-
     socket: Vec<Socket>,
-
     interface: Option<String>,
 }
 
@@ -279,6 +277,10 @@ impl Uthernet2 {
 
         self.mode = 0;
         self.mem = vec![0; 0x8000];
+
+        for socket in &mut self.socket {
+            socket.clear_socket_handle();
+        }
 
         // Initialize the 4 sockets in _W5100
         for i in 0..4 {

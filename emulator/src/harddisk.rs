@@ -169,6 +169,12 @@ impl HardDisk {
         }
     }
 
+    pub fn reset(&mut self) {
+        for disk in &mut self.drive {
+            disk.error = 0;
+        }
+    }
+
     pub fn is_busy(&self) -> bool {
         let disk = &self.drive[self.drive_select];
         disk.busy_cycle > 0

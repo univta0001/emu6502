@@ -292,6 +292,7 @@ impl Bus {
 
         if !self.disable_disk {
             self.disk.reset();
+            self.harddisk.reset();
         }
     }
 
