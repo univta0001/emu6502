@@ -24,17 +24,17 @@ const W5100_MR: usize = 0x00;
 const W5100_GAR0: usize = 0x01;
 const _W5100_GAR1: usize = 0x02;
 const _W5100_GAR2: usize = 0x03;
-const _W5100_GAR3: usize = 0x04;
-const _W5100_SUBR0: usize = 0x05;
+const W5100_GAR3: usize = 0x04;
+const W5100_SUBR0: usize = 0x05;
 const _W5100_SUBR1: usize = 0x06;
 const _W5100_SUBR2: usize = 0x07;
-const _W5100_SUBR3: usize = 0x08;
-const _W5100_SHAR0: usize = 0x09;
+const W5100_SUBR3: usize = 0x08;
+const W5100_SHAR0: usize = 0x09;
 const _W5100_SHAR1: usize = 0x0a;
 const _W5100_SHAR2: usize = 0x0b;
 const _W5100_SHAR3: usize = 0x0c;
 const _W5100_SHAR4: usize = 0x0d;
-const _W5100_SHAR5: usize = 0x0e;
+const W5100_SHAR5: usize = 0x0e;
 const W5100_SIPR0: usize = 0x0f;
 const W5100_SIPR1: usize = 0x10;
 const W5100_SIPR2: usize = 0x11;
@@ -500,7 +500,10 @@ impl Uthernet2 {
         match addr {
             W5100_TMSR => self.set_transmit_size(addr, value),
             W5100_RMSR => self.set_receive_size(addr, value),
+            W5100_GAR0..=W5100_GAR3 => self.mem[addr] = value,
+            W5100_SHAR0..=W5100_SHAR5 => self.mem[addr] = value,
             W5100_SIPR0..=W5100_SIPR3 => self.mem[addr] = value,
+            W5100_SUBR0..=W5100_SUBR3 => self.mem[addr] = value,
             _ => {}
         };
         //u2_debug!("Write to memory addr = 0x{addr:04X} value = 0x{value:02X}");
@@ -661,11 +664,11 @@ impl Uthernet2 {
     }
 
     fn open_socket(&mut self, i: usize) {
-        u2_debug!("Open Socket on #{i}");
-
         let base_addr = self.get_base_socket_addr(i);
         let mode_register = self.mem[base_addr];
         let protocol = mode_register & W5100_SN_MR_PROTO_MASK;
+
+        u2_debug!("Open Socket on #{i} with protocol = 0x{protocol:02x}");
 
         // Open the socket
         match protocol {
