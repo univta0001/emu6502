@@ -269,6 +269,7 @@ impl Bus {
         self.mem.reset();
         self.video.reset();
         self.ramfactor.reset();
+        self.uthernet2.reset(true);
 
         // Clear the annunciator
         self.annunciator[0] = false;

@@ -262,7 +262,7 @@ impl Default for Uthernet2 {
             socket,
             interface: None,
         };
-        instance.reset();
+        instance.reset(true);
         instance
     }
 }
@@ -272,9 +272,13 @@ impl Uthernet2 {
         Uthernet2::default()
     }
 
-    pub fn reset(&mut self) {
+    pub fn reset(&mut self, cold_reset: bool) {
+        if cold_reset {
+            self.addr = 0;
+        }
+
         self.mode = 0;
-        //self.mem = vec![0; 0x8000];
+        self.mem = vec![0; 0x8000];
 
         // Initialize the 4 sockets in _W5100
         for i in 0..4 {
@@ -584,7 +588,7 @@ impl Uthernet2 {
         if value & W5100_MR_RST == 0 {
             self.mode = value as usize;
         } else {
-            self.reset();
+            self.reset(false);
         }
     }
 
