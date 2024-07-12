@@ -805,7 +805,8 @@ impl Uthernet2 {
     #[cfg(feature = "pcap")]
     fn assign_interface_to_raw_protocol(&mut self, i: usize) {
         let device = if let Some(name) = &self.interface {
-            if let Ok(devices) = pcap::Device::list() {
+            let result = pcap::Device::list();
+            if let Ok(devices) = result {
                 devices
                     .into_iter()
                     .filter(|device| {
@@ -820,14 +821,20 @@ impl Uthernet2 {
                     })
                     .nth(0)
             } else {
-                u2_debug!("Unable to list pcap devices");
+                if let Err(error) = result {
+                    u2_debug!("Unable to list pcap devices: {:?}", error);
+                }
                 None
             }
         } else {
             // No interface provide, try to get default capture device from pcap
-            if let Ok(Some(device)) = pcap::Device::lookup() {
+            let result = pcap::Device::lookup();
+            if let Ok(Some(device)) = result {
                 Some(device)
             } else {
+                if let Err(error) = result {
+                    u2_debug!("Unable to lookup device: {:?}", error);
+                }
                 None
             }
         };
@@ -839,13 +846,23 @@ impl Uthernet2 {
 
             // Try to convert capture<active> to non-blocking
             if let Some(tcap_active) = cap_active {
-                if let Ok(nonblock_cap) = tcap_active.setnonblock() {
+                let nonblock_result = tcap_active.setnonblock();
+                if let Ok(nonblock_cap) = nonblock_result {
                     self.socket[i].set_socket_handle(Proto::MacRaw(PcapCapture(nonblock_cap)));
                 } else {
+                    if let Err(error) = nonblock_result {
+                        u2_debug!(
+                            "Unable to set nonblock to device. Fall back to blocking mode: {:?}",
+                            error
+                        );
+                    }
+
                     // Fallback to blocking with timeout of 20 ms if failed to set non-blocking
                     let cap_active = self.get_pcap_device(&device);
                     if let Some(tcap_active) = cap_active {
                         self.socket[i].set_socket_handle(Proto::MacRaw(PcapCapture(tcap_active)));
+                    } else {
+                        u2_debug!("Unable to get blocking device");
                     }
                 }
             }
@@ -854,13 +871,21 @@ impl Uthernet2 {
 
     #[cfg(feature = "pcap")]
     fn get_pcap_device(&self, device: &pcap::Device) -> Option<pcap::Capture<pcap::Active>> {
-        if let Ok(cap) = pcap::Capture::from_device(device.clone()) {
-            if let Ok(cap) = cap.snaplen(1700).promisc(true).timeout(20).open() {
+        let result = pcap::Capture::from_device(device.clone());
+        if let Ok(cap) = result {
+            let cap_result = cap.snaplen(1700).promisc(true).timeout(20).open();
+            if let Ok(cap) = cap_result {
                 Some(cap)
             } else {
+                if let Err(error) = cap_result {
+                    u2_debug!("Unable to get device: {:?}", error);
+                }
                 None
             }
         } else {
+            if let Err(error) = result {
+                u2_debug!("Unable to get device: {:?}", error);
+            }
             None
         }
     }
