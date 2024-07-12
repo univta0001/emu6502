@@ -469,7 +469,7 @@ impl Uthernet2 {
 
     fn write_value_at(&mut self, addr: usize, value: u8) {
         let eaddr = addr & 0x7fff;
-        if eaddr == 0x0000 {
+        if eaddr == W5100_MR {
             self.set_mode_register(value);
         } else if (W5100_GAR0..=W5100_UPORT1).contains(&eaddr) {
             self.write_common_register(eaddr, value);
