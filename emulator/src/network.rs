@@ -86,8 +86,8 @@ const W5100_SN_DIPR2: usize = 0x0e;
 const W5100_SN_DIPR3: usize = 0x0f;
 const W5100_SN_DPORT0: usize = 0x10;
 const W5100_SN_DPORT1: usize = 0x11;
-const _W5100_SN_MSSR0: usize = 0x12;
-const _W5100_SN_MSSR1: usize = 0x13;
+const W5100_SN_MSSR0: usize = 0x12;
+const W5100_SN_MSSR1: usize = 0x13;
 const W5100_SN_PROTO: usize = 0x14;
 const W5100_SN_TOS: usize = 0x15;
 const W5100_SN_TTL: usize = 0x16;
@@ -532,6 +532,7 @@ impl Uthernet2 {
             socket.receive_pointer = (socket.receive_pointer + 1) % socket.receive_size;
             rsr += 1;
         }
+
         let size = u16::to_be_bytes(rsr as u16);
         self.mem[base_addr + W5100_SN_RX_RSR0] = size[0];
         self.mem[base_addr + W5100_SN_RX_RSR1] = size[1];
@@ -686,6 +687,7 @@ impl Uthernet2 {
             W5100_SN_TX_WR0 | W5100_SN_TX_WR1 | W5100_SN_RX_RD0 | W5100_SN_RX_RD1 => {
                 self.mem[addr] = value
             }
+            W5100_SN_MSSR0 | W5100_SN_MSSR1 => self.mem[addr] = value,
             _ => {
                 //u2_debug!("Write to socket unit = {unit} addr = 0x{addr:04X} loc = 0x{loc:02X} value = 0x{value:02X}")
             }
@@ -804,9 +806,10 @@ impl Uthernet2 {
 
     #[cfg(feature = "pcap")]
     fn assign_interface_to_raw_protocol(&mut self, i: usize) {
-        let device = if let Some(name) = &self.interface {
+        let mut device = None;
+        if let Some(name) = &self.interface {
             let result = pcap::Device::list();
-            if let Ok(devices) = result {
+            device = if let Ok(devices) = result {
                 devices
                     .into_iter()
                     .filter(|device| {
@@ -825,19 +828,20 @@ impl Uthernet2 {
                     u2_debug!("Unable to list pcap devices: {:?}", error);
                 }
                 None
-            }
-        } else {
-            // No interface provide, try to get default capture device from pcap
+            };
+        }
+
+        if device.is_none() {
+            // No interface provided or found, try to get default capture device from pcap
             let result = pcap::Device::lookup();
-            if let Ok(Some(device)) = result {
-                Some(device)
+            if let Ok(Some(lookup_device)) = result {
+                device = Some(lookup_device)
             } else {
                 if let Err(error) = result {
                     u2_debug!("Unable to lookup device: {:?}", error);
                 }
-                None
             }
-        };
+        }
 
         if let Some(device) = device {
             u2_debug!("Using device name: {} desc: {:?}", device.name, device.desc);
