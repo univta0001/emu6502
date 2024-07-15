@@ -3,7 +3,9 @@ use crate::mmu::Mmu;
 use crate::video::Video;
 use std::io::ErrorKind;
 use std::io::{Read, Write};
-use std::net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
+use std::net::{
+    IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpListener, TcpStream, ToSocketAddrs, UdpSocket,
+};
 use std::time::Duration;
 
 #[cfg(feature = "pcap")]
@@ -186,6 +188,7 @@ enum Proto {
     None,
     Tcp(TcpStream),
     TcpListener(TcpListener),
+    Udp(UdpSocket),
 
     #[cfg(feature = "pcap")]
     MacRaw(PcapCapture),
@@ -415,6 +418,7 @@ impl Uthernet2 {
         if socket.is_open() {
             match socket.status {
                 W5100_SN_SR_SOCK_ESTABLISHED => self.receive_one_packet_from_socket(i),
+                W5100_SN_SR_SOCK_UDP => self.receive_one_udp_packet_from_socket(i),
                 W5100_SN_SR_CLOSED => {
                     u2_debug!("Received Socket #{i} reading from a closed socket")
                 }
@@ -479,6 +483,49 @@ impl Uthernet2 {
                             self.clear_socket(i);
                         } else {
                             self.write_data_for_protocol(i, &buffer[0..size]);
+                        }
+                    } else if let Err(error) = result {
+                        //u2_debug!("Read bytes received error = {error:?}");
+                        if !(matches!(error.kind(), ErrorKind::WouldBlock)) {
+                            u2_debug!("Read bytes received from peer ERROR - Closing socket");
+                            self.clear_socket(i);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn receive_one_udp_packet_from_socket(&mut self, i: usize) {
+        let base_addr = self.get_base_socket_addr(i);
+        let socket = &mut self.socket[i];
+        if socket.is_open() {
+            if let Proto::Udp(udp) = &mut socket.socket_handle {
+                let rsr = u16::from_be_bytes([
+                    self.mem[base_addr + W5100_SN_RX_RSR0],
+                    self.mem[base_addr + W5100_SN_RX_RSR1],
+                ]) as usize;
+                let free_available = socket.receive_size - rsr;
+                if free_available > 8 {
+                    let mut buffer = vec![0; free_available - 1];
+                    let result = udp.recv_from(&mut buffer);
+                    if let Ok((size, sock_addr)) = result {
+                        //u2_debug!("Read bytes received from peer = 0x{size:02X}");
+                        if size == 0 {
+                            self.clear_socket(i);
+                        } else {
+                            let ip = sock_addr.ip();
+                            let port = sock_addr.port();
+
+                            // Only accept ipv4 packets
+                            if let IpAddr::V4(ipv4_addr) = ip {
+                                let ipv4 = ipv4_addr.octets();
+                                self.mem[base_addr + W5100_SN_DIPR0..=base_addr + W5100_SN_DIPR3]
+                                    .copy_from_slice(&[ipv4[0], ipv4[1], ipv4[2], ipv4[3]]);
+                                self.mem[base_addr + W5100_SN_DPORT0..=base_addr + W5100_SN_DPORT1]
+                                    .copy_from_slice(&port.to_be_bytes());
+                                self.write_data_for_protocol(i, &buffer[0..size]);
+                            }
                         }
                     } else if let Err(error) = result {
                         //u2_debug!("Read bytes received error = {error:?}");
@@ -788,6 +835,7 @@ impl Uthernet2 {
                 self.set_socket_status(i, W5100_SN_SR_SOCK_INIT);
             }
             W5100_SN_MR_UDP | W5100_SN_MR_UDP_DNS => {
+                self.assign_interface_to_udp_protocol(i);
                 self.set_socket_status(i, W5100_SN_SR_SOCK_UDP)
             }
             _ => {
@@ -802,6 +850,25 @@ impl Uthernet2 {
         }
 
         self.reset_rxtx_buffers(i);
+    }
+
+    fn assign_interface_to_udp_protocol(&mut self, i: usize) {
+        let base_addr = self.get_base_socket_addr(i);
+        let port_bytes = [
+            self.mem[base_addr + W5100_SN_PORT0],
+            self.mem[base_addr + W5100_SN_PORT1],
+        ];
+        let port = u16::from_be_bytes(port_bytes);
+
+        u2_debug!("Open UDP Socket at port {port}");
+
+        let bind_addr = SocketAddr::from(([0, 0, 0, 0], port));
+        if let Ok(udp_socket) = UdpSocket::bind(bind_addr) {
+            if udp_socket.set_nonblocking(true).is_err() {
+                u2_debug!("Unable to set UDP socket to nonblocking mode");
+            }
+            self.socket[i].set_socket_handle(Proto::Udp(udp_socket));
+        }
     }
 
     #[cfg(feature = "pcap")]
@@ -1106,11 +1173,30 @@ impl Uthernet2 {
     }
 
     fn send_data_to_socket(&mut self, i: usize, data: &[u8]) {
+        let base_addr = self.get_base_socket_addr(i);
         let socket = &mut self.socket[i];
 
         if socket.is_open() {
             if let Proto::Tcp(stream) = &mut socket.socket_handle {
                 let result = stream.write_all(data);
+                if let Err(error) = result {
+                    if !(matches!(error.kind(), ErrorKind::WouldBlock)) {
+                        self.clear_socket(i);
+                    }
+                }
+            } else if let Proto::Udp(udp) = &mut socket.socket_handle {
+                let dest = &self.mem[base_addr + W5100_SN_DIPR0..=base_addr + W5100_SN_DIPR3];
+                let port_bytes = [
+                    self.mem[base_addr + W5100_SN_DPORT0],
+                    self.mem[base_addr + W5100_SN_DPORT1],
+                ];
+                let port = u16::from_be_bytes(port_bytes);
+                let sock_addr = SocketAddr::new(
+                    IpAddr::V4(Ipv4Addr::new(dest[0], dest[1], dest[2], dest[3])),
+                    port,
+                );
+
+                let result = udp.send_to(data, sock_addr);
                 if let Err(error) = result {
                     if !(matches!(error.kind(), ErrorKind::WouldBlock)) {
                         self.clear_socket(i);
