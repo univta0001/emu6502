@@ -437,23 +437,22 @@ impl Uthernet2 {
         let base_addr = self.get_base_socket_addr(i);
         let socket = &mut self.socket[i];
         if let Proto::MacRaw(pcap_capture) = &mut socket.socket_handle {
-            let result = pcap_capture.0.next_packet();
-            if let Ok(packet) = result {
-                let buffer = Vec::from(packet.data);
-                let mac = &self.mem[W5100_SHAR0..=W5100_SHAR5];
-                let broadcast = [0xff, 0xff, 0xff, 0xff, 0xff, 0xff];
-                let mr = self.mem[base_addr + W5100_SN_MR];
-                let accept_all = mr & _W5100_SN_MR_MF == 0;
+            match pcap_capture.0.next_packet() {
+                Ok(packet) => {
+                    let buffer = Vec::from(packet.data);
+                    let mac = &self.mem[W5100_SHAR0..=W5100_SHAR5];
+                    let broadcast = [0xff, 0xff, 0xff, 0xff, 0xff, 0xff];
+                    let mr = self.mem[base_addr + W5100_SN_MR];
+                    let accept_all = mr & _W5100_SN_MR_MF == 0;
 
-                if accept_all || *mac == buffer[0..6] || broadcast == buffer[0..6] {
-                    self.write_raw_data_for_protocol(i, &buffer);
+                    if accept_all || *mac == buffer[0..6] || broadcast == buffer[0..6] {
+                        self.write_raw_data_for_protocol(i, &buffer);
+                    }
                 }
-            } else if let Err(error) = result {
-                let mut close_flag = true;
-                if error == pcap::Error::TimeoutExpired {
-                    close_flag = false;
-                }
-                if close_flag {
+
+                Err(pcap::Error::TimeoutExpired) => {}
+
+                Err(error) => {
                     u2_debug!(
                         "Read bytes received from peer ERROR {:?} - Closing socket",
                         error
@@ -476,18 +475,23 @@ impl Uthernet2 {
                 let free_available = socket.receive_size - rsr;
                 if free_available > 32 {
                     let mut buffer = vec![0; free_available - 1];
-                    let result = stream.read(&mut buffer);
-                    if let Ok(size) = result {
-                        //u2_debug!("Read bytes received from peer = 0x{size:02X}");
-                        if size == 0 {
-                            self.clear_socket(i);
-                        } else {
-                            self.write_data_for_protocol(i, &buffer[0..size]);
+                    match stream.read(&mut buffer) {
+                        Ok(size) => {
+                            //u2_debug!("Read bytes received from peer = 0x{size:02X}");
+                            if size == 0 {
+                                self.clear_socket(i);
+                            } else {
+                                self.write_data_for_protocol(i, &buffer[0..size]);
+                            }
                         }
-                    } else if let Err(error) = result {
-                        //u2_debug!("Read bytes received error = {error:?}");
-                        if !(matches!(error.kind(), ErrorKind::WouldBlock)) {
-                            u2_debug!("Read bytes received from peer ERROR - Closing socket");
+
+                        Err(ref error) if error.kind() == ErrorKind::WouldBlock => {}
+
+                        Err(error) => {
+                            u2_debug!(
+                                "Read bytes received from peer ERROR {:?} - Closing socket",
+                                error
+                            );
                             self.clear_socket(i);
                         }
                     }
@@ -508,29 +512,36 @@ impl Uthernet2 {
                 let free_available = socket.receive_size - rsr;
                 if free_available > 8 {
                     let mut buffer = vec![0; free_available - 1];
-                    let result = udp.recv_from(&mut buffer);
-                    if let Ok((size, sock_addr)) = result {
-                        //u2_debug!("Read bytes received from peer = 0x{size:02X}");
-                        if size == 0 {
-                            self.clear_socket(i);
-                        } else {
-                            let ip = sock_addr.ip();
-                            let port = sock_addr.port();
+                    match udp.recv_from(&mut buffer) {
+                        Ok((size, sock_addr)) => {
+                            //u2_debug!("Read bytes received from peer = 0x{size:02X}");
+                            if size == 0 {
+                                self.clear_socket(i);
+                            } else {
+                                let ip = sock_addr.ip();
+                                let port = sock_addr.port();
 
-                            // Only accept ipv4 packets
-                            if let IpAddr::V4(ipv4_addr) = ip {
-                                let ipv4 = ipv4_addr.octets();
-                                self.mem[base_addr + W5100_SN_DIPR0..=base_addr + W5100_SN_DIPR3]
-                                    .copy_from_slice(&[ipv4[0], ipv4[1], ipv4[2], ipv4[3]]);
-                                self.mem[base_addr + W5100_SN_DPORT0..=base_addr + W5100_SN_DPORT1]
-                                    .copy_from_slice(&port.to_be_bytes());
-                                self.write_data_for_protocol(i, &buffer[0..size]);
+                                // Only accept ipv4 packets
+                                if let IpAddr::V4(ipv4_addr) = ip {
+                                    let ipv4 = ipv4_addr.octets();
+                                    self.mem
+                                        [base_addr + W5100_SN_DIPR0..=base_addr + W5100_SN_DIPR3]
+                                        .copy_from_slice(&[ipv4[0], ipv4[1], ipv4[2], ipv4[3]]);
+                                    self.mem
+                                        [base_addr + W5100_SN_DPORT0..=base_addr + W5100_SN_DPORT1]
+                                        .copy_from_slice(&port.to_be_bytes());
+                                    self.write_data_for_protocol(i, &buffer[0..size]);
+                                }
                             }
                         }
-                    } else if let Err(error) = result {
-                        //u2_debug!("Read bytes received error = {error:?}");
-                        if !(matches!(error.kind(), ErrorKind::WouldBlock)) {
-                            u2_debug!("Read bytes received from peer ERROR - Closing socket");
+
+                        Err(ref error) if error.kind() == ErrorKind::WouldBlock => {}
+
+                        Err(error) => {
+                            u2_debug!(
+                                "Read bytes received from peer ERROR: {:?} - Closing socket",
+                                error
+                            );
                             self.clear_socket(i);
                         }
                     }
@@ -873,30 +884,7 @@ impl Uthernet2 {
 
     #[cfg(feature = "pcap")]
     fn assign_interface_to_raw_protocol(&mut self, i: usize) {
-        let mut device = None;
-        if let Some(name) = &self.interface {
-            let result = pcap::Device::list();
-            device = if let Ok(devices) = result {
-                devices
-                    .into_iter()
-                    .filter(|device| {
-                        if device.name.to_lowercase().contains(&name.to_lowercase()) {
-                            true
-                        } else {
-                            device
-                                .desc
-                                .as_ref()
-                                .map_or(false, |s| s.to_lowercase().contains(&name.to_lowercase()))
-                        }
-                    })
-                    .nth(0)
-            } else {
-                if let Err(error) = result {
-                    u2_debug!("Unable to list pcap devices: {:?}", error);
-                }
-                None
-            };
-        }
+        let mut device = self.find_pcap_device();
 
         if device.is_none() {
             // No interface provided or found, try to get default capture device from pcap
@@ -935,6 +923,44 @@ impl Uthernet2 {
                     } else {
                         u2_debug!("Unable to get blocking device");
                     }
+                }
+            }
+        }
+    }
+
+    #[cfg(feature = "pcap")]
+    fn find_pcap_device(&self) -> Option<pcap::Device> {
+        // Attempt to find the device based on provided interface name or default to lookup
+        if let Some(name) = &self.interface {
+            match pcap::Device::list() {
+                Ok(devices) => {
+                    for device in devices {
+                        if device.name.to_lowercase().contains(&name.to_lowercase())
+                            || device
+                                .desc
+                                .as_ref()
+                                .map_or(false, |s| s.to_lowercase().contains(&name.to_lowercase()))
+                        {
+                            return Some(device);
+                        }
+                    }
+                    None
+                }
+                Err(error) => {
+                    u2_debug!("Unable to list pcap devices: {:?}", error);
+                    None
+                }
+            }
+        } else {
+            match pcap::Device::lookup() {
+                Ok(Some(device)) => Some(device),
+                Ok(None) => {
+                    u2_debug!("No pcap device found.");
+                    None
+                }
+                Err(error) => {
+                    u2_debug!("Unable to lookup device: {:?}", error);
+                    None
                 }
             }
         }
