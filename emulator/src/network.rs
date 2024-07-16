@@ -450,7 +450,7 @@ impl Uthernet2 {
                             self.mem[base_addr + W5100_SN_RX_RSR0],
                             self.mem[base_addr + W5100_SN_RX_RSR1],
                         ]) as usize;
-                        if rsr + buffer.len() < socket.receive_size {
+                        if rsr + 2 + buffer.len() < socket.receive_size {
                             self.write_raw_data_for_protocol(i, &buffer);
                         }
                     }
