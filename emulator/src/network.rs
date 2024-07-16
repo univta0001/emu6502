@@ -446,7 +446,13 @@ impl Uthernet2 {
                     let accept_all = mr & _W5100_SN_MR_MF == 0;
 
                     if accept_all || *mac == buffer[0..6] || broadcast == buffer[0..6] {
-                        self.write_raw_data_for_protocol(i, &buffer);
+                        let rsr = u16::from_be_bytes([
+                            self.mem[base_addr + W5100_SN_RX_RSR0],
+                            self.mem[base_addr + W5100_SN_RX_RSR1],
+                        ]) as usize;
+                        if rsr + buffer.len() < socket.receive_size {
+                            self.write_raw_data_for_protocol(i, &buffer);
+                        }
                     }
                 }
 
