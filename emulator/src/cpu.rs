@@ -683,7 +683,9 @@ impl CPU {
 
     pub fn get_indirect_zeropage_addr(&mut self) -> u16 {
         let ptr = self.next_byte();
-        self.addr_read_u16(ptr as u16)
+        let lo = self.bus.addr_read(ptr as u16);
+        let hi = self.bus.addr_read((ptr.wrapping_add(1)) as u16);
+        (hi as u16) * 256 + lo as u16
     }
 
     pub fn get_indirect_x_addr(&mut self) -> u16 {
@@ -2178,7 +2180,8 @@ impl CPU {
                     self.tick();
                     *self.status.0.bits_mut() = self.stack_pop();
                     self.program_counter = self.last_tick_stack_pop_u16();
-                    self.status.remove(CpuFlags::BREAK | CpuFlags::UNUSED);
+                    self.status.remove(CpuFlags::BREAK);
+                    self.status.insert(CpuFlags::UNUSED);
                 }
 
                 /* BNE */
@@ -2398,7 +2401,11 @@ impl CPU {
                 /* NOP1 */
                 0x03 | 0x13 | 0x23 | 0x33 | 0x43 | 0x53 | 0x63 | 0x73 | 0x83 | 0x93 | 0xa3
                 | 0xb3 | 0xc3 | 0xd3 | 0xe3 | 0xf3 | 0x0b | 0x1b | 0x2b | 0x3b | 0x4b | 0x5b
-                | 0x6b | 0x7b | 0x8b | 0x9b | 0xab | 0xbb | 0xcb | 0xdb | 0xeb | 0xfb => {}
+                | 0x6b | 0x7b | 0x8b | 0x9b | 0xab | 0xbb | 0xcb | 0xeb | 0xfb => {}
+
+                0xdb => {
+                    self.increment_pc();
+                }
 
                 /* NOP */
                 0xea => {
