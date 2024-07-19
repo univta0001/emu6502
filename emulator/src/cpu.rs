@@ -690,12 +690,16 @@ impl CPU {
         let base = self.next_byte();
         let ptr = base.wrapping_add(self.register_x);
         self.tick();
-        self.addr_read_u16(ptr as u16)
+        let lo = self.bus.addr_read(ptr as u16);
+        let hi = self.bus.addr_read((ptr.wrapping_add(1)) as u16);
+        hi as u16 * 256 + lo as u16
     }
 
     pub fn get_indirect_y_addr(&mut self, op: &OpCode) -> u16 {
         let base = self.next_byte();
-        let deref_base = self.addr_read_u16(base as u16);
+        let lo = self.bus.addr_read(base as u16);
+        let hi = self.bus.addr_read((base.wrapping_add(1)) as u16);
+        let deref_base = hi as u16 * 256 + lo as u16;
         let deref = deref_base.wrapping_add(self.register_y as u16);
         let page_crossed = self.page_cross(deref, deref_base);
 
@@ -2145,11 +2149,11 @@ impl CPU {
                  */
                 0x20 => {
                     let adl = self.addr_read(self.program_counter);
+                    let _ = self.addr_read(self.program_counter.wrapping_add(1));
                     self.stack_push_u16(self.program_counter.wrapping_add(1));
                     let target_address =
-                        (self.addr_read(self.program_counter + 1) as u16) << 8 | adl as u16;
+                        (self.last_tick_addr_read(self.program_counter.wrapping_add(1)) as u16) << 8 | adl as u16;
                     self.program_counter = target_address;
-                    self.last_tick()
                 }
 
                 /* RTS */
