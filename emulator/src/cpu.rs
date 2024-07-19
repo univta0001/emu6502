@@ -1026,7 +1026,7 @@ impl CPU {
 
     fn add_to_register_a(&mut self, data: u8, sub: bool) {
         let result: u8;
-        let old_register_a = self.register_a;
+        let input = self.register_a;
 
         if !self.status.contains(CpuFlags::DECIMAL_MODE) {
             let sum =
@@ -1034,6 +1034,10 @@ impl CPU {
             self.status.set(CpuFlags::CARRY, sum > 0xff);
             result = sum as u8;
             self.set_register_a(result);
+            self.status.set(
+                CpuFlags::OVERFLOW,
+                (data ^ result) & (result ^ input) & 0x80 != 0,
+            );
         } else {
             let mut sum = (self.register_a & 0xf) as i16
                 + (data & 0xf) as i16
@@ -1051,6 +1055,16 @@ impl CPU {
 
             sum += high_nibble;
 
+            self.status.set(
+                CpuFlags::OVERFLOW,
+                (data ^ sum as u8) & (sum as u8 ^ input) & 0x80 != 0,
+            );
+
+            let negative = (sum as u8) & 0x80 != 0;
+            let zero = (input as u16 + data as u16 + self.status.contains(CpuFlags::CARRY) as u16)
+                & 0xff
+                == 0;
+
             if sub {
                 if sum < 0x100 {
                     sum = (sum + 0xa0) & 0xff;
@@ -1064,18 +1078,10 @@ impl CPU {
             self.set_register_a(result);
 
             if !self.m65c02 {
-                let binary_sum = old_register_a as u16
-                    + data as u16
-                    + self.status.contains(CpuFlags::CARRY) as u16;
-                self.status.set(CpuFlags::NEGATIVE, binary_sum & 0x80 > 0);
+                self.status.set(CpuFlags::NEGATIVE, negative);
+                self.status.set(CpuFlags::ZERO, zero);
             }
         }
-
-        // Compute overflow V
-        self.status.set(
-            CpuFlags::OVERFLOW,
-            (data ^ result) & (result ^ old_register_a) & 0x80 != 0,
-        );
     }
 
     fn sbc(&mut self, op: &OpCode) {
@@ -2152,7 +2158,9 @@ impl CPU {
                     let _ = self.addr_read(self.program_counter.wrapping_add(1));
                     self.stack_push_u16(self.program_counter.wrapping_add(1));
                     let target_address =
-                        (self.last_tick_addr_read(self.program_counter.wrapping_add(1)) as u16) << 8 | adl as u16;
+                        (self.last_tick_addr_read(self.program_counter.wrapping_add(1)) as u16)
+                            << 8
+                            | adl as u16;
                     self.program_counter = target_address;
                 }
 
