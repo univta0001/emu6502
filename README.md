@@ -7,6 +7,8 @@ This is an Apple \]\[ and Apple //e emulators written entirely in Rust, SDL and 
 Features in the emulator
 
 - 6502 / 65C02 cycle accurate emulation
+- Passed Klaus Dormann 6502, 65c02 and decimal tests
+- Passed Tom Harte Processor Test for 6502 (valid opcodes) and 65c02
 - Disk II interface for floppy disk drives
 - File Format supported (dsk, po, nib, woz version 1 and version 2.x including Flux image, hdv, 2mg)
 - Language Card for Apple ][+
