@@ -3160,6 +3160,24 @@ mod test {
     }
 
     #[test]
+    fn decimal_add_invalid() {
+        let bus = Bus::default();
+        let mut cpu = CPU::new(bus);
+        cpu.reset();
+        cpu.m65c02 = false;
+        cpu.bus.set_cycles(0);
+        cpu.bus.disable_audio = true;
+        cpu.bus.disable_video = true;
+        cpu.bus.disable_disk = true;
+        cpu.load_and_run(&[0x18, 0xf8, 0xa9, 0xf1, 0xe9, 0x1e, 00]);
+        assert_eq!(cpu.register_a, 0xdc, "Should get 0xdc using 6502");
+        cpu.m65c02 = true;
+        cpu.bus.set_cycles(0);
+        cpu.load_and_run(&[0x18, 0xf8, 0xa9, 0xf1, 0xe9, 0x1e, 00]);
+        assert_eq!(cpu.register_a, 0xcc, "Should get 0xcc using 65c02");
+    }
+
+    #[test]
     fn decimal_test_6502() {
         let function_test: Vec<u8> = std::fs::read("../6502_decimal_test").unwrap();
         let bus = Bus::new();
