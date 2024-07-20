@@ -1041,15 +1041,22 @@ impl CPU {
                 (data ^ result) & (result ^ input) & 0x80 != 0,
             );
         } else {
-            let mut sum = (self.register_a & 0xf) as i16
-                + (data & 0xf) as i16
-                + self.status.contains(CpuFlags::CARRY) as u8 as i16;
+            let binary_sum =
+                self.register_a as u16 + data as u16 + self.status.contains(CpuFlags::CARRY) as u16;
+            let mut sum = (self.register_a & 0xf) as u16
+                + (data & 0xf) as u16
+                + self.status.contains(CpuFlags::CARRY) as u8 as u16;
 
-            let high_nibble = (self.register_a & 0xf0) as i16 + (data & 0xf0) as i16;
+            let high_nibble = (self.register_a & 0xf0) as u16 + (data & 0xf0) as u16;
 
             if sub {
                 if sum < 0x10 {
-                    sum = (sum - 0x6) & 0xf;
+                    if !self.m65c02 {
+                        sum = (sum + 0xa) & 0xf;
+                    } else {
+                        sum += 0xfa;
+                        sum &= 0xff;
+                    }
                 }
             } else if sum >= 0xa {
                 sum = (sum - 0xa) | 0x10;
@@ -1057,10 +1064,17 @@ impl CPU {
 
             sum += high_nibble;
 
-            self.status.set(
-                CpuFlags::OVERFLOW,
-                (data ^ sum as u8) & (sum as u8 ^ input) & 0x80 != 0,
-            );
+            if sub {
+                self.status.set(
+                    CpuFlags::OVERFLOW,
+                    (data ^ binary_sum as u8) & (input ^ binary_sum as u8) & 0x80 != 0,
+                );
+            } else {
+                self.status.set(
+                    CpuFlags::OVERFLOW,
+                    (data ^ sum as u8) & (input ^ sum as u8) & 0x80 != 0,
+                );
+            }
 
             let negative = (sum as u8) & 0x80 != 0;
             let zero = (input as u16 + data as u16 + self.status.contains(CpuFlags::CARRY) as u16)
@@ -1068,7 +1082,7 @@ impl CPU {
                 == 0;
 
             if sub {
-                if sum < 0x100 {
+                if binary_sum < 0x100 {
                     sum = (sum + 0xa0) & 0xff;
                 }
             } else if sum >= 0xa0 {
