@@ -379,7 +379,9 @@ impl HardDisk {
             match self.status_code {
                 SMARTPORT_STATUS | SMARTPORT_STATUS_GETDIB => {
                     // Device status is 4 bytes
-                    Self::write_data_to_mmu(mmu, video, disk.mem_block, 0xf0);
+                    // 0xf0 is online, 0xe0 is offline for disk
+                    let online = if disk.loaded { 0xf0 } else { 0xe0 };
+                    Self::write_data_to_mmu(mmu, video, disk.mem_block, online);
                     Self::write_data_to_mmu(mmu, video, disk.mem_block + 1, low_size);
                     Self::write_data_to_mmu(mmu, video, disk.mem_block + 2, high_size);
                     Self::write_data_to_mmu(mmu, video, disk.mem_block + 3, high_24_size);
@@ -725,11 +727,11 @@ impl Card for HardDisk {
             0x3 => {
                 if write_flag {
                     if self.command & 0x80 == 0 {
-                        self.drive_select = (value >> 7) as usize;
+                        self.drive_select = ((value >> 7) as usize) % 2;
                     } else if value & 0xf == 0 {
                         self.drive_select = 0;
                     } else {
-                        self.drive_select = (value & 0xf) as usize - 1
+                        self.drive_select = ((value & 0xf) as usize - 1) % 2;
                     }
                     self.unit_num = value;
                 }
