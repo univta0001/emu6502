@@ -727,11 +727,11 @@ impl Card for HardDisk {
             0x3 => {
                 if write_flag {
                     if self.command & 0x80 == 0 {
-                        self.drive_select = ((value >> 7) as usize) % 2;
+                        self.drive_select = ((value >> 7) as usize) % self.drive.len();
                     } else if value & 0xf == 0 {
                         self.drive_select = 0;
                     } else {
-                        self.drive_select = ((value & 0xf) as usize - 1) % 2;
+                        self.drive_select = ((value & 0xf) as usize - 1) % self.drive.len();
                     }
                     self.unit_num = value;
                 }
