@@ -532,7 +532,7 @@ impl HardDisk {
     fn block_cmd_execute(&mut self, mmu: &mut Mmu, video: &mut Video) -> u8 {
         let disk = &mut self.drive[self.drive_select];
 
-        if !disk.loaded {
+        if !disk.loaded && self.command != BLK_CMD_STATUS && self.command != SMARTPORT_CMD_STATUS {
             disk.error = DeviceStatus::DeviceNotConnected as u8;
             return self.block_cmd_status();
         }
