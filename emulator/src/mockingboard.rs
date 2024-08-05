@@ -197,7 +197,10 @@ impl AY8910 {
     }
 
     fn update_noise(&mut self) {
-        let env_period = self.noise.period as usize * 2;
+        let mut env_period = self.noise.period as usize * 2;
+        if env_period == 0 {
+            env_period = 1;
+        }
         self.noise.count = self.noise.count.wrapping_sub(1) & 0x1f;
         if self.noise.count == 0 {
             self.noise.count = env_period;
