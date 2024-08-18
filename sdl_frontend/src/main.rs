@@ -59,6 +59,9 @@ const AUDIO_SAMPLE_SIZE_50HZ: u32 = AUDIO_SAMPLE_RATE / 50;
 const NTSC_LUMA_BANDWIDTH: f32 = 2300000.0;
 const NTSC_CHROMA_BANDWIDTH: f32 = 600000.0;
 
+const WIDTH: usize = 560;
+const HEIGHT: usize = 384;
+
 const DSK_PO_SIZE: u64 = 143360;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -1304,7 +1307,12 @@ fn update_video(
     if *save_screenshot {
         if let Ok(output) = File::create("screenshot.png") {
             let encoder = PngEncoder::new(output);
-            let result = encoder.write_image(&disp.frame, 560, 384, ColorType::Rgba8.into());
+            let result = encoder.write_image(
+                &disp.frame,
+                WIDTH as u32,
+                HEIGHT as u32,
+                ColorType::Rgba8.into(),
+            );
             if result.is_err() {
                 eprintln!("Unable to create PNG file");
             }
@@ -1329,8 +1337,8 @@ fn update_video(
     for region in dirty_region {
         let start = region.0 * 16;
         let end = 16 * ((region.1 - region.0) + 1);
-        let rect = Rect::new(0, start as i32, 560, end as u32);
-        let _ = texture.update(rect, &disp.frame[start * 4 * 560..], 560 * 4);
+        let rect = Rect::new(0, start as i32, WIDTH as u32, end as u32);
+        let _ = texture.update(rect, &disp.frame[start * 4 * WIDTH..], WIDTH * 4);
     }
     let _ = canvas.copy(texture, None, None);
     disp.clear_video_dirty();
@@ -1351,16 +1359,16 @@ fn update_video(
         if fullscreen {
             let width = if let Ok(display_mode) = canvas.window().display_mode() {
                 let mut effective_width = (display_mode.w as f32 / scale) as i32;
-                if effective_width < 560 {
-                    effective_width = 560;
+                if effective_width < WIDTH as i32 {
+                    effective_width = WIDTH as i32;
                 }
                 effective_width
             } else {
-                560
+                WIDTH as i32
             };
             let _ = draw_circle(canvas, width - 4, 4, 2);
         } else {
-            let _ = draw_circle(canvas, 560 - 4, 4, 2);
+            let _ = draw_circle(canvas, (WIDTH - 4) as i32, 4, 2);
         }
     }
     canvas.present();
@@ -1455,8 +1463,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         scale = scale_value;
     }
 
-    let width = (scale * 560.0) as u32;
-    let height = (scale * 384.0) as u32;
+    let width = (scale * WIDTH as f32) as u32;
+    let height = (scale * HEIGHT as f32) as u32;
     let video_subsystem = sdl_context.video()?;
     let window = video_subsystem
         .window("Apple ][ emulator", width, height)
@@ -1479,13 +1487,13 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut canvas = window.into_canvas().build().unwrap();
     let creator = canvas.texture_creator();
     let mut texture = creator
-        .create_texture_target(PixelFormatEnum::ABGR8888, 560, 384)
+        .create_texture_target(PixelFormatEnum::ABGR8888, WIDTH as u32, HEIGHT as u32)
         .unwrap();
 
     canvas.clear();
     canvas.set_scale(scale, scale).unwrap();
 
-    texture.update(None, &bus.video.frame, 560 * 4).unwrap();
+    texture.update(None, &bus.video.frame, WIDTH * 4).unwrap();
     canvas.copy(&texture, None, None).unwrap();
     canvas.present();
 

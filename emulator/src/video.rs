@@ -129,6 +129,8 @@ pub struct Video {
     video_latch: u8,
     prev_video_data: u8,
     apple2e: bool,
+    apple2e_enh: bool,
+    apple2c: bool,
     video_50hz: bool,
     mono_mode: bool,
     rgb_mode: u8,
@@ -727,6 +729,8 @@ impl Video {
             video_latch: 0,
             prev_video_data: 0,
             apple2e: false,
+            apple2e_enh: false,
+            apple2c: false,
             video_50hz: false,
             mono_mode: false,
             rgb_mode: 0,
@@ -899,7 +903,7 @@ impl Video {
                 }
             }
             0x0f => {
-                if self.apple2e && write_flag {
+                if (self.apple2e_enh || self.apple2c) && write_flag {
                     self.altchar = true;
                     for item in &mut self.video_dirty {
                         *item = 1;
@@ -977,6 +981,22 @@ impl Video {
 
     pub fn is_apple2e(&self) -> bool {
         self.apple2e
+    }
+
+    pub fn set_apple2e_enh(&mut self, flag: bool) {
+        self.apple2e_enh = flag
+    }
+
+    pub fn is_apple2e_enh(&self) -> bool {
+        self.apple2e_enh
+    }
+
+    pub fn set_apple2c(&mut self, flag: bool) {
+        self.apple2c = flag
+    }
+
+    pub fn is_apple2c(&self) -> bool {
+        self.apple2c
     }
 
     pub fn clear_video_dirty(&mut self) {

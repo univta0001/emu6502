@@ -1472,7 +1472,8 @@ impl DiskDrive {
     pub fn get_value(&self) -> u8 {
         // This implementation keeps the previous latch value longer by one clock cycle
         // Needed for Test Drive
-        if self.prev_latch & 0x80 != 0 && self.latch & 0x80 == 0 {
+        // If get_value is called using 0xc088, always return latch value (Fix Mr DO issue)
+        if self.pending_ticks == 0 && self.prev_latch & 0x80 != 0 && self.latch & 0x80 == 0 {
             // 5% jitter is required for Buzzard Bait
             if fastrand::f32() < 0.05 {
                 self.latch

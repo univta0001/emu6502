@@ -1495,8 +1495,13 @@ impl CPU {
             self.bus.video.set_apple2e(true);
         }
 
+        if self.is_apple2e_enh() {
+            self.bus.video.set_apple2e_enh(true);
+        }
+
         if self.is_apple2c() {
             self.bus.set_apple2c(true);
+            self.bus.video.set_apple2c(true);
             self.bus.mem.intcxrom = true;
             if self.bus.mem_read(0xfbbf) != 0xff {
                 self.bus.set_iwm(true);
@@ -2240,7 +2245,12 @@ impl CPU {
 
                 /* BIT */
                 0x89 => {
-                    self.bit_immediate();
+                    if self.m65c02 {
+                        self.bit_immediate();
+                    } else {
+                        self.increment_pc();
+                        self.last_tick();
+                    }
                 }
 
                 /* BIT zeropage */
@@ -2490,6 +2500,7 @@ impl CPU {
                     if self.m65c02 {
                         self.branch(true);
                     } else {
+                        self.increment_pc();
                         self.last_tick();
                     }
                 }
@@ -2540,6 +2551,8 @@ impl CPU {
                     if self.m65c02 {
                         self.tick();
                         self.last_tick_stack_push(self.register_x);
+                    } else {
+                        self.last_tick();
                     }
                 }
 
@@ -2553,12 +2566,20 @@ impl CPU {
 
                 /* PLX */
                 0xfa => {
-                    self.plx();
+                    if self.m65c02 {
+                        self.plx();
+                    } else {
+                        self.last_tick();
+                    }
                 }
 
                 /* PLY */
                 0x7a => {
-                    self.ply();
+                    if self.m65c02 {
+                        self.ply();
+                    } else {
+                        self.last_tick();
+                    }
                 }
 
                 0x1a => {
@@ -2585,6 +2606,7 @@ impl CPU {
                         let addr = self.get_zeropage_x_addr();
                         self.stz(addr);
                     } else {
+                        self.increment_pc();
                         self.last_tick();
                     }
                 }
