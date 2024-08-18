@@ -32,6 +32,7 @@
         <a id="disk2" class="button shadow hover:shadow-lg border-2 rounded-full font-bold py-2 px-3 cursor-pointer hover:bg-sky-400" href="#">Insert D2</a> 
         <a id="joystick" class="button shadow hover:shadow-lg border-2 rounded-full font-bold py-2 px-3 cursor-pointer hover:bg-sky-400" href="#">Toggle Joystick</a> 
         <input type="checkbox" id="video50hz" name="video50hz"> 50Hz Video </input>
+        <input type="checkbox" id="videoNTSC" name="videoNTSC"> NTSC Video </input>
     </div>
     </center>
 
@@ -98,6 +99,14 @@
                     emu6502.video_50hz(true);
                 } else {
                     emu6502.video_50hz(false);
+                }
+            });
+
+            document.getElementById("videoNTSC").addEventListener("change", function(e) {
+                if (e.currentTarget.checked) {
+                    emu6502.video_ntsc(true);
+                } else {
+                    emu6502.video_ntsc(false);
                 }
             });
 
@@ -524,6 +533,12 @@
                  emu6502.video_50hz(true);
             } else {
                  emu6502.video_50hz(false);
+            }
+
+            if (document.getElementById("videoNTSC").checked) {
+                 emu6502.video_ntsc(true);
+            } else {
+                 emu6502.video_ntsc(false);
             }
 
             const runloop = async (now) => {

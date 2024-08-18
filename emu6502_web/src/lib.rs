@@ -1,6 +1,7 @@
 use emu6502::bus::Bus;
 use emu6502::bus::IODevice;
 use emu6502::cpu::{CpuSpeed, CPU};
+use emu6502::video::DisplayMode;
 use emu6502::mockingboard::Mockingboard;
 use wasm_bindgen::prelude::*;
 
@@ -176,6 +177,14 @@ impl Emulator {
         let disk_on = self.cpu.bus.disk.is_motor_on();
         let harddisk_on = self.cpu.bus.harddisk.is_busy();
         disk_on || harddisk_on
+    }
+
+    pub fn video_ntsc(&mut self, ntsc: bool) {
+        if ntsc {
+            self.cpu.bus.video.set_display_mode(DisplayMode::NTSC)
+        } else {
+            self.cpu.bus.video.set_display_mode(DisplayMode::DEFAULT)
+        }
     }
 }
 
