@@ -852,6 +852,7 @@ FLAGS:
     --saturn           Enable Saturn memory (Only available in Apple 2+)
     --speedstar        Enable SpeedStar datakey dongle
     --hayden           Enable Hayden dongle
+    --codewriter       Enable CodeWriter dongle
     --interface name   Set the interface name for Uthernet2 (Default is None. For e.g. eth0)
 
 ARGS:
@@ -1588,6 +1589,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     if pargs.contains("--hayden") {
         cpu.bus.set_dongle(Dongle::Hayden);
+    }
+
+    if pargs.contains("--codewriter") {
+        cpu.bus.set_dongle(Dongle::CodeWriter(0x6b));
     }
 
     let mut apple2p = false;

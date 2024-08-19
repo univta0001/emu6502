@@ -73,6 +73,7 @@ pub enum Dongle {
     None,
     SpeedStar,
     Hayden,
+    CodeWriter(u8),
 }
 
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
@@ -970,16 +971,34 @@ impl Bus {
                         _ => {}
                     }
                 } else {
+                    let old_value = self.annunciator[((addr >> 1) & 3) as usize];
                     self.annunciator[((addr >> 1) & 3) as usize] = (addr & 1) != 0;
 
-                    if self.dongle == Dongle::SpeedStar {
-                        //SpeedStar DataKey Dongle
-                        if self.annunciator[0] {
-                            self.pushbutton_latch[2] =
-                                u8::from(!(self.annunciator[1] & self.annunciator[2])) << 7;
-                        } else {
-                            self.pushbutton_latch[2] = 0x80
+                    match self.dongle {
+                        Dongle::SpeedStar => {
+                            //SpeedStar DataKey Dongle
+                            if self.annunciator[0] {
+                                self.pushbutton_latch[2] =
+                                    u8::from(!(self.annunciator[1] & self.annunciator[2])) << 7;
+                            } else {
+                                self.pushbutton_latch[2] = 0x80
+                            }
                         }
+
+                        Dongle::CodeWriter(state) => {
+                            if (((addr >> 1) & 3) == 3 && old_value) || self.annunciator[3] {
+                                let state = 0x6b;
+                                self.dongle = Dongle::CodeWriter(state);
+                                self.pushbutton_latch[2] = (state & 1) << 7;
+                            } else if old_value && !self.annunciator[2] {
+                                let bit = ((state >> 1) ^ state) & 1;
+                                let state = (state >> 1) | (bit << 6);
+                                self.dongle = Dongle::CodeWriter(state);
+                                self.pushbutton_latch[2] = (state & 1) << 7;
+                            }
+                        }
+
+                        _ => {}
                     }
                 }
                 self.read_floating_bus()
