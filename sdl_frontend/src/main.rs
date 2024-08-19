@@ -1,6 +1,7 @@
 //#![windows_subsystem = "windows"]
 
 use emu6502::bus::Bus;
+use emu6502::bus::Dongle;
 use emu6502::bus::IODevice;
 use emu6502::video::DisplayMode;
 //use emu6502::bus::Mem;
@@ -1581,7 +1582,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
 
     if pargs.contains("--speedstar") {
-        cpu.bus.set_speedstar(true);
+        cpu.bus.set_dongle(Dongle::SpeedStar);
     }
 
     let mut apple2p = false;

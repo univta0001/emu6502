@@ -65,6 +65,14 @@ pub enum IODevice {
     Saturn(u8),
 }
 
+#[derive(Copy, Clone, PartialEq)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_support", derive(educe::Educe), educe(Debug))]
+pub enum Dongle {
+    None,
+    SpeedStar,
+}
+
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde_support", derive(educe::Educe), educe(Debug))]
 pub struct Bus {
@@ -135,7 +143,7 @@ pub struct Bus {
     pub z80_cirtech: bool,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
-    pub speedstar: bool,
+    pub dongle: Dongle,
 }
 
 pub trait Mem {
@@ -231,7 +239,7 @@ impl Bus {
             #[cfg(not(target_os = "wasi"))]
             uthernet2: Uthernet2::new(),
             z80_cirtech: false,
-            speedstar: false,
+            dongle: Dongle::None,
         };
 
         // Memory initialization is based on the implementation of AppleWin
@@ -371,12 +379,12 @@ impl Bus {
         self.z80_cirtech = value;
     }
 
-    pub fn get_speedstar(&self) -> bool {
-        self.speedstar
+    pub fn get_dongle(&self) -> Dongle {
+        self.dongle
     }
 
-    pub fn set_speedstar(&mut self, value: bool) {
-        self.speedstar = value;
+    pub fn set_dongle(&mut self, value: Dongle) {
+        self.dongle = value;
     }
 
     fn get_paddle_trigger(&self) -> usize {
@@ -962,14 +970,17 @@ impl Bus {
                 } else {
                     self.annunciator[((addr >> 1) & 3) as usize] = (addr & 1) != 0;
 
-                    //SpeedStar DataKey Dongle
-                    if self.speedstar {
-                        if self.annunciator[0] {
-                            self.pushbutton_latch[2] =
-                                u8::from(!(self.annunciator[1] & self.annunciator[2])) << 7;
-                        } else {
-                            self.pushbutton_latch[2] = 0x80
+                    match self.dongle {
+                        Dongle::SpeedStar => {
+                            //SpeedStar DataKey Dongle
+                            if self.annunciator[0] {
+                                self.pushbutton_latch[2] =
+                                    u8::from(!(self.annunciator[1] & self.annunciator[2])) << 7;
+                            } else {
+                                self.pushbutton_latch[2] = 0x80
+                            }
                         }
+                        _ => {}
                     }
                 }
                 self.read_floating_bus()
@@ -1276,6 +1287,12 @@ impl Mem for Bus {
 
     fn mem_aux_write(&mut self, addr: u16, data: u8) {
         self.mem.mem_aux_write(addr, data);
+    }
+}
+
+impl Default for Dongle {
+    fn default() -> Dongle {
+        Dongle::None
     }
 }
 
