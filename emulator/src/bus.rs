@@ -65,12 +65,14 @@ pub enum IODevice {
     Saturn(u8),
 }
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, Default, PartialEq)]
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde_support", derive(educe::Educe), educe(Debug))]
 pub enum Dongle {
+    #[default]
     None,
     SpeedStar,
+    Hayden,
 }
 
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
@@ -970,17 +972,14 @@ impl Bus {
                 } else {
                     self.annunciator[((addr >> 1) & 3) as usize] = (addr & 1) != 0;
 
-                    match self.dongle {
-                        Dongle::SpeedStar => {
-                            //SpeedStar DataKey Dongle
-                            if self.annunciator[0] {
-                                self.pushbutton_latch[2] =
-                                    u8::from(!(self.annunciator[1] & self.annunciator[2])) << 7;
-                            } else {
-                                self.pushbutton_latch[2] = 0x80
-                            }
+                    if self.dongle == Dongle::SpeedStar {
+                        //SpeedStar DataKey Dongle
+                        if self.annunciator[0] {
+                            self.pushbutton_latch[2] =
+                                u8::from(!(self.annunciator[1] & self.annunciator[2])) << 7;
+                        } else {
+                            self.pushbutton_latch[2] = 0x80
                         }
-                        _ => {}
                     }
                 }
                 self.read_floating_bus()
@@ -1084,7 +1083,15 @@ impl Bus {
             0x67 => {
                 if !self.is_apple2c {
                     let delta = self.get_cycles() - self.get_paddle_trigger();
-                    let value = self.get_joystick_value(self.paddle_latch[3]);
+                    let mut value = self.get_joystick_value(self.paddle_latch[3]);
+
+                    if self.dongle == Dongle::Hayden {
+                        // Implementation of Hayden dongle
+                        let index = (self.annunciator[2] as u8) << 1 | self.annunciator[0] as u8;
+                        let dongle_value = [0xff, 0x96, (0x96 + 0x50) / 2, 0x50];
+                        value = dongle_value[index as usize];
+                    }
+
                     if delta < (value as usize * 11) {
                         0x80
                     } else {
@@ -1287,12 +1294,6 @@ impl Mem for Bus {
 
     fn mem_aux_write(&mut self, addr: u16, data: u8) {
         self.mem.mem_aux_write(addr, data);
-    }
-}
-
-impl Default for Dongle {
-    fn default() -> Dongle {
-        Dongle::None
     }
 }
 

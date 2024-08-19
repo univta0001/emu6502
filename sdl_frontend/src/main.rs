@@ -851,6 +851,7 @@ FLAGS:
     --z80_cirtech      Enable Z80 Cirtech address translation
     --saturn           Enable Saturn memory (Only available in Apple 2+)
     --speedstar        Enable SpeedStar datakey dongle
+    --hayden           Enable Hayden dongle
     --interface name   Set the interface name for Uthernet2 (Default is None. For e.g. eth0)
 
 ARGS:
@@ -1583,6 +1584,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     if pargs.contains("--speedstar") {
         cpu.bus.set_dongle(Dongle::SpeedStar);
+    }
+
+    if pargs.contains("--hayden") {
+        cpu.bus.set_dongle(Dongle::Hayden);
     }
 
     let mut apple2p = false;
