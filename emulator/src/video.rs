@@ -129,8 +129,13 @@ pub struct Video {
     video_latch: u8,
     prev_video_data: u8,
     apple2e: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
     apple2e_enh: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
     apple2c: bool,
+
     video_50hz: bool,
     mono_mode: bool,
     rgb_mode: u8,
