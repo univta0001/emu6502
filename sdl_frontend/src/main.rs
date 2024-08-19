@@ -850,14 +850,15 @@ FLAGS:
     --scale ratio      Scale the graphics by ratio (Default is 2.0)
     --z80_cirtech      Enable Z80 Cirtech address translation
     --saturn           Enable Saturn memory (Only available in Apple 2+)
-    --speedstar        Enable SpeedStar datakey dongle
-    --hayden           Enable Hayden dongle
-    --codewriter       Enable CodeWriter dongle
-    --interface name   Set the interface name for Uthernet2 (Default is None. For e.g. eth0)
+    --dongle model     Enable dongle
+                       Value: speedstar, hayden, codewriter, robocom500,
+                              robocom1000, robocom1500
+    --interface name   Set the interface name for Uthernet2
+                       Default is None. For e.g. eth0
 
 ARGS:
-    [disk 1]           Disk 1 file (woz, dsk, do, po file). File can be in gz format
-    [disk 2]           Disk 2 file (woz, dsk, do, po file). File can be in gz format
+    [disk 1]           Disk 1 file (woz, dsk, do, po file). Can be in gz format
+    [disk 2]           Disk 2 file (woz, dsk, do, po file). Can be in gz format
 
 Function Keys:
     Ctrl-Shift-F1      Display emulation speed
@@ -1583,16 +1584,18 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         cpu.bus.set_z80_cirtech(true);
     }
 
-    if pargs.contains("--speedstar") {
-        cpu.bus.set_dongle(Dongle::SpeedStar);
-    }
-
-    if pargs.contains("--hayden") {
-        cpu.bus.set_dongle(Dongle::Hayden);
-    }
-
-    if pargs.contains("--codewriter") {
-        cpu.bus.set_dongle(Dongle::CodeWriter(0x6b));
+    if let Some(dongle) = pargs.opt_value_from_str::<_, String>("--dongle")? {
+        match &dongle[..] {
+            "speedstar" => cpu.bus.set_dongle(Dongle::SpeedStar),
+            "hayden" => cpu.bus.set_dongle(Dongle::Hayden),
+            "codewriter" => cpu.bus.set_dongle(Dongle::CodeWriter(0x6b)),
+            "robocom500" => cpu.bus.set_dongle(Dongle::Robocom(500)),
+            "robocom1000" => cpu.bus.set_dongle(Dongle::Robocom(1000)),
+            "robocom1500" => cpu.bus.set_dongle(Dongle::Robocom(1500)),
+            _ => {
+                panic!("Dongle supported: speedstar, hayden, codewriter, robocom500, robocom1000, robocom1500");
+            }
+        }
     }
 
     let mut apple2p = false;

@@ -74,6 +74,7 @@ pub enum Dongle {
     SpeedStar,
     Hayden,
     CodeWriter(u8),
+    Robocom(u16),
 }
 
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
@@ -1104,11 +1105,43 @@ impl Bus {
                     let delta = self.get_cycles() - self.get_paddle_trigger();
                     let mut value = self.get_joystick_value(self.paddle_latch[3]);
 
-                    if self.dongle == Dongle::Hayden {
-                        // Implementation of Hayden dongle
-                        let index = (self.annunciator[2] as u8) << 1 | self.annunciator[0] as u8;
-                        let dongle_value = [0xff, 0x96, (0x96 + 0x50) / 2, 0x50];
-                        value = dongle_value[index as usize];
+                    match self.dongle {
+                        Dongle::Hayden => {
+                            // Implementation of Hayden dongle
+                            let index =
+                                (self.annunciator[2] as u8) << 1 | self.annunciator[0] as u8;
+                            let dongle_value = [0xff, 0x96, (0x96 + 0x50) / 2, 0x50];
+                            value = dongle_value[index as usize];
+                        }
+
+                        Dongle::Robocom(model) if !self.annunciator[3] => {
+                            // Implementation of Robocom dongle
+                            let index = ((self.annunciator[2] as u8) << 2)
+                                | ((self.annunciator[1] as u8) << 1)
+                                | self.annunciator[0] as u8;
+
+                            match model {
+                                500 => {
+                                    let lo = [0x3f, 0x2e, 0x54, 0x54, 0x2e, 0x22, 0x72, 0x17];
+                                    let hi = [0x6f, 0x54, 0x94, 0x94, 0x54, 0x40, 0xc4, 0x2e];
+                                    value = (lo[index as usize] + hi[index as usize] - 1) / 2;
+                                }
+
+                                1000 => {
+                                    let dongle_value = [34, 151, 48, 64, 113, 113, 64, 85];
+                                    value = dongle_value[index as usize];
+                                }
+
+                                1500 => {
+                                    let dongle_value = [153, 34, 64, 34, 48, 86, 114, 48];
+                                    value = dongle_value[index as usize];
+                                }
+
+                                _ => {}
+                            }
+                        }
+
+                        _ => {}
                     }
 
                     if delta < (value as usize * 11) {
