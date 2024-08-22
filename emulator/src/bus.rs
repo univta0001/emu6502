@@ -1044,11 +1044,16 @@ impl Bus {
             }
 
             0x62 => {
-                let button_value = if !self.swap_button {
+                let mut button_value = if !self.swap_button {
                     self.pushbutton_latch[1]
                 } else {
                     self.pushbutton_latch[0]
                 };
+
+                if self.dongle == Dongle::Hayden {
+                    button_value = 0;
+                }
+
                 self.read_floating_bus_high_bit(button_value)
             }
 
@@ -1110,7 +1115,7 @@ impl Bus {
                             // Implementation of Hayden dongle
                             let index =
                                 (self.annunciator[2] as u8) << 1 | self.annunciator[0] as u8;
-                            let dongle_value = [0xff, 0x96, (0x96 + 0x50) / 2, 0x50];
+                            let dongle_value = [0xff, 0x96, 0x96, 0x50];
                             value = dongle_value[index as usize];
                         }
 

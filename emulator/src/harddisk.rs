@@ -10,50 +10,30 @@ use std::path::PathBuf;
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
 
-/*
+// Fifo index hard disk firmware
 const ROM: [u8; 256] = [
     0xa9, 0x20, 0xa9, 0x00, 0xc9, 0x03, 0xa9, 0x00, 0x90, 0x40, 0x38, 0xb0, 0x01, 0x18, 0x08, 0x78,
     0xa5, 0x00, 0xa2, 0x60, 0x86, 0x00, 0x20, 0x00, 0x00, 0x85, 0x00, 0xba, 0xbd, 0x00, 0x01, 0x0a,
-    0x0a, 0x0a, 0x0a, 0x8d, 0x78, 0x04, 0x28, 0xb0, 0x53, 0xa5, 0x3c, 0x48, 0xa5, 0x3d, 0x48, 0xbd,
+    0x0a, 0x0a, 0x0a, 0x8d, 0x78, 0x04, 0x28, 0xb0, 0x55, 0xa5, 0x3c, 0x48, 0xa5, 0x3d, 0x48, 0xbd,
     0x02, 0x01, 0x85, 0x3c, 0x69, 0x03, 0x9d, 0x02, 0x01, 0xbd, 0x03, 0x01, 0x85, 0x3d, 0x69, 0x00,
-    0x9d, 0x03, 0x01, 0xa0, 0x01, 0xd0, 0x6a, 0x4c, 0xba, 0xfa, 0x2c, 0x61, 0xc0, 0x30, 0xf8, 0x20,
+    0x9d, 0x03, 0x01, 0xa0, 0x01, 0xd0, 0x65, 0x4c, 0xba, 0xfa, 0x2c, 0x61, 0xc0, 0x30, 0xf8, 0x20,
     0x58, 0xff, 0xba, 0xbd, 0x00, 0x01, 0x0a, 0x0a, 0x0a, 0x0a, 0x8d, 0x78, 0x04, 0xaa, 0xa9, 0x00,
     0x9d, 0x83, 0xc0, 0x9d, 0x82, 0xc0, 0xbd, 0x80, 0xc0, 0x4a, 0xb0, 0xdb, 0xa9, 0x01, 0x85, 0x42,
-    0xa9, 0x00, 0x85, 0x44, 0x85, 0x46, 0x85, 0x47, 0xa9, 0x08, 0x85, 0x45, 0x08, 0xae, 0x78, 0x04,
-    0xa0, 0x00, 0xb9, 0x42, 0x00, 0x9d, 0x82, 0xc0, 0xc8, 0xe8, 0xc0, 0x06, 0x90, 0xf4, 0xae, 0x78,
-    0x04, 0xbd, 0x80, 0xc0, 0xbd, 0x81, 0xc0, 0x30, 0xfb, 0x28, 0xb0, 0x06, 0x4a, 0xb0, 0xa8, 0x4c,
-    0x01, 0x08, 0x4a, 0xa4, 0x42, 0xd0, 0x09, 0x48, 0xbc, 0x8a, 0xc0, 0xbd, 0x89, 0xc0, 0xaa, 0x68,
-    0x60, 0xb1, 0x3c, 0xc9, 0x03, 0xb0, 0x33, 0x09, 0x80, 0xae, 0x78, 0x04, 0x9d, 0x82, 0xc0, 0xc8,
-    0xb1, 0x3c, 0x48, 0xc8, 0xb1, 0x3c, 0x85, 0x3d, 0x68, 0x85, 0x3c, 0xa0, 0x00, 0xb1, 0x3c, 0xc9,
-    0x03, 0x38, 0xd0, 0x19, 0xc8, 0xb1, 0x3c, 0x9d, 0x83, 0xc0, 0xe8, 0xc0, 0x06, 0x90, 0xf5, 0xbd,
-    0x7a, 0xc0, 0xbd, 0x7b, 0xc0, 0x30, 0xfb, 0x4a, 0xaa, 0x2c, 0xa2, 0x01, 0x2c, 0xa2, 0x04, 0x68,
-    0x85, 0x3d, 0x68, 0x85, 0x3c, 0x8a, 0xa2, 0x00, 0xa0, 0x02, 0x60, 0x00, 0x00, 0x00, 0xd7, 0x0a,
-];
-*/
-
-const ROM: [u8; 256] = [
-    0xa9, 0x20, 0xa9, 0x00, 0xc9, 0x03, 0xa9, 0x00, 0x90, 0x40, 0x38, 0xb0, 0x01, 0x18, 0x08, 0x78,
-    0xa5, 0x00, 0xa2, 0x60, 0x86, 0x00, 0x20, 0x00, 0x00, 0x85, 0x00, 0xba, 0xbd, 0x00, 0x01, 0x0a,
-    0x0a, 0x0a, 0x0a, 0x8d, 0x78, 0x04, 0x28, 0xb0, 0x53, 0xa5, 0x3c, 0x48, 0xa5, 0x3d, 0x48, 0xbd,
-    0x02, 0x01, 0x85, 0x3c, 0x69, 0x03, 0x9d, 0x02, 0x01, 0xbd, 0x03, 0x01, 0x85, 0x3d, 0x69, 0x00,
-    0x9d, 0x03, 0x01, 0xa0, 0x01, 0xd0, 0x67, 0x4c, 0xba, 0xfa, 0x2c, 0x61, 0xc0, 0x30, 0xf8, 0x20,
-    0x58, 0xff, 0xba, 0xbd, 0x00, 0x01, 0x0a, 0x0a, 0x0a, 0x0a, 0x8d, 0x78, 0x04, 0xaa, 0xa9, 0x00,
-    0x9d, 0x83, 0xc0, 0x9d, 0x82, 0xc0, 0xbd, 0x80, 0xc0, 0x4a, 0xb0, 0xdb, 0xa9, 0x01, 0x85, 0x42,
-    0xa9, 0x00, 0x85, 0x44, 0x85, 0x46, 0x85, 0x47, 0xa9, 0x08, 0x85, 0x45, 0x08, 0xae, 0x78, 0x04,
-    0xa0, 0x00, 0xb9, 0x42, 0x00, 0x9d, 0x82, 0xc0, 0xc8, 0xe8, 0xc0, 0x06, 0x90, 0xf4, 0xae, 0x78,
-    0x04, 0xbd, 0x80, 0xc0, 0x30, 0xfb, 0x28, 0xb0, 0x06, 0x4a, 0xb0, 0xab, 0x4c, 0x01, 0x08, 0x4a,
-    0xa4, 0x42, 0xd0, 0x09, 0x48, 0xbc, 0x8a, 0xc0, 0xbd, 0x89, 0xc0, 0xaa, 0x68, 0x60, 0xb1, 0x3c,
-    0xc9, 0x03, 0xb0, 0x30, 0x09, 0x80, 0xae, 0x78, 0x04, 0x9d, 0x82, 0xc0, 0xc8, 0xb1, 0x3c, 0x48,
-    0xc8, 0xb1, 0x3c, 0x85, 0x3d, 0x68, 0x85, 0x3c, 0xa0, 0x00, 0xb1, 0x3c, 0xc9, 0x03, 0x38, 0xd0,
-    0x16, 0xc8, 0xb1, 0x3c, 0x9d, 0x83, 0xc0, 0xe8, 0xc0, 0x06, 0x90, 0xf5, 0xbd, 0x7a, 0xc0, 0x30,
-    0xfb, 0x4a, 0xaa, 0x2c, 0xa2, 0x01, 0x2c, 0xa2, 0x04, 0x68, 0x85, 0x3d, 0x68, 0x85, 0x3c, 0x8a,
-    0xa2, 0x00, 0xa0, 0x02, 0x60, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd7, 0x0a,
+    0x86, 0x43, 0xa9, 0x00, 0x85, 0x44, 0x85, 0x46, 0x85, 0x47, 0xa9, 0x08, 0x85, 0x45, 0x08, 0xae,
+    0x78, 0x04, 0xa0, 0x00, 0xb9, 0x42, 0x00, 0x9d, 0x89, 0xc0, 0xc8, 0xc0, 0x06, 0x90, 0xf5, 0xbd,
+    0x80, 0xc0, 0x30, 0xfb, 0x28, 0xb0, 0x06, 0x4a, 0xb0, 0xad, 0x4c, 0x01, 0x08, 0x4a, 0xa4, 0x42,
+    0xd0, 0x09, 0x48, 0xbc, 0x8a, 0xc0, 0xbd, 0x89, 0xc0, 0xaa, 0x68, 0x60, 0xb1, 0x3c, 0xc9, 0x03,
+    0xb0, 0x2d, 0xae, 0x78, 0x04, 0x9d, 0x8a, 0xc0, 0xc8, 0xb1, 0x3c, 0x48, 0xc8, 0xb1, 0x3c, 0x85,
+    0x3d, 0x68, 0x85, 0x3c, 0xa0, 0x00, 0xb1, 0x3c, 0xc9, 0x03, 0x38, 0xd0, 0x15, 0xc8, 0xb1, 0x3c,
+    0x9d, 0x8a, 0xc0, 0xc0, 0x06, 0x90, 0xf6, 0xbd, 0x80, 0xc0, 0x30, 0xfb, 0x4a, 0xaa, 0x2c, 0xa2,
+    0x01, 0x2c, 0xa2, 0x04, 0x68, 0x85, 0x3d, 0x68, 0x85, 0x3c, 0x8a, 0xa2, 0x00, 0xa0, 0x02, 0x60,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd7, 0x0a,
 ];
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 const HD_ID_STRING: &str = "emu6502 SP";
-const HD_MAJOR_VERSION: u8 = 0;
-const HD_MINOR_VERSION: u8 = 9;
 
+const DISK_BLOCK_MAX: u32 = 0x007fffff;
 const HD_BLOCK_SIZE: usize = 512;
 const CYCLES_FOR_RW_BLOCK: usize = HD_BLOCK_SIZE;
 
@@ -63,8 +43,9 @@ const BLK_CMD_WRITE: u8 = 0x02;
 const BLK_CMD_FORMAT: u8 = 0x03;
 
 const SMARTPORT_CMD_STATUS: u8 = 0x80;
-const SMARTPORT_CMD_READ: u8 = 0x81;
-const SMARTPORT_CMD_WRITE: u8 = 0x82;
+const SMARTPORT_CMD_READBLOCK: u8 = 0x81;
+const SMARTPORT_CMD_WRITEBLOCK: u8 = 0x82;
+const SMARTPORT_CMD_BUSY_STATUS: u8 = 0xbf;
 
 const SMARTPORT_STATUS: u8 = 0x00;
 const SMARTPORT_STATUS_GETDIB: u8 = 0x03;
@@ -73,18 +54,49 @@ const SMARTPORT_STATUS_GETDIB: u8 = 0x03;
 Memory map for hard disk (derived from AppleWin)
 https://github.com/AppleWin/AppleWin/blob/master/source/Harddisk.cpp
 
-    C080	(r)   EXECUTE AND RETURN STATUS; subsequent reads just return STATUS (need to write COMMAND again for EXECUTE)
+Memory map ProDOS BLK device (IO addr + s*$10):
+. "hddrvr" v1 and v2 firmware
+
+    C080	(r)   EXECUTE AND RETURN STATUS
     C081	(r)   STATUS (or ERROR): b7=busy, b0=error
-    C082	(r/w) COMMAND : BLK = 0 status, 1 read, 2 write. SP = $80 status, $81 read, $82 write
-    C083	(r/w) UNIT NUMBER : BLK = DSSS0000 if SSS != n from CnXX, add 2 to D (4 drives support).
+    C082	(r/w) COMMAND
+    C083	(r/w) UNIT NUMBER
     C084	(r/w) LOW BYTE OF MEMORY BUFFER
     C085	(r/w) HIGH BYTE OF MEMORY BUFFER
+    C086	(r/w) LOW BYTE OF BLOCK NUMBER
+    C087	(r/w) HIGH BYTE OF BLOCK NUMBER
+    C088	(r)   NEXT BYTE (legacy read-only port - still supported)
+    C089	(r)   LOW BYTE OF DISK IMAGE SIZE IN BLOCKS
+    C08A	(r)   HIGH BYTE OF DISK IMAGE SIZE IN BLOCKS
+
+Firmware notes:
+. ROR ABS16,X and ROL ABS16,X - only used for $C081+s*$10 STATUS register:
+    6502:  double read (old data), write (old data), write (new data). The writes are harmless as writes to STATUS are ignored.
+    65C02: double read (old data), write (new data). The write is harmless as writes to STATUS are ignored.
+. STA ABS16,X does a false-read. This is harmless for writable I/O registers, since the false-read has no side effect.
+
+---
+
+Memory map SmartPort device (IO addr + s*$10):
+. "hdc-smartport" firmware
+. I/O basically compatible with older "hddrvr" firmware
+
+    C080	(r)   EXECUTE AND RETURN STATUS; subsequent reads just return STATUS (need to write COMMAND again for EXECUTE)
+    C081	(r)   STATUS : b7=busy, b0=error
+    C082	(w)   COMMAND : BLK = $00 status, $01 read, $02 write. SP = $80 status, $81 read, $82 write,
+    C083	(w)   UNIT NUMBER : BLK = DSSS0000 if SSS != n from CnXX, add 2 to D (4 drives support). SP = $00,$01.....
+    C084	(w)   LOW BYTE OF MEMORY BUFFER
+    C085	(w)   HIGH BYTE OF MEMORY BUFFER
     C086	(w)   STATUS CODE : write SP status code $00(device status), $03(device info block)
     C086	(w)   LOW BYTE OF BLOCK NUMBER : BLK = 16 bit value. SP = 24 bit value
-    C087	(w)   HIGH BYTE OF BLOCK NUMBER
-    C088	(r)   24-bit HIGH BYTE OF BLOCK NUMBER
-    C089	(r)   LOW BYTE OF DISK LEN
-    C08A	(r)   HIGH BYTE OF DISK LEN
+    C087	(w)   MIDDLE BYTE OF BLOCK NUMBER
+    C088	(w)   HIGH BYTE OF BLOCK NUMBER (SP only)
+;	C088	(r)   NEXT BYTE (legacy read-only port - still supported)
+    C089	(r)   LOW BYTE OF DISK IMAGE SIZE IN BLOCKS
+    C08A	(r)   HIGH BYTE OF DISK IMAGE SIZE IN BLOCKS
+    C089	(w)   a 6-deep FIFO to write: command, unitNum, memPtr(2), blockNum(2)
+    C08A	(w)   a 7-deep FIFO to write: command, unitNum, memPtr(2), blockNum(3); first byte gets OR'd with $80 (ie. to indicate it's an SP command)
+
 */
 
 #[cfg_attr(
@@ -143,6 +155,7 @@ pub struct HardDisk {
     enable_save: bool,
     status_code: u8,
     smartport: bool,
+    fifo_index: u8,
 }
 
 #[repr(u8)]
@@ -166,6 +179,7 @@ impl HardDisk {
             enable_save: false,
             status_code: 0,
             smartport: false,
+            fifo_index: 0,
         }
     }
 
@@ -271,6 +285,14 @@ impl HardDisk {
         Ok(())
     }
 
+    fn get_version() -> (u8, u8, u8) {
+        let version: Vec<_> = VERSION.split('.').collect();
+        let major_version = version[0].parse().unwrap_or(0);
+        let minor_version = version[1].parse().unwrap_or(0);
+        let revision = version[2].parse().unwrap_or(0);
+        (major_version, minor_version, revision)
+    }
+
     fn absolute_path(&self, path: impl AsRef<Path>) -> io::Result<PathBuf> {
         let path = path.as_ref();
 
@@ -339,9 +361,20 @@ impl HardDisk {
         //println!("Controller = {} Len = {} Str = {}", controller, id_string.len(), id_string);
     }
 
-    fn smartport_status(&mut self, mmu: &mut Mmu, video: &mut Video, drive_select: usize) -> u8 {
+    fn smartport_status(&mut self, mmu: &mut Mmu, video: &mut Video, drive_select: usize) {
         let mut ret_value = DeviceStatus::DeviceOk as u8;
-        let num_devices = self.drive.iter().filter(|&disk| disk.loaded).count();
+
+        // Scan backwards for number of connected devices
+        // If the first device is offline, and second device is online, it is counted as 2
+        // connected devices
+        let mut num_devices = 0;
+        for i in (0..self.drive.len()).rev() {
+            if self.drive[i].loaded {
+                num_devices = i + 1;
+                break;
+            }
+        }
+
         let low_size = self.low_disk_block_size();
         let high_size = self.high_disk_block_size();
         let high_24_size = self.high_24_disk_block_size();
@@ -361,11 +394,18 @@ impl HardDisk {
                         Self::smartport_id_string(mmu, video, disk.mem_block, self.unit_num, true);
                         disk.mem_block += 17;
 
+                        let (major_version, minor_version, revision) = Self::get_version();
+
                         // Device Type (Byte 25)
                         Self::write_data_to_mmu(mmu, video, disk.mem_block, 0x0);
                         Self::write_data_to_mmu(mmu, video, disk.mem_block + 1, 0x0);
-                        Self::write_data_to_mmu(mmu, video, disk.mem_block + 2, HD_MAJOR_VERSION);
-                        Self::write_data_to_mmu(mmu, video, disk.mem_block + 3, HD_MINOR_VERSION);
+                        Self::write_data_to_mmu(mmu, video, disk.mem_block + 2, major_version);
+                        Self::write_data_to_mmu(
+                            mmu,
+                            video,
+                            disk.mem_block + 3,
+                            minor_version * 10 + revision,
+                        );
                         disk.mem_block += 4;
                     }
                 }
@@ -391,12 +431,19 @@ impl HardDisk {
                         Self::smartport_id_string(mmu, video, disk.mem_block, self.unit_num, false);
                         disk.mem_block += 17;
 
+                        let (major_version, minor_version, revision) = Self::get_version();
+
                         // Byte 21, device type hard disk = 0x02
                         // Byte 22, device subtype hard disk = 0x20
                         Self::write_data_to_mmu(mmu, video, disk.mem_block, 0x02);
                         Self::write_data_to_mmu(mmu, video, disk.mem_block + 1, 0x20);
-                        Self::write_data_to_mmu(mmu, video, disk.mem_block + 2, HD_MAJOR_VERSION);
-                        Self::write_data_to_mmu(mmu, video, disk.mem_block + 3, HD_MINOR_VERSION);
+                        Self::write_data_to_mmu(mmu, video, disk.mem_block + 2, major_version);
+                        Self::write_data_to_mmu(
+                            mmu,
+                            video,
+                            disk.mem_block + 3,
+                            minor_version * 10 + revision,
+                        );
                         disk.mem_block += 4;
                     }
                 }
@@ -406,7 +453,6 @@ impl HardDisk {
             }
         }
         disk.error = ret_value;
-        self.block_cmd_status()
     }
 
     fn write_data_to_mmu(mmu: &mut Mmu, video: &mut Video, addr: u16, data: u8) {
@@ -439,9 +485,16 @@ impl HardDisk {
         ret
     }
 
-    fn block_cmd_read(&mut self, mmu: &mut Mmu, video: &mut Video) -> u8 {
+    fn block_cmd_read(&mut self, mmu: &mut Mmu, video: &mut Video) {
         let disk = &mut self.drive[self.drive_select];
-        let block_offset = disk.disk_block as usize * HD_BLOCK_SIZE;
+
+        let disk_block = if self.command & 0x80 == 0 {
+            disk.disk_block & 0xffff
+        } else {
+            disk.disk_block
+        };
+
+        let block_offset = disk_block as usize * HD_BLOCK_SIZE;
         let start = block_offset + disk.offset;
         let end = block_offset + disk.offset + HD_BLOCK_SIZE;
 
@@ -455,7 +508,7 @@ impl HardDisk {
 
                 if (0xc000..=0xcfff).contains(&addr) {
                     disk.error = DeviceStatus::DeviceIoError as u8;
-                    return self.block_cmd_status();
+                    return;
                 }
                 Self::write_data_to_mmu(mmu, video, addr, *data);
             }
@@ -464,22 +517,28 @@ impl HardDisk {
         } else {
             disk.error = DeviceStatus::DeviceIoError as u8;
         }
-        self.block_cmd_status()
     }
 
-    fn block_cmd_write(&mut self, mmu: &mut Mmu, _video: &mut Video) -> u8 {
+    fn block_cmd_write(&mut self, mmu: &mut Mmu, _video: &mut Video) {
         let disk = &mut self.drive[self.drive_select];
         if disk.write_protect {
             disk.error = DeviceStatus::DeviceWriteProtected as u8;
+            return;
         }
 
-        let block_offset = disk.disk_block as usize * HD_BLOCK_SIZE;
+        let disk_block = if self.command & 0x80 == 0 {
+            disk.disk_block & 0xffff
+        } else {
+            disk.disk_block
+        };
+
+        let block_offset = disk_block as usize * HD_BLOCK_SIZE;
         let start = block_offset + disk.offset;
         let end = block_offset + disk.offset + HD_BLOCK_SIZE;
 
         if block_offset >= disk.offset + disk.data_len {
             disk.error = DeviceStatus::DeviceIoError as u8;
-            return self.block_cmd_status();
+            return;
         }
 
         let mut buf = [0u8; HD_BLOCK_SIZE];
@@ -488,7 +547,7 @@ impl HardDisk {
             let addr = disk.mem_block.wrapping_add(i as u16);
             if (0xc000..=0xcfff).contains(&addr) {
                 disk.error = DeviceStatus::DeviceIoError as u8;
-                return self.block_cmd_status();
+                return;
             }
             *item = mmu.unclocked_addr_read(addr);
         }
@@ -504,7 +563,7 @@ impl HardDisk {
                         || metadata.len() == 0
                     {
                         disk.error = DeviceStatus::DeviceIoError as u8;
-                        return self.block_cmd_status();
+                        return;
                     }
                 }
 
@@ -514,19 +573,18 @@ impl HardDisk {
                         .and_then(|_| f.write_all(&buf));
                     if result.is_err() {
                         disk.error = DeviceStatus::DeviceIoError as u8;
-                        return self.block_cmd_status();
+                        return;
                     }
                 } else {
                     eprintln!("Unable to open {}", filename);
                     disk.error = DeviceStatus::DeviceIoError as u8;
-                    return self.block_cmd_status();
+                    return;
                 }
             }
         }
 
         disk.error = DeviceStatus::DeviceOk as u8;
         disk.raw_data[start..end].copy_from_slice(&buf);
-        self.block_cmd_status()
     }
 
     fn block_cmd_execute(&mut self, mmu: &mut Mmu, video: &mut Video) -> u8 {
@@ -534,6 +592,13 @@ impl HardDisk {
 
         if !disk.loaded && self.command != BLK_CMD_STATUS && self.command != SMARTPORT_CMD_STATUS {
             disk.error = DeviceStatus::DeviceNotConnected as u8;
+            return self.block_cmd_status();
+        }
+
+        if (self.command == SMARTPORT_CMD_READBLOCK || self.command == SMARTPORT_CMD_WRITEBLOCK)
+            && disk.disk_block > DISK_BLOCK_MAX
+        {
+            disk.error = DeviceStatus::DeviceIoError as u8;
             return self.block_cmd_status();
         }
 
@@ -545,17 +610,16 @@ impl HardDisk {
                 if disk.data_len == 0 {
                     disk.error = DeviceStatus::DeviceIoError as u8;
                 }
-                self.block_cmd_status()
             }
 
             // SmartPort Status
             SMARTPORT_CMD_STATUS => self.smartport_status(mmu, video, self.drive_select),
 
             // Read Block
-            BLK_CMD_READ | SMARTPORT_CMD_READ => self.block_cmd_read(mmu, video),
+            BLK_CMD_READ | SMARTPORT_CMD_READBLOCK => self.block_cmd_read(mmu, video),
 
             // Write Block
-            BLK_CMD_WRITE | SMARTPORT_CMD_WRITE => self.block_cmd_write(mmu, video),
+            BLK_CMD_WRITE | SMARTPORT_CMD_WRITEBLOCK => self.block_cmd_write(mmu, video),
 
             // Format
             BLK_CMD_FORMAT => {
@@ -593,14 +657,16 @@ impl HardDisk {
                 */
                 // Format not supported
                 disk.error = DeviceStatus::DeviceIoError as u8;
-                self.block_cmd_status()
             }
+
+            SMARTPORT_CMD_BUSY_STATUS => {}
 
             _ => {
                 disk.error = DeviceStatus::DeviceIoError as u8;
-                self.block_cmd_status()
             }
         }
+
+        self.block_cmd_status()
     }
 }
 
@@ -702,13 +768,36 @@ impl Card for HardDisk {
         //    map_addr, value, write_flag, self.command, self.drive_select
         //);
         let slot = (((addr & 0x00ff) - 0x0080) >> 4) as usize;
-        let map_addr = ((addr & 0x00ff) - ((slot as u16) << 4)) as u8;
+        let mut map_addr = (((addr & 0x00ff) - ((slot as u16) << 4)) & 0xf) as u8;
+        let mut value = value;
+
+        // Route Cns9 and Cnsa softswitches to Csn2 to Csn7 / Csn8 softswitches
+        // Cns9 is for block mode
+        // Cnsa is for smartport mode
+        if write_flag && (map_addr == 0x09 || map_addr == 0x0a) {
+            // Smartport commands always have high bit set
+            if map_addr == 0x0a && self.fifo_index == 0 {
+                value |= 0x80;
+            }
+
+            let fifo_size = if map_addr == 0x09 { 6 } else { 7 };
+
+            map_addr = 0x2 + self.fifo_index;
+            self.fifo_index = (self.fifo_index + 1) % fifo_size;
+        }
 
         match map_addr & 0x0f {
             // Execute
             0x0 => {
                 let ret = self.block_cmd_execute(mmu, video);
-                self.command = 0;
+
+                // Subsequent reads from IO addr 0x0 just executes 'Status' cmd
+                self.command = if self.command & 0x80 != 0 {
+                    SMARTPORT_CMD_BUSY_STATUS
+                } else {
+                    BLK_CMD_STATUS
+                };
+                self.fifo_index = 0;
                 ret
             }
 
@@ -727,7 +816,7 @@ impl Card for HardDisk {
             0x3 => {
                 if write_flag {
                     if self.command & 0x80 == 0 {
-                        self.drive_select = ((value >> 7) as usize) % self.drive.len();
+                        self.drive_select = (value >> 7) as usize % self.drive.len();
                     } else if value & 0xf == 0 {
                         self.drive_select = 0;
                     } else {
@@ -761,7 +850,7 @@ impl Card for HardDisk {
                 let disk = &mut self.drive[self.drive_select];
                 if write_flag {
                     if self.command != SMARTPORT_CMD_STATUS {
-                        disk.disk_block = disk.disk_block & !0xff | value as u32
+                        disk.disk_block = disk.disk_block & 0xffff00 | value as u32
                     } else {
                         self.status_code = value
                     }
@@ -773,7 +862,7 @@ impl Card for HardDisk {
             0x7 => {
                 let disk = &mut self.drive[self.drive_select];
                 if write_flag {
-                    disk.disk_block = disk.disk_block & !0xff00 | (value as u32) << 8
+                    disk.disk_block = disk.disk_block & 0xff00ff | (value as u32) << 8
                 }
                 ((disk.disk_block & 0xff00) >> 8) as u8
             }
@@ -782,11 +871,14 @@ impl Card for HardDisk {
             0x8 => {
                 let disk = &mut self.drive[self.drive_select];
                 if !write_flag {
-                    let ret_value = disk.raw_data[disk.offset];
+                    let ret = disk.raw_data[disk.offset];
                     if disk.offset + 1 < disk.data_len {
                         disk.offset += 1
                     }
-                    ret_value
+                    ret
+                } else if self.command & 0x80 != 0 {
+                    disk.disk_block = disk.disk_block & 0x00ffff | (value as u32) << 16;
+                    ((disk.disk_block & 0xff0000) >> 16) as u8
                 } else {
                     0
                 }
