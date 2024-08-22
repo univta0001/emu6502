@@ -4,6 +4,8 @@
 
 This is an Apple \]\[ and Apple //c, //e emulators written entirely in Rust, SDL and HTML5.
 
+![Screenshot of emu6502](emu6502_screenshot.png "Screenshot of emu6502")
+
 ## Building the emulator
 
 To build the emulator, you need to the Rust development and issue the following command
