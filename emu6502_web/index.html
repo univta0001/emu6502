@@ -32,8 +32,8 @@
         <a id="disk1" class="button shadow hover:shadow-lg border-2 rounded-full font-bold py-2 px-3 cursor-pointer hover:bg-sky-400" href="#">Insert D1</a> 
         <a id="disk2" class="button shadow hover:shadow-lg border-2 rounded-full font-bold py-2 px-3 cursor-pointer hover:bg-sky-400" href="#">Insert D2</a> 
         <a id="joystick" class="button shadow hover:shadow-lg border-2 rounded-full font-bold py-2 px-3 cursor-pointer hover:bg-sky-400" href="#">Toggle Joystick</a> 
-        <input type="checkbox" id="video50hz" name="video50hz"> 50Hz Video </input>
-        <input type="checkbox" id="videoNTSC" name="videoNTSC"> NTSC Video </input>
+        <input type="checkbox" id="video50hz" name="video50hz"> 50Hz Video </>
+        <input type="checkbox" id="videoNTSC" name="videoNTSC"> NTSC Video </>
     </div>
     </center>
 
@@ -41,7 +41,7 @@
         import init, * as wasm from './pkg/emu6502_web.js';
 
         (async () => {
-            await init();
+            await init(new Object());
 
             const dpad_up = 12;
             const dpad_down = 13;
@@ -463,8 +463,10 @@
                 }
                 for (let i = 0;i<gp_len; i++) {
                     var gp = gamepads[i];
-                    gamepad_update_buttons(gp, i);
-                    gamepad_update_axes(gp, i);
+                    if (gp != null) {
+                        gamepad_update_buttons(gp, i);
+                        gamepad_update_axes(gp, i);
+                    }
                 }
             }
 
