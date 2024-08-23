@@ -463,8 +463,10 @@
                 }
                 for (let i = 0;i<gp_len; i++) {
                     var gp = gamepads[i];
-                    gamepad_update_buttons(gp, i);
-                    gamepad_update_axes(gp, i);
+                    if (gp != null) {
+                        gamepad_update_buttons(gp, i);
+                        gamepad_update_axes(gp, i);
+                    }
                 }
             }
 
