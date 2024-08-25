@@ -1278,7 +1278,6 @@ fn update_audio(cpu: &mut CPU, audio_device: &Option<AudioQueue<i16>>, normal_sp
     snd.update_cycles(video_50hz);
 
     if let Some(audio) = audio_device {
-        /*
         if audio.size() < audio_sample_size * 2 * 8 {
             //let mut return_buffer = Vec::new();
             let buffer =
@@ -1297,13 +1296,6 @@ fn update_audio(cpu: &mut CPU, audio_device: &Option<AudioQueue<i16>>, normal_sp
 
             let _ = audio.queue_audio(buffer);
         }
-        */
-        let buffer = if normal_speed {
-            snd.get_buffer()
-        } else {
-            &snd.get_buffer()[0..(audio_sample_size * 2) as usize]
-        };
-        let _ = audio.queue_audio(buffer);
     }
 }
 
