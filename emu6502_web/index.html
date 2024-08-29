@@ -10,7 +10,7 @@
 <body>
     <div class= "flex flex-col justify-center items-center my-4">
         <div class="relative">
-            <div class="emu6502">
+            <div id="emulator" class="emu6502">
                 <canvas width="1120" height="768"></canvas>
                 <audio></audio>
             </div>
@@ -38,7 +38,7 @@
     </center>
 
     <script type="module">
-        import init, * as wasm from './pkg/emu6502_web.js';
+        import init, * as wasm from './emu6502_web.js';
 
         (async () => {
             await init(new Object());
@@ -78,18 +78,72 @@
                 document.body.appendChild(frm);
                 upload.click();
             };
+
+            document.getElementById("emulator").addEventListener("dragover", function(e) {
+                e.preventDefault();
+            });
+
+            document.getElementById("emulator").addEventListener("drop", function(e) {
+                e.preventDefault();
+                const files = e.dataTransfer.files;
+                if (files.length) {
+                    const reader = new FileReader();
+                    const file = files[0]
+                    reader.onload = function() {
+                        var content = new Uint8ClampedArray(reader.result);
+                        emu6502.load_disk(file.name,content,0);
+                    }
+                    reader.readAsArrayBuffer(file);
+                }
+            });
     
             document.getElementById("disk1").addEventListener("click", function() {
                 load_disk( (name, content) => {
                     emu6502.load_disk(name,content,0);
                 });        
-            }); 
+            });
+
+            document.getElementById("disk1").addEventListener("dragover", function(e) {
+                e.preventDefault();
+            });
+
+            document.getElementById("disk1").addEventListener("drop", function(e) {
+                e.preventDefault();
+                const files = e.dataTransfer.files;
+                if (files.length) {
+                    const reader = new FileReader();
+                    const file = files[0]
+                    reader.onload = function() {
+                        var content = new Uint8ClampedArray(reader.result);
+                        emu6502.load_disk(file.name,content,0);
+                    }
+                    reader.readAsArrayBuffer(file);
+                }
+            });
 
             document.getElementById("disk2").addEventListener("click", function() {
                 load_disk( (name, content) => {
                     emu6502.load_disk(name,content,1);
                 });        
-            }); 
+            });
+
+            document.getElementById("disk2").addEventListener("dragover", function(e) {
+                e.preventDefault();
+            });
+
+            document.getElementById("disk2").addEventListener("drop", function(e) {
+                e.preventDefault();
+                const files = e.dataTransfer.files;
+                if (files.length) {
+                    const reader = new FileReader();
+                    const file = files[0]
+                    reader.onload = function() {
+                        var content = new Uint8ClampedArray(reader.result);
+                        emu6502.load_disk(file.name,content,1);
+                    }
+                    reader.readAsArrayBuffer(file);
+                }
+            });
 
             document.getElementById("joystick").addEventListener("click", function() {
                 emu6502.toggle_joystick();
