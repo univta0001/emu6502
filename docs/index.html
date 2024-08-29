@@ -79,46 +79,30 @@
                 upload.click();
             };
 
-            document.getElementById("emulator").addEventListener("dragover", function(e) {
-                e.preventDefault();
-            });
+            const register_dnd_file = (div_id, disk) => {
+                document.getElementById(div_id).addEventListener("dragover", function(e) {
+                    e.preventDefault();
+                });
 
-            document.getElementById("emulator").addEventListener("drop", function(e) {
-                e.preventDefault();
-                const files = e.dataTransfer.files;
-                if (files.length) {
-                    const reader = new FileReader();
-                    const file = files[0]
-                    reader.onload = function() {
-                        var content = new Uint8ClampedArray(reader.result);
-                        emu6502.load_disk(file.name,content,0);
+                document.getElementById(div_id).addEventListener("drop", function(e) {
+                    e.preventDefault();
+                    const files = e.dataTransfer.files;
+                    if (files.length) {
+                        const reader = new FileReader();
+                        const file = files[0]
+                        reader.onload = function() {
+                            var content = new Uint8ClampedArray(reader.result);
+                            emu6502.load_disk(file.name,content,disk);
+                        }
+                        reader.readAsArrayBuffer(file);
                     }
-                    reader.readAsArrayBuffer(file);
-                }
-            });
-    
+                });
+            };
+
             document.getElementById("disk1").addEventListener("click", function() {
                 load_disk( (name, content) => {
                     emu6502.load_disk(name,content,0);
                 });        
-            });
-
-            document.getElementById("disk1").addEventListener("dragover", function(e) {
-                e.preventDefault();
-            });
-
-            document.getElementById("disk1").addEventListener("drop", function(e) {
-                e.preventDefault();
-                const files = e.dataTransfer.files;
-                if (files.length) {
-                    const reader = new FileReader();
-                    const file = files[0]
-                    reader.onload = function() {
-                        var content = new Uint8ClampedArray(reader.result);
-                        emu6502.load_disk(file.name,content,0);
-                    }
-                    reader.readAsArrayBuffer(file);
-                }
             });
 
             document.getElementById("disk2").addEventListener("click", function() {
@@ -127,23 +111,10 @@
                 });        
             });
 
-            document.getElementById("disk2").addEventListener("dragover", function(e) {
-                e.preventDefault();
-            });
-
-            document.getElementById("disk2").addEventListener("drop", function(e) {
-                e.preventDefault();
-                const files = e.dataTransfer.files;
-                if (files.length) {
-                    const reader = new FileReader();
-                    const file = files[0]
-                    reader.onload = function() {
-                        var content = new Uint8ClampedArray(reader.result);
-                        emu6502.load_disk(file.name,content,1);
-                    }
-                    reader.readAsArrayBuffer(file);
-                }
-            });
+            // Register drag and drop file
+            register_dnd_file("emulator", 0);
+            register_dnd_file("disk1", 0);
+            register_dnd_file("disk2", 1);
 
             document.getElementById("joystick").addEventListener("click", function() {
                 emu6502.toggle_joystick();
