@@ -19,7 +19,8 @@ opt-level = 3
 opt-level = 1
 
 [profile.release]
-lto = "fat"
+strip = true
+lto = true
 opt-level = 3
 codegen-units = 1
 trim-paths = "all"

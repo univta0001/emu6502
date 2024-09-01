@@ -14,7 +14,7 @@ iz80 = { path = "iz80", optional = true }
 time = { version = "0.3.36", features = ["local-offset","wasm-bindgen"] }
 fastrand = "2.1.1"
 educe = { version = "0.6.0", default-features = false, features = ["Debug"], optional = true }
-pcap = { version = "2.1.0", default-features = false, optional = true }
+pcap = { version = "2.2.0", default-features = false, optional = true }
 
 [dev-dependencies]
 regex = "1.10.6"
