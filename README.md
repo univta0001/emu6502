@@ -2,7 +2,7 @@
 
 ## What is this?
 
-This is an Apple \]\[ and Apple //e emulators written entirely in Rust, SDL and HTML5.
+This is Apple \]\[ and Apple //e emulator written entirely in Rust, SDL and HTML5.
 
 Features in the emulator
 
