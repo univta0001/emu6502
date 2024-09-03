@@ -1959,9 +1959,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
                 let video_cpu_update = t.elapsed().as_micros();
 
+                let adj_ms = cpu_period as usize * speed_numerator[speed_index]
+                    / speed_denominator[speed_index];
                 if normal_cpu_speed {
-                    let adj_ms = cpu_period as usize * speed_numerator[speed_index]
-                        / speed_denominator[speed_index];
                     let adj_time = adj_ms
                         .saturating_sub(video_cpu_update as usize)
                         .saturating_sub(diff_time);
