@@ -1290,11 +1290,7 @@ fn update_audio(cpu: &mut CPU, audio_device: &Option<AudioQueue<i16>>, normal_sp
             */
             &snd.get_buffer()[0..(audio_sample_size * 2) as usize]
         };
-
-        // Only buffer for 1 second of audio.
-        if audio.size() < audio_sample_size * 2 * 60 {
-            let _ = audio.queue_audio(buffer);
-        }
+        let _ = audio.queue_audio(buffer);
     }
 }
 
