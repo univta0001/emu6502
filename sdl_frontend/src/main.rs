@@ -1278,19 +1278,18 @@ fn update_audio(cpu: &mut CPU, audio_device: &Option<AudioQueue<i16>>, normal_sp
     snd.update_cycles(video_50hz);
 
     if let Some(audio) = audio_device {
-        let buffer =
-            if normal_speed || snd.get_buffer().len() < (audio_sample_size * 2) as usize {
-                snd.get_buffer()
-            } else {
-                /*
-                let step_size = snd.get_buffer().len() / ((audio_sample_size*2) as usize);
-                for item in snd.get_buffer().iter().step_by(step_size) {
-                    return_buffer.push(*item)
-                }
-                &return_buffer
-                */
-                &snd.get_buffer()[0..(audio_sample_size * 2) as usize]
-            };
+        let buffer = if normal_speed || snd.get_buffer().len() < (audio_sample_size * 2) as usize {
+            snd.get_buffer()
+        } else {
+            /*
+            let step_size = snd.get_buffer().len() / ((audio_sample_size*2) as usize);
+            for item in snd.get_buffer().iter().step_by(step_size) {
+                return_buffer.push(*item)
+            }
+            &return_buffer
+            */
+            &snd.get_buffer()[0..(audio_sample_size * 2) as usize]
+        };
 
         // Only buffer for 1 second of audio.
         if audio.size() < audio_sample_size * 2 * 60 {
@@ -1838,6 +1837,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     let mut prev_x: i32 = 0;
     let mut prev_y: i32 = 0;
+    let mut diff_time = 0;
 
     loop {
         if reload_cpu {
@@ -1962,7 +1962,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 if normal_cpu_speed {
                     let adj_ms = cpu_period as usize * speed_numerator[speed_index]
                         / speed_denominator[speed_index];
-                    let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
+                    let adj_time = adj_ms
+                        .saturating_sub(video_cpu_update as usize)
+                        .saturating_sub(diff_time);
 
                     if adj_time > 0 {
                         spin_sleep::sleep(std::time::Duration::from_micros(adj_time as u64))
@@ -1970,6 +1972,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 }
 
                 let elapsed = t.elapsed().as_micros();
+                diff_time = (elapsed as usize).saturating_sub(adj_ms);
                 estimated_mhz = (dcyc as f32) / elapsed as f32;
                 dcyc -= cpu_cycles;
                 t = Instant::now();
