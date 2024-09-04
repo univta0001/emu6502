@@ -1918,8 +1918,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     let x = mouse_state.x();
                     let y = mouse_state.y();
                     let buttons = [mouse_state.left(), mouse_state.right()];
-                    let delta_x = x.wrapping_sub(prev_x);
-                    let delta_y = y.wrapping_sub(prev_y);
+                    let delta_x = x.saturating_sub(prev_x);
+                    let delta_y = y.saturating_sub(prev_y);
                     prev_x = x;
                     prev_y = y;
                     _cpu.bus.set_mouse_state(delta_x, delta_y, &buttons);
