@@ -1,8 +1,6 @@
 use emu6502::bus::Bus;
-use emu6502::bus::IODevice;
 use emu6502::cpu::{CpuSpeed, CPU};
 use emu6502::video::DisplayMode;
-use emu6502::mockingboard::Mockingboard;
 use wasm_bindgen::prelude::*;
 
 //#[global_allocator]
@@ -186,6 +184,11 @@ impl Emulator {
             self.cpu.bus.video.set_display_mode(DisplayMode::DEFAULT)
         }
     }
+
+    pub fn set_mouse_state(&mut self, x: i32, y: i32, left_button: bool, right_button: bool) {
+        let buttons = [left_button, right_button];
+        self.cpu.bus.set_mouse_state(x, y, &buttons);
+    }
 }
 
 #[wasm_bindgen]
@@ -196,17 +199,6 @@ pub async fn init_emul() -> Emulator {
     let mut cpu = CPU::new(Bus::default());
 
     cpu.load(&apple2ee_rom, 0xc000);
-
-    cpu.bus.audio.mboard.clear();
-    for _ in 0..2 {
-        cpu.bus.audio.mboard.push(Mockingboard::new());
-    }
-
-    for i in 0..2 {
-        cpu.bus
-            .register_device(IODevice::Mockingboard(i as usize), (4 + i) as usize);
-    }
-
     cpu.reset();
     cpu.setup_emulator();
 

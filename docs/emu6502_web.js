@@ -167,7 +167,7 @@ function handleError(f, args) {
         wasm.__wbindgen_exn_store(addHeapObject(e));
     }
 }
-function __wbg_adapter_69(arg0, arg1, arg2, arg3) {
+function __wbg_adapter_70(arg0, arg1, arg2, arg3) {
     wasm.wasm_bindgen__convert__closures__invoke2_mut__h78378ce815d13d90(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
 }
 
@@ -335,6 +335,15 @@ export class Emulator {
     video_ntsc(ntsc) {
         wasm.emulator_video_ntsc(this.__wbg_ptr, ntsc);
     }
+    /**
+    * @param {number} x
+    * @param {number} y
+    * @param {boolean} left_button
+    * @param {boolean} right_button
+    */
+    set_mouse_state(x, y, left_button, right_button) {
+        wasm.emulator_set_mouse_state(this.__wbg_ptr, x, y, left_button, right_button);
+    }
 }
 
 async function __wbg_load(module, imports) {
@@ -487,7 +496,7 @@ function __wbg_get_imports() {
                 const a = state0.a;
                 state0.a = 0;
                 try {
-                    return __wbg_adapter_69(a, state0.b, arg0, arg1);
+                    return __wbg_adapter_70(a, state0.b, arg0, arg1);
                 } finally {
                     state0.a = a;
                 }
@@ -533,7 +542,7 @@ function __wbg_get_imports() {
         const ret = wasm.memory;
         return addHeapObject(ret);
     };
-    imports.wbg.__wbindgen_closure_wrapper121 = function(arg0, arg1, arg2) {
+    imports.wbg.__wbindgen_closure_wrapper123 = function(arg0, arg1, arg2) {
         const ret = makeMutClosure(arg0, arg1, 33, __wbg_adapter_18);
         return addHeapObject(ret);
     };

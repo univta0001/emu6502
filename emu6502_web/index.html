@@ -38,7 +38,7 @@
     </center>
 
     <script type="module">
-        import init, * as wasm from './emu6502_web.js';
+        import init, * as wasm from './pkg/emu6502_web.js';
 
         (async () => {
             await init(new Object());
@@ -52,6 +52,8 @@
             const emu6502 = await wasm.init_emul();
 
             var pressedKeys = {};
+            var prev_x = 0;
+            var prev_y = 0;
 
             const load_disk = (success,filter=".nib,.dsk,.po,.woz,.hdv,.2mg,.nib.gz,.dsk.gz,.po.gz,.woz.gz") => {
                 var frm = document.createElement("form");
@@ -595,7 +597,7 @@
                     prev_cycles = emu6502.cpu_cycles();
                     update_gamepad();
                     update_ui();
-                    update_audio();  
+                    update_audio();
                 }
 
                 //console.log(emu6502.cpu_cycles());
