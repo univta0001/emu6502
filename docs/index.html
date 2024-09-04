@@ -10,7 +10,7 @@
 <body>
     <div class= "flex flex-col justify-center items-center my-4">
         <div class="relative">
-            <div contenteditable="true" id="emulator" class="emu6502" oncontextmenu="return false;">
+            <div contenteditable="true" virtualkeyboardpolicy="manual" id="emulator" class="emu6502" oncontextmenu="return false;">
                 <canvas width="1120" height="768"></canvas>
                 <audio></audio>
             </div>
@@ -121,8 +121,16 @@
                 }
             }
 
+            // Load image if location hash is not empty
             if (window.location.hash) {
                 await handle_window_location();
+            }
+
+            // Show virtual keyboard if it is clicked
+            if ("virtualKeyboard" in navigator) {
+                document.getElementById("emulator").addEventListener("click", () => {
+                    navigator.virtualKeyboard.show()
+                });
             }
 
             const handle_mouse_buttons = (e) => {
