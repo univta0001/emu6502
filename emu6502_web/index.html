@@ -10,7 +10,7 @@
 <body>
     <div class= "flex flex-col justify-center items-center my-4">
         <div class="relative">
-            <div id="emulator" class="emu6502">
+            <div id="emulator" class="emu6502" oncontextmenu="return false;">
                 <canvas width="1120" height="768"></canvas>
                 <audio></audio>
             </div>
@@ -52,8 +52,12 @@
             const emu6502 = await wasm.init_emul();
 
             var pressedKeys = {};
-            var prev_x = 0;
-            var prev_y = 0;
+            var mouse_prev_x = 0;
+            var mouse_prev_y = 0;
+            var mouse_x = 0;
+            var mouse_y = 0;
+            var mouse_left_button = false;
+            var mouse_right_button = false;
 
             const load_disk = (success,filter=".nib,.dsk,.po,.woz,.hdv,.2mg,.nib.gz,.dsk.gz,.po.gz,.woz.gz") => {
                 var frm = document.createElement("form");
@@ -101,6 +105,20 @@
                 });
             };
 
+            const handle_mouse_buttons = (e) => {
+                if (e.buttons & 1) {
+                    mouse_left_button = true;
+                } else {
+                    mouse_left_button = false;
+                }
+
+                if (e.buttons & 2) {
+                    mouse_right_button = true;
+                } else {
+                    mouse_right_button = false;
+                }
+            }
+
             document.getElementById("disk1").addEventListener("click", function() {
                 load_disk( (name, content) => {
                     emu6502.load_disk(name,content,0);
@@ -117,6 +135,25 @@
             register_dnd_file("emulator", 0);
             register_dnd_file("disk1", 0);
             register_dnd_file("disk2", 1);
+
+
+            document.getElementById("emulator").addEventListener("mousemove", function(e) {
+                mouse_x = e.clientX;
+                mouse_y = e.clientY;
+            });
+
+            document.getElementById("emulator").addEventListener("mousedown", function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                handle_mouse_buttons(e);
+            });
+
+            document.getElementById("emulator").addEventListener("mouseup", function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                handle_mouse_buttons(e);
+            });
+
 
             document.getElementById("joystick").addEventListener("click", function() {
                 emu6502.toggle_joystick();
@@ -552,6 +589,14 @@
                     emu6502.clear_sound_buffer();
                 }
             }
+
+            const update_mouse_state = () => {
+                let delta_x = mouse_x - mouse_prev_x;
+                let delta_y = mouse_y - mouse_prev_y;
+                mouse_prev_x = mouse_x;
+                mouse_prev_y = mouse_y;
+                emu6502.set_mouse_state(delta_x, delta_y, mouse_left_button, mouse_right_button);
+            }
             
             var then = 0;
             var start_time = performance.now();
@@ -598,6 +643,7 @@
                     update_gamepad();
                     update_ui();
                     update_audio();
+                    update_mouse_state();
                 }
 
                 //console.log(emu6502.cpu_cycles());
