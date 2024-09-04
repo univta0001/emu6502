@@ -105,6 +105,26 @@
                 });
             };
 
+            const handle_window_location = () => {
+                let location = window.location.hash.substring(1);
+
+                try {
+                    const response = await fetch(location);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    const arrayBuffer = await response.arrayBuffer();
+                    const content = new Uint8ClampedArray(arrayBuffer);
+                    emu6502.load_disk(location,content,0);
+                } catch(error) {
+                    console.log("Error fetching from hash location: "+error);
+                }
+            }
+
+            if (window.location.hash) {
+                handle_window_location();
+            }
+
             const handle_mouse_buttons = (e) => {
                 if (e.buttons & 1) {
                     mouse_left_button = true;
