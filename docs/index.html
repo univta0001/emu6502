@@ -403,7 +403,7 @@
                 }
 
                 document.getElementById("keydown").innerHTML = "Keydown value = "+value;
-                document.getElementById("oninput").innerHTML = "OnInput value = "+hidden_text.value;
+                document.getElementById("oninput").innerHTML = "OnInput value = "+e.keyCode+" "+hidden_text.value;
 
                 return emu6502.keyboard_latch(value);
             }
