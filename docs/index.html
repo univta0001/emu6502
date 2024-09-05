@@ -13,6 +13,7 @@
             <div id="emulator" class="emu6502" oncontextmenu="return false;">
                 <canvas width="1120" height="768"></canvas>
                 <audio></audio>
+                 <textarea id="hidden_text" style="position:absolute left:-9999px"></textarea>
             </div>
             <div id="controller" class="absolute top-0 left-0 opacity-50" style="visibility:hidden">
                 <svg width="1120" height="40">
@@ -58,6 +59,16 @@
             var mouse_y = 0;
             var mouse_left_button = false;
             var mouse_right_button = false;
+
+            const hidden_text = document.getElementById("hidden_text");
+
+            const show_keyboard = () => {
+                hidden_text.focus();
+            }
+
+            document.getElementById("emulator").addEventListerner("click", show_keyboard);
+            document.getElementById("emulator").addEventListerner("touchstart", show_keyboard);
+            document.getElementById("emulator").addEventListerner("touchend", show_keyboard);
 
             const load_disk = (success,filter=".nib,.dsk,.po,.woz,.hdv,.2mg,.nib.gz,.dsk.gz,.po.gz,.woz.gz") => {
                 var frm = document.createElement("form");
