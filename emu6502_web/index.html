@@ -504,12 +504,16 @@
                 if (typeof window !== 'undefined') {
                     const isTouchDevice = "ontouchstart" in document.documentElement;
                     const isAndroidDevice = /Android/i.test(navigator.userAgent);
+                    /*
                     if (isTouchDevice || isAndroidDevice) {
                         hidden_text.addEventListener('input', onInput);
                     } else {
                         hidden_text.addEventListener('keydown', onKeydown);
                         hidden_text.addEventListener('keyup', onKeyup);
                     }
+                    */
+                    hidden_text.addEventListener('keydown', onKeydown);
+                    hidden_text.addEventListener('keyup', onKeyup);
                 }
             };
 
