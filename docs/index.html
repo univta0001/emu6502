@@ -240,7 +240,8 @@
 
             // Setup Keyboard Handler
             const onKeydown = (e) => {
-                if (e.isComposing || e.keyCode === 229) {
+                var keyCode = e.charCode || e.keyCode || e.which;
+                if (e.isComposing || keyCode === 229) {
                     return;
                 }
 
@@ -273,7 +274,7 @@
                     return emu6502.keyboard_latch(29);
                 }
 
-                let value = e.keyCode & 0x7f;
+                let value = keyCode & 0x7f;
                 let shift_mode = e.shiftKey;
                 let ctrl_mode = e.ctrlKey;
                 let caps_mode = e.getModifierState("CapsLock");
@@ -430,7 +431,8 @@
 
             const onKeyup = (e) => {
                 clear_hidden_text();
-                if (e.isComposing || e.keyCode === 229) {
+                var keyCode = e.charCode || e.keyCode || e.which;
+                if (e.isComposing || keyCode === 229) {
                     return;
                 }
 

@@ -67,7 +67,7 @@
             }
 
             const clear_hidden_text = (e) => {
-                hidden_text.value = '';
+                //hidden_text.value = '';
             }
 
             document.getElementById("emulator").addEventListener("click", show_keyboard);
@@ -240,7 +240,8 @@
 
             // Setup Keyboard Handler
             const onKeydown = (e) => {
-                if (e.isComposing || e.keyCode === 229) {
+                var keyCode = e.charCode || e.keyCode || e.which;
+                if (e.isComposing || keyCode === 229) {
                     return;
                 }
 
@@ -430,8 +431,8 @@
 
             const onKeyup = (e) => {
                 clear_hidden_text();
-
-                if (e.isComposing || e.keyCode === 229) {
+                var keyCode = e.charCode || e.keyCode || e.which;
+                if (e.isComposing || keyCode === 229) {
                     return;
                 }
 
@@ -441,7 +442,7 @@
                 } else {
                     emu6502.any_key_down(false);
                 }
-                
+
                 let leftAlt = e.code == "AltLeft"
                 let rightAlt = e.code == "AltRight"
 
@@ -479,10 +480,36 @@
                 }
             }
 
+            const onInput = (e) => {
+                if ('nativeEvent' in e) {
+                    const ev = e.nativeEvent;
+                    var key = 0;
+                    if (ev.data) {
+                        key = ascii_to_int(ev.data);
+                    } else if (ev.inputType === 'deleteContentBackward') {
+                        key = 8;
+                    } else if (ev.inputType === 'deleteContentForward') {
+                        key = 46;
+                    } else if (ev.inputType === 'insertLineBreak') {
+                        key = 13;
+                    }
+
+                    if (key != 0) {
+                        emu6502.keyboard_latch(key);
+                    }
+                }
+            }
+
             const setupKeyHandler = () => {
                 if (typeof window !== 'undefined') {
-                    hidden_text.addEventListener('keydown', onKeydown);
-                    hidden_text.addEventListener('keyup', onKeyup);
+                    const isTouchDevice = "ontouchstart" in document.documentElement;
+                    const isAndroidDevice = /Android/i.test(navigator.userAgent);
+                    if (isTouchDevice || isAndroidDevice) {
+                        hidden_text.addEventListener('input', onInput);
+                    } else {
+                        hidden_text.addEventListener('keydown', onKeydown);
+                        hidden_text.addEventListener('keyup', onKeyup);
+                    }
                 }
             };
 
