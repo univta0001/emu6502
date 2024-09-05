@@ -10,9 +10,10 @@
 <body>
     <div class= "flex flex-col justify-center items-center my-4">
         <div class="relative">
-            <div id="emulator" class="emu6502" oncontextmenu="return false;">
+            <div contenteditable="true" id="emulator" class="emu6502" oncontextmenu="return false;">
                 <canvas width="1120" height="768"></canvas>
                 <audio></audio>
+                <textarea id="hidden_text" hidden></textarea>
             </div>
             <div id="controller" class="absolute top-0 left-0 opacity-50" style="visibility:hidden">
                 <svg width="1120" height="40">
@@ -58,6 +59,11 @@
             var mouse_y = 0;
             var mouse_left_button = false;
             var mouse_right_button = false;
+
+            document.getElementById("emulator").addEventListener("click", function(e) {
+                e.preventDefault();
+                document.getElementById("hidden_text").focus();
+            });
 
             const load_disk = (success,filter=".nib,.dsk,.po,.woz,.hdv,.2mg,.nib.gz,.dsk.gz,.po.gz,.woz.gz") => {
                 var frm = document.createElement("form");
