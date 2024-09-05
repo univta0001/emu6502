@@ -417,7 +417,7 @@
                     }
 
                     if (ev.data) {
-                        event.key = ev.data as string
+                        event.key = ev.data
                     } else if (ev.inputType === 'deleteContentBackward') {
                         event.key = 'Backspace'
                     } else if (ev.inputType === 'inserLineBreak') {
