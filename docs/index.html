@@ -216,35 +216,35 @@
             // Setup Keyboard Handler
             const onKeydown = (e) => {
                 emu6502.any_key_down(true);
-                pressedKeys[e.keyCode] = true;
+                pressedKeys[e.code] = true;
 
                 let apple2e = emu6502.is_apple2e();
 
-                if (e.isComposing || e.keyCode === 229) {
+                if (e.isComposing || e.code == "Backquote") {
                     return; 
                 }
                
-                if (e.keyCode == 37) {
+                if (e.key == "ArrowLeft") {
                     // Keycode.Left
                     return emu6502.keyboard_latch(8);
                 }
 
-                if (e.keyCode == 39) {
+                if (e.key == "ArrowRight") {
                     // Keycode.Right
                     return emu6502.keyboard_latch(21);
                 }
 
-                if (apple2e && e.keyCode == 38) {
+                if (apple2e && e.key == "ArrowUp") {
                     // Keycode.Up
                     return emu6502.keyboard_latch(11);
                 }
 
-                if (apple2e && e.keyCode == 40) {
+                if (apple2e && e.key == "ArrowDown") {
                     // Keycode.Down
                     return emu6502.keyboard_latch(10);
                 }
 
-                if (e.keyCode == ascii_to_int(']') && e.ctrlKey) {
+                if (e.key == ']' && e.ctrlKey) {
                     return emu6502.keyboard_latch(29);
                 }
 
@@ -252,15 +252,15 @@
                 let shift_mode = e.shiftKey;
                 let ctrl_mode = e.ctrlKey;
                 let caps_mode = e.getModifierState("CapsLock");
-                let leftAlt = e.keyCode == 18 && e.location == 1;
-                let rightAlt = e.keyCode == 18 && e.location == 2;
+                let leftAlt = e.code == "AltLeft";
+                let rightAlt = e.code == "AltRight";
 
-                if (e.keyCode == 20) {
+                if (e.code == "Space") {
                     key_caps = caps_mode;
                 }
 
                 // Handle reset key
-                if (ctrl_mode && (e.keyCode == 123 || e.keyCode == 19)) {
+                if (ctrl_mode && (e.key == "F12" || e.code == "Pause")) {
                     emu6502.interrupt_reset();
                     return
                 }
@@ -275,25 +275,25 @@
 
                 // Handle keypad joystick
                 // Numpad 4
-                if (e.keyCode == 100) {
+                if (e.code == 'Numpad4') {
                     emu6502.set_paddle(0,0);
                     return;
                 }
 
                 // Numpad 6
-                if (e.keyCode == 102) {
+                if (e.code == 'Numpad6') {
                     emu6502.set_paddle(0,0xff);
                     return;
                 }
 
                 // Numpad 8
-                if (e.keyCode == 104) {
+                if (e.code == 'Numpad8') {
                     emu6502.set_paddle(1,0);
                     return;
                 }
 
                 // Numpad 2 
-                if (e.keyCode == 98) {
+                if (e.code == 'Numpad2') {
                     emu6502.set_paddle(1,0xff);
                     return;
                 }
@@ -304,85 +304,85 @@
                     value += 32;
                 }
 
-                if (e.keyCode == 221) {
+                if (e.key == "]") {
                     value = ascii_to_int(']');
                 }
 
-                if (e.keyCode == 188) {
+                if (e.key == ",") {
                     value = ascii_to_int(',');
                 }
 
-                if (e.keyCode == 190) {
+                if (e.key == ".") {
                     value = ascii_to_int('.');
                 }
 
-                if (e.keyCode == 191) {
+                if (e.key == "/") {
                     value = ascii_to_int('/');
                 }
 
-                if (e.keyCode == 186) {
+                if (e.key == ";") {
                     value = ascii_to_int(';');
                 }
 
-                if (e.keyCode == 222) {
+                if (e.key == '\'') {
                     value = ascii_to_int('\'');
                 }
 
-                if (e.keyCode == 192) {
+                if (e.key == '`') {
                     value = ascii_to_int('`');
                 }
 
                 if (shift_mode) {
-                    switch (e.keyCode) {
+                    switch (e.code) {
                         // Backquote
-                        case 192 : value = ascii_to_int('~'); break;
+                        case "Backquote" : value = ascii_to_int('~'); break;
                         // Num 1
-                        case 49: value = ascii_to_int('!'); break;
+                        case "Digit1": value = ascii_to_int('!'); break;
                         // Num 2
-                        case 50: value = ascii_to_int('@'); break;
+                        case "Digit2": value = ascii_to_int('@'); break;
                         // Num 3
-                        case 51: value = ascii_to_int('#'); break;
+                        case "Digit3": value = ascii_to_int('#'); break;
                         // Num 4
-                        case 52: value = ascii_to_int('$'); break;
+                        case "Digit4": value = ascii_to_int('$'); break;
                         // Num 5
-                        case 53: value = ascii_to_int('%'); break;
+                        case "Digit5": value = ascii_to_int('%'); break;
                         // Num 6
-                        case 54: value = ascii_to_int('^'); break;
+                        case "Digit6": value = ascii_to_int('^'); break;
                         // Num 7
-                        case 55: value = ascii_to_int('&'); break;
+                        case "Digit7": value = ascii_to_int('&'); break;
                         // Num 8
-                        case 56: value = ascii_to_int('*'); break;
+                        case "Digit8": value = ascii_to_int('*'); break;
                         // Num 9
-                        case 57: value = ascii_to_int('('); break;
+                        case "Digit9": value = ascii_to_int('('); break;
                         // Num 0
-                        case 48: value = ascii_to_int(')'); break;
+                        case "Digit0": value = ascii_to_int(')'); break;
                         // Minus
-                        case 173: value = ascii_to_int('_'); break;
+                        case "Minus": value = ascii_to_int('_'); break;
                         // Equals
-                        case 61: value = ascii_to_int('+'); break;
+                        case "Equal": value = ascii_to_int('+'); break;
                         // Semicolon
-                        case 59: value = ascii_to_int(':'); break;
+                        case "Semicolon": value = ascii_to_int(':'); break;
                         // Quote
-                        case 222: value = ascii_to_int('"'); break;
+                        case "Quote": value = ascii_to_int('"'); break;
                         // Comma
-                        case 188: value = ascii_to_int('<'); break;
+                        case "Comma": value = ascii_to_int('<'); break;
                         // Period
-                        case 190: value = ascii_to_int('>'); break;
+                        case "Period": value = ascii_to_int('>'); break;
                         // Slash
-                        case 191: value = ascii_to_int('?'); break;
+                        case "Slash": value = ascii_to_int('?'); break;
                     }
 
                     if (!apple2e) {
-                        switch (e.keyCode) {
-                            case 77 : value = ascii_to_int(']'); break;
-                            case 78 : value = ascii_to_int('^'); break;
-                            case 80 : value = ascii_to_int('@'); break;
+                        switch (e.code) {
+                            case "KeyM" : value = ascii_to_int(']'); break;
+                            case "KeyN" : value = ascii_to_int('^'); break;
+                            case "KeyP" : value = ascii_to_int('@'); break;
                         }
                     } else {
-                        switch (e.keyCode) {
-                            case 220 : value = ascii_to_int('|'); break;
-                            case 219 : value = ascii_to_int('{'); break;
-                            case 221 : value = ascii_to_int('}'); break;
+                        switch (e.code) {
+                            case "Backslash" : value = ascii_to_int('|'); break;
+                            case "BracketLeft" : value = ascii_to_int('{'); break;
+                            case "BracketRight" : value = ascii_to_int('}'); break;
                         }
                     }
                 }
@@ -396,7 +396,7 @@
                 }
 
                 // Ignore Shift, CTRL and Caps Lock keys
-                if (e.keyCode == 16 || e.keyCode == 17 || e.keyCode == 20) {
+                if (e.key == "Shift" || e.key == "Control" || e.code == "CapsLock") {
                     return;
                 }
 
@@ -405,19 +405,19 @@
 
             const onKeyup = (e) => {
                 clear_hidden_text();
-                delete pressedKeys[e.keyCode];
+                delete pressedKeys[e.code];
                 if (Object.keys(pressedKeys).length > 0) {
                     emu6502.any_key_down(true);
                 } else {
                     emu6502.any_key_down(false);
                 }
 
-                if (e.isComposing || e.keyCode === 229) {
+                if (e.isComposing || e.key === "Dead") {
                     return; 
                 }
                 
-                let leftAlt = e.keyCode == 18 && e.location == 1;
-                let rightAlt = e.keyCode == 18 && e.location == 2;
+                let leftAlt = e.code == "AltLeft"
+                let rightAlt = e.code == "AltRight"
 
                 if (leftAlt) {
                     emu6502.pushbutton_latch(0,0x0);
@@ -429,25 +429,25 @@
 
                 // Handle keypad joystick
                 // Numpad 4
-                if (e.keyCode == 100) {
+                if (e.code == "Numpad4") {
                     emu6502.reset_paddle(0);
                     return;
                 }
 
                 // Numpad 6
-                if (e.keyCode == 102) {
+                if (e.code == "Numpad6") {
                     emu6502.reset_paddle(0);
                     return;
                 }
 
                 // Numpad 8
-                if (e.keyCode == 104) {
+                if (e.code == "Numpad8") {
                     emu6502.reset_paddle(1);
                     return;
                 }
 
                 // Numpad 2 
-                if (e.keyCode == 98) {
+                if (e.code == "Numpad2") {
                     emu6502.reset_paddle(1);
                     return;
                 }
@@ -471,7 +471,6 @@
             // Audio Context
             window.AudioContext = window.AudioContext || window.webkitAudioContext;
             const ctx_audio = new AudioContext();
-
 
             const gamepad_button_pressed = (b) => {
                 if (typeof b === "object") {
