@@ -213,6 +213,31 @@
 
             const ascii_to_int = (ch) => ch.charCodeAt(0);
 
+            const event_code_to_key_code = {
+                "Escape" : 27, "F1" : 112, "F2" : 113, "F3" : 114, "F4" : 115, "F5" : 116,
+                "F6" : 117, "F7" : 118, "F8" : 119, "F9" : 120, "F10" : 121, "F11" : 122,
+                "F12" : 123, "PrintScreen" : 44, "ScrollLock" : 145, "Pause" : 19,
+                "Backquote" : 192, "Digit1" : 49, "Digit2" : 50,"Digit3" : 51,"Digit4" : 52,
+                "Digit5" : 53, "Digit6" : 54, "Digit7" : 55, "Digit8" : 56, "Digit9" : 57,
+                "Digit0" : 48, "Minus" : 173, "Equal" : 61, "Backspace" : 8, "Insert" : 45,
+                "Home" : 36, "PageUp" : 33, "NumLock" : 144, "NumpadDivide" : 111,
+                "NumpadMultiply" : 106, "NumpadSubtract" : 109, "Tab" : 9, "KeyQ" : 81,
+                "BracketLeft": 219, "BracketRight": 221, "Backslash": 220, "Delete": 46,
+                "End": 35, "PageDown": 34, "Numpad7": 103, "Numpad8": 104, "Numpad9": 105,
+                "NumpadAdd": 107, "CapsLock" : 20, "ShiftLeft" : 16,  "Enter": 13,
+                "Numpad4":  100, "Numpad5": 101, "Numpad6" : 102, "Numpad1" : 97,
+                "Numpad2" :  98, "Numpad3" : 99, "NumpadEnter" : 13, "Numpad0": 96,
+                "NumpadDecimal" : 110, "ShiftRight" : 16, "Semicolon": 59, "Quote": 222,
+                "Comma": 188, "Period": 190, "Slash": 191, "CtrlLeft": 17, "CtrlRight": 17,
+                "MetaLeft": 91, "MetaRight": 91, "AltLeft": 18, "AltRight": 18,
+                "ContextMenu": 93, "ArrowLeft": 37, "ArrowDown": 40, "ArrowRight": 39,
+                "ArrowUp": 38, "KeyA": 65, "KeyB": 66, "KeyC": 67, "KeyD": 68, "KeyE": 69,
+                "KeyF": 70, "KeyG": 71, "KeyH": 72, "KeyI": 73, "KeyJ": 74, "KeyK": 75,
+                "KeyL": 76, "KeyM": 77, "KeyN": 78, "KeyO": 79, "KeyP": 80, "KeyQ": 81,
+                "KeyR": 82, "KeyS": 83, "KeyT": 84, "KeyU": 85, "KeyV": 86, "KeyW": 87,
+                "keyX": 88, "KeyY": 89, "KeyZ": 90
+            };
+
             // Setup Keyboard Handler
             const onKeydown = (e) => {
                 emu6502.any_key_down(true);
@@ -220,7 +245,7 @@
 
                 let apple2e = emu6502.is_apple2e();
 
-                if (e.isComposing || e.code == "Backquote") {
+                if (e.isComposing || e.keyCode === 229) {
                     return; 
                 }
                
@@ -396,36 +421,12 @@
                 }
 
                 // Ignore Shift, CTRL and Caps Lock keys
-                if (e.key == "Shift" || e.key == "Control" || e.code == "CapsLock") {
+                if (e.key == "Shift" || e.key == "Control" || e.key == "CapsLock") {
                     return;
                 }
 
                 return emu6502.keyboard_latch(value);
             }
-
-            const onInput = (e) => {
-                if ('nativeEvent' in e) {
-                    const ev = e.nativeEvent;
-                    const event = {
-                        key: '',
-                        code: '',
-                        shiftKey: false,
-                        metaKey: false,
-                        altKey: false,
-                        preventDefault: () => {},
-                        stopPropagation: () => {}
-                    }
-
-                    if (ev.data) {
-                        event.key = ev.data
-                    } else if (ev.inputType === 'deleteContentBackward') {
-                        event.key = 'Backspace'
-                    } else if (ev.inputType === 'inserLineBreak') {
-                        event.key = 'Enter'
-                    }
-                    onKeydown(event)
-                }
-            };
 
             const onKeyup = (e) => {
                 clear_hidden_text();
@@ -436,7 +437,7 @@
                     emu6502.any_key_down(false);
                 }
 
-                if (e.isComposing || e.key === "Dead") {
+                if (e.isComposing || e.keyCode === 229) {
                     return; 
                 }
                 
@@ -479,7 +480,6 @@
 
             const setupKeyHandler = () => {
                 if (typeof window !== 'undefined') {
-                    hidden_text.addEventListener('input', onInput);
                     hidden_text.addEventListener('keydown', onKeydown);
                     hidden_text.addEventListener('keyup', onKeyup);
                 }
