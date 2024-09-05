@@ -403,6 +403,30 @@
                 return emu6502.keyboard_latch(value);
             }
 
+            const onInput = (e) => {
+                if ('nativeEvent' in e) {
+                    const ev = e.nativeEvent;
+                    const event = {
+                        key: '',
+                        code: '',
+                        shiftKey: false,
+                        metaKey: false,
+                        altKey: false,
+                        preventDefault: () => {},
+                        stopPropagation: () => {}
+                    }
+
+                    if (ev.data) {
+                        event.key = ev.data
+                    } else if (ev.inputType === 'deleteContentBackward') {
+                        event.key = 'Backspace'
+                    } else if (ev.inputType === 'inserLineBreak') {
+                        event.key = 'Enter'
+                    }
+                    onKeydown(event)
+                }
+            };
+
             const onKeyup = (e) => {
                 clear_hidden_text();
                 delete pressedKeys[e.code];
@@ -455,6 +479,7 @@
 
             const setupKeyHandler = () => {
                 if (typeof window !== 'undefined') {
+                    hidden_text.addEventListener('input', onInput);
                     hidden_text.addEventListener('keydown', onKeydown);
                     hidden_text.addEventListener('keyup', onKeyup);
                 }
