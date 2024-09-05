@@ -222,7 +222,7 @@
                 "Digit0" : 48, "Minus" : 173, "Equal" : 61, "Backspace" : 8, "Insert" : 45,
                 "Home" : 36, "PageUp" : 33, "NumLock" : 144, "NumpadDivide" : 111,
                 "NumpadMultiply" : 106, "NumpadSubtract" : 109, "Tab" : 9, "KeyQ" : 81,
-                "BracketLeft": 219, "BracketRight": 221, "Backslash": 220, "Delete": 46,
+                "BracketLeft": 219, "BracketRight": 221, "Backslash": 220, "Delete": 127,
                 "End": 35, "PageDown": 34, "Numpad7": 103, "Numpad8": 104, "Numpad9": 105,
                 "NumpadAdd": 107, "CapsLock" : 20, "ShiftLeft" : 16,  "Enter": 13,
                 "Numpad4":  100, "Numpad5": 101, "Numpad6" : 102, "Numpad1" : 97,
@@ -242,6 +242,10 @@
             const onKeydown = (e) => {
                 var keyCode = e.charCode || e.keyCode || e.which;
                 if (e.isComposing || keyCode === 229) {
+                    return;
+                }
+
+                if (["Home", "End", "Pause", "PageUp", "PageDown", "Insert"].includes(e.code)) {
                     return;
                 }
 
@@ -274,7 +278,7 @@
                     return emu6502.keyboard_latch(29);
                 }
 
-                let value = e.keyCode & 0x7f;
+                let value = keyCode & 0x7f;
                 let shift_mode = e.shiftKey;
                 let ctrl_mode = e.ctrlKey;
                 let caps_mode = e.getModifierState("CapsLock");
@@ -328,6 +332,10 @@
                 if (ascii_to_int('A') <= value && value <= ascii_to_int('Z') && 
                     (apple2e && !shift_mode && !ctrl_mode && !key_caps)) {
                     value += 32;
+                }
+
+                if (e.key == "Delete") {
+                    value = 127;
                 }
 
                 if (e.key == "]") {
@@ -481,39 +489,35 @@
             }
 
             const onInput = (e) => {
-                if ('nativeEvent' in e) {
-                    const ev = e.nativeEvent;
-                    var key = 0;
-                    if (ev.data) {
-                        key = ascii_to_int(ev.data);
-                    } else if (ev.inputType === 'deleteContentBackward') {
-                        key = 8;
-                    } else if (ev.inputType === 'deleteContentForward') {
-                        key = 46;
-                    } else if (ev.inputType === 'insertLineBreak') {
-                        key = 13;
+                var key = 0;
+                if (e.data) {
+                    key = ascii_to_int(e.data);
+                    if (key_caps && key > 90) {
+                        key -= 32;
                     }
+                } else if (e.inputType === 'deleteContentBackward') {
+                    key = 8;
+                } else if (e.inputType === 'deleteContentForward') {
+                    key = 127;
+                } else if (e.inputType === 'insertLineBreak') {
+                    key = 13;
+                }
 
-                    if (key != 0) {
-                        emu6502.keyboard_latch(key);
-                    }
+                if (key != 0) {
+                    emu6502.keyboard_latch(key);
                 }
             }
 
             const setupKeyHandler = () => {
                 if (typeof window !== 'undefined') {
-                    const isTouchDevice = "ontouchstart" in document.documentElement;
-                    const isAndroidDevice = /Android/i.test(navigator.userAgent);
-                    /*
-                    if (isTouchDevice || isAndroidDevice) {
-                        hidden_text.addEventListener('input', onInput);
+                    const isTouchDevice = window.navigator.maxTouchPoints > 1 ||
+                        'ontouchstart' in document;
+                    if (isTouchDevice) {
+                        hidden_text.addEventListener('beforeinput', onInput);
                     } else {
                         hidden_text.addEventListener('keydown', onKeydown);
                         hidden_text.addEventListener('keyup', onKeyup);
                     }
-                    */
-                    hidden_text.addEventListener('keydown', onKeydown);
-                    hidden_text.addEventListener('keyup', onKeyup);
                 }
             };
 
