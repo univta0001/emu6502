@@ -13,6 +13,7 @@
             <div id="emulator" class="emu6502" oncontextmenu="return false;">
                 <canvas width="1120" height="768"></canvas>
                 <audio></audio>
+                <textarea id="hidden_text" style="position:absolute;left:-9999px"></textarea>
             </div>
             <div id="controller" class="absolute top-0 left-0 opacity-50" style="visibility:hidden">
                 <svg width="1120" height="40">
@@ -58,6 +59,20 @@
             var mouse_y = 0;
             var mouse_left_button = false;
             var mouse_right_button = false;
+
+            const hidden_text = document.getElementById("hidden_text");
+
+            const show_keyboard = (e) => {
+                hidden_text.focus();
+            }
+
+            const clear_hidden_text = (e) => {
+                hidden_text.value = '';
+            }
+
+            document.getElementById("emulator").addEventListener("click", show_keyboard);
+            document.getElementById("emulator").addEventListener("touchstart", show_keyboard);
+            document.getElementById("emulator").addEventListener("touchend", show_keyboard);
 
             const load_disk = (success,filter=".nib,.dsk,.po,.woz,.hdv,.2mg,.nib.gz,.dsk.gz,.po.gz,.woz.gz") => {
                 var frm = document.createElement("form");
@@ -389,6 +404,7 @@
             }
 
             const onKeyup = (e) => {
+                clear_hidden_text();
                 delete pressedKeys[e.keyCode];
                 if (Object.keys(pressedKeys).length > 0) {
                     emu6502.any_key_down(true);
