@@ -454,7 +454,7 @@
 
             const onInput = (e) => {
                 if ('nativeEvent' in e) {
-                    const ev = e.nativeEvent as InputEvent
+                    const ev = e.nativeEvent;
                     const event = {
                         key: '',
                         code: '',
@@ -463,16 +463,16 @@
                         altKey: false,
                         preventDefault: () => { },
                         stopPropagation: () => { }
-                    }
+                    };
                     // Is this a normal character, or a special one?
                     if (ev.data) {
-                        event.key = ev.data as string
+                        event.key = ev.data;
                     } else if (ev.inputType === 'deleteContentBackward') {
-                        event.key = 'Backspace'
+                        event.key = 'Backspace';
                     } else if (ev.inputType === 'insertLineBreak') {
-                        event.key = 'Enter'
+                        event.key = 'Enter';
                     }
-                    OnKeywown(event as keyEvent)
+                    OnKeywown(event);
                 }
             };
 
