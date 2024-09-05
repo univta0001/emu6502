@@ -13,7 +13,7 @@
             <div id="emulator" class="emu6502" oncontextmenu="return false;">
                 <canvas width="1120" height="768"></canvas>
                 <audio></audio>
-                 <textarea id="hidden_text" style="position:absolute left:-9999px"></textarea>
+                 <textarea id="hidden_text" hidden style="position:absolute left:-9999px"></textarea>
             </div>
             <div id="controller" class="absolute top-0 left-0 opacity-50" style="visibility:hidden">
                 <svg width="1120" height="40">
@@ -62,10 +62,17 @@
 
             const hidden_text = document.getElementById("hidden_text");
 
-            const show_keyboard = () => {
+            const show_keyboard = (e) => {
                 hidden_text.focus();
             }
 
+            const clear_hidden_text = (e) => {
+                console.log("Clear hidden text");
+                e.preventDefault();
+                hidden_text.value = '';
+            }
+
+            hidden_text.addEventListener("keyup", clear_hidden_text);
             document.getElementById("emulator").addEventListener("click", show_keyboard);
             document.getElementById("emulator").addEventListener("touchstart", show_keyboard);
             document.getElementById("emulator").addEventListener("touchend", show_keyboard);
