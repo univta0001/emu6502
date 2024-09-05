@@ -244,7 +244,7 @@
                     return emu6502.keyboard_latch(10);
                 }
 
-                if (e.key == ']' && e.ctrlKey) {
+                if (e.key == '}' && e.ctrlKey) {
                     return emu6502.keyboard_latch(29);
                 }
 
@@ -479,7 +479,6 @@
 
             const setupKeyHandler = () => {
                 if (typeof window !== 'undefined') {
-                    hidden_text.addEventListener('input', onInput);
                     hidden_text.addEventListener('keydown', onKeydown);
                     hidden_text.addEventListener('keyup', onKeyup);
                 }
