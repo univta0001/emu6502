@@ -404,7 +404,6 @@
             }
 
             const onKeyup = (e) => {
-                clear_hidden_text();
                 delete pressedKeys[e.keyCode];
                 if (Object.keys(pressedKeys).length > 0) {
                     emu6502.any_key_down(true);
