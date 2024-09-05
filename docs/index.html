@@ -240,15 +240,15 @@
 
             // Setup Keyboard Handler
             const onKeydown = (e) => {
+                if (e.isComposing || e.keyCode === 229) {
+                    return;
+                }
+
                 emu6502.any_key_down(true);
                 pressedKeys[e.code] = true;
 
                 let apple2e = emu6502.is_apple2e();
 
-                if (e.isComposing || e.keyCode === 229) {
-                    return; 
-                }
-               
                 if (e.key == "ArrowLeft") {
                     // Keycode.Left
                     return emu6502.keyboard_latch(8);
@@ -430,6 +430,10 @@
 
             const onKeyup = (e) => {
                 clear_hidden_text();
+                if (e.isComposing || e.keyCode === 229) {
+                    return;
+                }
+
                 delete pressedKeys[e.code];
                 if (Object.keys(pressedKeys).length > 0) {
                     emu6502.any_key_down(true);
@@ -437,10 +441,6 @@
                     emu6502.any_key_down(false);
                 }
 
-                if (e.isComposing || e.keyCode === 229) {
-                    return; 
-                }
-                
                 let leftAlt = e.code == "AltLeft"
                 let rightAlt = e.code == "AltRight"
 
