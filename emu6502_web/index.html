@@ -35,6 +35,7 @@
         <a id="joystick" class="button shadow hover:shadow-lg border-2 rounded-full font-bold py-2 px-3 cursor-pointer hover:bg-sky-400" href="#">Toggle Joystick</a> 
         <input type="checkbox" id="video50hz" name="video50hz"> 50Hz Video
         <input type="checkbox" id="videoNTSC" name="videoNTSC"> NTSC Video
+        <input type="checkbox" id="capslock" name="capslock"> Capslock
     </div>
     </center>
 
@@ -211,6 +212,14 @@
                 }
             });
 
+            document.getElementById("capslock").addEventListener("change", function(e) {
+                if (e.currentTarget.checked) {
+                    key_caps = true;
+                } else {
+                    key_caps = false;
+                }
+            });
+
             const ascii_to_int = (ch) => ch.charCodeAt(0);
 
             const event_code_to_key_code = {
@@ -287,6 +296,7 @@
 
                 if (e.code == "CapsLock") {
                     key_caps = caps_mode;
+                    document.getElementById("capslock").checked = key_caps;
                 }
 
                 // Handle reset key
@@ -513,7 +523,7 @@
                     const isFirefox = /Gecko\//i.test(navigator.userAgent);
                     const isTouchDevice = window.navigator.maxTouchPoints > 1 ||
                         'ontouchstart' in document;
-                    if (isTouchDevice && isFirefox) {
+                    if (isTouchDevice && !isFirefox) {
                         hidden_text.addEventListener('beforeinput', onInput);
                     } else {
                         hidden_text.addEventListener('keydown', onKeydown);
@@ -701,6 +711,8 @@
             var prev_cycles = 0;
             var cpu_delta = 0;
             var key_caps = true;
+
+            document.getElementById("capslock").checked = true;
 
             if (document.getElementById("video50hz").checked) {
                  emu6502.video_50hz(true);
