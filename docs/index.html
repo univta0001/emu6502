@@ -248,7 +248,7 @@
                     return emu6502.keyboard_latch(29);
                 }
 
-                let value = e.keyCode & 0x7f;
+                let value = e.which & 0x7f;
                 let shift_mode = e.shiftKey;
                 let ctrl_mode = e.ctrlKey;
                 let caps_mode = e.getModifierState("CapsLock");
