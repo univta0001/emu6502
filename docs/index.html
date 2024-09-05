@@ -245,7 +245,7 @@
 
                 let apple2e = emu6502.is_apple2e();
 
-                if (e.isComposing) {
+                if (e.isComposing || e.key === "Dead") {
                     return; 
                 }
                
@@ -273,7 +273,7 @@
                     return emu6502.keyboard_latch(29);
                 }
 
-                let value = event_code_to_key_code[e.code] & 0x7f;
+                let value = e.keyCode & 0x7f;
                 let shift_mode = e.shiftKey;
                 let ctrl_mode = e.ctrlKey;
                 let caps_mode = e.getModifierState("CapsLock");
