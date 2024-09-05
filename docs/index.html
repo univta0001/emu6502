@@ -452,10 +452,35 @@
                 }
             }
 
+            const onInput = (e) => {
+                if ('nativeEvent' in e) {
+                    const ev = e.nativeEvent as InputEvent
+                    const event = {
+                        key: '',
+                        code: '',
+                        shiftKey: false,
+                        metaKey: false,
+                        altKey: false,
+                        preventDefault: () => { },
+                        stopPropagation: () => { }
+                    }
+                    // Is this a normal character, or a special one?
+                    if (ev.data) {
+                        event.key = ev.data as string
+                    } else if (ev.inputType === 'deleteContentBackward') {
+                        event.key = 'Backspace'
+                    } else if (ev.inputType === 'insertLineBreak') {
+                        event.key = 'Enter'
+                    }
+                    OnKeywown(event as keyEvent)
+                }
+            };
+
             const setupKeyHandler = () => {
                 if (typeof window !== 'undefined') {
                     document.addEventListener('keydown', onKeydown);
                     document.addEventListener('keyup', onKeyup);
+                    hidden_text.addEventListener('input', onInput);
                     hidden_text.addEventListener('keydown', onKeydown);
                     hidden_text.addEventListener('keyup', onKeyup);
                 }
