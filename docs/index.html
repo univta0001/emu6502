@@ -66,9 +66,9 @@
                 hidden_text.focus();
             }
 
-            document.getElementById("emulator").addEventListerner("click", show_keyboard);
-            document.getElementById("emulator").addEventListerner("touchstart", show_keyboard);
-            document.getElementById("emulator").addEventListerner("touchend", show_keyboard);
+            document.getElementById("emulator").addEventListener("click", show_keyboard);
+            document.getElementById("emulator").addEventListener("touchstart", show_keyboard);
+            document.getElementById("emulator").addEventListener("touchend", show_keyboard);
 
             const load_disk = (success,filter=".nib,.dsk,.po,.woz,.hdv,.2mg,.nib.gz,.dsk.gz,.po.gz,.woz.gz") => {
                 var frm = document.createElement("form");
