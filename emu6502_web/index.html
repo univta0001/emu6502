@@ -510,9 +510,10 @@
 
             const setupKeyHandler = () => {
                 if (typeof window !== 'undefined') {
+                    const isFirefox = /Gecko\//i.test(navigator.userAgent);
                     const isTouchDevice = window.navigator.maxTouchPoints > 1 ||
                         'ontouchstart' in document;
-                    if (isTouchDevice) {
+                    if (isTouchDevice && isFirefox) {
                         hidden_text.addEventListener('beforeinput', onInput);
                     } else {
                         hidden_text.addEventListener('keydown', onKeydown);
