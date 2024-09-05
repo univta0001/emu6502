@@ -66,14 +66,6 @@
                 hidden_text.focus();
             }
 
-            const clear_hidden_text = (e) => {
-                hidden_text.value = '';
-            }
-
-            document.getElementById("emulator").addEventListener("click", show_keyboard);
-            document.getElementById("emulator").addEventListener("touchstart", show_keyboard);
-            document.getElementById("emulator").addEventListener("touchend", show_keyboard);
-
             const load_disk = (success,filter=".nib,.dsk,.po,.woz,.hdv,.2mg,.nib.gz,.dsk.gz,.po.gz,.woz.gz") => {
                 var frm = document.createElement("form");
                 var upload = document.createElement("input");
@@ -455,12 +447,32 @@
 
             const setupKeyHandler = () => {
                 if (typeof window !== 'undefined') {
-                    document.addEventListener('keydown touchstart', onKeydown);
-                    document.addEventListener('keyup touchend', onKeyup);
+                    document.addEventListener('keydown', onKeydown);
+                    document.addEventListener('keyup', onKeyup);
                 }
             };
 
             setupKeyHandler();
+
+            const handle_touch_start = (e) => {
+                e.preventDefault();
+                show_keyboard();
+                onKeydown(e)
+            }
+
+            const handle_touch_end = (e) => {
+                e.preventDefault();
+                show_keyboard();
+                onKeyup(e)
+            }
+
+            const clear_hidden_text = (e) => {
+                hidden_text.value = '';
+            }
+
+            document.getElementById("emulator").addEventListener("click", show_keyboard);
+            document.getElementById("emulator").addEventListener("touchstart", handle_touch_start);
+            document.getElementById("emulator").addEventListener("touchend", handle_touch_end);
 
             // Graphics Context 
             const canvas = document.querySelector("canvas");

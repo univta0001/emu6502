@@ -455,8 +455,8 @@
 
             const setupKeyHandler = () => {
                 if (typeof window !== 'undefined') {
-                    document.addEventListener('keydown touchstart', onKeydown);
-                    document.addEventListener('keyup touchend', onKeyup);
+                    document.addEventListener('keydown', onKeydown);
+                    document.addEventListener('keyup', onKeyup);
                 }
             };
 
