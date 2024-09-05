@@ -254,6 +254,12 @@
                     return;
                 }
 
+                // Handle reset key
+                if (e.ctrlKey && (e.key == "F12" || e.code == "Pause")) {
+                    emu6502.interrupt_reset();
+                    return
+                }
+
                 if (["Home", "End", "Pause", "PageUp", "PageDown", "Insert"].includes(e.code)) {
                     return;
                 }
@@ -263,22 +269,22 @@
 
                 let apple2e = emu6502.is_apple2e();
 
-                if (e.key == "ArrowLeft") {
+                if (e.code == "ArrowLeft") {
                     // Keycode.Left
                     return emu6502.keyboard_latch(8);
                 }
 
-                if (e.key == "ArrowRight") {
+                if (e.code == "ArrowRight") {
                     // Keycode.Right
                     return emu6502.keyboard_latch(21);
                 }
 
-                if (apple2e && e.key == "ArrowUp") {
+                if (apple2e && e.code == "ArrowUp") {
                     // Keycode.Up
                     return emu6502.keyboard_latch(11);
                 }
 
-                if (apple2e && e.key == "ArrowDown") {
+                if (apple2e && e.code == "ArrowDown") {
                     // Keycode.Down
                     return emu6502.keyboard_latch(10);
                 }
@@ -299,12 +305,6 @@
                     document.getElementById("capslock").checked = key_caps;
                 }
 
-                // Handle reset key
-                if (ctrl_mode && (e.key == "F12" || e.code == "Pause")) {
-                    emu6502.interrupt_reset();
-                    return
-                }
-
                 if (leftAlt) {
                     emu6502.pushbutton_latch(0,0x80);
                 }
@@ -320,9 +320,10 @@
                     return;
                 }
 
-                // Numpad 6
-                if (e.code == 'Numpad6') {
-                    emu6502.set_paddle(0,0xff);
+                // Numpad 7
+                if (e.code == 'Numpad8') {
+                    emu6502.set_paddle(0,0);
+                    emu6502.set_paddle(1,0);
                     return;
                 }
 
@@ -332,12 +333,38 @@
                     return;
                 }
 
+                // Numpad 9
+                if (e.code == 'Numpad9') {
+                    emu6502.set_paddle(0,0xff);
+                    emu6502.set_paddle(1,0);
+                    return;
+                }
+
+                // Numpad 6
+                if (e.code == 'Numpad6') {
+                    emu6502.set_paddle(0,0xff);
+                    return;
+                }
+
+                // Numpad 3
+                if (e.code == 'Numpad3') {
+                    emu6502.set_paddle(0,0xff);
+                    emu6502.set_paddle(1,0xff);
+                    return;
+                }
+
                 // Numpad 2 
                 if (e.code == 'Numpad2') {
                     emu6502.set_paddle(1,0xff);
                     return;
                 }
-                
+
+                // Numpad 1
+                if (e.code == 'Numpad2') {
+                    emu6502.set_paddle(0,0);
+                    emu6502.set_paddle(1,0xff);
+                    return;
+                }
 
                 if (ascii_to_int('A') <= value && value <= ascii_to_int('Z') && 
                     (apple2e && !shift_mode && !ctrl_mode && !key_caps)) {
@@ -479,9 +506,10 @@
                     return;
                 }
 
-                // Numpad 6
-                if (e.code == "Numpad6") {
+                // Numpad 7
+                if (e.code == "Numpad7") {
                     emu6502.reset_paddle(0);
+                    emu6502.reset_paddle(1);
                     return;
                 }
 
@@ -491,8 +519,35 @@
                     return;
                 }
 
+                // Numpad 9
+                if (e.code == "Numpad9") {
+                    emu6502.reset_paddle(0);
+                    emu6502.reset_paddle(1);
+                    return;
+                }
+
+                // Numpad 6
+                if (e.code == "Numpad6") {
+                    emu6502.reset_paddle(0);
+                    return;
+                }
+
+                // Numpad 3
+                if (e.code == "Numpad3") {
+                    emu6502.reset_paddle(0);
+                    emu6502.reset_paddle(1);
+                    return;
+                }
+
                 // Numpad 2 
                 if (e.code == "Numpad2") {
+                    emu6502.reset_paddle(1);
+                    return;
+                }
+
+                // Numpad 1
+                if (e.code == "Numpad1") {
+                    emu6502.reset_paddle(0);
                     emu6502.reset_paddle(1);
                     return;
                 }
