@@ -13,7 +13,7 @@
             <div id="emulator" class="emu6502" oncontextmenu="return false;">
                 <canvas width="1120" height="768"></canvas>
                 <audio></audio>
-                <textarea id="hidden_text" style="position:absolute;left:-9999px"></textarea>
+                <textarea id="hidden_text" style="position:absolute left:-9999px"></textarea>
             </div>
             <div id="controller" class="absolute top-0 left-0 opacity-50" style="visibility:hidden">
                 <svg width="1120" height="40">
@@ -65,6 +65,14 @@
             const show_keyboard = (e) => {
                 hidden_text.focus();
             }
+
+            const clear_hidden_text = (e) => {
+                hidden_text.value = '';
+            }
+
+            document.getElementById("emulator").addEventListener("click", show_keyboard);
+            document.getElementById("emulator").addEventListener("touchstart", show_keyboard);
+            document.getElementById("emulator").addEventListener("touchend", show_keyboard);
 
             const load_disk = (success,filter=".nib,.dsk,.po,.woz,.hdv,.2mg,.nib.gz,.dsk.gz,.po.gz,.woz.gz") => {
                 var frm = document.createElement("form");
@@ -453,26 +461,6 @@
             };
 
             setupKeyHandler();
-
-            const handle_touch_start = (e) => {
-                e.preventDefault();
-                show_keyboard();
-                onKeydown(e)
-            }
-
-            const handle_touch_end = (e) => {
-                e.preventDefault();
-                show_keyboard();
-                onKeyup(e)
-            }
-
-            const clear_hidden_text = (e) => {
-                hidden_text.value = '';
-            }
-
-            document.getElementById("emulator").addEventListener("click", show_keyboard);
-            document.getElementById("emulator").addEventListener("touchstart", handle_touch_start);
-            document.getElementById("emulator").addEventListener("touchend", handle_touch_end);
 
             // Graphics Context 
             const canvas = document.querySelector("canvas");
