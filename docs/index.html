@@ -10,6 +10,8 @@
 <body>
     <div class= "flex flex-col justify-center items-center my-4">
         <div class="relative">
+            <span id = "keydown">Keydown</span>
+            <span id = "oninput">OnInput</span>
             <div id="emulator" class="emu6502" oncontextmenu="return false;">
                 <canvas width="1120" height="768"></canvas>
                 <audio></audio>
@@ -399,6 +401,8 @@
                 if (e.key == "Shift" || e.key == "Control" || e.code == "CapsLock") {
                     return;
                 }
+
+                document.getElementById("keydown").innerHTML = "Keydown value = "+value;
 
                 return emu6502.keyboard_latch(value);
             }
