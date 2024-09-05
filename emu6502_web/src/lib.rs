@@ -36,15 +36,20 @@ impl Emulator {
             if name.ends_with(".dsk.gz")
                 || name.ends_with(".dsk")
                 || name.ends_with(".po")
-                || name.ends_with("po.gz")
+                || name.ends_with(".po.gz")
             {
+                let po_mode = if name.ends_with(".po") || name.ends_with(".po.gz") {
+                    true
+                } else {
+                    false
+                };
                 if name.ends_with(".gz") {
-                    let result = drv.load_dsk_po_gz_array_to_woz(&dsk, false);
+                    let result = drv.load_dsk_po_gz_array_to_woz(&dsk, po_mode);
                     if result.is_err() {
                         return false;
                     }
                 } else {
-                    let result = drv.load_dsk_po_array_to_woz(&dsk, false);
+                    let result = drv.load_dsk_po_array_to_woz(&dsk, po_mode);
                     if result.is_err() {
                         return false;
                     }
