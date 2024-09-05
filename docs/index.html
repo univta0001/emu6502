@@ -433,7 +433,6 @@
             };
 
             const onKeyup = (e) => {
-                document.getElementById("oninput").innerHTML = "OnInput value = "+hidden_text.value;
                 clear_hidden_text();
                 delete pressedKeys[e.code];
                 if (Object.keys(pressedKeys).length > 0) {
