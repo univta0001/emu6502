@@ -249,6 +249,8 @@
 
             // Setup Keyboard Handler
             const onKeydown = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 var keyCode = e.charCode || e.keyCode || e.which;
                 if (e.isComposing || keyCode === 229) {
                     return;
@@ -475,6 +477,8 @@
             }
 
             const onKeyup = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 clear_hidden_text();
                 var keyCode = e.charCode || e.keyCode || e.which;
                 if (e.isComposing || keyCode === 229) {
