@@ -14,7 +14,12 @@ pub struct Emulator {
 #[wasm_bindgen]
 impl Emulator {
     pub fn load_disk(&mut self, name: &str, array: &[u8], drive: usize) -> bool {
-        if name.ends_with(".2mg") || name.ends_with(".hdv") {
+        let po_hd = if name.ends_with(".po") && array.len() > 143360 {
+            true
+        } else {
+            false
+        };
+        if name.ends_with(".2mg") || name.ends_with(".hdv") || po_hd {
             let hdv_mode = name.ends_with(".hdv");
             let drv = &mut self.cpu.bus.harddisk;
             let drive_selected = drv.drive_selected();
