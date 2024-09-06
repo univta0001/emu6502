@@ -776,9 +776,34 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         }
 
         Event::DropFile { filename, .. } => {
-            let result = load_disk(cpu, Path::new(&filename), 0);
-            if let Err(e) = result {
-                eprintln!("Unable to load disk {filename} : {e}");
+            let path = Path::new(&filename);
+            if let Some(path_ext) = path.extension() {
+                let mut is_hard_disk = if path_ext.eq_ignore_ascii_case(OsStr::new("2mg")) ||
+                    path_ext.eq_ignore_ascii_case(OsStr::new("hdv")) ||
+                    path_ext.eq_ignore_ascii_case(OsStr::new("po")) {
+                    true
+                } else {
+                    false
+                };
+
+                if path_ext.eq_ignore_ascii_case(OsStr::new("po")) {
+                    if let Ok(metadata) = std::fs::metadata(path) {
+                        let size = metadata.len();
+                        if size <= DSK_PO_SIZE {
+                            is_hard_disk = false;
+                        }
+                    }
+                }
+
+                let result = if is_hard_disk {
+                    load_harddisk(cpu, path, 0)
+                } else {
+                    load_disk(cpu, path, 0)
+                };
+
+                if let Err(e) = result {
+                    eprintln!("Unable to load disk {filename} : {e}");
+                }
             }
         }
 
