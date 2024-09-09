@@ -578,6 +578,8 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
                 *event_param.speed_index =
                     (*event_param.speed_index + speed_mode.len() - 1) % speed_mode.len();
+            } else if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                cpu.bus.audio.eject_cassette();
             } else {
                 *event_param.speed_index = (*event_param.speed_index + 1) % speed_mode.len();
             }
@@ -586,9 +588,14 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
 
         Event::KeyDown {
             keycode: Some(Keycode::F8),
+            keymod,
             ..
         } => {
-            cpu.bus.toggle_joystick_jitter();
+            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                load_tape(cpu);
+            } else {
+                cpu.bus.toggle_joystick_jitter();
+            }
         }
 
         Event::KeyDown {
@@ -884,6 +891,8 @@ Function Keys:
     Ctrl-F5            Disable / Enable video scanline mode
     Ctrl-F6            Disable / Enable audio filter
     Ctrl-F7            Disable / Enable color burst for 60 Hz display
+    Ctrl-F8            Load Tape
+    Ctrl-F9            Eject Tape
     Ctrl-F10           Eject Hard Disk 1
     Ctrl-F11           Eject Hard Disk 2
     Ctrl-PrintScreen   Save screenshot as screenshot.png
@@ -973,6 +982,18 @@ fn open_disk_dialog(cpu: &mut CPU, drive: usize) {
     let result = load_disk(cpu, &file_path, drive);
     if let Err(e) = result {
         eprintln!("Unable to load disk {} : {e}", file_path.display());
+    }
+}
+
+fn load_tape(cpu: &mut CPU) {
+    let result = FileDialog::new()
+        .add_filter("Tape image", &["wav"])
+        .save_file();
+
+    let Some(file_path) = result else { return };
+    let result = cpu.bus.audio.load_cassette(&file_path);
+    if let Err(e) = result {
+        eprintln!("Unable to load tape {} : {e}", file_path.display());
     }
 }
 
@@ -1548,6 +1569,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     // Enable save for hard disk
     cpu.bus.harddisk.set_enable_save_disk(true);
+
+    // Enable save for cassette
+    cpu.bus.audio.set_enable_save_cassette(true);
 
     //cpu.load(apple2_rom, 0xd000);
     //cpu.load(apple2e_rom, 0xc000);

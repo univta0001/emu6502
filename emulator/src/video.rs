@@ -1737,6 +1737,7 @@ impl Video {
         } else {
             let x1offset = x1 * 14 + offset;
             let y1offset = y1 * 16 + yindex * 2;
+
             if self.graphics_mode
                 && self.color_burst
                 && !self.video_50hz

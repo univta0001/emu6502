@@ -1,5 +1,7 @@
 use crate::bus::Tick;
 use crate::mockingboard::Mockingboard;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
@@ -14,7 +16,7 @@ const PAL_14M: usize = 15600 * 912;
 //const NTSC_14M: usize = 157500000 / 11;
 // NTSC cpu is clocked at 1.022 MHz (NTSC Horizontal Hz = 15730)
 const NTSC_14M: usize = 15720 * 912;
-const CPU_6502_MHZ: f32 = (NTSC_14M * 65) as f32 / 912.0;
+const CPU_6502_MHZ: usize = (NTSC_14M * 65) / 912;
 const MAX_AMPLITUDE: Channel = Channel::MAX;
 
 const AY_LEVEL: [u16; 16] = [
@@ -192,10 +194,22 @@ impl Default for AudioFilter {
     }
 }
 
+#[derive(Debug, Default)]
+struct Cassette {
+    active: usize,
+    level: bool,
+    filename: Option<PathBuf>,
+    data: Vec<u8>,
+    pos: usize,
+    record: bool,
+    play: bool,
+}
+
 #[derive(Debug)]
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde_support", serde(default))]
 pub struct Audio {
+    cycles: usize,
     pub data: AudioData,
     pub mboard: Vec<Mockingboard>,
     fcycles: f32,
@@ -206,6 +220,9 @@ pub struct Audio {
     audio_filter: AudioFilter,
     filter_enabled: bool,
     level: f32,
+    enable_save: bool,
+    #[cfg_attr(feature = "serde_support", serde(skip))]
+    cassette: Cassette,
 }
 
 #[derive(Debug)]
@@ -223,15 +240,18 @@ impl Audio {
         };
 
         Audio {
+            cycles: 0,
             data,
             fcycles: 0.0,
-            fcycles_per_sample: CPU_6502_MHZ / AUDIO_SAMPLE_RATE,
+            fcycles_per_sample: CPU_6502_MHZ as f32 / AUDIO_SAMPLE_RATE,
             dc_filter: 32768 + 30000,
             mboard: vec![Mockingboard::default()],
             audio_active: false,
             audio_filter: Default::default(),
             filter_enabled: true,
             level: 0.0,
+            enable_save: false,
+            cassette: Cassette::default(),
         }
     }
 
@@ -240,7 +260,7 @@ impl Audio {
     }
 
     fn ntsc_cycles(&self) -> f32 {
-        CPU_6502_MHZ / AUDIO_SAMPLE_RATE
+        CPU_6502_MHZ as f32 / AUDIO_SAMPLE_RATE
     }
 
     fn pal_cycles(&self) -> f32 {
@@ -331,6 +351,118 @@ impl Audio {
         self.data.phase = -self.data.phase;
     }
 
+    pub fn tape_out(&mut self) {
+        self.cassette.active = self.cycles;
+        if !self.cassette.play {
+            self.cassette.record = true;
+        }
+        self.cassette.level = !self.cassette.level;
+    }
+
+    pub fn tape_in(&mut self, value: u8) -> u8 {
+        self.cassette.play = true;
+        self.cassette.active = self.cycles;
+        if self.cassette.data.is_empty() || self.cassette.pos >= self.cassette.data.len() {
+            return value;
+        }
+        self.cassette.data[self.cassette.pos]
+    }
+
+    pub fn load_cassette(&mut self, path: impl AsRef<Path>) -> std::io::Result<()> {
+        let name = path.as_ref();
+        self.cassette.filename = Some(name.into());
+        if std::fs::metadata(name).is_ok() {
+            let tape = std::fs::read(name)?;
+            self.load_cassette_data_array(&tape)?;
+        }
+        Ok(())
+    }
+
+    pub fn load_cassette_data_array(&mut self, data: &[u8]) -> std::io::Result<()> {
+        if data.len() < 44 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid WAV file",
+            ));
+        }
+
+        // Check for RIFF header
+        if &data[0..4] != b"RIFF" {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid WAV file - Missing RIFF",
+            ));
+        }
+
+        let mut buffer = [0u8; 4];
+        buffer.copy_from_slice(&data[4..8]);
+        let file_size = u32::from_le_bytes(buffer);
+
+        if file_size + 8 != data.len() as u32 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid WAV file - Wrong Data Len",
+            ));
+        }
+
+        if &data[8..12] != b"WAVE" || &data[12..16] != b"fmt " {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid WAV file - WAVE and fmt expected",
+            ));
+        }
+
+        if data[16..20] != [0x10, 0, 0, 0] || data[20..24] != [0x01, 0, 0x1, 0] {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid WAV file - Only PCM and mono supported",
+            ));
+        }
+
+        buffer.copy_from_slice(&data[24..28]);
+        let samples_per_second = u32::from_le_bytes(buffer);
+        buffer.copy_from_slice(&data[24..28]);
+        let bytes_rate = u32::from_le_bytes(buffer);
+
+        if bytes_rate != samples_per_second || samples_per_second != AUDIO_SAMPLE_RATE as u32 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!(
+                    "Invalid WAV file - Only sample rate of {} supported",
+                    AUDIO_SAMPLE_RATE as usize
+                ),
+            ));
+        }
+
+        if &data[36..40] != b"data" {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid WAV file - data expected",
+            ));
+        }
+
+        buffer.copy_from_slice(&data[40..44]);
+        let actual_data_size = u32::from_le_bytes(buffer);
+
+        if actual_data_size + 36 != file_size || actual_data_size != data[44..].len() as u32 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid WAV file - Size mismatched",
+            ));
+        }
+
+        self.cassette.data.clear();
+        for &item in &data[44..] {
+            self.cassette.data.push(item);
+        }
+
+        Ok(())
+    }
+
+    pub fn eject_cassette(&mut self) {
+        self.cassette.filename = None
+    }
+
     pub fn get_filter_enabled(&self) -> bool {
         self.filter_enabled
     }
@@ -339,10 +471,88 @@ impl Audio {
         self.level = 0.0;
         self.filter_enabled = value
     }
+
+    pub fn set_enable_save_cassette(&mut self, state: bool) {
+        self.enable_save = state;
+    }
+
+    pub fn get_enable_save(&self) -> bool {
+        self.enable_save
+    }
+
+    fn save_cassette_data(&self) -> std::io::Result<()> {
+        if let Some(filename) = &self.cassette.filename {
+            let mut file = std::fs::File::create(filename)?;
+
+            // Convert the square wave to sinusoidal wave
+            let mut data = Vec::new();
+            let mut prev: Option<u8> = None;
+            let mut polarity = false;
+            let mut count = 0;
+            for item in self.cassette.data.iter() {
+                if prev != Some(*item) {
+                    if count < 1000 {
+                        for i in 0..count {
+                            let wave = f32::sin(std::f32::consts::PI * i as f32 / count as f32);
+                            let value = if polarity {
+                                128.0 + 127.0 * wave
+                            } else {
+                                128.0 - 127.0 * wave
+                            };
+                            data.push(value as u8);
+                        }
+                    }
+                    polarity = !polarity;
+                    count = 0;
+                    prev = Some(*item);
+                }
+                count += 1;
+            }
+
+            if count != 0 && count < 1000 {
+                for i in 0..count {
+                    let wave = f32::sin(std::f32::consts::PI * i as f32 / count as f32);
+                    let value = if polarity {
+                        128.0 + 127.0 * wave
+                    } else {
+                        128.0 - 127.0 * wave
+                    };
+                    data.push(value as u8);
+                }
+            }
+
+            file.write_all(b"RIFF")?;
+            file.write_all(&((data.len() + 40) as u32).to_le_bytes())?;
+            file.write_all(b"WAVE")?;
+            file.write_all(b"fmt ")?;
+            file.write_all(&16_u32.to_le_bytes())?;
+
+            // PCM, and mono one channel
+            file.write_all(&1_u16.to_le_bytes())?;
+            file.write_all(&1_u16.to_le_bytes())?;
+
+            // Samples per second and byte rate
+            file.write_all(&(AUDIO_SAMPLE_RATE as u32).to_le_bytes())?;
+            file.write_all(&(AUDIO_SAMPLE_RATE as u32).to_le_bytes())?;
+
+            // Alignment, bits per sample
+            file.write_all(&1_u16.to_le_bytes())?;
+            file.write_all(&8_u16.to_le_bytes())?;
+
+            // data header and data len
+            file.write_all(b"data")?;
+            file.write_all(&(data.len() + 4).to_le_bytes())?;
+
+            file.write_all(&data)?;
+        }
+
+        Ok(())
+    }
 }
 
 impl Tick for Audio {
     fn tick(&mut self) {
+        self.cycles += 1;
         self.fcycles += 1.0;
         self.mboard.iter_mut().for_each(|mb| mb.tick());
 
@@ -366,12 +576,36 @@ impl Tick for Audio {
         */
 
         if self.fcycles >= (self.fcycles_per_sample) {
-        //if self.fcycles >= 21.0 {
+            //if self.fcycles >= 21.0 {
             /*
             if self.filter_enabled {
                 beep = self.audio_filter.filter();
             }
             */
+            if self.cassette.active != 0 && self.cycles > self.cassette.active + CPU_6502_MHZ {
+                self.cassette.active = 0;
+                self.cassette.level = false;
+                self.cassette.pos = 0;
+
+                if self.enable_save && self.cassette.record {
+                    if let Err(e) = self.save_cassette_data() {
+                        eprintln!("Unable to save cassette data: {}", e);
+                    }
+                }
+
+                self.cassette.record = false;
+                self.cassette.play = false;
+            }
+
+            if self.cassette.active != 0 {
+                if self.cassette.record {
+                    self.cassette.data.push(self.cassette.level as u8 * 255);
+                }
+
+                if self.cassette.pos < self.cassette.data.len() {
+                    self.cassette.pos += 1;
+                }
+            }
 
             if !self.filter_enabled {
                 // Calculate average beep level

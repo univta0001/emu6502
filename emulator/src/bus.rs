@@ -849,7 +849,10 @@ impl Bus {
                 self.video.io_access(addr, value, write_flag) | (self.get_keyboard_latch() & 0x7f)
             }
 
-            0x20 => self.read_floating_bus(),
+            0x20 => {
+                self.audio.tape_out();
+                self.read_floating_bus()
+            }
 
             0x21 => self.video.io_access(addr, value, write_flag),
 
@@ -1032,7 +1035,7 @@ impl Bus {
             }
 
             // 0x60 Need to return floating bus value for serpentine
-            0x60 => self.read_floating_bus(),
+            0x60 => self.audio.tape_in(self.read_floating_bus()),
 
             0x61 => {
                 let button_value = if !self.swap_button {
