@@ -778,13 +778,9 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         Event::DropFile { filename, .. } => {
             let path = Path::new(&filename);
             if let Some(path_ext) = path.extension() {
-                let is_hard_disk = if path_ext.eq_ignore_ascii_case(OsStr::new("2mg")) ||
-                    path_ext.eq_ignore_ascii_case(OsStr::new("hdv")) ||
-                    path_ext.eq_ignore_ascii_case(OsStr::new("po")) {
-                    true
-                } else {
-                    false
-                };
+                let is_hard_disk = path_ext.eq_ignore_ascii_case(OsStr::new("2mg"))
+                    || path_ext.eq_ignore_ascii_case(OsStr::new("hdv"))
+                    || path_ext.eq_ignore_ascii_case(OsStr::new("po"));
 
                 let result = if is_hard_disk {
                     load_harddisk(cpu, path, 0)
