@@ -428,7 +428,8 @@ impl Audio {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
                 format!(
-                    "Invalid WAV file - Only sample rate of {} supported",
+                    "Invalid WAV file - Sample rate {} not supported. Only {} supported",
+                    samples_per_second,
                     AUDIO_SAMPLE_RATE as usize
                 ),
             ));
@@ -447,7 +448,11 @@ impl Audio {
         if actual_data_size + 36 != file_size || actual_data_size != data[44..].len() as u32 {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
-                "Invalid WAV file - Size mismatched",
+                format!(
+                    "Invalid WAV file - Size mismatched ({} != {})",
+                    actual_data_size,
+                    data[44..].len(),
+                ),
             ));
         }
 
