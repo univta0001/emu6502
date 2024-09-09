@@ -579,7 +579,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                 *event_param.speed_index =
                     (*event_param.speed_index + speed_mode.len() - 1) % speed_mode.len();
             } else if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                cpu.bus.audio.eject_cassette();
+                cpu.bus.audio.eject_tape();
             } else {
                 *event_param.speed_index = (*event_param.speed_index + 1) % speed_mode.len();
             }
@@ -991,7 +991,7 @@ fn load_tape(cpu: &mut CPU) {
         .save_file();
 
     let Some(file_path) = result else { return };
-    let result = cpu.bus.audio.load_cassette(&file_path);
+    let result = cpu.bus.audio.load_tape(&file_path);
     if let Err(e) = result {
         eprintln!("Unable to load tape {} : {e}", file_path.display());
     }
@@ -1571,7 +1571,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     cpu.bus.harddisk.set_enable_save_disk(true);
 
     // Enable save for cassette
-    cpu.bus.audio.set_enable_save_cassette(true);
+    cpu.bus.audio.set_enable_save_tape(true);
 
     //cpu.load(apple2_rom, 0xd000);
     //cpu.load(apple2e_rom, 0xc000);

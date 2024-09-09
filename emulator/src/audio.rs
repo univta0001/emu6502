@@ -195,7 +195,7 @@ impl Default for AudioFilter {
 }
 
 #[derive(Debug, Default)]
-struct Cassette {
+struct Tape {
     active: usize,
     level: bool,
     filename: Option<PathBuf>,
@@ -222,7 +222,7 @@ pub struct Audio {
     level: f32,
     enable_save: bool,
     #[cfg_attr(feature = "serde_support", serde(skip))]
-    cassette: Cassette,
+    tape: Tape,
 }
 
 #[derive(Debug)]
@@ -251,7 +251,7 @@ impl Audio {
             filter_enabled: true,
             level: 0.0,
             enable_save: false,
-            cassette: Cassette::default(),
+            tape: Tape::default(),
         }
     }
 
@@ -352,33 +352,33 @@ impl Audio {
     }
 
     pub fn tape_out(&mut self) {
-        self.cassette.active = self.cycles;
-        if !self.cassette.play {
-            self.cassette.record = true;
+        self.tape.active = self.cycles + CPU_6502_MHZ;
+        if !self.tape.play {
+            self.tape.record = true;
         }
-        self.cassette.level = !self.cassette.level;
+        self.tape.level = !self.tape.level;
     }
 
     pub fn tape_in(&mut self, value: u8) -> u8 {
-        self.cassette.play = true;
-        self.cassette.active = self.cycles;
-        if self.cassette.data.is_empty() || self.cassette.pos >= self.cassette.data.len() {
+        self.tape.play = true;
+        self.tape.active = self.cycles + CPU_6502_MHZ;
+        if self.tape.data.is_empty() || self.tape.pos >= self.tape.data.len() {
             return value;
         }
-        self.cassette.data[self.cassette.pos]
+        self.tape.data[self.tape.pos]
     }
 
-    pub fn load_cassette(&mut self, path: impl AsRef<Path>) -> std::io::Result<()> {
+    pub fn load_tape(&mut self, path: impl AsRef<Path>) -> std::io::Result<()> {
         let name = path.as_ref();
-        self.cassette.filename = Some(name.into());
+        self.tape.filename = Some(name.into());
         if std::fs::metadata(name).is_ok() {
             let tape = std::fs::read(name)?;
-            self.load_cassette_data_array(&tape)?;
+            self.load_tape_data_array(&tape)?;
         }
         Ok(())
     }
 
-    pub fn load_cassette_data_array(&mut self, data: &[u8]) -> std::io::Result<()> {
+    pub fn load_tape_data_array(&mut self, data: &[u8]) -> std::io::Result<()> {
         if data.len() < 44 {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
@@ -451,16 +451,16 @@ impl Audio {
             ));
         }
 
-        self.cassette.data.clear();
+        self.tape.data.clear();
         for &item in &data[44..] {
-            self.cassette.data.push(item);
+            self.tape.data.push(item);
         }
 
         Ok(())
     }
 
-    pub fn eject_cassette(&mut self) {
-        self.cassette.filename = None
+    pub fn eject_tape(&mut self) {
+        self.tape.filename = None
     }
 
     pub fn get_filter_enabled(&self) -> bool {
@@ -472,7 +472,7 @@ impl Audio {
         self.filter_enabled = value
     }
 
-    pub fn set_enable_save_cassette(&mut self, state: bool) {
+    pub fn set_enable_save_tape(&mut self, state: bool) {
         self.enable_save = state;
     }
 
@@ -480,8 +480,8 @@ impl Audio {
         self.enable_save
     }
 
-    fn save_cassette_data(&self) -> std::io::Result<()> {
-        if let Some(filename) = &self.cassette.filename {
+    fn save_tape_data(&self) -> std::io::Result<()> {
+        if let Some(filename) = &self.tape.filename {
             let mut file = std::fs::File::create(filename)?;
 
             // Convert the square wave to sinusoidal wave
@@ -489,7 +489,7 @@ impl Audio {
             let mut prev: Option<u8> = None;
             let mut polarity = false;
             let mut count = 0;
-            for item in self.cassette.data.iter() {
+            for item in self.tape.data.iter() {
                 if prev != Some(*item) {
                     if count < 1000 {
                         for i in 0..count {
@@ -522,7 +522,7 @@ impl Audio {
             }
 
             file.write_all(b"RIFF")?;
-            file.write_all(&((data.len() + 40) as u32).to_le_bytes())?;
+            file.write_all(&((data.len() + 36) as u32).to_le_bytes())?;
             file.write_all(b"WAVE")?;
             file.write_all(b"fmt ")?;
             file.write_all(&16_u32.to_le_bytes())?;
@@ -541,7 +541,7 @@ impl Audio {
 
             // data header and data len
             file.write_all(b"data")?;
-            file.write_all(&(data.len() + 4).to_le_bytes())?;
+            file.write_all(&(data.len() as u32).to_le_bytes())?;
 
             file.write_all(&data)?;
         }
@@ -582,28 +582,29 @@ impl Tick for Audio {
                 beep = self.audio_filter.filter();
             }
             */
-            if self.cassette.active != 0 && self.cycles > self.cassette.active + CPU_6502_MHZ {
-                self.cassette.active = 0;
-                self.cassette.level = false;
-                self.cassette.pos = 0;
+            if self.tape.active != 0 {
+                if self.cycles > self.tape.active {
+                    self.tape.active = 0;
+                    self.tape.level = false;
+                    self.tape.pos = 0;
 
-                if self.enable_save && self.cassette.record {
-                    if let Err(e) = self.save_cassette_data() {
-                        eprintln!("Unable to save cassette data: {}", e);
+                    if self.enable_save && self.tape.record {
+                        if let Err(e) = self.save_tape_data() {
+                            eprintln!("Unable to save tape data: {}", e);
+                        }
                     }
+
+                    self.tape.record = false;
+                    self.tape.play = false;
                 }
+                if self.tape.active != 0 {
+                    if self.tape.record {
+                        self.tape.data.push(self.tape.level as u8 * 255);
+                    }
 
-                self.cassette.record = false;
-                self.cassette.play = false;
-            }
-
-            if self.cassette.active != 0 {
-                if self.cassette.record {
-                    self.cassette.data.push(self.cassette.level as u8 * 255);
-                }
-
-                if self.cassette.pos < self.cassette.data.len() {
-                    self.cassette.pos += 1;
+                    if self.tape.pos < self.tape.data.len() {
+                        self.tape.pos += 1;
+                    }
                 }
             }
 
