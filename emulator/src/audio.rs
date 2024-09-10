@@ -424,14 +424,10 @@ impl Audio {
         buffer.copy_from_slice(&data[24..28]);
         let bytes_rate = u32::from_le_bytes(buffer);
 
-        if bytes_rate != samples_per_second || samples_per_second != AUDIO_SAMPLE_RATE as u32 {
+        if bytes_rate != samples_per_second {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
-                format!(
-                    "Invalid WAV file - Sample rate {} not supported. Only {} supported",
-                    samples_per_second,
-                    AUDIO_SAMPLE_RATE as usize
-                ),
+                "Invalid WAV file - Sample rate should match bytes rate",
             ));
         }
 
@@ -457,8 +453,18 @@ impl Audio {
         }
 
         self.tape.data.clear();
-        for &item in &data[44..] {
-            self.tape.data.push(item);
+
+        let resampling_ratio = AUDIO_SAMPLE_RATE / samples_per_second as f32;
+        let output_len = (data[44..].len() as f32 * resampling_ratio + 0.5) as usize;
+
+        for i in 0..output_len {
+            let index = (i as f32 / resampling_ratio) as usize;
+            let item = data[44 + index];
+            if item >= 128 {
+                self.tape.data.push(255);
+            } else {
+                self.tape.data.push(0);
+            }
         }
 
         Ok(())
