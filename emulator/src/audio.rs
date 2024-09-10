@@ -368,6 +368,14 @@ impl Audio {
         self.tape.data[self.tape.pos]
     }
 
+    pub fn tape_reset(&mut self) {
+        self.tape.play = false;
+        self.tape.record = false;
+        self.tape.active = 0;
+        self.tape.pos = 0;
+        self.tape.level = false;
+    }
+
     pub fn load_tape(&mut self, path: impl AsRef<Path>) -> std::io::Result<()> {
         let name = path.as_ref();
         self.tape.filename = Some(name.into());
@@ -453,6 +461,7 @@ impl Audio {
         }
 
         self.tape.data.clear();
+        self.tape_reset();
 
         let resampling_ratio = AUDIO_SAMPLE_RATE / samples_per_second as f32;
         let output_len = (data[44..].len() as f32 * resampling_ratio + 0.5) as usize;
@@ -595,18 +604,13 @@ impl Tick for Audio {
             */
             if self.tape.active != 0 {
                 if self.cycles > self.tape.active {
-                    self.tape.active = 0;
-                    self.tape.level = false;
-                    self.tape.pos = 0;
-
                     if self.enable_save && self.tape.record {
                         if let Err(e) = self.save_tape_data() {
                             eprintln!("Unable to save tape data: {}", e);
                         }
                     }
 
-                    self.tape.record = false;
-                    self.tape.play = false;
+                    self.tape_reset();
                 }
                 if self.tape.active != 0 {
                     if self.tape.record {
