@@ -22,7 +22,7 @@ Features in the emulator
 - NTSC emulation supported
 - Z80 Emulation
 - Hard Disk support 
-- Tape Support (Only PCM with sampling rate of 48000 and mono channel)
+- Tape Support (Only PCM, 8-bit and mono channel)
 - Uthernet II support for TCP client application (e.g. A2Stream)
 - Support for RamFactor 1 MiB and RamWorks III up to 8 MiB
 - Support for Apple //c (Rom FF, 00, 3, 4, 5)
