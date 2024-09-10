@@ -429,7 +429,7 @@ impl Audio {
 
         buffer.copy_from_slice(&data[24..28]);
         let samples_per_second = u32::from_le_bytes(buffer);
-        buffer.copy_from_slice(&data[24..28]);
+        buffer.copy_from_slice(&data[28..32]);
         let bytes_rate = u32::from_le_bytes(buffer);
 
         if bytes_rate != samples_per_second {
