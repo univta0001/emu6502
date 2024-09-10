@@ -481,6 +481,7 @@ impl Audio {
 
     pub fn eject_tape(&mut self) {
         self.tape.filename = None;
+        self.tape.data.clear();
         self.tape_reset();
     }
 
@@ -611,9 +612,10 @@ impl Tick for Audio {
                         }
                     }
 
-                    if self.tape.record {
-                        self.tape_reset();
-                    }
+                    self.tape.play = false;
+                    self.tape.record = false;
+                    self.tape.active = 0;
+                    self.tape.level = false;
                 }
                 if self.tape.active != 0 {
                     if self.tape.record {
