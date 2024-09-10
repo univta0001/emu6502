@@ -529,7 +529,7 @@ impl Audio {
             let mut prev: Option<u8> = None;
             let mut polarity = false;
             let mut count = 0;
-            for item in self.tape.data.iter() {
+            for item in self.tape.data.iter().step_by(2) {
                 if prev != Some(*item) {
                     if count < 1000 {
                         for i in 0..count {
@@ -572,8 +572,8 @@ impl Audio {
             file.write_all(&1_u16.to_le_bytes())?;
 
             // Samples per second and byte rate
-            file.write_all(&(AUDIO_SAMPLE_RATE as u32).to_le_bytes())?;
-            file.write_all(&(AUDIO_SAMPLE_RATE as u32).to_le_bytes())?;
+            file.write_all(&(AUDIO_SAMPLE_RATE as u32 / 2).to_le_bytes())?;
+            file.write_all(&(AUDIO_SAMPLE_RATE as u32 / 2).to_le_bytes())?;
 
             // Alignment, bits per sample
             file.write_all(&1_u16.to_le_bytes())?;
