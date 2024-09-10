@@ -465,18 +465,36 @@ impl Audio {
 
         let resampling_ratio = AUDIO_SAMPLE_RATE / samples_per_second as f32;
         let output_len = (data[44..].len() as f32 * resampling_ratio + 0.5) as usize;
-
+        let mut prev = data[44];
+        let mut slope_was = 0;
+        let mut polarity = false;
         for i in 0..output_len {
             let index = (i as f32 / resampling_ratio) as usize;
             let item = data[44 + index];
-            if item >= 128 {
+            let slope_is = self.slope(prev, item);
+            if slope_is !=0 && slope_is != slope_was {
+                polarity = !polarity;
+                slope_was = slope_is;
+            }
+            if polarity {
                 self.tape.data.push(255);
             } else {
                 self.tape.data.push(0);
             }
+            prev = item;
         }
 
         Ok(())
+    }
+
+    fn slope(&self, prev: u8, curr: u8) -> isize {
+        if prev == curr {
+            0
+        } else if prev < curr {
+            1
+        } else {
+            -1
+        }
     }
 
     pub fn eject_tape(&mut self) {
