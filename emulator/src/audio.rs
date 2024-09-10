@@ -480,7 +480,8 @@ impl Audio {
     }
 
     pub fn eject_tape(&mut self) {
-        self.tape.filename = None
+        self.tape.filename = None;
+        self.tape_reset();
     }
 
     pub fn get_filter_enabled(&self) -> bool {
@@ -610,14 +611,16 @@ impl Tick for Audio {
                         }
                     }
 
-                    self.tape_reset();
+                    if self.tape.record {
+                        self.tape_reset();
+                    }
                 }
                 if self.tape.active != 0 {
                     if self.tape.record {
                         self.tape.data.push(self.tape.level as u8 * 255);
                     }
 
-                    if self.tape.pos < self.tape.data.len() {
+                    if self.tape.play && self.tape.pos < self.tape.data.len() {
                         self.tape.pos += 1;
                     }
                 }
