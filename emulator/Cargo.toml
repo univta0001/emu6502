@@ -15,6 +15,7 @@ time = { version = "0.3.36", features = ["local-offset","wasm-bindgen"] }
 fastrand = "2.1.1"
 educe = { version = "0.6.0", default-features = false, features = ["Debug"], optional = true }
 pcap = { version = "2.2.0", default-features = false, optional = true }
+libloading = "0.8.5"
 
 [dev-dependencies]
 regex = "1.10.6"

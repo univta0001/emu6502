@@ -9,6 +9,9 @@ use std::net::{
 use std::time::Duration;
 
 #[cfg(feature = "pcap")]
+static PCAP_LOADED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+
+#[cfg(feature = "pcap")]
 use std::fmt;
 
 #[cfg(feature = "pcap")]
@@ -269,6 +272,22 @@ impl Default for Uthernet2 {
 }
 
 impl Uthernet2 {
+    #[cfg(target_os = "windows")]
+    #[cfg(feature = "pcap")]
+    fn check_pcap_availability() -> bool {
+        if let Ok(_) = unsafe { libloading::Library::new("wpcap") } {
+            true
+        } else {
+            false
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    #[cfg(feature = "pcap")]
+    fn is_pcap_available(&self) -> bool {
+        *PCAP_LOADED.get_or_init(|| Uthernet2::check_pcap_availability())
+    }
+
     pub fn new() -> Self {
         Uthernet2::default()
     }
@@ -843,7 +862,15 @@ impl Uthernet2 {
             }
             W5100_SN_MR_MACRAW => {
                 #[cfg(feature = "pcap")]
-                self.assign_interface_to_raw_protocol(i);
+                {
+                    #[cfg(target_os = "windows")]
+                    if self.is_pcap_available() {
+                        self.assign_interface_to_raw_protocol(i);
+                    }
+
+                    #[cfg(not(target_os = "windows"))]
+                    self.assign_interface_to_raw_protocol(i);
+                }
 
                 self.set_socket_status(i, W5100_SN_SR_SOCK_MACRAW);
             }

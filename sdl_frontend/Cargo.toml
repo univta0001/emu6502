@@ -39,6 +39,7 @@ serde_support = ["dep:serde_yaml", "emu6502/serde_support"]
 #regex = ["dep:regex"]
 z80 = ["emu6502/z80"]
 flate = ["emu6502/flate"]
+pcap = ["emu6502/pcap"]
 
 [[bin]]
 name = "emu6502"

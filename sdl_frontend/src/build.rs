@@ -10,4 +10,16 @@ fn main() {
         "Unknown".into()
     };
     println!("cargo:rustc-env=GIT_HASH={git_hash}");
+
+    #[cfg(target_os = "windows")]
+    #[cfg(feature = "pcap")]
+    {
+        let delay_load_dlls = ["wpcap"];
+        for dll in delay_load_dlls {
+            println!("cargo:rustc-link-arg=/delayload:{dll}.dll");
+        }
+        // When using delayload, it's necessary to also link delayimp.lib
+        // https://learn.microsoft.com/en-us/cpp/build/reference/dependentloadflag?view=msvc-170
+        println!("cargo:rustc-link-arg=delayimp.lib");
+    }
 }
