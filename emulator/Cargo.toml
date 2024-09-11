@@ -15,7 +15,7 @@ time = { version = "0.3.36", features = ["local-offset","wasm-bindgen"] }
 fastrand = "2.1.1"
 educe = { version = "0.6.0", default-features = false, features = ["Debug"], optional = true }
 pcap = { version = "2.2.0", default-features = false, optional = true }
-libloading = "0.8.5"
+libloading = { version = "0.8.5", default-features = false, optional = true }
 
 [dev-dependencies]
 regex = "1.10.6"
@@ -35,7 +35,7 @@ serde_support = ["dep:serde", "dep:educe"]
 z80 = ["dep:iz80"]
 web_time = ["dep:web-time"]
 flate = ["dep:flate2"]
-pcap = ["dep:pcap"]
+pcap = ["dep:pcap", "dep:libloading"]
 
 [[bench]]
 name = "cpu_bench"
