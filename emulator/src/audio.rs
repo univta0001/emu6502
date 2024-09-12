@@ -469,16 +469,11 @@ impl Audio {
         let mut slope_was = (prev <= 128) as isize;
         let mut polarity = slope_was > 0;
 
-        if prev == 128 {
-            slope_was = 1;
-            polarity = true;
-        }
-
         for i in 0..output_len {
             let index = (i as f32 / resampling_ratio) as usize;
             let item = data[44 + index];
             let slope_is = self.slope(prev, item);
-            if slope_is !=0 && slope_is != slope_was {
+            if slope_is != 0 && slope_is != slope_was {
                 polarity = !polarity;
                 slope_was = slope_is;
             }
