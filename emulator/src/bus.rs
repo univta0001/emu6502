@@ -1035,7 +1035,8 @@ impl Bus {
             }
 
             // 0x60 Need to return floating bus value for serpentine
-            0x60 => self.audio.tape_in(self.read_floating_bus()),
+            // If no tape is inserted, the high-bit has to be set
+            0x60 => self.audio.tape_in(self.read_floating_bus() | 0x80),
 
             0x61 => {
                 let button_value = if !self.swap_button {
