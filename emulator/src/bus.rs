@@ -289,6 +289,9 @@ impl Bus {
         self.annunciator[2] = false;
         self.annunciator[3] = false;
 
+        // Reset joystick
+        self.update_joystick();
+
         // Configure the smartport for hard disk
         self.reset_smartport();
 
