@@ -494,13 +494,7 @@ impl Audio {
     }
 
     fn slope(&self, prev: u8, curr: u8) -> isize {
-        if prev == curr {
-            0
-        } else if prev < curr {
-            1
-        } else {
-            -1
-        }
+        (curr as isize - prev as isize).signum()
     }
 
     pub fn eject_tape(&mut self) {
