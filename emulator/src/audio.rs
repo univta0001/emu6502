@@ -466,8 +466,8 @@ impl Audio {
         let resampling_ratio = AUDIO_SAMPLE_RATE / samples_per_second as f32;
         let output_len = (data[44..].len() as f32 * resampling_ratio + 0.5) as usize;
         let mut prev = data[44];
-        let mut slope_was = 0;
-        let mut polarity = false;
+        let mut slope_was = (prev <= 128) as isize;
+        let mut polarity = slope_was > 0;
 
         if prev == 128 {
             slope_was = 1;
