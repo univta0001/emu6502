@@ -2470,10 +2470,6 @@ impl Tick for DiskDrive {
             }
         }
 
-        if !self.is_motor_on() {
-            return;
-        }
-
         if self.fast_disk_timer > 0 {
             self.fast_disk_timer -= 1;
         }
