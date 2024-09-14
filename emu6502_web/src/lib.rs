@@ -14,13 +14,14 @@ pub struct Emulator {
 #[wasm_bindgen]
 impl Emulator {
     pub fn load_disk(&mut self, name: &str, array: &[u8], drive: usize) -> bool {
-        let po_hd = if name.ends_with(".po") && array.len() > 143360 {
+        let lname = name.to_lowercase();
+        let po_hd = if lname.ends_with(".po") && array.len() > 143360 {
             true
         } else {
             false
         };
-        if name.ends_with(".2mg") || name.ends_with(".hdv") || po_hd {
-            let hdv_mode = name.ends_with(".hdv");
+        if lname.ends_with(".2mg") || lname.ends_with(".hdv") || po_hd {
+            let hdv_mode = lname.ends_with(".hdv");
             let drv = &mut self.cpu.bus.harddisk;
             let drive_selected = drv.drive_selected();
             drv.drive_select(drive);
@@ -38,17 +39,17 @@ impl Emulator {
             drv.drive_select(drive);
             let dsk: Vec<u8> = array.to_vec();
 
-            if name.ends_with(".dsk.gz")
-                || name.ends_with(".dsk")
-                || name.ends_with(".po")
-                || name.ends_with(".po.gz")
+            if lname.ends_with(".dsk.gz")
+                || lname.ends_with(".dsk")
+                || lname.ends_with(".po")
+                || lname.ends_with(".po.gz")
             {
-                let po_mode = if name.ends_with(".po") || name.ends_with(".po.gz") {
+                let po_mode = if lname.ends_with(".po") || lname.ends_with(".po.gz") {
                     true
                 } else {
                     false
                 };
-                if name.ends_with(".gz") {
+                if lname.ends_with(".gz") {
                     let result = drv.load_dsk_po_gz_array_to_woz(&dsk, po_mode);
                     if result.is_err() {
                         return false;
@@ -59,7 +60,7 @@ impl Emulator {
                         return false;
                     }
                 }
-            } else if name.ends_with(".nib.gz") || name.ends_with(".nib") {
+            } else if lname.ends_with(".nib.gz") || lname.ends_with(".nib") {
                 if name.ends_with(".gz") {
                     let result = drv.load_nib_gz_array_to_woz(&dsk);
                     if result.is_err() {
@@ -71,7 +72,7 @@ impl Emulator {
                         return false;
                     }
                 }
-            } else if name.ends_with(".gz") {
+            } else if lname.ends_with(".gz") {
                 let result = drv.load_woz_gz_array(&dsk);
                 if result.is_err() {
                     return false;
