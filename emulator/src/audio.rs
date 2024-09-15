@@ -152,14 +152,14 @@ impl AudioFilter {
     fn filter_response(&mut self, value: Channel) -> f32 {
         /*
             Model the speaker frequency response of natural frequency of 3880 Hz
-            with dampling of -2000 / -1210
+            with dampling of -1900 (approximately 2ms)
 
             Based on KansasFest 2022 11 Apple II Audio From the Ground Up - Kris Kennaway
 
-            The returned valued has to be normalized by 14000.0 (experimental determined)
+            The returned valued has to be normalized by 4000.0 (experimental determined)
 
             sample_rate = 1021800
-            damping = -2000
+            damping = -1900
             freq = 3880
             dt = np.float64(1 / sample_rate)
             w = np.float64(freq * 2 * np.pi * dt)
@@ -172,8 +172,8 @@ impl AudioFilter {
             y(tm) =np.exp(-d*tm) / math.sqrt(d*d+w*w)
         */
 
-        let c1 = 1.9955211;
-        let c2 = 0.996093;
+        let c1 = 1.9957163;
+        let c2 = 0.9962880;
 
         //let c1 = 1.9970645;
         //let c2 = 0.9976344;
