@@ -790,8 +790,10 @@
 
                 let delta = now - then;
 
+                then = now;
+
                 let cpu_6502_cycles = 17030;
-                let cpu_refresh = 16;
+                let cpu_refresh = 16.667;
 
                 if (emu6502.is_video_50hz()) {
                     cpu_6502_cycles = 20280;
@@ -801,14 +803,11 @@
                 if (delta >= cpu_refresh) 
                 //delta = 0;
                 {
-                    then = now - (delta % cpu_refresh);
-
                     while (emu6502.cpu_cycles()-prev_cycles + cpu_delta < cpu_6502_cycles) 
                     {
                         emu6502.step_cpu();
                     } 
                     cpu_delta=(emu6502.cpu_cycles()-prev_cycles+cpu_delta) % cpu_6502_cycles;
-                    prev_cycles = emu6502.cpu_cycles();
                     update_gamepad();
                     update_ui();
                     update_audio();
@@ -818,10 +817,10 @@
                 //console.log(emu6502.cpu_cycles());
                 //console.log(emu6502.sound_buffer().length);
 
-                let elapsed = performance.now() - start_time;
-                let cycles = emu6502.cpu_cycles();
-                let mhz = cycles/(1000.0*elapsed);
+                let cycles = emu6502.cpu_cycles() - prev_cycles;
+                let mhz = cycles/(1000.0*delta);
                 let speed = document.getElementById("speed");
+                prev_cycles = emu6502.cpu_cycles();
 
                 if (speed != null) {
                     speed.innerHTML = `Estimated Mhz: ${mhz.toFixed(4)} Mhz`;
