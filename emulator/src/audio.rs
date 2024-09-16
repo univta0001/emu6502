@@ -30,7 +30,7 @@ const AY_LEVEL: [u16; 16] = [
 struct AudioFilter {
     //buffer: Vec<Channel>,
     //buffer_pointer: usize,
-    filter_tap: [f32; 2],
+    filter_tap: [f32; 4],
 }
 
 impl AudioFilter {
@@ -40,7 +40,7 @@ impl AudioFilter {
         Self {
             //buffer,
             //buffer_pointer: 0,
-            filter_tap: [0.0f32; 2],
+            filter_tap: [0.0f32; 4],
         }
     }
 
@@ -156,33 +156,48 @@ impl AudioFilter {
 
             Based on KansasFest 2022 11 Apple II Audio From the Ground Up - Kris Kennaway
 
-            The returned valued has to be normalized by 4000.0 (experimental determined)
+            The returned valued has to be normalized (experimental determined)
 
             sample_rate = 1021800
             damping = -1900
             freq = 3880
+            damping2 = -250
+            freq2 = 480
             dt = np.float64(1 / sample_rate)
             w = np.float64(freq * 2 * np.pi * dt)
+            w2 = np.float64(freq2 * 2 * np.pi * dt)
             d = damping * dt
+            d2 = damping2 * dt
             e = np.exp(d)
+            e2 = np.exp(d2)
             c1 = np.float32(2 * e * np.cos(w))
             c2 = np.float32(e * e)
+            c3 = np.float32(2 * e2 * np.cos(w2))
+            c4 = np.float32(e2 * e2)
 
             tm = atan(w /d) / w
             y(tm) =np.exp(-d*tm) / math.sqrt(d*d+w*w)
         */
 
         let c1 = 1.9957163;
-        let c2 = 0.9962880;
+        let c2 = 0.996288;
+        let c3 = 1.9995021;
+        let c4 = 0.9995108;
 
         //let c1 = 1.9970645;
         //let c2 = 0.9976344;
 
+        // First order harmonics
         let y = c1 * self.filter_tap[0] - c2 * self.filter_tap[1] + (value as f32) / 32768.0;
         self.filter_tap[1] = self.filter_tap[0];
         self.filter_tap[0] = y;
 
-        let mut return_value = y / 4000.0;
+        // Second order harmonics
+        let y2 = c3 * self.filter_tap[2] - c4 * self.filter_tap[3] + (value as f32) / 32768.0;
+        self.filter_tap[3] = self.filter_tap[2];
+        self.filter_tap[2] = y2;
+
+        let mut return_value = y / 6000.0 + y2 / 2400000.0;
         return_value = return_value.clamp(-1.0, 1.0);
         return_value
     }
