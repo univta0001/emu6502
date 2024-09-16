@@ -543,15 +543,15 @@ impl Audio {
             let mut prev: Option<u8> = None;
             let mut polarity = false;
             let mut count = 0;
-            for item in self.tape.data.iter().step_by(2) {
+            for item in self.tape.data.iter() {
                 if prev != Some(*item) {
                     if count < 1000 {
                         for i in 0..count {
                             let wave = f32::sin(std::f32::consts::PI * i as f32 / count as f32);
                             let value = if polarity {
-                                128.0 + 127.0 * wave
+                                128.0 + 96.0 * wave
                             } else {
-                                128.0 - 127.0 * wave
+                                128.0 - 96.0 * wave
                             };
                             data.push(value as u8);
                         }
@@ -567,9 +567,9 @@ impl Audio {
                 for i in 0..count {
                     let wave = f32::sin(std::f32::consts::PI * i as f32 / count as f32);
                     let value = if polarity {
-                        128.0 + 127.0 * wave
+                        128.0 + 96.0 * wave
                     } else {
-                        128.0 - 127.0 * wave
+                        128.0 - 96.0 * wave
                     };
                     data.push(value as u8);
                 }
@@ -586,8 +586,8 @@ impl Audio {
             file.write_all(&1_u16.to_le_bytes())?;
 
             // Samples per second and byte rate
-            file.write_all(&(AUDIO_SAMPLE_RATE as u32 / 2).to_le_bytes())?;
-            file.write_all(&(AUDIO_SAMPLE_RATE as u32 / 2).to_le_bytes())?;
+            file.write_all(&(AUDIO_SAMPLE_RATE as u32).to_le_bytes())?;
+            file.write_all(&(AUDIO_SAMPLE_RATE as u32).to_le_bytes())?;
 
             // Alignment, bits per sample
             file.write_all(&1_u16.to_le_bytes())?;
