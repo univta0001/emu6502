@@ -197,7 +197,7 @@ impl AudioFilter {
         self.filter_tap[3] = self.filter_tap[2];
         self.filter_tap[2] = y2;
 
-        let mut return_value = y / 6000.0 + y2 / 2400000.0;
+        let mut return_value = y / 4000.0 + y2 / 2400000.0;
         return_value = return_value.clamp(-1.0, 1.0);
         return_value
     }
