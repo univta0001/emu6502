@@ -505,7 +505,7 @@ impl Audio {
 
     fn slope(&self, prev: u8, curr: u8) -> isize {
         let diff = curr as isize - prev as isize;
-        if diff.abs() < 2 {
+        if diff.abs() < 8 {
             return 0
         }
         diff.signum()
