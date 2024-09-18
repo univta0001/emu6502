@@ -619,7 +619,9 @@ impl Tick for Audio {
             }
         } else {
             let value = self.dc_filter(self.data.phase);
-            self.level += value as f32;
+            if value > 0 {
+                self.level += value as f32;
+            }
             value
         };
 
