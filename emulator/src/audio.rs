@@ -673,6 +673,8 @@ impl Tick for Audio {
                 self.audio_active = false;
                 self.audio_filter.filter_tap[0] = 0.0;
                 self.audio_filter.filter_tap[1] = 0.0;
+                self.audio_filter.filter_tap[2] = 0.0;
+                self.audio_filter.filter_tap[3] = 0.0;
             }
 
             let mut left_phase: HigherChannel = 0;

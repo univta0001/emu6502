@@ -790,8 +790,6 @@
 
                 let delta = now - then;
 
-                then = now;
-
                 let cpu_6502_cycles = 17030;
                 let cpu_refresh = 16;
 
@@ -803,6 +801,8 @@
                 if (delta >= cpu_refresh) 
                 //delta = 0;
                 {
+                    then = now - (delta % cpu_refresh);
+                    
                     while (emu6502.cpu_cycles()-prev_cycles + cpu_delta < cpu_6502_cycles) 
                     {
                         emu6502.step_cpu();
