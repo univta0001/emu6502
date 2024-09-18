@@ -350,7 +350,7 @@ impl Audio {
             return phase;
         }
 
-        ((phase as HigherChannel * self.dc_filter as HigherChannel) / (70000_i32)) as Channel
+        ((phase as i64 * self.dc_filter as i64) / (70000_i64)) as Channel
     }
 
     pub fn get_buffer(&self) -> &[Channel] {
