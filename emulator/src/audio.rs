@@ -9,15 +9,19 @@ use serde::{Deserialize, Serialize};
 type Channel = i16;
 type HigherChannel = i32;
 
-pub const AUDIO_SAMPLE_RATE: f32 = 48000.0;
+pub const AUDIO_SAMPLE_RATE: f32 = 44100.0;
 
 // PAL cpu is clocked at 1.014 MHz (PAL Horizontal Hz = 15625)
-const PAL_14M: usize = 15600 * 912;
+const PAL_14M: usize = 15625 * 912;
 //const NTSC_14M: usize = 157500000 / 11;
-// NTSC cpu is clocked at 1.022 MHz (NTSC Horizontal Hz = 15730)
-const NTSC_14M: usize = 15720 * 912;
+// NTSC cpu is clocked at 1.022 MHz (NTSC Horizontal Hz = 15734, Apple Horizontal is 15700)
+const NTSC_14M: usize = 15700 * 912;
 const CPU_6502_MHZ: usize = (NTSC_14M * 65) / 912;
 const MAX_AMPLITUDE: Channel = Channel::MAX;
+const FAST_DAMPING_RATE: isize = -1900;
+const SLOW_DAMPING_RATE: isize = -250;
+const FAST_RESONANCE_FREQ: usize = 3880;
+const SLOW_RESONANCE_FREQ: usize = 480;
 
 const AY_LEVEL: [u16; 16] = [
     0x0000, 0x0385, 0x053d, 0x0770, 0x0ad7, 0x0fd5, 0x15b0, 0x230c, 0x2b4c, 0x43c1, 0x5a4c, 0x732f,
@@ -150,11 +154,37 @@ impl AudioFilter {
     */
 
     fn filter_response(&mut self, value: Channel) -> f32 {
+        let (c1, c2) = self.filter_parameter(
+            CPU_6502_MHZ as f32,
+            FAST_RESONANCE_FREQ as f32,
+            FAST_DAMPING_RATE as f32,
+        );
+        let (c3, c4) = self.filter_parameter(
+            CPU_6502_MHZ as f32,
+            SLOW_RESONANCE_FREQ as f32,
+            SLOW_DAMPING_RATE as f32,
+        );
+        // First order harmonics
+        let y = c1 * self.filter_tap[0] - c2 * self.filter_tap[1] + (value as f32) / 32768.0;
+        self.filter_tap[1] = self.filter_tap[0];
+        self.filter_tap[0] = y;
+
+        // Second order harmonics
+        let y2 = c3 * self.filter_tap[2] - c4 * self.filter_tap[3] + (value as f32) / 32768.0;
+        self.filter_tap[3] = self.filter_tap[2];
+        self.filter_tap[2] = y2;
+
+        let mut return_value = y / 4000.0 + y2 / 2400000.0;
+        return_value = return_value.clamp(-1.0, 1.0);
+        return_value
+    }
+
+    fn filter_parameter(&self, sample_rate: f32, resonance_freq: f32, damping: f32) -> (f32, f32) {
         /*
             Model the speaker frequency response of natural frequency of 3880 Hz
             with dampling of -1900 (approximately 2ms)
 
-            Based on KansasFest 2022 11 Apple II Audio From the Ground Up - Kris Kennaway
+            Based on KansasFest 2022 Apple II Audio From the Ground Up - Kris Kennaway
 
             The returned valued has to be normalized (experimental determined)
 
@@ -179,27 +209,14 @@ impl AudioFilter {
             y(tm) =np.exp(-d*tm) / math.sqrt(d*d+w*w)
         */
 
-        let c1 = 1.9957163;
-        let c2 = 0.996288;
-        let c3 = 1.9995021;
-        let c4 = 0.9995108;
+        let dt = 1.0 / sample_rate;
+        let w = resonance_freq * 2.0 * std::f32::consts::PI * dt;
+        let d = damping * dt;
+        let e = d.exp();
+        let c1 = 2.0 * e * w.cos();
+        let c2 = e * e;
 
-        //let c1 = 1.9970645;
-        //let c2 = 0.9976344;
-
-        // First order harmonics
-        let y = c1 * self.filter_tap[0] - c2 * self.filter_tap[1] + (value as f32) / 32768.0;
-        self.filter_tap[1] = self.filter_tap[0];
-        self.filter_tap[0] = y;
-
-        // Second order harmonics
-        let y2 = c3 * self.filter_tap[2] - c4 * self.filter_tap[3] + (value as f32) / 32768.0;
-        self.filter_tap[3] = self.filter_tap[2];
-        self.filter_tap[2] = y2;
-
-        let mut return_value = y / 4000.0 + y2 / 2400000.0;
-        return_value = return_value.clamp(-1.0, 1.0);
-        return_value
+        (c1, c2)
     }
 }
 

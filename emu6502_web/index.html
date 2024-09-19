@@ -29,13 +29,13 @@
     </div>
     <center>
     <div id="drive">
-        <!--<span id = "speed"> </span>-->
         <a id="disk1" class="button shadow hover:shadow-lg border-2 rounded-full font-bold py-2 px-3 cursor-pointer hover:bg-sky-400" href="#">Insert D1</a> 
         <a id="disk2" class="button shadow hover:shadow-lg border-2 rounded-full font-bold py-2 px-3 cursor-pointer hover:bg-sky-400" href="#">Insert D2</a> 
         <a id="joystick" class="button shadow hover:shadow-lg border-2 rounded-full font-bold py-2 px-3 cursor-pointer hover:bg-sky-400" href="#">Toggle Joystick</a> 
         <input type="checkbox" id="video50hz" name="video50hz"> 50Hz Video
         <input type="checkbox" id="videoNTSC" name="videoNTSC"> NTSC Video
         <input type="checkbox" id="capslock" name="capslock"> Capslock
+        <span id = "speed"> </span>
     </div>
     </center>
 
@@ -738,7 +738,7 @@
                 let data = emu6502.sound_buffer();
                 if (data.length >= 8192*4)
                 {
-                    let audio_buffer = ctx_audio.createBuffer(2, data.length/2, 48000);
+                    let audio_buffer = ctx_audio.createBuffer(2, data.length/2, 44100);
                     let left_audio = audio_buffer.getChannelData(0);
                     let right_audio = audio_buffer.getChannelData(1);
                     for (var i=0;i<data.length/2;i++) {
@@ -771,6 +771,7 @@
             var prev_cycles = 0;
             var cpu_delta = 0;
             var key_caps = true;
+            var anim_ms;
 
             document.getElementById("capslock").checked = true;
 
@@ -789,15 +790,22 @@
             const runloop = async (now) => {
                 if (!then) { then = now; then2 = then }
 
+                if (!anim_ms) { anim_ms = now }
+
+                let anim_elapsed = now - anim_ms;
+                anim_ms = now;
+
                 let delta = now - then;
                 let delta2 = now - then2;
 
                 let cpu_6502_cycles = 17030;
                 let cpu_refresh = 16;
+                let cpu_ms = 16.667;
 
                 if (emu6502.is_video_50hz()) {
                     cpu_6502_cycles = 20280;
                     cpu_refresh = 20;
+                    cpu_ms = 20.0;
                 }
 
                 if (delta >= cpu_refresh) 
@@ -815,18 +823,19 @@
                     update_ui();
                     update_audio();
                     update_mouse_state();
-                }
 
-                //console.log(emu6502.cpu_cycles());
-                //console.log(emu6502.sound_buffer().length);
 
-                let cycles = emu6502.cpu_cycles() - prev_cycles;
-                let mhz = cycles/(1000.0*delta2);
-                let speed = document.getElementById("speed");
-                prev_cycles = emu6502.cpu_cycles();
+                    //console.log(emu6502.cpu_cycles());
+                    //console.log(emu6502.sound_buffer().length);
 
-                if (speed != null) {
-                    speed.innerHTML = `Estimated Mhz: ${mhz.toFixed(4)} Mhz`;
+                    let cycles = emu6502.cpu_cycles() - prev_cycles;
+                    let mhz = cycles/(1000.0 * delta2 * cpu_ms / anim_elapsed);
+                    let speed = document.getElementById("speed");
+                    prev_cycles = emu6502.cpu_cycles();
+
+                    if (speed != null) {
+                        speed.innerHTML = `Estimated Mhz: ${mhz.toFixed(3)} Mhz`;
+                    }
                 }
 
                 window.requestAnimationFrame(runloop);
