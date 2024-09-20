@@ -81,6 +81,15 @@ function __wbg_adapter_18(arg0, arg1, arg2) {
     wasm._dyn_core__ops__function__FnMut__A____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h92e75126133a0991(arg0, arg1, addHeapObject(arg2));
 }
 
+let cachedDataViewMemory0 = null;
+
+function getDataViewMemory0() {
+    if (cachedDataViewMemory0 === null || cachedDataViewMemory0.buffer.detached === true || (cachedDataViewMemory0.buffer.detached === undefined && cachedDataViewMemory0.buffer !== wasm.memory.buffer)) {
+        cachedDataViewMemory0 = new DataView(wasm.memory.buffer);
+    }
+    return cachedDataViewMemory0;
+}
+
 let WASM_VECTOR_LEN = 0;
 
 const cachedTextEncoder = (typeof TextEncoder !== 'undefined' ? new TextEncoder('utf-8') : { encode: () => { throw Error('TextEncoder not available') } } );
@@ -151,15 +160,6 @@ export function init_emul() {
     return takeObject(ret);
 }
 
-let cachedDataViewMemory0 = null;
-
-function getDataViewMemory0() {
-    if (cachedDataViewMemory0 === null || cachedDataViewMemory0.buffer.detached === true || (cachedDataViewMemory0.buffer.detached === undefined && cachedDataViewMemory0.buffer !== wasm.memory.buffer)) {
-        cachedDataViewMemory0 = new DataView(wasm.memory.buffer);
-    }
-    return cachedDataViewMemory0;
-}
-
 function handleError(f, args) {
     try {
         return f.apply(this, args);
@@ -167,7 +167,7 @@ function handleError(f, args) {
         wasm.__wbindgen_exn_store(addHeapObject(e));
     }
 }
-function __wbg_adapter_70(arg0, arg1, arg2, arg3) {
+function __wbg_adapter_71(arg0, arg1, arg2, arg3) {
     wasm.wasm_bindgen__convert__closures__invoke2_mut__h135e081a33c055dd(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
 }
 
@@ -196,6 +196,25 @@ export class Emulator {
     free() {
         const ptr = this.__destroy_into_raw();
         wasm.__wbg_emulator_free(ptr, 0);
+    }
+    /**
+    * @returns {string}
+    */
+    version() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.emulator_version(retptr, this.__wbg_ptr);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            deferred1_0 = r0;
+            deferred1_1 = r1;
+            return getStringFromWasm0(r0, r1);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
     }
     /**
     * @param {string} name
@@ -496,7 +515,7 @@ function __wbg_get_imports() {
                 const a = state0.a;
                 state0.a = 0;
                 try {
-                    return __wbg_adapter_70(a, state0.b, arg0, arg1);
+                    return __wbg_adapter_71(a, state0.b, arg0, arg1);
                 } finally {
                     state0.a = a;
                 }
@@ -542,8 +561,8 @@ function __wbg_get_imports() {
         const ret = wasm.memory;
         return addHeapObject(ret);
     };
-    imports.wbg.__wbindgen_closure_wrapper123 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 33, __wbg_adapter_18);
+    imports.wbg.__wbindgen_closure_wrapper126 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 34, __wbg_adapter_18);
         return addHeapObject(ret);
     };
 

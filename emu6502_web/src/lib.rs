@@ -6,6 +6,8 @@ use wasm_bindgen::prelude::*;
 //#[global_allocator]
 //static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 #[wasm_bindgen]
 pub struct Emulator {
     cpu: CPU,
@@ -13,6 +15,10 @@ pub struct Emulator {
 
 #[wasm_bindgen]
 impl Emulator {
+    pub fn version(&self) -> String {
+        format!("emu6502-web {VERSION}")
+    }
+
     pub fn load_disk(&mut self, name: &str, array: &[u8], drive: usize) -> bool {
         let lname = name.to_lowercase();
         let po_hd = if lname.ends_with(".po") && array.len() > 143360 {
