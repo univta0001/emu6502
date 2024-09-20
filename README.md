@@ -41,7 +41,7 @@ Features in the emulator
 
 - `emu6502 --help` will display:
 
-        emu6502 0.9.1 (8ff856b6b80ac3e8282f8c68ba454b48011ca0d7)
+        emu6502 0.9.1 (49dc78b4730abe6c601a85a91b01b42c75f4db06)
 
         USAGE:
             emu6502 [FLAGS] [disk 1] [disk 2]
@@ -95,7 +95,11 @@ Features in the emulator
             --scale ratio      Scale the graphics by ratio (Default is 2.0)
             --z80_cirtech      Enable Z80 Cirtech address translation
             --saturn           Enable Saturn memory (Only available in Apple 2+)
-            --speedstar        Enable SpeedStar datakey dongle
+            --dongle model     Enable dongle
+                               Value: speedstar, hayden, codewriter, robocom500,
+                                      robocom1000, robocom1500
+            --interface name   Set the interface name for Uthernet2
+                               Default is None. For e.g. eth0
 
         ARGS:
             [disk 1]           Disk 1 file (woz, dsk, do, po file). File can be in gz format
