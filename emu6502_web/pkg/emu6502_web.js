@@ -78,7 +78,7 @@ function makeMutClosure(arg0, arg1, dtor, f) {
     return real;
 }
 function __wbg_adapter_18(arg0, arg1, arg2) {
-    wasm._dyn_core__ops__function__FnMut__A____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__hc3740ff30a7f3703(arg0, arg1, addHeapObject(arg2));
+    wasm._dyn_core__ops__function__FnMut__A____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h92e75126133a0991(arg0, arg1, addHeapObject(arg2));
 }
 
 let WASM_VECTOR_LEN = 0;
@@ -168,7 +168,7 @@ function handleError(f, args) {
     }
 }
 function __wbg_adapter_70(arg0, arg1, arg2, arg3) {
-    wasm.wasm_bindgen__convert__closures__invoke2_mut__hc83ccd1580e02b00(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
+    wasm.wasm_bindgen__convert__closures__invoke2_mut__h135e081a33c055dd(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
 }
 
 const EmulatorFinalization = (typeof FinalizationRegistry === 'undefined')
