@@ -174,7 +174,7 @@ impl AudioFilter {
         self.filter_tap[3] = self.filter_tap[2];
         self.filter_tap[2] = y2;
 
-        let mut return_value = y / 4000.0 + y2 / 2400000.0;
+        let mut return_value = y / 14327.0 + y2 / 2400000.0;
         return_value = return_value.clamp(-1.0, 1.0);
         return_value
     }
@@ -188,7 +188,7 @@ impl AudioFilter {
 
             The returned valued has to be normalized (experimental determined)
 
-            sample_rate = 1021800
+            sample_rate = 1020484
             damping = -1900
             freq = 3880
             damping2 = -250
