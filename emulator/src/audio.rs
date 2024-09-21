@@ -17,6 +17,7 @@ const PAL_14M: usize = 15625 * 912;
 // NTSC cpu is clocked at 1.022 MHz (NTSC Horizontal Hz = 15734, Apple Horizontal is 15700)
 const NTSC_14M: usize = 15700 * 912;
 const CPU_6502_MHZ: usize = (NTSC_14M * 65) / 912;
+const CPU_6502_PAL_MHZ: usize = (PAL_14M * 65) / 912;
 const MAX_AMPLITUDE: Channel = Channel::MAX;
 const FAST_DAMPING_RATE: isize = -1900;
 const SLOW_DAMPING_RATE: isize = -250;
@@ -153,7 +154,7 @@ impl AudioFilter {
 
     */
 
-    fn filter_response(&mut self, value: Channel) -> f32 {
+    fn filter_response_ntsc(&mut self, value: Channel) -> f32 {
         let (c1, c2) = self.filter_parameter(
             CPU_6502_MHZ as f32,
             FAST_RESONANCE_FREQ as f32,
@@ -164,6 +165,24 @@ impl AudioFilter {
             SLOW_RESONANCE_FREQ as f32,
             SLOW_DAMPING_RATE as f32,
         );
+        self.filter_response(c1, c2, c3, c4, value)
+    }
+
+    fn filter_response_pal(&mut self, value: Channel) -> f32 {
+        let (c1, c2) = self.filter_parameter(
+            CPU_6502_PAL_MHZ as f32,
+            FAST_RESONANCE_FREQ as f32,
+            FAST_DAMPING_RATE as f32,
+        );
+        let (c3, c4) = self.filter_parameter(
+            CPU_6502_PAL_MHZ as f32,
+            SLOW_RESONANCE_FREQ as f32,
+            SLOW_DAMPING_RATE as f32,
+        );
+        self.filter_response(c1, c2, c3, c4, value)
+    }
+
+    fn filter_response(&mut self, c1: f32, c2: f32, c3: f32, c4: f32, value: Channel) -> f32 {
         // First order harmonics
         let y = c1 * self.filter_tap[0] - c2 * self.filter_tap[1] + (value as f32) / 32768.0;
         self.filter_tap[1] = self.filter_tap[0];
@@ -629,7 +648,11 @@ impl Tick for Audio {
 
         let mut beep = if self.filter_enabled {
             if self.dc_filter > 0 {
-                let response = self.audio_filter.filter_response(self.data.phase);
+                let response = if self.fcycles_per_sample == self.ntsc_cycles() {
+                    self.audio_filter.filter_response_ntsc(self.data.phase)
+                } else {
+                    self.audio_filter.filter_response_pal(self.data.phase)
+                };
                 self.dc_filter((response * 32767.0) as Channel)
             } else {
                 0
