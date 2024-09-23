@@ -21,7 +21,7 @@ const CPU_6502_PAL_MHZ: usize = (PAL_14M * 65) / 912;
 const MAX_AMPLITUDE: Channel = Channel::MAX;
 const FAST_DAMPING_RATE: isize = -1900;
 const SLOW_DAMPING_RATE: isize = -250;
-const FAST_RESONANCE_FREQ: usize = 3880;
+const FAST_RESONANCE_FREQ: usize = 3875;
 const SLOW_RESONANCE_FREQ: usize = 480;
 
 const AY_LEVEL: [u16; 16] = [
@@ -200,7 +200,7 @@ impl AudioFilter {
 
     fn filter_parameter(&self, sample_rate: f32, resonance_freq: f32, damping: f32) -> (f32, f32) {
         /*
-            Model the speaker frequency response of natural frequency of 3880 Hz
+            Model the speaker frequency response of natural frequency of 3875 Hz
             with dampling of -1900 (approximately 2ms)
 
             Based on KansasFest 2022 Apple II Audio From the Ground Up - Kris Kennaway
@@ -209,7 +209,7 @@ impl AudioFilter {
 
             sample_rate = 1020484
             damping = -1900
-            freq = 3880
+            freq = 3875
             damping2 = -250
             freq2 = 480
             dt = np.float64(1 / sample_rate)
