@@ -20,9 +20,7 @@ const CPU_6502_MHZ: usize = (NTSC_14M * 65) / 912;
 const CPU_6502_PAL_MHZ: usize = (PAL_14M * 65) / 912;
 const MAX_AMPLITUDE: Channel = Channel::MAX;
 const FAST_DAMPING_RATE: isize = -1900;
-const SLOW_DAMPING_RATE: isize = -250;
 const FAST_RESONANCE_FREQ: usize = 3875;
-const SLOW_RESONANCE_FREQ: usize = 480;
 
 const AY_LEVEL: [u16; 16] = [
     0x0000, 0x0385, 0x053d, 0x0770, 0x0ad7, 0x0fd5, 0x15b0, 0x230c, 0x2b4c, 0x43c1, 0x5a4c, 0x732f,
@@ -160,12 +158,7 @@ impl AudioFilter {
             FAST_RESONANCE_FREQ as f32,
             FAST_DAMPING_RATE as f32,
         );
-        let (c3, c4) = self.filter_parameter(
-            CPU_6502_MHZ as f32,
-            SLOW_RESONANCE_FREQ as f32,
-            SLOW_DAMPING_RATE as f32,
-        );
-        self.filter_response(c1, c2, c3, c4, value)
+        self.filter_response(c1, c2, value)
     }
 
     fn filter_response_pal(&mut self, value: Channel) -> f32 {
@@ -174,26 +167,16 @@ impl AudioFilter {
             FAST_RESONANCE_FREQ as f32,
             FAST_DAMPING_RATE as f32,
         );
-        let (c3, c4) = self.filter_parameter(
-            CPU_6502_PAL_MHZ as f32,
-            SLOW_RESONANCE_FREQ as f32,
-            SLOW_DAMPING_RATE as f32,
-        );
-        self.filter_response(c1, c2, c3, c4, value)
+        self.filter_response(c1, c2, value)
     }
 
-    fn filter_response(&mut self, c1: f32, c2: f32, c3: f32, c4: f32, value: Channel) -> f32 {
+    fn filter_response(&mut self, c1: f32, c2: f32, value: Channel) -> f32 {
         // First order harmonics
         let y = c1 * self.filter_tap[0] - c2 * self.filter_tap[1] + (value as f32) / 32768.0;
         self.filter_tap[1] = self.filter_tap[0];
         self.filter_tap[0] = y;
 
-        // Second order harmonics
-        let y2 = c3 * self.filter_tap[2] - c4 * self.filter_tap[3] + (value as f32) / 32768.0;
-        self.filter_tap[3] = self.filter_tap[2];
-        self.filter_tap[2] = y2;
-
-        let mut return_value = y / 14327.0 + y2 / 2400000.0;
+        let mut return_value = y / 14327.0;
         return_value = return_value.clamp(-1.0, 1.0);
         return_value
     }
