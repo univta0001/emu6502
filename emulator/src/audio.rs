@@ -34,6 +34,7 @@ struct AudioFilter {
     //buffer: Vec<Channel>,
     //buffer_pointer: usize,
     filter_tap: [f32; 4],
+    filter_parameter: (f32, f32),
 }
 
 impl AudioFilter {
@@ -44,6 +45,7 @@ impl AudioFilter {
             //buffer,
             //buffer_pointer: 0,
             filter_tap: [0.0f32; 4],
+            filter_parameter: AudioFilter::filter_parameter_ntsc(),
         }
     }
 
@@ -152,22 +154,20 @@ impl AudioFilter {
 
     */
 
-    fn filter_response_ntsc(&mut self, value: Channel) -> f32 {
-        let (c1, c2) = self.filter_parameter(
+    fn filter_parameter_ntsc() -> (f32, f32) {
+        AudioFilter::filter_parameter(
             CPU_6502_MHZ as f32,
             FAST_RESONANCE_FREQ as f32,
             FAST_DAMPING_RATE as f32,
-        );
-        self.filter_response(c1, c2, value)
+        )
     }
 
-    fn filter_response_pal(&mut self, value: Channel) -> f32 {
-        let (c1, c2) = self.filter_parameter(
+    fn filter_parameter_pal() -> (f32, f32) {
+        AudioFilter::filter_parameter(
             CPU_6502_PAL_MHZ as f32,
             FAST_RESONANCE_FREQ as f32,
             FAST_DAMPING_RATE as f32,
-        );
-        self.filter_response(c1, c2, value)
+        )
     }
 
     fn filter_response(&mut self, c1: f32, c2: f32, value: Channel) -> f32 {
@@ -181,7 +181,7 @@ impl AudioFilter {
         return_value
     }
 
-    fn filter_parameter(&self, sample_rate: f32, resonance_freq: f32, damping: f32) -> (f32, f32) {
+    fn filter_parameter(sample_rate: f32, resonance_freq: f32, damping: f32) -> (f32, f32) {
         /*
             Model the speaker frequency response of natural frequency of 3875 Hz
             with dampling of -1900 (approximately 2ms)
@@ -303,9 +303,11 @@ impl Audio {
 
     pub fn update_cycles(&mut self, is_50hz: bool) {
         if is_50hz {
-            self.fcycles_per_sample = self.pal_cycles()
+            self.fcycles_per_sample = self.pal_cycles();
+            self.audio_filter.filter_parameter = AudioFilter::filter_parameter_pal();
         } else {
-            self.fcycles_per_sample = self.ntsc_cycles()
+            self.fcycles_per_sample = self.ntsc_cycles();
+            self.audio_filter.filter_parameter = AudioFilter::filter_parameter_ntsc();
         }
     }
 
@@ -631,11 +633,8 @@ impl Tick for Audio {
 
         let mut beep = if self.filter_enabled {
             if self.dc_filter > 0 {
-                let response = if self.fcycles_per_sample == self.ntsc_cycles() {
-                    self.audio_filter.filter_response_ntsc(self.data.phase)
-                } else {
-                    self.audio_filter.filter_response_pal(self.data.phase)
-                };
+                let (c1, c2) = self.audio_filter.filter_parameter;
+                let response = self.audio_filter.filter_response(c1, c2, self.data.phase);
                 self.dc_filter((response * 32767.0) as Channel)
             } else {
                 0
