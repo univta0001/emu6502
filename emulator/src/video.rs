@@ -2201,45 +2201,36 @@ impl Video {
             let mut mask = 0x1;
             let mut offset = x;
             let hbs = (value & 0x80 > 0) as usize;
-            let mut prev_color = if dhires_mode {
-                DHIRES_COLORS[color_index as usize]
-            } else {
-                LORES_COLORS[color_index as usize]
-            };
 
             while mask != 0x80 {
                 let index = (offset + hbs) % 4;
                 if value & mask > 0 {
                     color_index |= 1 << index;
-                    color_index |= 1 << ((index + 1) % 4);
                 } else {
                     color_index &= 1 << index ^ 0xf;
-                    color_index &= 1 << ((index + 1) % 4) ^ 0xf;
                 }
 
-                let color = if dhires_mode {
+                let mut color = if dhires_mode {
                     DHIRES_COLORS[color_index as usize]
                 } else {
                     LORES_COLORS[color_index as usize]
                 };
 
-                if prev_color == COLOR_BLACK && color != COLOR_BLACK {
-                    self.set_pixel_count(offset + hbs, row * 2, prev_color, 1);
-                    self.set_pixel_count(offset + hbs + 1, row * 2, color, 1);
-                } else if prev_color != COLOR_BLACK && color == COLOR_BLACK {
-                    self.set_pixel_count(offset + hbs, row * 2, color, 2);
-                } else if prev_color == COLOR_WHITE && color != COLOR_WHITE {
-                    self.set_pixel_count(offset + hbs, row * 2, prev_color, 1);
-                    self.set_pixel_count(offset + hbs + 1, row * 2, color, 1);
+                self.set_pixel_count(offset, row * 2, color, 1);
+
+                if value & mask > 0 {
+                    color_index |= 1 << ((index + 1) % 4);
                 } else {
-                    self.set_pixel_count(offset + hbs, row * 2, color, 2);
+                    color_index &= 1 << ((index + 1) % 4) ^ 0xf;
                 }
 
-                if offset + hbs > 0 {
-                    self.set_pixel_count(offset + hbs - 1, row * 2, prev_color, 1);
-                }
+                color = if dhires_mode {
+                    DHIRES_COLORS[color_index as usize]
+                } else {
+                    LORES_COLORS[color_index as usize]
+                };
 
-                prev_color = color;
+                self.set_pixel_count(offset + 1, row * 2, color, 1);
 
                 mask <<= 1;
                 offset += 2;
