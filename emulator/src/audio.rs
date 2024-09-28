@@ -33,8 +33,8 @@ const AY_LEVEL: [u16; 16] = [
 struct AudioFilter {
     //buffer: Vec<Channel>,
     //buffer_pointer: usize,
-    filter_tap: [f32; 4],
-    filter_parameter: (f32, f32),
+    filter_tap: [f32; 2],
+    filter_parameter: [f32; 2],
 }
 
 impl AudioFilter {
@@ -44,7 +44,7 @@ impl AudioFilter {
         Self {
             //buffer,
             //buffer_pointer: 0,
-            filter_tap: [0.0f32; 4],
+            filter_tap: [0.0f32; 2],
             filter_parameter: AudioFilter::filter_parameter_ntsc(),
         }
     }
@@ -154,24 +154,27 @@ impl AudioFilter {
 
     */
 
-    fn filter_parameter_ntsc() -> (f32, f32) {
-        AudioFilter::filter_parameter(
+    fn filter_parameter_ntsc() -> [f32;2] {
+        let (c1,c2) = AudioFilter::filter_parameter(
             CPU_6502_MHZ as f32,
             FAST_RESONANCE_FREQ as f32,
             FAST_DAMPING_RATE as f32,
-        )
+        );
+        [c1, c2]
     }
 
-    fn filter_parameter_pal() -> (f32, f32) {
-        AudioFilter::filter_parameter(
+    fn filter_parameter_pal() -> [f32;2] {
+        let (c1,c2) = AudioFilter::filter_parameter(
             CPU_6502_PAL_MHZ as f32,
             FAST_RESONANCE_FREQ as f32,
             FAST_DAMPING_RATE as f32,
-        )
+        );
+        [c1, c2]
     }
 
     fn filter_response(&mut self, value: Channel) -> f32 {
-        let (c1, c2) = self.filter_parameter;
+        let c1 = self.filter_parameter[0];
+        let c2 = self.filter_parameter[1];
         // First order harmonics
         let y = c1 * self.filter_tap[0] - c2 * self.filter_tap[1] + (value as f32) / 32768.0;
         self.filter_tap[1] = self.filter_tap[0];
@@ -697,8 +700,6 @@ impl Tick for Audio {
                 self.audio_active = false;
                 self.audio_filter.filter_tap[0] = 0.0;
                 self.audio_filter.filter_tap[1] = 0.0;
-                self.audio_filter.filter_tap[2] = 0.0;
-                self.audio_filter.filter_tap[3] = 0.0;
             }
 
             let mut left_phase: HigherChannel = 0;
