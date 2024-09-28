@@ -1812,13 +1812,7 @@ impl Video {
         debug_assert!(y1 < 192);
 
         let yindex = y1 % 8;
-        let color_index = if yindex < 4 { ch & 0xf } else { ch >> 4 & 0xf };
-
-        let color = if !aux || self.mac_lc_dlgr {
-            LORES_COLORS[color_index as usize]
-        } else {
-            DHIRES_COLORS[color_index as usize]
-        };
+        let value = if yindex < 4 { ch & 0xf } else { ch >> 4 & 0xf };
 
         if self.vid80_mode && self.dhires_mode {
             if !self.mono_mode && !(self.is_display_mode_mono()) {
@@ -1827,8 +1821,52 @@ impl Video {
                 {
                     self.draw_dlores_ntsc_a2_y(x1, y1, ch, offset, aux);
                 } else {
+                    let mut mask = 0x1;
+                    let mut color_index = if !aux {
+                        let prev_ch = self.read_aux_text_memory(x1, y1);
+                       if yindex < 4 {
+                           let val = prev_ch & 0xf;
+                           ((val >> 3) | (val << 1)) & 0xf
+                       } else {
+                           let val = (prev_ch >> 4) & 0xf;
+                           ((val >> 3) | (val << 1)) & 0xf
+                       }
+                    } else if x1 > 0 {
+                        let prev_ch = self.read_text_memory(x1 - 1, y1);
+                        if yindex < 4 {
+                            let val = prev_ch & 0xf;
+                            (val << 3 | val >> 1) & 0xf
+                        } else {
+                            let val = (prev_ch >> 4) & 0xf;
+                            (val << 3 | val >> 1) & 0xf
+                        }
+                    } else {
+                        0
+                    };
+
+                    if x1 & 1 != 0 {
+                        mask <<= 2;
+                    }
+
                     for xindex in 0..7 {
+                        if value & mask > 0 {
+                            color_index |= mask;
+                        } else {
+                            color_index &= mask ^ 0xf;
+                        }
+
+                        let color = if !aux || self.mac_lc_dlgr {
+                            LORES_COLORS[color_index as usize]
+                        } else {
+                            DHIRES_COLORS[color_index as usize]
+                        };
+
                         self.set_pixel_count(x1 * 14 + xindex + offset, y1 * 2, color, 1);
+
+                        mask <<= 1;
+                        if mask > 0xf {
+                            mask = 0x1;
+                        }
                     }
                 }
             } else {
@@ -1840,7 +1878,7 @@ impl Video {
                 let mono_color = self.get_mono_color();
 
                 for xindex in 0..7 {
-                    if color_index & mask != 0 {
+                    if value & mask != 0 {
                         self.set_pixel_count(x1 * 14 + xindex + offset, y1 * 2, mono_color, 1);
                     } else {
                         self.set_pixel_count(x1 * 14 + xindex + offset, y1 * 2, COLOR_BLACK, 1);
@@ -1856,8 +1894,36 @@ impl Video {
             {
                 self.draw_lores_ntsc_a2_y(x1, y1, ch);
             } else {
-                for xindex in 0..7 {
-                    self.set_a2_pixel(x1 * 7 + xindex, y1, color);
+                let mut mask = 0x1;
+                let mut color_index = if x1 > 0 {
+                    let prev_ch = self.read_text_memory(x1 - 1, y1);
+                    if yindex < 4 {
+                        prev_ch & 0xf
+                    } else {
+                        (prev_ch >> 4) & 0xf
+                    }
+                } else {
+                    0
+                };
+
+                if x1 % 2 != 0 {
+                    mask <<= 2;
+                }
+
+                for xindex in 0..14 {
+                    if value & mask > 0 {
+                        color_index |= mask;
+                    } else {
+                        color_index &= mask ^ 0xf;
+                    }
+
+                    let color = LORES_COLORS[color_index as usize];
+                    self.set_pixel_count(x1 * 14 + xindex, y1 * 2, color, 1);
+
+                    mask <<= 1;
+                    if mask > 0xf {
+                        mask = 0x1;
+                    }
                 }
             }
         } else {
@@ -1869,7 +1935,7 @@ impl Video {
             let mono_color = self.get_mono_color();
 
             for xindex in 0..14 {
-                if color_index & mask != 0 {
+                if value & mask != 0 {
                     self.set_pixel_count(x1 * 14 + xindex, y1 * 2, mono_color, 1);
                 } else {
                     self.set_pixel_count(x1 * 14 + xindex, y1 * 2, COLOR_BLACK, 1);

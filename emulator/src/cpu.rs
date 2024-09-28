@@ -1025,7 +1025,6 @@ impl CPU {
     }
 
     /// http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html
-
     fn add_to_register_a(&mut self, data: u8, sub: bool) {
         let result: u8;
         let input = self.register_a;

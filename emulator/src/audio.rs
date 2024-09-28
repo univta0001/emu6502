@@ -49,7 +49,7 @@ impl AudioFilter {
         }
     }
 
-    /** Implements the Window Sinc Filtering using Kaiser Window
+    /*  Implements the Window Sinc Filtering using Kaiser Window
      *  For sampling rate of 1021800 Hz, cutoff freq = 11025.0 Hz, 209 taps is required
      *  Ref: www.fiiir.com
      */
@@ -170,7 +170,8 @@ impl AudioFilter {
         )
     }
 
-    fn filter_response(&mut self, c1: f32, c2: f32, value: Channel) -> f32 {
+    fn filter_response(&mut self, value: Channel) -> f32 {
+        let (c1, c2) = self.filter_parameter;
         // First order harmonics
         let y = c1 * self.filter_tap[0] - c2 * self.filter_tap[1] + (value as f32) / 32768.0;
         self.filter_tap[1] = self.filter_tap[0];
@@ -633,8 +634,7 @@ impl Tick for Audio {
 
         let mut beep = if self.filter_enabled {
             if self.dc_filter > 0 {
-                let (c1, c2) = self.audio_filter.filter_parameter;
-                let response = self.audio_filter.filter_response(c1, c2, self.data.phase);
+                let response = self.audio_filter.filter_response(self.data.phase);
                 self.dc_filter((response * 32767.0) as Channel)
             } else {
                 0
