@@ -1813,40 +1813,34 @@ impl Video {
 
         let yindex = y1 % 8;
         let value = if yindex < 4 { ch & 0xf } else { ch >> 4 & 0xf };
+        let mut mask = if x1 & 1 != 0 { 4 } else { 1 };
+        let is_ntsc =
+            self.display_mode == DisplayMode::NTSC || self.display_mode == DisplayMode::MONO_NTSC;
 
         if self.vid80_mode && self.dhires_mode {
             if !self.mono_mode && !(self.is_display_mode_mono()) {
-                if self.display_mode == DisplayMode::NTSC
-                    || self.display_mode == DisplayMode::MONO_NTSC
-                {
+                if is_ntsc {
                     self.draw_dlores_ntsc_a2_y(x1, y1, ch, offset, aux);
                 } else {
-                    let mut mask = 0x1;
                     let mut color_index = if !aux {
                         let prev_ch = self.read_aux_text_memory(x1, y1);
-                       if yindex < 4 {
-                           let val = prev_ch & 0xf;
-                           ((val >> 3) | (val << 1)) & 0xf
-                       } else {
-                           let val = (prev_ch >> 4) & 0xf;
-                           ((val >> 3) | (val << 1)) & 0xf
-                       }
+                        let val = if yindex < 4 {
+                            prev_ch & 0xf
+                        } else {
+                            (prev_ch >> 4) & 0xf
+                        };
+                        ((val >> 3) | (val << 1)) & 0xf
                     } else if x1 > 0 {
                         let prev_ch = self.read_text_memory(x1 - 1, y1);
-                        if yindex < 4 {
-                            let val = prev_ch & 0xf;
-                            (val << 3 | val >> 1) & 0xf
+                        let val = if yindex < 4 {
+                            prev_ch & 0xf
                         } else {
-                            let val = (prev_ch >> 4) & 0xf;
-                            (val << 3 | val >> 1) & 0xf
-                        }
+                            (prev_ch >> 4) & 0xf
+                        };
+                        (val << 3 | val >> 1) & 0xf
                     } else {
                         0
                     };
-
-                    if x1 & 1 != 0 {
-                        mask <<= 2;
-                    }
 
                     for xindex in 0..7 {
                         if value & mask > 0 {
@@ -1870,11 +1864,6 @@ impl Video {
                     }
                 }
             } else {
-                let mut mask = 0x1;
-                if x1 & 1 != 0 {
-                    mask <<= 2;
-                }
-
                 let mono_color = self.get_mono_color();
 
                 for xindex in 0..7 {
@@ -1890,11 +1879,9 @@ impl Video {
                 }
             }
         } else if !self.mono_mode && !(self.is_display_mode_mono()) {
-            if self.display_mode == DisplayMode::NTSC || self.display_mode == DisplayMode::MONO_NTSC
-            {
+            if is_ntsc {
                 self.draw_lores_ntsc_a2_y(x1, y1, ch);
             } else {
-                let mut mask = 0x1;
                 let mut color_index = if x1 > 0 {
                     let prev_ch = self.read_text_memory(x1 - 1, y1);
                     if yindex < 4 {
@@ -1905,10 +1892,6 @@ impl Video {
                 } else {
                     0
                 };
-
-                if x1 % 2 != 0 {
-                    mask <<= 2;
-                }
 
                 for xindex in 0..14 {
                     if value & mask > 0 {
@@ -1927,11 +1910,6 @@ impl Video {
                 }
             }
         } else {
-            let mut mask = 0x1;
-            if x1 & 1 != 0 {
-                mask <<= 2;
-            }
-
             let mono_color = self.get_mono_color();
 
             for xindex in 0..14 {
