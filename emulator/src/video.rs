@@ -2238,7 +2238,7 @@ impl Video {
                     color_index |= 1 << index;
                     color_index |= 1 << ((index + 1) % 4);
                 } else {
-                    color_index &= 1 << (index ^ 0xf);
+                    color_index &= (1 << index) ^ 0xf;
                     color_index &= (1 << ((index + 1) % 4)) ^ 0xf;
                 }
 
