@@ -281,6 +281,8 @@ impl Bus {
         self.mem.reset();
         self.video.reset();
         self.ramfactor.reset();
+
+        #[cfg(not(target_os = "wasi"))]
         self.uthernet2.reset(true);
 
         // Clear the annunciator
