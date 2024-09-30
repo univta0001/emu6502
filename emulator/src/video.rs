@@ -1893,10 +1893,6 @@ impl Video {
                     0
                 };
 
-                if x1 & 1 !=0 {
-                    color_index = value
-                }
-
                 for xindex in 0..14 {
                     if value & mask > 0 {
                         color_index |= mask;
@@ -1937,7 +1933,7 @@ impl Video {
         let yindex = y1 % 8;
 
         // Prepare luma for col - 1
-        let mut prev_value = if x1 > 0 {
+        let prev_value = if x1 > 0 {
             let prev_ch = self.read_text_memory(x1 - 1, y1);
             if yindex < 4 {
                 prev_ch & 0xf
@@ -1947,10 +1943,6 @@ impl Video {
         } else {
             0
         };
-
-        if x1 & 1 != 0 {
-            prev_value = if yindex < 4 { ch & 0xf } else { ch >> 4 & 0xf };
-        }
 
         if x1 > 0 && (x1 - 1) & 1 != 0 {
             mask <<= 2;
