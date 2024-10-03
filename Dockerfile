@@ -34,7 +34,7 @@ RUN strip target/release/emu6502
 FROM debian:bookworm-slim as runtime
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends libgtk-3.0  libgdk-pixbuf-2.0-dev libpango1.0-0 libcairo2-dev libwayland-dev pulseaudio \
+ && apt-get install -y --no-install-recommends libgtk-3.0 libpango1.0-0 pulseaudio \
  && rm -rf /var/cache/debconf/* \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
