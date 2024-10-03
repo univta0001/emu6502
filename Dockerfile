@@ -4,7 +4,7 @@ FROM rust:latest as builder
 # Set the working directory in the container
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y cmake build-essential libatk1.0-dev libgtk-3-dev libpulse-dev
+RUN apt-get update && apt-get install -y cmake build-essential libatk1.0-dev libgtk-3-dev libgdk-pixbuf-2.0-dev libpango1.0-0 libcairo2-dev libwayland-dev libpulse-dev
 
 # Copy only the dependencies
 COPY Cargo.toml Cargo.lock .
@@ -19,10 +19,13 @@ COPY sdl_frontend sdl_frontend/.
 COPY self_test self_test/.
 
 # Copy ROMS
-COPY Apple2.rom apple2c_Rom00.rom Apple2c_RomFF.rom Apple2e.rom Apple2e_Enhanced.rom Apple2_Plus.rom .
+COPY resource resource/.
+
+# install rust nightly
+RUN rustup install nightly
 
 # A dummy build to get the dependencies compiled and cached
-RUN cargo build --release --bin emu6502
+RUN cargo +nightly build --release --bin emu6502
 
 # (Optional) Remove debug symbols
 RUN strip target/release/emu6502
@@ -31,7 +34,7 @@ RUN strip target/release/emu6502
 FROM debian:bookworm-slim as runtime
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends libgtk-3.0 pulseaudio \
+ && apt-get install -y --no-install-recommends libgtk-3.0  libgdk-pixbuf-2.0-dev libpango1.0-0 libcairo2-dev libwayland-dev pulseaudio \
  && rm -rf /var/cache/debconf/* \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
