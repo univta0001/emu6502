@@ -1455,7 +1455,7 @@ impl Video {
 
     pub fn get_pixel(&mut self, x: usize, y: usize) -> Rgb {
         let base = y * 4 * Video::WIDTH + x * 4;
-        [ self.frame[base], self.frame[base + 1], self.frame[base + 2]]
+        [self.frame[base], self.frame[base + 1], self.frame[base + 2]]
     }
 
     pub fn set_pixel(&mut self, x: usize, y: usize, rgb: Rgb) {
@@ -2909,7 +2909,7 @@ impl Video {
         }
     }
 
-    /* Implement only 320 basic super hires mode (640 mode or scan line interrupt) */
+    /* Implemented super hires mode (320, 640, fill-mode, linearized) */
     fn draw_super_hires_a2_row_col(&mut self, row: usize, visible_col: usize) {
         for i in 0..4 {
             let x = visible_col * 4 + i;
@@ -2925,40 +2925,69 @@ impl Video {
             let pal_index_value = self.video_aux[0x9d00 + row] as usize;
             let pal_index = 0x9e00 + (pal_index_value & 0xf) * 32;
             let fill_mode = (pal_index_value & 0x20) != 0;
+            let mode_640 = (pal_index_value & 0x80) != 0;
 
-            let r = (self.video_aux[pal_index + 1 + 2 * ((value >> 4) & 0xf)] & 0xf) * 17;
-            let g =
-                ((self.video_aux[pal_index + 2 * ((value >> 4) & 0xf)] >> 4) & 0xf) * 17;
-            let b = ((self.video_aux[pal_index + 2 * ((value >> 4) & 0xf)]) & 0xf) * 17;
-            let mut color = [r, g, b];
+            if !mode_640 {
+                let r = (self.video_aux[pal_index + 1 + 2 * ((value >> 4) & 0xf)] & 0xf) * 17;
+                let g = ((self.video_aux[pal_index + 2 * ((value >> 4) & 0xf)] >> 4) & 0xf) * 17;
+                let b = ((self.video_aux[pal_index + 2 * ((value >> 4) & 0xf)]) & 0xf) * 17;
+                let mut color = [r, g, b];
 
-            if fill_mode && (value >> 4) & 0xf == 0 {
-                if x > 0 {
-                    color = self.get_pixel((x * 4) * 7 / 8 - 1, 2 * row);
-                } else {
-                    color = COLOR_BLACK;
+                if fill_mode && (value >> 4) & 0xf == 0 {
+                    if x > 0 {
+                        color = self.get_pixel((x * 4) * 7 / 8 - 1, 2 * row);
+                    } else {
+                        color = COLOR_BLACK;
+                    }
                 }
-            }
 
-            self.set_pixel_count((x * 4) * 7 / 8, 2 * row, color, 1);
-            self.set_pixel_count((x * 4 + 1) * 7 / 8, 2 * row, color, 1);
+                self.set_pixel_count((x * 4) * 7 / 8, 2 * row, color, 1);
+                self.set_pixel_count((x * 4 + 1) * 7 / 8, 2 * row, color, 1);
 
-            let r = (self.video_aux[pal_index + 1 + 2 * (value & 0xf)] & 0xf) * 17;
-            let g =
-                ((self.video_aux[pal_index + 2 * (value & 0xf)] >> 4) & 0xf) * 17;
-            let b = ((self.video_aux[pal_index + 2 * (value & 0xf)]) & 0xf) * 17;
-            color = [r, g, b];
+                let r = (self.video_aux[pal_index + 1 + 2 * (value & 0xf)] & 0xf) * 17;
+                let g = ((self.video_aux[pal_index + 2 * (value & 0xf)] >> 4) & 0xf) * 17;
+                let b = ((self.video_aux[pal_index + 2 * (value & 0xf)]) & 0xf) * 17;
+                color = [r, g, b];
 
-            if fill_mode && (value & 0xf) == 0 {
-                if x > 0 {
-                    color = self.get_pixel((x * 4 + 2) * 7 / 8 - 1, 2 * row);
-                } else {
-                    color = COLOR_BLACK;
+                if fill_mode && (value & 0xf) == 0 {
+                    if x > 0 {
+                        color = self.get_pixel((x * 4 + 2) * 7 / 8 - 1, 2 * row);
+                    } else {
+                        color = COLOR_BLACK;
+                    }
                 }
-            }
 
-            self.set_pixel_count((x * 4 + 2) * 7 / 8, 2 * row, color, 1);
-            self.set_pixel_count((x * 4 + 3) * 7 / 8, 2 * row, color, 1);
+                self.set_pixel_count((x * 4 + 2) * 7 / 8, 2 * row, color, 1);
+                self.set_pixel_count((x * 4 + 3) * 7 / 8, 2 * row, color, 1);
+            } else {
+                let r =
+                    (self.video_aux[pal_index + 1 + 2 * ((value >> 6) & (0x3 + 0x8))] & 0xf) * 17;
+                let g = ((self.video_aux[pal_index + 2 * ((value >> 6) & (0x3 + 0x8))] >> 4) & 0xf)
+                    * 17;
+                let b = ((self.video_aux[pal_index + 2 * ((value >> 6) & (0x3 + 0x8))]) & 0xf) * 17;
+                let mut color = [r, g, b];
+                self.set_pixel_count((x * 4) * 7 / 8, 2 * row, color, 1);
+
+                let r =
+                    (self.video_aux[pal_index + 1 + 2 * ((value >> 4) & (0x3 + 0xc))] & 0xf) * 17;
+                let g = ((self.video_aux[pal_index + 2 * ((value >> 4) & (0x3 + 0xc))] >> 4) & 0xf)
+                    * 17;
+                let b = ((self.video_aux[pal_index + 2 * ((value >> 4) & (0x3 + 0xc))]) & 0xf) * 17;
+                color = [r, g, b];
+                self.set_pixel_count((x * 4 + 1) * 7 / 8, 2 * row, color, 1);
+
+                let r = (self.video_aux[pal_index + 1 + 2 * ((value >> 2) & 0x3)] & 0xf) * 17;
+                let g = ((self.video_aux[pal_index + 2 * ((value >> 2) & 0x3)] >> 4) & 0xf) * 17;
+                let b = ((self.video_aux[pal_index + 2 * ((value >> 2) & 0x3)]) & 0xf) * 17;
+                color = [r, g, b];
+                self.set_pixel_count((x * 4 + 2) * 7 / 8, 2 * row, color, 1);
+
+                let r = (self.video_aux[pal_index + 1 + 2 * ((value & 0x3) + 0x4)] & 0xf) * 17;
+                let g = ((self.video_aux[pal_index + 2 * ((value & 0x3) + 0x4)] >> 4) & 0xf) * 17;
+                let b = ((self.video_aux[pal_index + 2 * ((value & 0x3) + 0x4)]) & 0xf) * 17;
+                color = [r, g, b];
+                self.set_pixel_count((x * 4 + 3) * 7 / 8, 2 * row, color, 1);
+            }
         }
     }
 }

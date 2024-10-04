@@ -489,8 +489,8 @@ mod test {
         bus.mem_write(0x65, 0x33);
 
         //data
-        bus.mem_write(0x33, 00);
-        bus.mem_write(0x34, 04);
+        bus.mem_write(0x33, 0x00);
+        bus.mem_write(0x34, 0x04);
 
         //target cell
         bus.mem_write(0x400, 0xAA);
