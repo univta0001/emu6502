@@ -15,6 +15,8 @@ use crate::video::Video;
 #[cfg(not(target_os = "wasi"))]
 use crate::network::Uthernet2;
 
+use crate::vidhd::VidHD;
+
 //use rand::Rng;
 //use std::collections::HashMap;
 
@@ -63,6 +65,7 @@ pub enum IODevice {
     #[cfg(not(target_os = "wasi"))]
     Uthernet2,
     Saturn(u8),
+    VidHD,
 }
 
 #[derive(Copy, Clone, Default, PartialEq)]
@@ -148,6 +151,9 @@ pub struct Bus {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub dongle: Dongle,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    pub vidhd: VidHD,
 }
 
 pub trait Mem {
@@ -244,6 +250,7 @@ impl Bus {
             uthernet2: Uthernet2::new(),
             z80_cirtech: false,
             dongle: Dongle::None,
+            vidhd: VidHD,
         };
 
         // Memory initialization is based on the implementation of AppleWin
@@ -409,11 +416,22 @@ impl Bus {
         self.paddle_trigger = value;
     }
 
+    fn setup_vidhd(&mut self) {
+        for i in 1..8 {
+            if self.io_slot[i] == IODevice::VidHD {
+                self.video.set_vidhd(true);
+                return;
+            }
+        }
+        self.video.set_vidhd(false);
+    }
+
     pub fn register_device(&mut self, device: IODevice, slot: usize) {
         if slot < self.io_slot.len() {
             if device == IODevice::Disk
                 || device == IODevice::Disk13
                 || device == IODevice::HardDisk
+                || device == IODevice::VidHD
             {
                 for i in 1..8 {
                     if i != slot && (self.io_slot[i] == device) {
@@ -423,12 +441,14 @@ impl Bus {
             }
             self.io_slot[slot] = device;
         }
+        self.setup_vidhd();
     }
 
     pub fn unregister_device(&mut self, slot: usize) {
         if slot < self.io_slot.len() {
             self.io_slot[slot] = IODevice::None;
         }
+        self.setup_vidhd();
     }
 
     pub fn clear_device(&mut self, device: IODevice) {
@@ -437,6 +457,7 @@ impl Bus {
                 self.io_slot[i] = IODevice::None
             }
         }
+        self.setup_vidhd();
     }
 
     fn iodevice_io_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
@@ -515,6 +536,7 @@ impl Bus {
                 let return_value: Option<&mut dyn Card> = match slot_value {
                     IODevice::Printer => Some(&mut self.parallel),
                     IODevice::RamFactor => Some(&mut self.ramfactor),
+                    IODevice::VidHD => Some(&mut self.vidhd),
                     IODevice::Mouse => Some(&mut self.mouse),
                     IODevice::Disk => Some(&mut self.disk),
                     IODevice::Disk13 => {
@@ -1346,10 +1368,9 @@ impl Mem for Bus {
             }
         } else {
             self.mem.unclocked_addr_write(addr, data);
-
-            if (0x400..0xc00).contains(&addr) || (0x2000..0x6000).contains(&addr) {
+            let aux_memory = self.mem.is_aux_memory(addr, true);
+            if (0x400..0xc00).contains(&addr) || (0x2000..=0x9fff).contains(&addr) {
                 // Shadow it to the video ram
-                let aux_memory = self.mem.is_aux_memory(addr, true);
                 let aux_bank = self.mem.aux_bank();
                 if aux_bank == 0 {
                     self.video.update_shadow_memory(aux_memory, addr, data);

@@ -839,25 +839,25 @@ FLAGS:
     --h2 PATH          Set the file path for hard disk 2
     --s1 device        Device slot 1
                        Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
-                              diskii,diskii13,saturn
+                              diskii,diskii13,saturn,vidhd
     --s2 device        Device slot 2
                        Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
-                              diskii,diskii13,saturn
+                              diskii,diskii13,saturn,vidhd
     --s3 device        Device slot 3
                        Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
-                              diskii,diskii13,saturn
+                              diskii,diskii13,saturn,vidhd
     --s4 device        Device slot 4
                        Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
-                              diskii,diskii13,saturn
+                              diskii,diskii13,saturn,vidhd
     --s5 device        Device slot 5
                        Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
-                              diskii,diskii13,saturn
+                              diskii,diskii13,saturn,vidhd
     --s6 device        Device slot 6
                        Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
-                              diskii,diskii13,saturn
+                              diskii,diskii13,saturn,vidhd
     --s7 device        Device slot 7
                        Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
-                              diskii,diskii13,saturn
+                              diskii,diskii13,saturn,vidhd
     --weakbit rate     Set the random weakbit error rate (Default is 0.3)
     --opt_timing rate  Override the optimal timing (Default is 32)
     --rgb              Enable RGB mode (Default: RGB mode disabled)
@@ -874,6 +874,7 @@ FLAGS:
                               robocom1000, robocom1500
     --interface name   Set the interface name for Uthernet2
                        Default is None. For e.g. eth0
+    --vidhd            Enable VidHD at slot 3
 
 ARGS:
     [disk 1]           Disk 1 file (woz, dsk, do, po file). Can be in gz format
@@ -1107,6 +1108,7 @@ fn register_device(cpu: &mut CPU, device: &str, slot: usize, mboard: &mut usize,
         "ramfactor" => cpu.bus.register_device(IODevice::RamFactor, slot),
         #[cfg(feature = "z80")]
         "z80" => cpu.bus.register_device(IODevice::Z80, slot),
+        "vidhd" => cpu.bus.register_device(IODevice::VidHD, slot),
         "diskii" => cpu.bus.register_device(IODevice::Disk, slot),
         "diskii13" => cpu.bus.register_device(IODevice::Disk13, slot),
         "saturn" => {
@@ -1703,6 +1705,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     let mut slot_mboard = 0;
     let mut slot_saturn = 0;
+
+    if pargs.contains("--vidhd") {
+        register_device(&mut cpu, "vidhd", 3, &mut slot_mboard, &mut slot_saturn);
+    }
 
     if let Some(device) = pargs.opt_value_from_str::<_, String>("--s1")? {
         register_device(&mut cpu, &device, 1, &mut slot_mboard, &mut slot_saturn);

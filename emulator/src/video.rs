@@ -151,6 +151,15 @@ pub struct Video {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub mac_lc_dlgr: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    pub vidhd: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    pub shr_mode: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    pub shr_linear_mode: bool,
 }
 
 impl Tick for Video {
@@ -748,6 +757,9 @@ impl Video {
             skip_update: false,
             color_burst: false,
             mac_lc_dlgr: false,
+            vidhd: false,
+            shr_mode: false,
+            shr_linear_mode: false,
         }
     }
 
@@ -759,6 +771,8 @@ impl Video {
         self._80storeon = false;
         self.vid80_mode = false;
         self.altchar = false;
+        self.shr_mode = false;
+        self.shr_linear_mode = false;
     }
 
     pub fn update_video(&mut self) {
@@ -831,7 +845,9 @@ impl Video {
 
             self.video_cache[video_index] = video_data;
 
-            if !self.graphics_mode || (self.mixed_mode && row >= 160) {
+            if self.is_shr_mode() {
+                self.draw_super_hires_a2_row_col(row, visible_col);
+            } else if !self.graphics_mode || (self.mixed_mode && row >= 160) {
                 if self.vid80_mode {
                     self.draw_char_a2_y(visible_col, row / 8, video_aux_latch, row % 8, 0);
                 }
@@ -871,6 +887,18 @@ impl Video {
             if row < 192 {
                 let start = row as usize;
                 for i in start..start + 8 {
+                    self.video_reparse[i] = 1;
+                }
+            }
+        } else if self.is_shr_mode() && (0x2000..=0x9fff).contains(&addr) {
+            let row = (addr - 0x2000) as usize / 160;
+
+            if row < 192 {
+                self.video_reparse[row] = 1;
+            }
+
+            if addr >= 0x9d00 {
+                for i in 0..192 {
                     self.video_reparse[i] = 1;
                 }
             }
@@ -970,6 +998,14 @@ impl Video {
             0x29 => {
                 if write_flag {
                     self.mono_mode = _value & 0x20 > 0;
+
+                    if self.vidhd {
+                        self.shr_mode = _value & 0x80 > 0;
+                        self.shr_linear_mode = _value & 0x40 > 0;
+                    } else {
+                        self.shr_mode = false;
+                        self.shr_linear_mode = false;
+                    }
                 } else if self.mono_mode {
                     value |= 0x20;
                 }
@@ -1017,6 +1053,14 @@ impl Video {
     pub fn set_color_burst(&mut self, flag: bool) {
         self.color_burst = flag;
         self.invalidate_video_cache();
+    }
+
+    pub fn get_vidhd(&self) -> bool {
+        self.vidhd
+    }
+
+    pub fn set_vidhd(&mut self, flag: bool) {
+        self.vidhd = flag;
     }
 
     pub fn get_mac_lc_dlgr(&self) -> bool {
@@ -1067,6 +1111,22 @@ impl Video {
             || self.display_mode == DisplayMode::MONO_AMBER
     }
 
+    pub fn is_shr_mode(&self) -> bool {
+        if self.vidhd {
+            self.shr_mode
+        } else {
+            false
+        }
+    }
+
+    pub fn is_shr_linear_mode(&self) -> bool {
+        if self.vidhd {
+            self.shr_linear_mode
+        } else {
+            false
+        }
+    }
+
     fn get_mono_color(&self) -> Rgb {
         if self.display_mode == DisplayMode::MONO_GREEN {
             COLOR_GREEN
@@ -1104,6 +1164,10 @@ impl Video {
         {
             mode |= 0x40;
         }
+        if self.is_shr_mode() {
+            mode |= 0x80;
+        }
+
         mode << 16
     }
 
@@ -2837,6 +2901,38 @@ impl Video {
                 //let color = chroma_ntsc_color(&luma, x + i, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR, true, &self.ntsc_decoder);
                 self.set_pixel_count(x + i, 2 * row, color, 1);
             }
+        }
+    }
+
+    /* Implement only 320 basic super hires mode (no fill mode, 640 mode or scan line interrupt) */
+    fn draw_super_hires_a2_row_col(&mut self, row: usize, visible_col: usize) {
+        for i in 0..4 {
+            let x = visible_col * 4 + i;
+            let mut value = self.video_aux[x + row * 160 + 0x2000] as usize;
+            if !self.is_shr_linear_mode() {
+                if x & 1 != 0 {
+                    value = self.video_aux[x / 2 + row * 80 + 0x6000] as usize;
+                } else {
+                    value = self.video_aux[x / 2 + row * 80] as usize;
+                }
+            }
+
+            let pal_index_value = self.video_aux[0x9d00 + row] as usize;
+            let pal_index = 0x9e00 + (pal_index_value & 0xf) * 32;
+
+            let r = (self.video_aux[pal_index + 1 + 2 * (value & 0xf)] & 0xf) * 17;
+            let g =
+                ((self.video_aux[pal_index + 2 * ((value >> 4) & 0xf)] >> 4) & 0xf) * 17;
+            let b = ((self.video_aux[pal_index + 2 * (value & 0xf)]) & 0xf) * 17;
+            self.set_pixel_count((x * 4) * 7 / 8, 2 * row, [r, g, b], 1);
+            self.set_pixel_count((x * 4 + 1) * 7 / 8, 2 * row, [r, g, b], 1);
+
+            let r = (self.video_aux[pal_index + 1 + 2 * (value & 0xf)] & 0xf) * 17;
+            let g =
+                ((self.video_aux[pal_index + 2 * ((value >> 4) & 0xf)] >> 4) & 0xf) * 17;
+            let b = ((self.video_aux[pal_index + 2 * (value & 0xf)]) & 0xf) * 17;
+            self.set_pixel_count((x * 4 + 2) * 7 / 8, 2 * row, [r, g, b], 1);
+            self.set_pixel_count((x * 4 + 3) * 7 / 8, 2 * row, [r, g, b], 1);
         }
     }
 }
