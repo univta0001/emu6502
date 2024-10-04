@@ -479,6 +479,7 @@ impl Bus {
     }
 
     fn iodevice_rom_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
+        let read_value = self.read_floating_bus();
         if !self.mem.intcxrom {
             if addr >= 0xc800 {
                 // Handle the extended rom separately
@@ -539,12 +540,22 @@ impl Bus {
                 };
 
                 if let Some(device) = return_value {
-                    device.rom_access(&mut self.mem, &mut self.video, addr, value, write_flag)
+                    if write_flag {
+                        device.rom_access(&mut self.mem, &mut self.video, addr, value, write_flag)
+                    } else {
+                        device.rom_access(
+                            &mut self.mem,
+                            &mut self.video,
+                            addr,
+                            read_value,
+                            write_flag,
+                        )
+                    }
                 } else {
-                    self.read_floating_bus()
+                    read_value
                 }
             } else {
-                self.read_floating_bus()
+                read_value
             }
         } else {
             if self.is_apple2c && write_flag && (0xc400..=0xc40f).contains(&addr) {
