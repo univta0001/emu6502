@@ -716,9 +716,9 @@ impl Video {
             display_mode: DisplayMode::DEFAULT,
             video_main: vec![0u8; 0x10000],
             video_aux: vec![0u8; 0x10000],
-            video_cache: vec![0x00; 40 * 192],
-            video_reparse: vec![0x00; 192],
-            video_dirty: vec![0x00; 24],
+            video_cache: vec![0x00; 40 * 200],
+            video_reparse: vec![0x00; 200],
+            video_dirty: vec![0x00; 25],
             lut_text,
             lut_text_2e,
             lut_hires,
@@ -809,8 +809,9 @@ impl Video {
         let video_value = self.read_video_data(val, row);
         self.video_latch = self.prev_video_data;
         self.prev_video_data = video_value;
+        let is_shr = self.is_shr_mode();
 
-        if row >= 192 || col < CYCLES_PER_HBL {
+        if (!is_shr && row >= 192) || (is_shr && row >= 200) || col < CYCLES_PER_HBL {
             return;
         }
 
@@ -845,7 +846,7 @@ impl Video {
 
             self.video_cache[video_index] = video_data;
 
-            if self.is_shr_mode() {
+            if is_shr {
                 self.draw_super_hires_a2_row_col(row, visible_col);
             } else if !self.graphics_mode || (self.mixed_mode && row >= 160) {
                 if self.vid80_mode {
@@ -892,13 +893,9 @@ impl Video {
             }
         } else if self.is_shr_mode() && (0x2000..=0x9fff).contains(&addr) {
             let row = (addr - 0x2000) as usize / 160;
-
-            if row < 192 {
-                self.video_reparse[row] = 1;
-            }
-
-            if addr >= 0x9d00 {
-                for i in 0..192 {
+            if row < 200 {
+                let start = row * 7 / 8;
+                for i in start..=row {
                     self.video_reparse[i] = 1;
                 }
             }
@@ -948,7 +945,7 @@ impl Video {
                 if self.apple2e {
                     let val = self.cycles;
                     let row = val / CYCLES_PER_ROW;
-                    if row < 192 {
+                    if (!self.is_shr_mode() && row < 192) || (self.is_shr_mode() && row < 200) {
                         return 0x80;
                     } else {
                         return 0;
@@ -1396,7 +1393,7 @@ impl Video {
     pub fn is_vbl(&self) -> bool {
         let val = self.cycles;
         let row = val / CYCLES_PER_ROW;
-        row >= 192
+        (!self.is_shr_mode() && row >= 192) || (self.is_shr_mode() && row >= 200)
     }
 
     pub fn enable_video_80col(&mut self, state: bool) {
@@ -1453,7 +1450,7 @@ impl Video {
         self.chroma_dhgr = new_chroma_dhgr;
     }
 
-    pub fn get_pixel(&mut self, x: usize, y: usize) -> Rgb {
+    pub fn get_pixel(&self, x: usize, y: usize) -> Rgb {
         let base = y * 4 * Video::WIDTH + x * 4;
         [self.frame[base], self.frame[base + 1], self.frame[base + 2]]
     }
@@ -2913,82 +2910,77 @@ impl Video {
     fn draw_super_hires_a2_row_col(&mut self, row: usize, visible_col: usize) {
         for i in 0..4 {
             let x = visible_col * 4 + i;
-            let mut value = self.video_aux[x + row * 160 + 0x2000] as usize;
-            if !self.is_shr_linear_mode() {
-                if x & 1 != 0 {
-                    value = self.video_aux[x / 2 + row * 80 + 0x6000] as usize;
-                } else {
-                    value = self.video_aux[x / 2 + row * 80] as usize;
-                }
-            }
-
+            let value = self.get_super_hires_value(row, x);
             let pal_index_value = self.video_aux[0x9d00 + row] as usize;
             let pal_index = 0x9e00 + (pal_index_value & 0xf) * 32;
             let fill_mode = (pal_index_value & 0x20) != 0;
             let mode_640 = (pal_index_value & 0x80) != 0;
 
             if !mode_640 {
-                let r = (self.video_aux[pal_index + 1 + 2 * ((value >> 4) & 0xf)] & 0xf) * 17;
-                let g = ((self.video_aux[pal_index + 2 * ((value >> 4) & 0xf)] >> 4) & 0xf) * 17;
-                let b = ((self.video_aux[pal_index + 2 * ((value >> 4) & 0xf)]) & 0xf) * 17;
-                let mut color = [r, g, b];
-
-                if fill_mode && (value >> 4) & 0xf == 0 {
-                    if x > 0 {
-                        color = self.get_pixel((x * 4) * 7 / 8 - 1, 2 * row);
-                    } else {
-                        color = COLOR_BLACK;
-                    }
+                for i in 0..2 {
+                    let index = x * 4 + 2 * i;
+                    let color = self.get_super_hires_color(
+                        pal_index,
+                        (value >> (4*(1 - i))) & 0xf,
+                        fill_mode,
+                        index * 7 / 8,
+                        row,
+                    );
+                    self.set_pixel_count(index * 7 / 8, row * 192 / 100, color, 1);
+                    self.set_pixel_count((index + 1) * 7 / 8, row * 192 / 100, color, 1);
                 }
-
-                self.set_pixel_count((x * 4) * 7 / 8, 2 * row, color, 1);
-                self.set_pixel_count((x * 4 + 1) * 7 / 8, 2 * row, color, 1);
-
-                let r = (self.video_aux[pal_index + 1 + 2 * (value & 0xf)] & 0xf) * 17;
-                let g = ((self.video_aux[pal_index + 2 * (value & 0xf)] >> 4) & 0xf) * 17;
-                let b = ((self.video_aux[pal_index + 2 * (value & 0xf)]) & 0xf) * 17;
-                color = [r, g, b];
-
-                if fill_mode && (value & 0xf) == 0 {
-                    if x > 0 {
-                        color = self.get_pixel((x * 4 + 2) * 7 / 8 - 1, 2 * row);
-                    } else {
-                        color = COLOR_BLACK;
-                    }
-                }
-
-                self.set_pixel_count((x * 4 + 2) * 7 / 8, 2 * row, color, 1);
-                self.set_pixel_count((x * 4 + 3) * 7 / 8, 2 * row, color, 1);
             } else {
-                let r =
-                    (self.video_aux[pal_index + 1 + 2 * ((value >> 6) & (0x3 + 0x8))] & 0xf) * 17;
-                let g = ((self.video_aux[pal_index + 2 * ((value >> 6) & (0x3 + 0x8))] >> 4) & 0xf)
-                    * 17;
-                let b = ((self.video_aux[pal_index + 2 * ((value >> 6) & (0x3 + 0x8))]) & 0xf) * 17;
-                let mut color = [r, g, b];
-                self.set_pixel_count((x * 4) * 7 / 8, 2 * row, color, 1);
-
-                let r =
-                    (self.video_aux[pal_index + 1 + 2 * ((value >> 4) & (0x3 + 0xc))] & 0xf) * 17;
-                let g = ((self.video_aux[pal_index + 2 * ((value >> 4) & (0x3 + 0xc))] >> 4) & 0xf)
-                    * 17;
-                let b = ((self.video_aux[pal_index + 2 * ((value >> 4) & (0x3 + 0xc))]) & 0xf) * 17;
-                color = [r, g, b];
-                self.set_pixel_count((x * 4 + 1) * 7 / 8, 2 * row, color, 1);
-
-                let r = (self.video_aux[pal_index + 1 + 2 * ((value >> 2) & 0x3)] & 0xf) * 17;
-                let g = ((self.video_aux[pal_index + 2 * ((value >> 2) & 0x3)] >> 4) & 0xf) * 17;
-                let b = ((self.video_aux[pal_index + 2 * ((value >> 2) & 0x3)]) & 0xf) * 17;
-                color = [r, g, b];
-                self.set_pixel_count((x * 4 + 2) * 7 / 8, 2 * row, color, 1);
-
-                let r = (self.video_aux[pal_index + 1 + 2 * ((value & 0x3) + 0x4)] & 0xf) * 17;
-                let g = ((self.video_aux[pal_index + 2 * ((value & 0x3) + 0x4)] >> 4) & 0xf) * 17;
-                let b = ((self.video_aux[pal_index + 2 * ((value & 0x3) + 0x4)]) & 0xf) * 17;
-                color = [r, g, b];
-                self.set_pixel_count((x * 4 + 3) * 7 / 8, 2 * row, color, 1);
+                let offset = [0x8, 0xc, 0x0, 0x4];
+                for (i, offset_value) in offset.iter().enumerate() {
+                    let index = x * 4 + i;
+                    let color = self.get_super_hires_color(
+                        pal_index,
+                        ((value >> (6 - 2 * i)) & 0x3) + offset_value,
+                        fill_mode,
+                        index * 7 / 8,
+                        row,
+                    );
+                    self.set_pixel_count(index * 7 / 8, row * 192 / 100, color, 1);
+                }
             }
         }
+    }
+
+    fn get_super_hires_value(&self, row: usize, x: usize) -> usize {
+        if self.is_shr_linear_mode() {
+            self.video_aux[x + row * 160 + 0x2000] as usize
+        } else if x & 1 != 0 {
+            self.video_aux[x / 2 + row * 80 + 0x6000] as usize
+        } else {
+            self.video_aux[x / 2 + row * 80 + 0x2000] as usize
+        }
+    }
+
+    fn get_super_hires_color(
+        &self,
+        pal_index: usize,
+        idx: usize,
+        fill_mode: bool,
+        x: usize,
+        row: usize,
+    ) -> [u8; 3] {
+        let offset = pal_index + 2 * idx;
+        let r = (self.video_aux[offset + 1] & 0xf) * 17;
+        let g = ((self.video_aux[offset] >> 4) & 0xf) * 17;
+        let b = (self.video_aux[offset] & 0xf) * 17;
+
+        let mut color = [r, g, b];
+
+        // Handle fill mode for color index 0
+        if fill_mode && idx == 0 {
+            color = if x > 0 {
+                self.get_pixel(x - 1, row * 192 / 100)
+            } else {
+                COLOR_BLACK
+            };
+        }
+
+        color
     }
 }
 
@@ -3097,17 +3089,17 @@ fn default_lut_hires_pal() -> Vec<usize> {
 
 #[cfg(feature = "serde_support")]
 fn default_video_cache() -> Vec<u32> {
-    vec![0x00; 40 * 192]
+    vec![0x00; 40 * 200]
 }
 
 #[cfg(feature = "serde_support")]
 fn default_video_reparse() -> Vec<u8> {
-    vec![0x00; 192]
+    vec![0x00; 200]
 }
 
 #[cfg(feature = "serde_support")]
 fn default_video_dirty() -> Vec<u8> {
-    vec![0x00; 24]
+    vec![0x00; 25]
 }
 
 #[cfg(feature = "serde_support")]
