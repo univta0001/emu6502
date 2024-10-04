@@ -1003,6 +1003,10 @@ impl Video {
                         self.shr_mode = false;
                         self.shr_linear_mode = false;
                     }
+                    for item in &mut self.video_reparse {
+                        *item = 1
+                    }
+                    self.update_video();
                 } else if self.mono_mode {
                     value |= 0x20;
                 }
