@@ -416,11 +416,7 @@ impl Bus {
                 || device == IODevice::HardDisk
             {
                 for i in 1..8 {
-                    if i != slot
-                        && (self.io_slot[i] == IODevice::Disk
-                            || self.io_slot[i] == IODevice::Disk13
-                            || self.io_slot[i] == IODevice::HardDisk)
-                    {
+                    if i != slot && (self.io_slot[i] == device) {
                         self.io_slot[i] = IODevice::None
                     }
                 }

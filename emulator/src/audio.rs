@@ -154,8 +154,8 @@ impl AudioFilter {
 
     */
 
-    fn filter_parameter_ntsc() -> [f32;2] {
-        let (c1,c2) = AudioFilter::filter_parameter(
+    fn filter_parameter_ntsc() -> [f32; 2] {
+        let (c1, c2) = AudioFilter::filter_parameter(
             CPU_6502_MHZ as f32,
             FAST_RESONANCE_FREQ as f32,
             FAST_DAMPING_RATE as f32,
@@ -163,8 +163,8 @@ impl AudioFilter {
         [c1, c2]
     }
 
-    fn filter_parameter_pal() -> [f32;2] {
-        let (c1,c2) = AudioFilter::filter_parameter(
+    fn filter_parameter_pal() -> [f32; 2] {
+        let (c1, c2) = AudioFilter::filter_parameter(
             CPU_6502_PAL_MHZ as f32,
             FAST_RESONANCE_FREQ as f32,
             FAST_DAMPING_RATE as f32,
@@ -531,7 +531,7 @@ impl Audio {
     fn slope(&self, prev: u8, curr: u8) -> isize {
         let diff = curr as isize - prev as isize;
         if diff.abs() < 9 {
-            return 0
+            return 0;
         }
         diff.signum()
     }
