@@ -2953,10 +2953,8 @@ impl Video {
     fn get_super_hires_value(&self, row: usize, x: usize) -> usize {
         if self.is_shr_linear_mode() {
             self.video_aux[x + row * 160 + 0x2000] as usize
-        } else if x & 1 != 0 {
-            self.video_aux[x / 2 + row * 80 + 0x6000] as usize
         } else {
-            self.video_aux[x / 2 + row * 80 + 0x2000] as usize
+            self.video_aux[x / 2 + row * 80 + 0x4000 * (x & 1) + 0x2000] as usize
         }
     }
 
