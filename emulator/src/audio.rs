@@ -512,11 +512,7 @@ impl Audio {
         self.tape.data.clear();
         self.tape_reset();
 
-        let mut processed_data = Vec::with_capacity(data[44..].len() / stereo_size);
-        for &item in data[44..].iter().step_by(stereo_size) {
-            processed_data.push(item);
-        }
-
+        let processed_data: Vec<_> = data[44..].iter().step_by(stereo_size).copied().collect();
         let resampling_ratio = AUDIO_SAMPLE_RATE / samples_per_second as f32;
         let output_len = (processed_data.len() as f32 * resampling_ratio) as usize;
         let mut prev = processed_data[0];
