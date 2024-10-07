@@ -1,6 +1,7 @@
 use crate::bus::Tick;
 use crate::mockingboard::Mockingboard;
 use std::io::Write;
+use std::cmp::Ordering;
 use std::path::{Path, PathBuf};
 
 #[cfg(feature = "serde_support")]
@@ -512,7 +513,9 @@ impl Audio {
         self.tape.data.clear();
         self.tape_reset();
 
-        let processed_data: Vec<_> = data[44..].iter().step_by(stereo_size).copied().collect();
+        let mut processed_data: Vec<_> = data[44..].iter().step_by(stereo_size).copied().collect();
+        self.convert_to_square_wave(&mut processed_data);
+
         let resampling_ratio = AUDIO_SAMPLE_RATE / samples_per_second as f32;
         let output_len = (processed_data.len() as f32 * resampling_ratio) as usize;
         let mut prev = processed_data[0];
@@ -538,11 +541,39 @@ impl Audio {
         Ok(())
     }
 
+    fn convert_to_square_wave(&self, data: &mut [u8]) {
+        let mut prev = 128;
+        let tolerance = 8;
+        for item in data {
+            if *item > 128 + tolerance {
+                *item = 224;
+            } else if *item < 128 - tolerance {
+                *item = 32;
+            } else {
+                *item = prev;
+
+                if prev >= 128 - tolerance || prev <= 128 + tolerance {
+                    prev = 128;
+                }
+
+                let mut val = *item as isize - prev as isize;
+                if val.abs() < tolerance.into() {
+                    val = 0;
+                }
+
+                let slope = val.signum();
+                match slope.cmp(&0) {
+                    Ordering::Greater => *item = 224,
+                    Ordering::Less => *item = 32,
+                    _ => {}
+                };
+            }
+            prev = *item
+        }
+    }
+
     fn slope(&self, prev: u8, curr: u8) -> isize {
         let diff = curr as isize - prev as isize;
-        if diff.abs() < 9 {
-            return 0;
-        }
         diff.signum()
     }
 
