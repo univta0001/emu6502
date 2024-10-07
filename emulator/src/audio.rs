@@ -460,19 +460,28 @@ impl Audio {
             ));
         }
 
-        if data[16..20] != [0x10, 0, 0, 0] || data[20..24] != [0x01, 0, 0x1, 0] {
+        if data[16..20] != [0x10, 0, 0, 0] {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
-                "Invalid WAV file - Only PCM and mono supported",
+                "Invalid WAV file - Only PCM supported",
             ));
         }
+
+        if data[20..24] != [0x01, 0, 0x2, 0] && data[20..24] != [0x01, 0, 0x1, 0] {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid WAV file - Only mono or stereo supported",
+            ));
+        }
+
+        let stereo_size = data[22] as usize;
 
         buffer.copy_from_slice(&data[24..28]);
         let samples_per_second = u32::from_le_bytes(buffer);
         buffer.copy_from_slice(&data[28..32]);
         let bytes_rate = u32::from_le_bytes(buffer);
 
-        if bytes_rate != samples_per_second {
+        if bytes_rate != samples_per_second * stereo_size as u32 {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
                 "Invalid WAV file - Sample rate should match bytes rate",
@@ -503,15 +512,20 @@ impl Audio {
         self.tape.data.clear();
         self.tape_reset();
 
+        let mut processed_data = Vec::with_capacity(data[44..].len() / stereo_size);
+        for &item in data[44..].iter().step_by(stereo_size) {
+            processed_data.push(item);
+        }
+
         let resampling_ratio = AUDIO_SAMPLE_RATE / samples_per_second as f32;
-        let output_len = (data[44..].len() as f32 * resampling_ratio) as usize;
-        let mut prev = data[44];
+        let output_len = (processed_data.len() as f32 * resampling_ratio) as usize;
+        let mut prev = processed_data[0];
         let mut slope_was = (prev <= 128) as isize;
         let mut polarity = slope_was > 0;
 
         for i in 0..output_len {
             let index = (i as f32 / resampling_ratio) as usize;
-            let item = data[44 + index];
+            let item = processed_data[index];
             let slope_is = self.slope(prev, item);
             if slope_is != 0 && slope_is != slope_was {
                 polarity = !polarity;
