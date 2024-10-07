@@ -22,6 +22,9 @@ const CPU_6502_PAL_MHZ: usize = (PAL_14M * 65) / 912;
 const MAX_AMPLITUDE: Channel = Channel::MAX;
 const FAST_DAMPING_RATE: isize = -1900;
 const FAST_RESONANCE_FREQ: usize = 3875;
+const TAPE_TOLERANCE: u8 = 8;
+const TAPE_HIGH_LEVEL: u8 = 224;
+const TAPE_LOW_LEVEL: u8 = 32;
 
 const AY_LEVEL: [u16; 16] = [
     0x0000, 0x0385, 0x053d, 0x0770, 0x0ad7, 0x0fd5, 0x15b0, 0x230c, 0x2b4c, 0x43c1, 0x5a4c, 0x732f,
@@ -531,9 +534,9 @@ impl Audio {
                 slope_was = slope_is;
             }
             if polarity {
-                self.tape.data.push(255);
+                self.tape.data.push(TAPE_HIGH_LEVEL);
             } else {
-                self.tape.data.push(0);
+                self.tape.data.push(TAPE_LOW_LEVEL);
             }
             prev = item;
         }
@@ -543,28 +546,27 @@ impl Audio {
 
     fn convert_to_square_wave(&self, data: &mut [u8]) {
         let mut prev = 128;
-        let tolerance = 8;
         for item in data {
-            if *item > 128 + tolerance {
-                *item = 224;
-            } else if *item < 128 - tolerance {
-                *item = 32;
+            if *item > 128 + TAPE_TOLERANCE {
+                *item = TAPE_HIGH_LEVEL;
+            } else if *item < 128 - TAPE_TOLERANCE {
+                *item = TAPE_LOW_LEVEL;
             } else {
                 *item = prev;
 
-                if prev >= 128 - tolerance || prev <= 128 + tolerance {
+                if prev >= 128 - TAPE_TOLERANCE || prev <= 128 + TAPE_TOLERANCE {
                     prev = 128;
                 }
 
                 let mut val = *item as isize - prev as isize;
-                if val.abs() < tolerance.into() {
+                if val.abs() < TAPE_TOLERANCE.into() {
                     val = 0;
                 }
 
                 let slope = val.signum();
                 match slope.cmp(&0) {
-                    Ordering::Greater => *item = 224,
-                    Ordering::Less => *item = 32,
+                    Ordering::Greater => *item = TAPE_HIGH_LEVEL,
+                    Ordering::Less => *item = TAPE_LOW_LEVEL,
                     _ => {}
                 };
             }
