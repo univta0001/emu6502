@@ -554,7 +554,7 @@ impl Audio {
             } else {
                 *item = prev;
 
-                if prev >= 128 - TAPE_TOLERANCE || prev <= 128 + TAPE_TOLERANCE {
+                if prev >= 128 - TAPE_TOLERANCE && prev <= 128 + TAPE_TOLERANCE {
                     prev = 128;
                 }
 
