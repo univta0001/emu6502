@@ -1327,7 +1327,7 @@ fn update_audio(cpu: &mut CPU, audio_device: &Option<AudioQueue<i16>>, normal_sp
         };
 
         // Only buffer for 1 second of audio
-        if audio.size() < audio_sample_size * 2 * 60 {
+        if audio.size() < audio_sample_size * 2 * 8 {
             let _ = audio.queue_audio(buffer);
         }
     }
@@ -1918,7 +1918,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
                 // Update video, audio and events at multiple of 60Hz or 50Hz
                 if normal_cpu_speed || video_time.elapsed().as_micros() >= cpu_period as u128 {
-                    update_audio(_cpu, &audio_device, normal_cpu_speed);
                     update_video(
                         _cpu,
                         &mut save_screenshot,
@@ -1996,8 +1995,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     _cpu.bus.video.skip_update = true;
                 }
 
-                _cpu.bus.audio.clear_buffer();
-
                 let video_cpu_update = t.elapsed().as_micros();
 
                 if normal_cpu_speed {
@@ -2010,6 +2007,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     }
                 }
 
+                update_audio(_cpu, &audio_device, normal_cpu_speed);
+                _cpu.bus.audio.clear_buffer();
                 let elapsed = t.elapsed().as_micros();
                 estimated_mhz = (dcyc as f32) / elapsed as f32;
                 dcyc -= cpu_cycles;
