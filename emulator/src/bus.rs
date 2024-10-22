@@ -69,8 +69,7 @@ pub enum IODevice {
 }
 
 #[derive(Copy, Clone, Default, PartialEq)]
-#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde_support", derive(educe::Educe), educe(Debug))]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize,educe::Educe), educe(Debug))]
 pub enum Dongle {
     #[default]
     None,
@@ -80,8 +79,7 @@ pub enum Dongle {
     Robocom(u16),
 }
 
-#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde_support", derive(educe::Educe), educe(Debug))]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize, educe::Educe), educe(Debug))]
 pub struct Bus {
     pub disk: DiskDrive,
     pub video: Video,

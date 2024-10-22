@@ -395,8 +395,7 @@ fn deserialize_cpu_speed<'de, D: Deserializer<'de>>(deserializer: D) -> Result<C
     Ok(value)
 }
 
-#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde_support", derive(educe::Educe), educe(Debug))]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize, educe::Educe), educe(Debug))]
 pub struct CPU {
     pub register_a: u8,
     pub register_x: u8,
