@@ -99,11 +99,8 @@ Memory map SmartPort device (IO addr + s*$10):
 
 */
 
-#[cfg_attr(
-    feature = "serde_support",
-    derive(Serialize, Deserialize, educe::Educe),
-    educe(Debug)
-)]
+#[cfg_attr(feature = "serde_support",derive(Serialize, Deserialize, educe::Educe))]
+#[cfg_attr(feature = "serde_support",educe(Debug))]
 #[cfg_attr(not(feature = "serde_support"), derive(Debug))]
 struct Disk {
     #[cfg_attr(feature = "serde_support", serde(skip))]

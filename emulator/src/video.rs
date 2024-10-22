@@ -2925,7 +2925,7 @@ impl Video {
                     let index = x * 4 + 2 * i;
                     let color = self.get_super_hires_color(
                         pal_index,
-                        (value >> (4*(1 - i))) & 0xf,
+                        (value >> (4 * (1 - i))) & 0xf,
                         fill_mode,
                         index * 7 / 8,
                         row,
