@@ -1,7 +1,7 @@
 use crate::bus::Tick;
 use crate::mockingboard::Mockingboard;
-use std::io::Write;
 use std::cmp::Ordering;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 #[cfg(feature = "serde_support")]

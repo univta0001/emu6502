@@ -69,8 +69,11 @@ pub enum IODevice {
 }
 
 #[derive(Copy, Clone, Default, PartialEq)]
-#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize,educe::Educe))]
-#[cfg_attr(feature = "serde_support",educe(Debug))]
+#[cfg_attr(
+    feature = "serde_support",
+    derive(Serialize, Deserialize, educe::Educe)
+)]
+#[cfg_attr(feature = "serde_support", educe(Debug))]
 pub enum Dongle {
     #[default]
     None,
@@ -80,7 +83,10 @@ pub enum Dongle {
     Robocom(u16),
 }
 
-#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize, educe::Educe))]
+#[cfg_attr(
+    feature = "serde_support",
+    derive(Serialize, Deserialize, educe::Educe)
+)]
 #[cfg_attr(feature = "serde_support", educe(Debug))]
 pub struct Bus {
     pub disk: DiskDrive,
@@ -462,6 +468,7 @@ impl Bus {
 
     fn iodevice_io_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
         let slot = (((addr & 0x00ff) - 0x0080) >> 4) as usize;
+        let floating_value =  self.read_floating_bus();
         if slot < self.io_slot.len() {
             let slot_value = self.io_slot[slot];
             //eprintln!("IOAccess - {:04x} {} {}",addr,slot,io_addr);
@@ -490,7 +497,17 @@ impl Bus {
             };
 
             if let Some(device) = return_value {
-                device.io_access(&mut self.mem, &mut self.video, addr, value, write_flag)
+                if write_flag {
+                    device.io_access(&mut self.mem, &mut self.video, addr, value, write_flag)
+                } else {
+                    device.io_access(
+                        &mut self.mem,
+                        &mut self.video,
+                        addr,
+                        floating_value,
+                        write_flag,
+                    )
+                }
             } else {
                 self.read_floating_bus() & 0x7f
             }

@@ -99,8 +99,11 @@ Memory map SmartPort device (IO addr + s*$10):
 
 */
 
-#[cfg_attr(feature = "serde_support",derive(Serialize, Deserialize, educe::Educe))]
-#[cfg_attr(feature = "serde_support",educe(Debug))]
+#[cfg_attr(
+    feature = "serde_support",
+    derive(Serialize, Deserialize, educe::Educe)
+)]
+#[cfg_attr(feature = "serde_support", educe(Debug))]
 #[cfg_attr(not(feature = "serde_support"), derive(Debug))]
 struct Disk {
     #[cfg_attr(feature = "serde_support", serde(skip))]
@@ -887,7 +890,8 @@ impl Card for HardDisk {
             // High Disk Len block
             0xa => self.high_disk_block_size(),
 
-            _ => DeviceStatus::DeviceIoError as u8,
+            // Return floating bus value
+            _ => value
         }
     }
 }
