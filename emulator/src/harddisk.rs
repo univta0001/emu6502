@@ -23,11 +23,11 @@ const ROM: [u8; 256] = [
     0x78, 0x04, 0xa0, 0x00, 0xb9, 0x42, 0x00, 0x9d, 0x89, 0xc0, 0xc8, 0xc0, 0x06, 0x90, 0xf5, 0xbd,
     0x80, 0xc0, 0x30, 0xfb, 0x28, 0xb0, 0x06, 0x4a, 0xb0, 0xad, 0x4c, 0x01, 0x08, 0x4a, 0xa4, 0x42,
     0xd0, 0x09, 0x48, 0xbc, 0x8a, 0xc0, 0xbd, 0x89, 0xc0, 0xaa, 0x68, 0x60, 0xb1, 0x3c, 0xc9, 0x03,
-    0xb0, 0x2d, 0xae, 0x78, 0x04, 0x9d, 0x8a, 0xc0, 0xc8, 0xb1, 0x3c, 0x48, 0xc8, 0xb1, 0x3c, 0x85,
-    0x3d, 0x68, 0x85, 0x3c, 0xa0, 0x00, 0xb1, 0x3c, 0xc9, 0x03, 0x38, 0xd0, 0x15, 0xc8, 0xb1, 0x3c,
-    0x9d, 0x8a, 0xc0, 0xc0, 0x06, 0x90, 0xf6, 0xbd, 0x80, 0xc0, 0x30, 0xfb, 0x4a, 0xaa, 0x2c, 0xa2,
-    0x01, 0x2c, 0xa2, 0x04, 0x68, 0x85, 0x3d, 0x68, 0x85, 0x3c, 0x8a, 0xa2, 0x00, 0xa0, 0x02, 0x60,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf7, 0x0a,
+    0xf0, 0x02, 0xb0, 0x34, 0xae, 0x78, 0x04, 0x9d, 0x8a, 0xc0, 0xc8, 0xb1, 0x3c, 0x48, 0xc8, 0xb1,
+    0x3c, 0x85, 0x3d, 0x68, 0x85, 0x3c, 0xa0, 0x00, 0xb1, 0x3c, 0xb0, 0x06, 0xc9, 0x03, 0xf0, 0x06,
+    0xd0, 0x19, 0xc9, 0x01, 0xd0, 0x15, 0xc8, 0xb1, 0x3c, 0x9d, 0x8a, 0xc0, 0xc0, 0x06, 0x90, 0xf6,
+    0xbd, 0x80, 0xc0, 0x30, 0xfb, 0x4a, 0xaa, 0x2c, 0xa2, 0x01, 0x2c, 0xa2, 0x04, 0x68, 0x85, 0x3d,
+    0x68, 0x85, 0x3c, 0x8a, 0xa2, 0x00, 0xa0, 0x02, 0x60, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x0a,
 ];
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -45,6 +45,7 @@ const BLK_CMD_FORMAT: u8 = 0x03;
 const SMARTPORT_CMD_STATUS: u8 = 0x80;
 const SMARTPORT_CMD_READBLOCK: u8 = 0x81;
 const SMARTPORT_CMD_WRITEBLOCK: u8 = 0x82;
+const SMARTPORT_CMD_FORMATBLOCK: u8 = 0x83;
 const SMARTPORT_CMD_BUSY_STATUS: u8 = 0xbf;
 
 const SMARTPORT_STATUS: u8 = 0x00;
@@ -587,6 +588,40 @@ impl HardDisk {
         disk.raw_data[start..end].copy_from_slice(&buf);
     }
 
+    fn block_cmd_format(&mut self) {
+        let disk = &mut self.drive[self.drive_select];
+        if disk.data_len == 0 {
+            disk.error = DeviceStatus::DeviceOffline as u8;
+            return;
+        }
+
+        if disk.write_protect {
+            disk.error = DeviceStatus::DeviceWriteProtected as u8;
+            return;
+        }
+
+        for i in 0..disk.raw_data.len() {
+            disk.raw_data[i] = 0;
+        }
+
+        if self.enable_save {
+            if let Some(filename) = &disk.filename {
+                if let Ok(mut f) = OpenOptions::new().write(true).open(filename) {
+                    let result = f.write_all(&disk.raw_data);
+                    if result.is_err() {
+                        disk.error = DeviceStatus::DeviceIoError as u8;
+                        return;
+                    }
+                } else {
+                    eprintln!("Unable to open {}", filename);
+                    disk.error = DeviceStatus::DeviceIoError as u8;
+                    return;
+                }
+            }
+        }
+        disk.error = DeviceStatus::DeviceOk as u8;
+    }
+
     fn block_cmd_execute(&mut self, mmu: &mut Mmu, video: &mut Video) -> u8 {
         let disk = &mut self.drive[self.drive_select];
 
@@ -622,42 +657,7 @@ impl HardDisk {
             BLK_CMD_WRITE | SMARTPORT_CMD_WRITEBLOCK => self.block_cmd_write(mmu, video),
 
             // Format
-            BLK_CMD_FORMAT => {
-                /*
-                if disk.data_len == 0 {
-                    disk.error = DeviceStatus::DeviceOffline as u8;
-                    return self.block_cmd_status();
-                }
-
-                if disk.write_protect {
-                    disk.error = DeviceStatus::DeviceWriteProtected as u8;
-                    return self.block_cmd_status();
-                }
-
-                for i in 0..disk.raw_data.len() {
-                    disk.raw_data[i] = 0;
-                }
-
-                if self.enable_save {
-                    if let Some(filename) = &disk.filename {
-                        if let Ok(mut f) = OpenOptions::new().write(true).open(filename) {
-                            let result = f.write_all(&disk.raw_data);
-                            if result.is_err() {
-                                disk.error = DeviceStatus::DeviceIoError as u8;
-                                return self.block_cmd_status();
-                            }
-                        } else {
-                            eprintln!("Unable to open {}", filename);
-                            disk.error = DeviceStatus::DeviceIoError as u8;
-                            return self.block_cmd_status();
-                        }
-                    }
-                }
-                disk.error = DeviceStatus::DeviceOk as u8;
-                */
-                // Format not supported
-                disk.error = DeviceStatus::DeviceIoError as u8;
-            }
+            BLK_CMD_FORMAT | SMARTPORT_CMD_FORMATBLOCK => self.block_cmd_format(),
 
             SMARTPORT_CMD_BUSY_STATUS => {}
 
