@@ -265,17 +265,24 @@ impl HardDisk {
             true
         };
         let dsk = std::fs::read(filename)?;
-        self.load_hdv_2mg_array(&dsk, hdv_mode)
+        let metadata = std::fs::metadata(filename)?;
+        let write_protect = metadata.permissions().readonly();
+        self.load_hdv_2mg_array(&dsk, hdv_mode, write_protect)
     }
 
-    pub fn load_hdv_2mg_array(&mut self, dsk: &[u8], hdv_mode: bool) -> io::Result<()> {
+    pub fn load_hdv_2mg_array(
+        &mut self,
+        dsk: &[u8],
+        hdv_mode: bool,
+        write_protect: bool,
+    ) -> io::Result<()> {
         let disk = &mut self.drive[self.drive_select];
         disk.raw_data = vec![0; dsk.len()];
         disk.raw_data[..].copy_from_slice(dsk);
         disk.offset = 0;
         disk.error = 0;
         disk.data_len = dsk.len();
-        disk.write_protect = false;
+        disk.write_protect = write_protect;
 
         if !hdv_mode {
             (disk.offset, disk.data_len) = parse_2mg_array(dsk)?;
@@ -424,7 +431,7 @@ impl HardDisk {
                     let mut general_status = if disk.loaded { 0xf8 } else { 0xe8 };
 
                     if disk.write_protect {
-                        general_status |= 1 << 2 ;
+                        general_status |= 1 << 2;
                     }
 
                     Self::write_data_to_mmu(mmu, video, disk.mem_block, general_status);

@@ -468,7 +468,7 @@ impl Bus {
 
     fn iodevice_io_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
         let slot = (((addr & 0x00ff) - 0x0080) >> 4) as usize;
-        let floating_value =  self.read_floating_bus();
+        let floating_value = self.read_floating_bus();
         if slot < self.io_slot.len() {
             let slot_value = self.io_slot[slot];
             //eprintln!("IOAccess - {:04x} {} {}",addr,slot,io_addr);

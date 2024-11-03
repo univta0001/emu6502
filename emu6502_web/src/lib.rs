@@ -31,7 +31,7 @@ impl Emulator {
             let drv = &mut self.cpu.bus.harddisk;
             let drive_selected = drv.drive_selected();
             drv.drive_select(drive);
-            let result = drv.load_hdv_2mg_array(array, hdv_mode);
+            let result = drv.load_hdv_2mg_array(array, hdv_mode, false);
             if result.is_err() {
                 return false;
             }
@@ -56,35 +56,35 @@ impl Emulator {
                     false
                 };
                 if lname.ends_with(".gz") {
-                    let result = drv.load_dsk_po_gz_array_to_woz(&dsk, po_mode);
+                    let result = drv.load_dsk_po_gz_array_to_woz(&dsk, po_mode, false);
                     if result.is_err() {
                         return false;
                     }
                 } else {
-                    let result = drv.load_dsk_po_array_to_woz(&dsk, po_mode);
+                    let result = drv.load_dsk_po_array_to_woz(&dsk, po_mode, false);
                     if result.is_err() {
                         return false;
                     }
                 }
             } else if lname.ends_with(".nib.gz") || lname.ends_with(".nib") {
                 if name.ends_with(".gz") {
-                    let result = drv.load_nib_gz_array_to_woz(&dsk);
+                    let result = drv.load_nib_gz_array_to_woz(&dsk, false);
                     if result.is_err() {
                         return false;
                     }
                 } else {
-                    let result = drv.load_nib_array_to_woz(&dsk);
+                    let result = drv.load_nib_array_to_woz(&dsk, false);
                     if result.is_err() {
                         return false;
                     }
                 }
             } else if lname.ends_with(".gz") {
-                let result = drv.load_woz_gz_array(&dsk);
+                let result = drv.load_woz_gz_array(&dsk, false);
                 if result.is_err() {
                     return false;
                 }
             } else {
-                let result = drv.load_woz_array(&dsk);
+                let result = drv.load_woz_array(&dsk, false);
                 if result.is_err() {
                     return false;
                 }

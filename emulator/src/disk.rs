@@ -1533,8 +1533,15 @@ impl DiskDrive {
         }
 
         let disk_type = if po_mode { DiskType::Po } else { DiskType::Dsk };
+        let metadata = std::fs::metadata(filename)?;
+        let write_protect = metadata.permissions().readonly();
 
-        self.load_dsk_po_nib_array_to_woz(&dsk, disk_type, Self::convert_dsk_po_track_to_woz)
+        self.load_dsk_po_nib_array_to_woz(
+            &dsk,
+            disk_type,
+            write_protect,
+            Self::convert_dsk_po_track_to_woz,
+        )
     }
 
     fn convert_nib_to_woz<P>(&mut self, filename_path: P) -> io::Result<()>
@@ -1565,36 +1572,75 @@ impl DiskDrive {
             ));
         }
 
-        self.load_dsk_po_nib_array_to_woz(&dsk, DiskType::Nib, Self::convert_nib_track_to_woz)
+        let metadata = std::fs::metadata(filename)?;
+        let write_protect = metadata.permissions().readonly();
+
+        self.load_dsk_po_nib_array_to_woz(
+            &dsk,
+            DiskType::Nib,
+            write_protect,
+            Self::convert_nib_track_to_woz,
+        )
     }
 
     #[cfg(feature = "flate")]
-    pub fn load_nib_gz_array_to_woz(&mut self, dsk: &[u8]) -> io::Result<()> {
+    pub fn load_nib_gz_array_to_woz(&mut self, dsk: &[u8], write_protect: bool) -> io::Result<()> {
         let data = decompress_array_gz(dsk)?;
-        self.load_dsk_po_nib_array_to_woz(&data, DiskType::Nib, Self::convert_nib_track_to_woz)
+        self.load_dsk_po_nib_array_to_woz(
+            &data,
+            DiskType::Nib,
+            write_protect,
+            Self::convert_nib_track_to_woz,
+        )
     }
 
     #[cfg(feature = "flate")]
-    pub fn load_dsk_po_gz_array_to_woz(&mut self, dsk: &[u8], po_mode: bool) -> io::Result<()> {
+    pub fn load_dsk_po_gz_array_to_woz(
+        &mut self,
+        dsk: &[u8],
+        po_mode: bool,
+        write_protect: bool,
+    ) -> io::Result<()> {
         let data = decompress_array_gz(dsk)?;
 
         let disk_type = if po_mode { DiskType::Po } else { DiskType::Dsk };
-        self.load_dsk_po_nib_array_to_woz(&data, disk_type, Self::convert_dsk_po_track_to_woz)
+        self.load_dsk_po_nib_array_to_woz(
+            &data,
+            disk_type,
+            write_protect,
+            Self::convert_dsk_po_track_to_woz,
+        )
     }
 
-    pub fn load_dsk_po_array_to_woz(&mut self, dsk: &[u8], po_mode: bool) -> io::Result<()> {
+    pub fn load_dsk_po_array_to_woz(
+        &mut self,
+        dsk: &[u8],
+        po_mode: bool,
+        write_protect: bool,
+    ) -> io::Result<()> {
         let disk_type = if po_mode { DiskType::Po } else { DiskType::Dsk };
-        self.load_dsk_po_nib_array_to_woz(dsk, disk_type, Self::convert_dsk_po_track_to_woz)
+        self.load_dsk_po_nib_array_to_woz(
+            dsk,
+            disk_type,
+            write_protect,
+            Self::convert_dsk_po_track_to_woz,
+        )
     }
 
-    pub fn load_nib_array_to_woz(&mut self, dsk: &[u8]) -> io::Result<()> {
-        self.load_dsk_po_nib_array_to_woz(dsk, DiskType::Nib, Self::convert_nib_track_to_woz)
+    pub fn load_nib_array_to_woz(&mut self, dsk: &[u8], write_protect: bool) -> io::Result<()> {
+        self.load_dsk_po_nib_array_to_woz(
+            dsk,
+            DiskType::Nib,
+            write_protect,
+            Self::convert_nib_track_to_woz,
+        )
     }
 
     pub fn load_dsk_po_nib_array_to_woz(
         &mut self,
         dsk: &[u8],
         disk_type: DiskType,
+        write_protect: bool,
         convert_image: fn(&mut Disk, &[u8], usize, bool),
     ) -> io::Result<()> {
         let disk = &mut self.drive[self.drive_select];
@@ -1647,7 +1693,7 @@ impl DiskDrive {
 
         disk.optimal_timing = 32;
         disk.po_mode = po_mode;
-        disk.write_protect = false;
+        disk.write_protect = write_protect;
         disk.last_track = 0;
         disk.disk_rom13 = false;
 
@@ -1730,17 +1776,19 @@ impl DiskDrive {
 
         #[cfg(not(feature = "flate"))]
         let dsk: Vec<u8> = std::fs::read(filename)?;
+        let metadata = std::fs::metadata(filename)?;
+        let write_protect = metadata.permissions().readonly();
 
-        self.load_woz_array(&dsk)
+        self.load_woz_array(&dsk, write_protect)
     }
 
     #[cfg(feature = "flate")]
-    pub fn load_woz_gz_array(&mut self, dsk: &[u8]) -> io::Result<()> {
+    pub fn load_woz_gz_array(&mut self, dsk: &[u8], write_protect: bool) -> io::Result<()> {
         let data = decompress_array_gz(dsk)?;
-        self.load_woz_array(&data)
+        self.load_woz_array(&data, write_protect)
     }
 
-    pub fn load_woz_array(&mut self, dsk: &[u8]) -> io::Result<()> {
+    pub fn load_woz_array(&mut self, dsk: &[u8], write_protect: bool) -> io::Result<()> {
         if dsk.len() <= 12 {
             return Err(std::io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -1804,7 +1852,7 @@ impl DiskDrive {
             match chunk_id {
                 // INFO
                 WOZ_INFO_CHUNK => {
-                    self.handle_woz_info(dsk, woz_offset, woz1)?;
+                    self.handle_woz_info(dsk, woz_offset, woz1, write_protect)?;
                     info = true;
                     woz_offset += chunk_size as usize;
                 }
@@ -1861,7 +1909,13 @@ impl DiskDrive {
         Ok(())
     }
 
-    fn handle_woz_info(&mut self, dsk: &[u8], offset: usize, woz1: bool) -> io::Result<()> {
+    fn handle_woz_info(
+        &mut self,
+        dsk: &[u8],
+        offset: usize,
+        woz1: bool,
+        write_protect: bool,
+    ) -> io::Result<()> {
         // Check on the info version
         if dsk[offset] != 1 && dsk[offset] != 2 && dsk[offset] != 3 {
             return Err(std::io::Error::new(
@@ -1880,7 +1934,7 @@ impl DiskDrive {
 
         // Check and set the write_protect status
         let disk = &mut self.drive[self.drive_select];
-        disk.write_protect = false;
+        disk.write_protect = write_protect;
         if dsk[offset + 2] > 0 {
             disk.write_protect = true;
         }
