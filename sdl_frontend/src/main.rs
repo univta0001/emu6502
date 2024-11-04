@@ -213,11 +213,21 @@ fn translate_key_to_apple_key(
     (true, value)
 }
 
-fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
+fn handle_event(
+    cpu: &mut CPU,
+    audio_device: &Option<AudioQueue<i16>>,
+    event: Event,
+    event_param: &mut EventParam,
+) {
     const PADDLE_MAX_VALUE: u16 = 288;
 
     match event {
-        Event::Quit { .. } => cpu.halt_cpu(),
+        Event::Quit { .. } => {
+            if let Some(audio) = audio_device {
+                audio.pause()
+            }
+            cpu.halt_cpu()
+        }
 
         Event::ControllerAxisMotion {
             which, axis, value, ..
@@ -1947,7 +1957,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                             full_screen: &mut full_screen,
                         };
 
-                        handle_event(_cpu, event_value, &mut event_param);
+                        handle_event(_cpu, &audio_device, event_value, &mut event_param);
                     }
 
                     // Update keyboard akd state
