@@ -2175,12 +2175,12 @@ impl DiskDrive {
     /// Read the flux data. The value in the flux data, is the the number of ticks since
     /// the previous flux transition in 125us.
     /// The read pulse is valid for 0.5 microsecond (4 cycles, 1 LSS sequencer clock)
-    fn read_flux_data(disk: &mut Disk) -> usize {
+    fn read_flux_data(disk: &mut Disk) -> bool {
         let tmap_track = disk.tmap_data[disk.track as usize];
         if tmap_track != 255 && disk.trackmap[tmap_track as usize] == TrackType::Flux {
             let track = &disk.raw_track_data[tmap_track as usize];
             let track_bits = disk.raw_track_bits[tmap_track as usize];
-            let mut return_value = 0;
+            let mut return_value = false;
 
             // Read the flux data for 4 times = 0.125 * 4 = 0.5 microsecond
             for _ in 0..4 {
@@ -2196,18 +2196,18 @@ impl DiskDrive {
                         value += track[disk.head] as usize;
                     }
                     disk.mc3470_read_pulse = value;
-                    return_value = 1;
+                    return_value = true;
                 } else if disk.mc3470_counter + 1 < 4 {
-                    return_value = 1;
+                    return_value = true;
                     disk.mc3470_counter += 1;
                 } else {
-                    return_value = 0;
+                    return_value = false;
                     disk.mc3470_counter += 1;
                 };
             }
             return_value
         } else {
-            0
+            false
         }
     }
 
