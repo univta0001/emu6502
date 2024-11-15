@@ -1,5 +1,3 @@
-cargo-features = ["trim-paths"]
-
 [workspace]
 members = [
     "emulator",
@@ -22,6 +20,5 @@ opt-level = 1
 lto = "fat"
 opt-level = 3
 codegen-units = 1
-trim-paths = "all"
 debug = true
 strip = true
