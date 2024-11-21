@@ -148,7 +148,7 @@ function handleError(f, args) {
     }
 }
 function __wbg_adapter_73(arg0, arg1, arg2, arg3) {
-    wasm.closure115_externref_shim(arg0, arg1, arg2, arg3);
+    wasm.closure114_externref_shim(arg0, arg1, arg2, arg3);
 }
 
 const EmulatorFinalization = (typeof FinalizationRegistry === 'undefined')
@@ -368,6 +368,14 @@ function __wbg_get_imports() {
         const ret = Emulator.__wrap(arg0);
         return ret;
     };
+    imports.wbg.__wbg_queueMicrotask_848aa4969108a57e = function(arg0) {
+        const ret = arg0.queueMicrotask;
+        return ret;
+    };
+    imports.wbg.__wbindgen_is_function = function(arg0) {
+        const ret = typeof(arg0) === 'function';
+        return ret;
+    };
     imports.wbg.__wbindgen_cb_drop = function(arg0) {
         const obj = arg0.original;
         if (obj.cnt-- == 1) {
@@ -375,14 +383,6 @@ function __wbg_get_imports() {
             return true;
         }
         const ret = false;
-        return ret;
-    };
-    imports.wbg.__wbg_queueMicrotask_848aa4969108a57e = function(arg0) {
-        const ret = arg0.queueMicrotask;
-        return ret;
-    };
-    imports.wbg.__wbindgen_is_function = function(arg0) {
-        const ret = typeof(arg0) === 'function';
         return ret;
     };
     imports.wbg.__wbg_queueMicrotask_c5419c06eab41e73 = typeof queueMicrotask == 'function' ? queueMicrotask : notDefined('queueMicrotask');
@@ -517,7 +517,7 @@ function __wbg_get_imports() {
         const ret = wasm.memory;
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper127 = function(arg0, arg1, arg2) {
+    imports.wbg.__wbindgen_closure_wrapper126 = function(arg0, arg1, arg2) {
         const ret = makeMutClosure(arg0, arg1, 34, __wbg_adapter_20);
         return ret;
     };
