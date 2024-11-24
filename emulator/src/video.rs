@@ -1455,11 +1455,13 @@ impl Video {
     }
 
     pub fn get_pixel(&self, x: usize, y: usize) -> Rgb {
+        assert!(self.frame.len() >= y * 4 * Video::WIDTH + x * 4 + 2);
         let base = y * 4 * Video::WIDTH + x * 4;
         [self.frame[base], self.frame[base + 1], self.frame[base + 2]]
     }
 
     pub fn set_pixel(&mut self, x: usize, y: usize, rgb: Rgb) {
+        assert!(self.frame.len() >= y * 4 * Video::WIDTH + x * 4 + 2);
         let base = y * 4 * Video::WIDTH + x * 4;
         let [r, g, b] = rgb;
         self.frame[base] = r;
