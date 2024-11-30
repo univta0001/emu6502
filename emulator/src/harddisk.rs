@@ -905,11 +905,15 @@ impl Card for HardDisk {
                 }
 
                 if !write_flag {
-                    let ret = disk.raw_data[disk.offset];
-                    if disk.offset + 1 < disk.data_len {
-                        disk.offset += 1
+                    if disk.offset < disk.data_len {
+                        let ret = disk.raw_data[disk.offset];
+                        if disk.offset + 1 < disk.data_len {
+                            disk.offset += 1
+                        }
+                        ret
+                    } else {
+                        0
                     }
-                    ret
                 } else if self.command & 0x80 != 0 {
                     disk.disk_block = disk.disk_block & 0x00ffff | (value as u32) << 16;
                     ((disk.disk_block & 0xff0000) >> 16) as u8
