@@ -213,11 +213,7 @@ fn translate_key_to_apple_key(
     (true, value)
 }
 
-fn handle_event(
-    cpu: &mut CPU,
-    event: Event,
-    event_param: &mut EventParam,
-) {
+fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
     const PADDLE_MAX_VALUE: u16 = 288;
 
     match event {

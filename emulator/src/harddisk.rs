@@ -842,6 +842,10 @@ impl Card for HardDisk {
             // Low Mem Block
             0x4 => {
                 let disk = &mut self.drive[self.drive_select];
+                if !disk.loaded {
+                    return 0;
+                }
+
                 if write_flag {
                     disk.mem_block = disk.mem_block & 0xff00 | value as u16;
                 }
@@ -851,6 +855,10 @@ impl Card for HardDisk {
             // High Mem Block
             0x5 => {
                 let disk = &mut self.drive[self.drive_select];
+                if !disk.loaded {
+                    return 0;
+                }
+
                 if write_flag {
                     disk.mem_block = disk.mem_block & 0x00ff | (value as u16) << 8;
                 }
@@ -860,6 +868,10 @@ impl Card for HardDisk {
             // Low Disk Block
             0x6 => {
                 let disk = &mut self.drive[self.drive_select];
+                if !disk.loaded {
+                    return 0;
+                }
+
                 if write_flag {
                     if self.command != SMARTPORT_CMD_STATUS {
                         disk.disk_block = disk.disk_block & 0xffff00 | value as u32
@@ -873,6 +885,11 @@ impl Card for HardDisk {
             // High Disk Block
             0x7 => {
                 let disk = &mut self.drive[self.drive_select];
+
+                if !disk.loaded {
+                    return 0;
+                }
+
                 if write_flag {
                     disk.disk_block = disk.disk_block & 0xff00ff | (value as u32) << 8
                 }
@@ -882,6 +899,11 @@ impl Card for HardDisk {
             // Support AppleWin Legacy I/O for old HDD firmware
             0x8 => {
                 let disk = &mut self.drive[self.drive_select];
+
+                if !disk.loaded {
+                    return 0;
+                }
+
                 if !write_flag {
                     let ret = disk.raw_data[disk.offset];
                     if disk.offset + 1 < disk.data_len {
