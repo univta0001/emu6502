@@ -1390,7 +1390,11 @@ impl Mem for Bus {
                 // Shadow it to the video ram
                 let aux_bank = self.mem.aux_bank();
                 if aux_bank == 0 {
-                    self.video.update_shadow_memory(aux_memory, addr, data);
+                    if aux_memory && self.mem.disable_aux_memory {
+                        self.video.update_shadow_memory(aux_memory, addr & 0xbff, data);
+                    } else {
+                        self.video.update_shadow_memory(aux_memory, addr, data);
+                    }
                 }
             }
         }
