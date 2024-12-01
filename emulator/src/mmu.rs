@@ -82,6 +82,8 @@ pub struct Mmu {
 
     pub a2cp: bool,
 
+    pub disable_aux_memory: bool,
+
     mig: Vec<u8>,
     mig_state: usize,
     mig_bank: usize,
@@ -124,6 +126,8 @@ impl Mmu {
             ext_aux_mem: None,
 
             a2cp: false,
+
+            disable_aux_memory: false,
 
             saturn_flag: false,
             saturn_bank: 0,
@@ -419,7 +423,11 @@ impl Mmu {
             }
             0x200..=0xbfff => {
                 if self.is_aux_memory(addr, false) {
-                    self.mem_aux_read(addr)
+                    if !self.disable_aux_memory {
+                        self.mem_aux_read(addr)
+                    } else {
+                        self.mem_aux_read(addr & 0xbff)
+                    }
                 } else {
                     self.mem_read(addr)
                 }
@@ -431,13 +439,17 @@ impl Mmu {
                 } else if self.bank1 || (0xe000..=0xffff).contains(&addr) {
                     if !self.altzp {
                         self.mem_bank1_read(bank_addr)
-                    } else {
+                    } else if !self.disable_aux_memory {
                         self.mem_aux_bank1_read(bank_addr)
+                    } else {
+                        self.mem_aux_read(addr & 0xbff)
                     }
                 } else if !self.altzp {
                     self.mem_bank2_read(bank_addr)
-                } else {
+                } else if !self.disable_aux_memory {
                     self.mem_aux_bank2_read(bank_addr)
+                } else {
+                    self.mem_aux_read(addr & 0xbff)
                 }
             }
             _ => {
@@ -458,7 +470,11 @@ impl Mmu {
 
             0x200..=0xbfff => {
                 if self.is_aux_memory(addr, true) {
-                    self.mem_aux_write(addr, data)
+                    if !self.disable_aux_memory {
+                        self.mem_aux_write(addr, data)
+                    } else {
+                        self.mem_aux_write(addr & 0xbff, data)
+                    }
                 } else {
                     self.mem_write(addr, data)
                 }
@@ -470,13 +486,17 @@ impl Mmu {
                     if self.bank1 || (0xe000..=0xffff).contains(&addr) {
                         if !self.altzp {
                             self.mem_bank1_write(bank_addr, data)
-                        } else {
+                        } else if !self.disable_aux_memory {
                             self.mem_aux_bank1_write(bank_addr, data)
+                        } else {
+                            self.mem_aux_write(addr & 0xbff, data)
                         }
                     } else if !self.altzp {
                         self.mem_bank2_write(bank_addr, data)
-                    } else {
+                    } else if !self.disable_aux_memory {
                         self.mem_aux_bank2_write(bank_addr, data)
+                    } else {
+                        self.mem_aux_write(addr & 0xbff, data)
                     }
                 }
             }

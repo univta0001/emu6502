@@ -4085,4 +4085,45 @@ mod test {
         assert_eq!(cpu.bus.get_cycles(), 174222295);
     }
     */
+
+    #[test]
+    fn verify_aux_memory() {
+        let bus = Bus::new();
+        let mut cpu = CPU::new(bus);
+        cpu.reset();
+        cpu.m65c02 = true;
+        let code = [
+            0xa9, 0xee, // LDA #$EE
+            0x8d, 0x05, 0xc0, // STA $C005
+            0x8d, 0x03, 0xc0, // STA $C003
+            0x8d, 0x00, 0x08, // STA $0800
+            0xad, 0x00, 0x0c, // LDA $0c00
+            0xc9, 0xee, // CMP #$EE
+            0xd0, 0x0e, // BNE AUX_FOUND
+            0x0e, 0x00, 0x0c, // ASL $0C00
+            0xad, 0x00, 0x08, // LDA $0800
+            0xcd, 0x00, 0x0c, // CMP $0C00
+            0xd0, 0x03, // BNE AUX_FOUND
+            0x38, // SEC
+            0xb0, 0x01, // BCS NOT_FOUND
+            0x18, // CLC
+            0x8d, 0x04, 0xc0, // STA $C004
+            0x8d, 0x02, 0xc0, // STA $C002
+            0x00,
+        ];
+        cpu.load_and_run_offset(&code, 0x0, 0x0);
+        assert_eq!(
+            cpu.status.contains(CpuFlags::CARRY),
+            false,
+            "Carry flag should be cleared when aux memory is installed"
+        );
+
+        cpu.bus.mem.disable_aux_memory = true;
+        cpu.load_and_run_offset(&code, 0x0, 0x0);
+        assert_eq!(
+            cpu.status.contains(CpuFlags::CARRY),
+            true,
+            "Carry flag should be set when aux memory is not installed"
+        );
+    }
 }
