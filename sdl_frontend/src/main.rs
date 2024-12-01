@@ -875,6 +875,7 @@ FLAGS:
     --interface name   Set the interface name for Uthernet2
                        Default is None. For e.g. eth0
     --vidhd            Enable VidHD at slot 3
+    --disable_aux      Disable aux memory for apple 2e and enhanced
 
 ARGS:
     [disk 1]           Disk 1 file (woz, dsk, do, po file). Can be in gz format
@@ -1666,6 +1667,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         }
         let mmu = &mut cpu.bus.mem;
         mmu.set_aux_size(bank);
+        mmu.disable_aux_memory = false;
     }
 
     if let Some(value) = pargs.opt_value_from_str::<_, usize>("--rf")? {
@@ -1796,6 +1798,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     if let Some(name) = pargs.opt_value_from_str::<_, String>("--interface")? {
         cpu.bus.uthernet2.set_interface(name);
+    }
+
+    if pargs.contains("--disable_aux") {
+        cpu.bus.mem.disable_aux_memory = true;
     }
 
     let remaining = pargs.finish();
