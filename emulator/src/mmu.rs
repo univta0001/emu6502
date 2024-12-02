@@ -526,7 +526,7 @@ impl Mmu {
                         AuxType::Ext80 | AuxType::Std80 | AuxType::RW3 => {
                             self.mem_aux_write(addr, data)
                         }
-                        _ => self.mem_write(addr, data),
+                        _ => {},
                     }
                 }
             }
@@ -542,7 +542,13 @@ impl Mmu {
                                 self.mem_aux_write(0x400 + (addr & 0x3ff), data)
                             }
                         }
-                        _ => self.mem_write(0x400 + (addr & 0x3ff), data),
+                        _ => {
+                            if addr < 0x800 {
+                                self.mem_write(addr, data)
+                            } else {
+                                self.mem_write(0x400 + (addr & 0x3ff), data)
+                            }
+                        }
                     }
                 } else {
                     self.mem_write(addr, data)
@@ -561,7 +567,7 @@ impl Mmu {
                                     self.mem_aux_bank1_write(bank_addr, data)
                                 }
                                 AuxType::Std80 => self.mem_aux_write(0x400 + (addr & 0x3ff), data),
-                                _ => self.mem_write(0x400 + (addr & 0x3ff), data),
+                                _ => {},
                             }
                         }
                     } else if !self.altzp {
@@ -572,7 +578,7 @@ impl Mmu {
                                 self.mem_aux_bank2_write(bank_addr, data)
                             }
                             AuxType::Std80 => self.mem_aux_write(0x400 + (addr & 0x3ff), data),
-                            _ => self.mem_write(0x400 + (addr & 0x3ff), data),
+                            _ => {},
                         }
                     }
                 }
