@@ -277,6 +277,10 @@ impl Bus {
             bus.unclocked_addr_write(addr + 0x99, ((rand_value >> 8) & 0xff) as u8);
         }
 
+        for i in 0..8 {
+            bus.unclocked_addr_write(0x400 + (i + 1) * 0x80 - 1, 0xff);
+        }
+
         let rand_value = fastrand::u16(0..=65535);
         bus.unclocked_addr_write(0x4e, (rand_value & 0xff) as u8);
         bus.unclocked_addr_write(0x4f, ((rand_value >> 8) & 0xff) as u8);
