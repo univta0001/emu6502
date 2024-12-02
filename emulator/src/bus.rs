@@ -321,6 +321,12 @@ impl Bus {
             self.mem.reset_mig();
         }
 
+        // Disable Auxiliary Slot for Apple 2 before Apple 2e
+        if !self.is_apple2c && !self.video.is_apple2e() {
+            self.mem.aux_type = AuxType::Empty;
+            self.video.disable_aux = true;
+        }
+
         if !self.disable_audio {
             self.audio.mboard.iter_mut().for_each(|mb| mb.reset())
         }
