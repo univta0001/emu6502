@@ -193,7 +193,6 @@ impl Mmu {
         self.rom_bank = false;
         self.a2cp = false;
         self.mig_bank = 0;
-        self.aux_type = AuxType::default();
     }
 
     pub fn reset_mig(&mut self) {
