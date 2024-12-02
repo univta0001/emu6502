@@ -3,6 +3,7 @@
 use emu6502::bus::Bus;
 use emu6502::bus::Dongle;
 use emu6502::bus::IODevice;
+use emu6502::mmu::AuxType;
 use emu6502::video::DisplayMode;
 //use emu6502::bus::Mem;
 //use emu6502::trace::trace;
@@ -875,7 +876,7 @@ FLAGS:
     --interface name   Set the interface name for Uthernet2
                        Default is None. For e.g. eth0
     --vidhd            Enable VidHD at slot 3
-    --disable_aux      Disable aux memory for apple 2e and enhanced
+    --aux aux_type     Auxiliary Slot type. Supported values (ext80, std80, rw3, none)
 
 ARGS:
     [disk 1]           Disk 1 file (woz, dsk, do, po file). Can be in gz format
@@ -1667,7 +1668,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         }
         let mmu = &mut cpu.bus.mem;
         mmu.set_aux_size(bank);
-        mmu.disable_aux_memory = false;
+        mmu.aux_type = AuxType::RW3;
+        cpu.bus.video.disable_aux = false;
     }
 
     if let Some(value) = pargs.opt_value_from_str::<_, usize>("--rf")? {
@@ -1800,8 +1802,17 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         cpu.bus.uthernet2.set_interface(name);
     }
 
-    if pargs.contains("--disable_aux") {
-        cpu.bus.mem.disable_aux_memory = true;
+    if let Some(aux_type) = pargs.opt_value_from_str::<_, String>("--aux")? {
+        cpu.bus.mem.aux_type = match aux_type.as_ref() {
+            "ext80" => AuxType::Ext80,
+            "std80" => AuxType::Std80,
+            "rw3" => AuxType::RW3,
+            _ => AuxType::Empty,
+        };
+
+        if cpu.bus.mem.aux_type == AuxType::Empty {
+            cpu.bus.video.disable_aux = true;
+        }
     }
 
     let remaining = pargs.finish();

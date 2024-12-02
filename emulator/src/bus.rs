@@ -1,6 +1,7 @@
 use crate::audio::Audio;
 use crate::disk::DiskDrive;
 use crate::harddisk::HardDisk;
+use crate::mmu::AuxType;
 use crate::mmu::Mmu;
 use crate::mmu::Saturn;
 use crate::mouse::{
@@ -1390,8 +1391,25 @@ impl Mem for Bus {
                 // Shadow it to the video ram
                 let aux_bank = self.mem.aux_bank();
                 if aux_bank == 0 {
-                    if aux_memory && self.mem.disable_aux_memory {
-                        self.video.update_shadow_memory(aux_memory, addr & 0xbff, data);
+                    if aux_memory {
+                        match self.mem.aux_type {
+                            AuxType::Ext80 | AuxType::RW3 => {
+                                self.video.update_shadow_memory(aux_memory, addr, data)
+                            }
+                            AuxType::Std80 => {
+                                if addr < 0x800 {
+                                    self.video.update_shadow_memory(aux_memory, addr, data);
+                                } else {
+                                    self.video.update_shadow_memory(
+                                        aux_memory,
+                                        0x400 + (addr & 0x3ff),
+                                        data,
+                                    )
+                                }
+                            }
+
+                            _ => {}
+                        }
                     } else {
                         self.video.update_shadow_memory(aux_memory, addr, data);
                     }

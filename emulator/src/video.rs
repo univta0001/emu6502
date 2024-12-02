@@ -160,6 +160,9 @@ pub struct Video {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub shr_linear_mode: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    pub disable_aux: bool,
 }
 
 impl Tick for Video {
@@ -760,6 +763,7 @@ impl Video {
             vidhd: false,
             shr_mode: false,
             shr_linear_mode: false,
+            disable_aux: false,
         }
     }
 
@@ -1225,6 +1229,10 @@ impl Video {
     }
 
     fn read_aux_video_data(&mut self, cycle: usize, r: usize) -> u8 {
+        if self.disable_aux {
+            return self.video_latch;
+        }
+
         if self.graphics_mode && (!self.mixed_mode || r < 160) && !self.lores_mode {
             if !self.video_50hz {
                 self.read_raw_aux_hires_memory(self.lut_hires[cycle])

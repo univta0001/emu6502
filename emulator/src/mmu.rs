@@ -6,7 +6,40 @@ use crate::video::Video;
 use crate::marshal::{as_hex, as_opt_hex, from_hex_12k, from_hex_64k, from_hex_opt};
 
 #[cfg(feature = "serde_support")]
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+#[derive(Default, Debug, Copy, Clone, PartialEq)]
+#[allow(non_camel_case_types)]
+pub enum AuxType {
+    #[default]
+    Ext80,
+    Std80,
+    RW3,
+    Empty,
+}
+
+#[cfg(feature = "serde_support")]
+fn serialize_auxtype<S: Serializer>(v: &AuxType, serializer: S) -> Result<S::Ok, S::Error> {
+    let value = match v {
+        AuxType::Ext80 => 1,
+        AuxType::Std80 => 2,
+        AuxType::RW3 => 3,
+        _ => 0,
+    };
+    usize::serialize(&value, serializer)
+}
+
+#[cfg(feature = "serde_support")]
+fn deserialize_auxtype<'de, D: Deserializer<'de>>(deserializer: D) -> Result<AuxType, D::Error> {
+    let value = match usize::deserialize(deserializer)? {
+        1 => AuxType::Ext80,
+        2 => AuxType::Std80,
+        3 => AuxType::RW3,
+        _ => AuxType::Empty,
+    };
+
+    Ok(value)
+}
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
@@ -80,9 +113,16 @@ pub struct Mmu {
     )]
     pub ext_aux_mem: Option<Vec<u8>>,
 
-    pub a2cp: bool,
+    #[cfg_attr(
+        feature = "serde_support",
+        serde(
+            serialize_with = "serialize_auxtype",
+            deserialize_with = "deserialize_auxtype"
+        )
+    )]
+    pub aux_type: AuxType,
 
-    pub disable_aux_memory: bool,
+    pub a2cp: bool,
 
     mig: Vec<u8>,
     mig_state: usize,
@@ -124,10 +164,9 @@ impl Mmu {
 
             aux_bank: 0,
             ext_aux_mem: None,
+            aux_type: AuxType::default(),
 
             a2cp: false,
-
-            disable_aux_memory: false,
 
             saturn_flag: false,
             saturn_bank: 0,
@@ -423,10 +462,22 @@ impl Mmu {
             }
             0x200..=0xbfff => {
                 if self.is_aux_memory(addr, false) {
-                    if !self.disable_aux_memory {
-                        self.mem_aux_read(addr)
-                    } else {
-                        self.mem_aux_read(addr & 0xbff)
+                    match self.aux_type {
+                        AuxType::Ext80 | AuxType::RW3 => self.mem_aux_read(addr),
+                        AuxType::Std80 => {
+                            if addr < 0x800 {
+                                self.mem_aux_read(addr)
+                            } else {
+                                self.mem_aux_read(0x400 + (addr & 0x3ff))
+                            }
+                        }
+                        _ => {
+                            if addr < 0x800 {
+                                self.mem_read(addr)
+                            } else {
+                                self.mem_read(0x400 + (addr & 0x3ff))
+                            }
+                        }
                     }
                 } else {
                     self.mem_read(addr)
@@ -439,17 +490,21 @@ impl Mmu {
                 } else if self.bank1 || (0xe000..=0xffff).contains(&addr) {
                     if !self.altzp {
                         self.mem_bank1_read(bank_addr)
-                    } else if !self.disable_aux_memory {
-                        self.mem_aux_bank1_read(bank_addr)
                     } else {
-                        self.mem_aux_read(addr & 0xbff)
+                        match self.aux_type {
+                            AuxType::Ext80 | AuxType::RW3 => self.mem_aux_bank1_read(bank_addr),
+                            AuxType::Std80 => self.mem_aux_read(0x400 + (addr & 0x3ff)),
+                            _ => self.mem_read(0x400 + (addr & 0x3ff)),
+                        }
                     }
                 } else if !self.altzp {
                     self.mem_bank2_read(bank_addr)
-                } else if !self.disable_aux_memory {
-                    self.mem_aux_bank2_read(bank_addr)
                 } else {
-                    self.mem_aux_read(addr & 0xbff)
+                    match self.aux_type {
+                        AuxType::Ext80 | AuxType::RW3 => self.mem_aux_bank2_read(bank_addr),
+                        AuxType::Std80 => self.mem_aux_read(0x400 + (addr & 0x3ff)),
+                        _ => self.mem_read(0x400 + (addr & 0x3ff)),
+                    }
                 }
             }
             _ => {
@@ -470,10 +525,16 @@ impl Mmu {
 
             0x200..=0xbfff => {
                 if self.is_aux_memory(addr, true) {
-                    if !self.disable_aux_memory {
-                        self.mem_aux_write(addr, data)
-                    } else {
-                        self.mem_aux_write(addr & 0xbff, data)
+                    match self.aux_type {
+                        AuxType::Ext80 | AuxType::RW3 => self.mem_aux_write(addr, data),
+                        AuxType::Std80 => {
+                            if addr < 0x800 {
+                                self.mem_aux_write(addr, data)
+                            } else {
+                                self.mem_aux_write(0x400 + (addr & 0x3ff), data)
+                            }
+                        }
+                        _ => self.mem_write(0x400 + (addr & 0x3ff), data),
                     }
                 } else {
                     self.mem_write(addr, data)
@@ -486,17 +547,25 @@ impl Mmu {
                     if self.bank1 || (0xe000..=0xffff).contains(&addr) {
                         if !self.altzp {
                             self.mem_bank1_write(bank_addr, data)
-                        } else if !self.disable_aux_memory {
-                            self.mem_aux_bank1_write(bank_addr, data)
                         } else {
-                            self.mem_aux_write(addr & 0xbff, data)
+                            match self.aux_type {
+                                AuxType::Ext80 | AuxType::RW3 => {
+                                    self.mem_aux_bank1_write(bank_addr, data)
+                                }
+                                AuxType::Std80 => self.mem_aux_write(0x400 + (addr & 0x3ff), data),
+                                _ => self.mem_write(0x400 + (addr & 0x3ff), data),
+                            }
                         }
                     } else if !self.altzp {
                         self.mem_bank2_write(bank_addr, data)
-                    } else if !self.disable_aux_memory {
-                        self.mem_aux_bank2_write(bank_addr, data)
                     } else {
-                        self.mem_aux_write(addr & 0xbff, data)
+                        match self.aux_type {
+                            AuxType::Ext80 | AuxType::RW3 => {
+                                self.mem_aux_bank2_write(bank_addr, data)
+                            }
+                            AuxType::Std80 => self.mem_aux_write(0x400 + (addr & 0x3ff), data),
+                            _ => self.mem_write(0x400 + (addr & 0x3ff), data),
+                        }
                     }
                 }
             }

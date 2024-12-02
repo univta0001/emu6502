@@ -4088,6 +4088,8 @@ mod test {
 
     #[test]
     fn verify_aux_memory() {
+        use crate::mmu::AuxType;
+
         let bus = Bus::new();
         let mut cpu = CPU::new(bus);
         cpu.reset();
@@ -4118,7 +4120,15 @@ mod test {
             "Carry flag should be cleared when aux memory is installed"
         );
 
-        cpu.bus.mem.disable_aux_memory = true;
+        cpu.bus.mem.aux_type = AuxType::Std80;
+        cpu.load_and_run_offset(&code, 0x0, 0x0);
+        assert_eq!(
+            cpu.status.contains(CpuFlags::CARRY),
+            true,
+            "Carry flag should be set when std 80-column card"
+        );
+
+        cpu.bus.mem.aux_type = AuxType::Empty;
         cpu.load_and_run_offset(&code, 0x0, 0x0);
         assert_eq!(
             cpu.status.contains(CpuFlags::CARRY),
