@@ -4132,8 +4132,8 @@ mod test {
         cpu.load_and_run_offset(&code, 0x0, 0x0);
         assert_eq!(
             cpu.status.contains(CpuFlags::CARRY),
-            true,
-            "Carry flag should be set when aux memory is not installed"
+            false,
+            "Carry flag should be cleared when aux memory is not installed"
         );
     }
 }

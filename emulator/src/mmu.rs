@@ -542,13 +542,7 @@ impl Mmu {
                                 self.mem_aux_write(0x400 + (addr & 0x3ff), data)
                             }
                         }
-                        _ => {
-                            if addr < 0x800 {
-                                self.mem_write(addr, data)
-                            } else {
-                                self.mem_write(0x400 + (addr & 0x3ff), data)
-                            }
-                        }
+                        _ => { },
                     }
                 } else {
                     self.mem_write(addr, data)
