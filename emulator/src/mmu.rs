@@ -455,7 +455,10 @@ impl Mmu {
         match addr {
             0x0..=0x1ff => {
                 if self.altzp {
-                    self.mem_aux_read(addr)
+                    match self.aux_type {
+                        AuxType::Ext80 | AuxType::Std80 | AuxType::RW3 => self.mem_aux_read(addr),
+                        _ => self.mem_read(addr),
+                    }
                 } else {
                     self.mem_read(addr)
                 }
@@ -519,7 +522,12 @@ impl Mmu {
                 if !self.altzp {
                     self.mem_write(addr, data)
                 } else {
-                    self.mem_aux_write(addr, data)
+                    match self.aux_type {
+                        AuxType::Ext80 | AuxType::Std80 | AuxType::RW3 => {
+                            self.mem_aux_write(addr, data)
+                        }
+                        _ => self.mem_write(addr, data),
+                    }
                 }
             }
 
