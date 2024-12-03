@@ -1816,7 +1816,7 @@ impl DiskDrive {
         let crc32_check: u32 = read_woz_u32(dsk, 8);
         let crc32_value = crc32(0, &dsk[12..]);
 
-        if crc32_value != crc32_check {
+        if crc32_check !=0 && crc32_value != crc32_check {
             let err_message = format!("Invalid woz2 file - Checksum Failed ({crc32_value:08X}))");
             return Err(std::io::Error::new(
                 io::ErrorKind::InvalidInput,
