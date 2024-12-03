@@ -1803,12 +1803,17 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
 
     if let Some(aux_type) = pargs.opt_value_from_str::<_, String>("--aux")? {
-        cpu.bus.mem.aux_type = match aux_type.as_ref() {
-            "ext80" => AuxType::Ext80,
-            "std80" => AuxType::Std80,
-            "rw3" => AuxType::RW3,
-            _ => AuxType::Empty,
+        let aux_type = match aux_type.as_ref() {
+            "ext80" => Some(AuxType::Ext80),
+            "std80" => Some(AuxType::Std80),
+            "rw3" => Some(AuxType::RW3),
+            "none" => Some(AuxType::Empty),
+            _ => None
         };
+
+        if let Some(aux_type) = aux_type {
+            cpu.bus.mem.aux_type = aux_type
+        }
 
         if cpu.bus.mem.aux_type == AuxType::Empty {
             cpu.bus.video.disable_aux = true;
