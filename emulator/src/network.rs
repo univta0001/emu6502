@@ -20,7 +20,12 @@ use std::fmt::{Debug, Formatter};
 #[cfg(feature = "serde_support")]
 use crate::marshal::{as_hex, from_hex_32k};
 
+#[cfg(debug_assertions)]
+const U2_DEBUG: bool = true;
+
+#[cfg(not(debug_assertions))]
 const U2_DEBUG: bool = false;
+
 const LABEL: &str = "Uthernet2";
 
 // Uthernet II registers
@@ -772,7 +777,8 @@ impl Uthernet2 {
             }
             W5100_SN_MSSR0 | W5100_SN_MSSR1 => self.mem[addr] = value,
             _ => {
-                //u2_debug!("Write to socket unit = {unit} addr = 0x{addr:04X} loc = 0x{loc:02X} value = 0x{value:02X}")
+                #[cfg(debug_assertions)]
+                u2_debug!("Write to socket unit = {unit} addr = 0x{addr:04X} loc = 0x{loc:02X} value = 0x{value:02X}")
             }
         }
     }
@@ -1337,7 +1343,7 @@ impl Card for Uthernet2 {
                     u2_debug!("Write Mode = {value:02X}");
                     self.set_mode_register(value);
                 } else {
-                    u2_debug!("Read Mode = {:02X}", self.mode);
+                    //u2_debug!("Read Mode = {:02X}", self.mode);
                     return_value = self.mode
                 }
             }

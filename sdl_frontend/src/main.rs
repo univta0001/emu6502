@@ -1808,7 +1808,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             "std80" => Some(AuxType::Std80),
             "rw3" => Some(AuxType::RW3),
             "none" => Some(AuxType::Empty),
-            _ => None
+            _ => None,
         };
 
         if let Some(aux_type) = aux_type {
