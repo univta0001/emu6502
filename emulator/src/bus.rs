@@ -437,10 +437,12 @@ impl Bus {
         for i in 1..8 {
             if self.io_slot[i] == IODevice::VidHD {
                 self.video.set_vidhd(true);
+                self.mem.vidhd = true;
                 return;
             }
         }
         self.video.set_vidhd(false);
+        self.mem.vidhd = false;
     }
 
     pub fn register_device(&mut self, device: IODevice, slot: usize) {
@@ -1402,23 +1404,27 @@ impl Mem for Bus {
                 let aux_bank = self.mem.aux_bank();
                 if aux_bank == 0 {
                     if aux_memory {
-                        match self.mem.aux_type {
-                            AuxType::Ext80 | AuxType::RW3 => {
-                                self.video.update_shadow_memory(aux_memory, addr, data)
-                            }
-                            AuxType::Std80 => {
-                                if addr < 0x800 {
-                                    self.video.update_shadow_memory(aux_memory, addr, data);
-                                } else {
-                                    self.video.update_shadow_memory(
-                                        aux_memory,
-                                        0x400 + (addr & 0x3ff),
-                                        data,
-                                    )
+                        if !self.mem.vidhd {
+                            match self.mem.aux_type {
+                                AuxType::Ext80 | AuxType::RW3 => {
+                                    self.video.update_shadow_memory(aux_memory, addr, data)
                                 }
-                            }
+                                AuxType::Std80 => {
+                                    if addr < 0x800 {
+                                        self.video.update_shadow_memory(aux_memory, addr, data);
+                                    } else {
+                                        self.video.update_shadow_memory(
+                                            aux_memory,
+                                            0x400 + (addr & 0x3ff),
+                                            data,
+                                        )
+                                    }
+                                }
 
-                            _ => {}
+                                _ => { }
+                            }
+                        } else {
+                            self.video.update_shadow_memory(aux_memory, addr, data)
                         }
                     } else {
                         self.video.update_shadow_memory(aux_memory, addr, data);

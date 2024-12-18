@@ -104,6 +104,7 @@ pub struct Mmu {
     pub altzp: bool,
     pub video_page2: bool,
     pub video_hires: bool,
+    pub vidhd: bool,
 
     pub aux_bank: u8,
 
@@ -161,6 +162,7 @@ impl Mmu {
             altzp: false,
             video_page2: false,
             video_hires: false,
+            vidhd: false,
 
             aux_bank: 0,
             ext_aux_mem: None,
@@ -465,22 +467,26 @@ impl Mmu {
             }
             0x200..=0xbfff => {
                 if self.is_aux_memory(addr, false) {
-                    match self.aux_type {
-                        AuxType::Ext80 | AuxType::RW3 => self.mem_aux_read(addr),
-                        AuxType::Std80 => {
-                            if addr < 0x800 {
-                                self.mem_aux_read(addr)
-                            } else {
-                                self.mem_aux_read(0x400 + (addr & 0x3ff))
+                    if !self.vidhd {
+                        match self.aux_type {
+                            AuxType::Ext80 | AuxType::RW3 => self.mem_aux_read(addr),
+                            AuxType::Std80 => {
+                                if addr < 0x800 {
+                                    self.mem_aux_read(addr)
+                                } else {
+                                    self.mem_aux_read(0x400 + (addr & 0x3ff))
+                                }
+                            }
+                            _ => {
+                                if addr < 0x800 {
+                                    self.mem_read(addr)
+                                } else {
+                                    self.mem_read(0x400 + (addr & 0x3ff))
+                                }
                             }
                         }
-                        _ => {
-                            if addr < 0x800 {
-                                self.mem_read(addr)
-                            } else {
-                                self.mem_read(0x400 + (addr & 0x3ff))
-                            }
-                        }
+                    } else {
+                        self.mem_aux_read(addr)
                     }
                 } else {
                     self.mem_read(addr)
@@ -533,16 +539,20 @@ impl Mmu {
 
             0x200..=0xbfff => {
                 if self.is_aux_memory(addr, true) {
-                    match self.aux_type {
-                        AuxType::Ext80 | AuxType::RW3 => self.mem_aux_write(addr, data),
-                        AuxType::Std80 => {
-                            if addr < 0x800 {
-                                self.mem_aux_write(addr, data)
-                            } else {
-                                self.mem_aux_write(0x400 + (addr & 0x3ff), data)
+                    if !self.vidhd {
+                        match self.aux_type {
+                            AuxType::Ext80 | AuxType::RW3 => self.mem_aux_write(addr, data),
+                            AuxType::Std80 => {
+                                if addr < 0x800 {
+                                    self.mem_aux_write(addr, data)
+                                } else {
+                                    self.mem_aux_write(0x400 + (addr & 0x3ff), data)
+                                }
                             }
+                            _ => {}
                         }
-                        _ => {}
+                    } else {
+                        self.mem_aux_write(addr, data)
                     }
                 } else {
                     self.mem_write(addr, data)
