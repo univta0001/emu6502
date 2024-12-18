@@ -1421,7 +1421,7 @@ impl Mem for Bus {
                                     }
                                 }
 
-                                _ => { }
+                                _ => {}
                             }
                         } else {
                             self.video.update_shadow_memory(aux_memory, addr, data)
