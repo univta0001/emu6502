@@ -21,7 +21,7 @@ libloading = { version = "0.8.6", default-features = false, optional = true }
 regex = "1.11.1"
 criterion = { version = "0.5.1", features = ['html_reports'] }
 crossbeam-utils = "0.8.21"
-serde_json = "1.0.133"
+serde_json = "1.0.134"
 crossbeam-epoch = "0.9.18"
 ryu = "1.0.18"
 autocfg = "1.4.0"
