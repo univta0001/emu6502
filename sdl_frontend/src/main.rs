@@ -1662,12 +1662,12 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         cpu.bus.mem.set_saturn_memory(true);
     }
 
-    if let Some(bank) = pargs.opt_value_from_str::<_, u8>("-r")? {
-        if bank == 0 || bank >= 128 {
-            panic!("RAMWorks III accepts value from 1 to 127");
+    if let Some(bank) = pargs.opt_value_from_str::<_, usize>("-r")? {
+        if bank == 0 || bank > 255 {
+            panic!("RAMWorks III accepts value from 1 to 255 (inclusive)");
         }
         let mmu = &mut cpu.bus.mem;
-        mmu.set_aux_size(bank);
+        mmu.set_aux_size(bank as u8);
         mmu.aux_type = AuxType::RW3;
         cpu.bus.video.disable_aux = false;
     }
