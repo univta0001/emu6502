@@ -307,10 +307,6 @@ impl Mouse {
     pub fn serve_mouse(&mut self, mmu: &mut Mmu, slot: u16) -> u8 {
         let status = self.get_status() & !0x20;
         mmu.mem_write(STATUS + slot, status);
-
-        self.last_x = self.x;
-        self.last_y = self.y;
-
         self.interrupt = 0;
         self.irq_happen = 0;
         status
