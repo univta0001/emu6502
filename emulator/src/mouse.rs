@@ -112,9 +112,11 @@ pub const STATUS_VBL_INTERRUPT: u8 = 0x08;
 pub const STATUS_MOVE_INTERRUPT_X0: u8 = 0x10;
 pub const STATUS_MOVE_INTERRUPT_Y0: u8 = 0x20;
 
+const STATUS_PREV_BUTTON1: u8 = 0x01;
+const STATUS_CURR_BUTTON1: u8 = 0x10;
 const STATUS_MOVED: u8 = 0x20;
-const STATUS_LAST_BUTTON: u8 = 0x40;
-const STATUS_DOWN_BUTTON: u8 = 0x80;
+const STATUS_PREV_BUTTON0: u8 = 0x40;
+const STATUS_CURR_BUTTON0: u8 = 0x80;
 
 impl Mouse {
     pub fn new() -> Self {
@@ -281,11 +283,19 @@ impl Mouse {
         }
 
         if self.buttons[0] {
-            status |= STATUS_DOWN_BUTTON;
+            status |= STATUS_CURR_BUTTON0;
+        }
+
+        if self.buttons[1] {
+            status |= STATUS_CURR_BUTTON1;
         }
 
         if self.last_buttons[0] {
-            status |= STATUS_LAST_BUTTON;
+            status |= STATUS_PREV_BUTTON0;
+        }
+
+        if self.last_buttons[1] {
+            status |= STATUS_PREV_BUTTON1;
         }
 
         if moved {
@@ -300,9 +310,6 @@ impl Mouse {
 
         self.last_x = self.x;
         self.last_y = self.y;
-        for i in 0..2 {
-            self.last_buttons[i] = self.buttons[i];
-        }
 
         self.interrupt = 0;
         self.irq_happen = 0;
