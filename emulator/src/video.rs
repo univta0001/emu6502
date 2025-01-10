@@ -917,13 +917,13 @@ impl Video {
         let io_addr = (addr & 0xff) as u8;
         match io_addr {
             0x0c => {
-                if self.apple2e && write_flag {
+                if self.apple2e && !self.disable_aux && write_flag {
                     self.vid80_mode = false;
                     self.update_video();
                 }
             }
             0x0d => {
-                if self.apple2e && write_flag {
+                if self.apple2e && !self.disable_aux && write_flag {
                     self.vid80_mode = true;
                     self.update_video();
                 }
