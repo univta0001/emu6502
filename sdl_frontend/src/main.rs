@@ -873,6 +873,7 @@ FLAGS:
     --dongle model     Enable dongle
                        Value: speedstar, hayden, codewriter, robocom500,
                               robocom1000, robocom1500
+    --list_interfaces  List all the network interfaces
     --interface name   Set the interface name for Uthernet2
                        Default is None. For e.g. eth0
     --vidhd            Enable VidHD at slot 3
@@ -1545,7 +1546,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         samples: Some(AUDIO_SAMPLE_SIZE as u16), // default sample size
     };
 
-    let audio_device = if let Ok(ref audio) = audio_subsystem {
+    let audio_device = if let Ok(audio) = &audio_subsystem {
         if let Ok(device) = audio.open_queue::<i16, _>(None, &desired_spec) {
             device.resume();
             Some(device)
@@ -1802,6 +1803,14 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         cpu.bus.uthernet2.set_interface(name);
     }
 
+    if pargs.contains("--list_interfaces") {
+        let names = cpu.bus.uthernet2.list_interfaces();
+        eprintln!("No of network interfaces found: {}", names.len());
+        for (i, name) in names.iter().enumerate() {
+            eprintln!("{}. {}", i + 1, name);
+        }
+    }
+
     if let Some(aux_type) = pargs.opt_value_from_str::<_, String>("--aux")? {
         let aux_type = match aux_type.as_ref() {
             "ext80" => Some(AuxType::Ext80),
@@ -1981,6 +1990,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     let x = mouse_state.x();
                     let y = mouse_state.y();
                     let buttons = [mouse_state.left(), mouse_state.right()];
+
                     let delta_x = x.saturating_sub(prev_x);
                     let delta_y = y.saturating_sub(prev_y);
                     prev_x = x;

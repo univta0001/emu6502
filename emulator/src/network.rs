@@ -334,6 +334,20 @@ impl Uthernet2 {
         self.mem[W5100_PTIMER] = 0x0;
     }
 
+    pub fn list_interfaces(&self) -> Vec<String> {
+        let names: Vec<String>;
+        #[cfg(feature = "pcap")]
+        {
+            names = self.list_pcap_device_names();
+        }
+
+        #[cfg(not(feature = "pcap"))]
+        {
+            names = Vec::new();
+        }
+        names
+    }
+
     pub fn set_interface(&mut self, name: String) {
         self.interface = Some(name);
     }
@@ -965,6 +979,22 @@ impl Uthernet2 {
                 }
             }
         }
+    }
+
+    #[cfg(feature = "pcap")]
+    fn list_pcap_device_names(&self) -> Vec<String> {
+        let mut names = Vec::new();
+        if let Ok(devices) = pcap::Device::list() {
+            for device in devices {
+                let name = if let Some(desc) = device.desc {
+                    format!("{} - {}", desc, device.name)
+                } else {
+                    format!("{}", device.name)
+                };
+                names.push(name);
+            }
+        }
+        names
     }
 
     #[cfg(feature = "pcap")]
