@@ -39,6 +39,10 @@ Features in the emulator
 
   emu6502 --s4 z80 [CPM image]
 
+- To run with network card in Linux
+
+  sudo setcap cap_net_raw,cap_net_admin=eip emu6502
+
 - `emu6502 --help` will display:
 
         emu6502 0.9.1 (f8379fd591d235ad65f39a6dcf4d137c3b8f0f76)
