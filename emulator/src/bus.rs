@@ -1246,7 +1246,7 @@ impl Bus {
                 self.read_floating_bus()
             }
 
-            0x73 => {
+            0x71 | 0x73 => {
                 if self.video.is_apple2e() && write_flag {
                     self.mem.set_aux_bank(value);
                 }
