@@ -1545,7 +1545,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         samples: Some(AUDIO_SAMPLE_SIZE as u16), // default sample size
     };
 
-    let audio_device = if let Ok(audio) = audio_subsystem {
+    let audio_device = if let Ok(ref audio) = audio_subsystem {
         if let Ok(device) = audio.open_queue::<i16, _>(None, &desired_spec) {
             device.resume();
             Some(device)
