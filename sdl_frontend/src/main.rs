@@ -1809,6 +1809,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         for (i, name) in names.iter().enumerate() {
             eprintln!("{}. {}", i + 1, name);
         }
+        return Ok(());
     }
 
     if let Some(aux_type) = pargs.opt_value_from_str::<_, String>("--aux")? {
