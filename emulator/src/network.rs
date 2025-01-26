@@ -8,6 +8,7 @@ use std::net::{
 };
 use std::time::Duration;
 
+#[cfg(target_os = "windows")]
 #[cfg(feature = "pcap")]
 static PCAP_LOADED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
