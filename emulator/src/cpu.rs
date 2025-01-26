@@ -1537,7 +1537,7 @@ impl CPU {
             self.alt_cpu = !self.alt_cpu;
         }
 
-        if let Some(_nmi) = self.bus.poll_nmi_status() {
+        if let Some(_nmi) = &self.bus.poll_nmi_status() {
             self.interrupt(interrupt::NMI);
         } else if !self.status.contains(CpuFlags::INTERRUPT_DISABLE)
             && self.bus.irq().is_some()
