@@ -1342,7 +1342,6 @@ fn update_video(
     canvas: &mut Canvas<Window>,
     texture: &mut Texture,
     fullscreen: bool,
-    scale: f32,
 ) {
     let disp = &mut cpu.bus.video;
     if *save_screenshot {
@@ -1398,15 +1397,7 @@ fn update_video(
         }
 
         if fullscreen {
-            let width = if let Ok(display_mode) = canvas.window().display_mode() {
-                let mut effective_width = (display_mode.w as f32 / scale) as i32;
-                if effective_width < WIDTH as i32 {
-                    effective_width = WIDTH as i32;
-                }
-                effective_width
-            } else {
-                WIDTH as i32
-            };
+            let width = canvas.viewport().width() as i32;
             let _ = draw_circle(canvas, width - 4, 4, 2);
         } else {
             let _ = draw_circle(canvas, (WIDTH - 4) as i32, 4, 2);
@@ -1956,7 +1947,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         &mut canvas,
                         &mut texture,
                         current_full_screen,
-                        scale,
                     );
                     video_time = Instant::now();
 
