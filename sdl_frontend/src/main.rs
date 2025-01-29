@@ -1485,75 +1485,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     // Create bus
     let bus = Bus::default();
 
-    // Create the SDL2 context
-    let sdl_context = sdl2::init()?;
-
-    // Create window
-    let mut scale = 2.0;
-
-    if let Some(scale_value) = pargs.opt_value_from_str::<_, f32>("--scale")? {
-        scale = scale_value;
-    }
-
-    let width = (scale * WIDTH as f32) as u32;
-    let height = (scale * HEIGHT as f32) as u32;
-    let video_subsystem = sdl_context.video()?;
-    let window = video_subsystem
-        .window("Apple ][ emulator", width, height)
-        .position_centered()
-        .build()
-        .unwrap();
-
-    // Create the game controller
-    let game_controller = sdl_context.game_controller()?;
-    let mut gamepads: HashMap<u32, (u32, GameController)> = HashMap::new();
-
-    // Set apple2 icon
-    /*
-    let apple2_icon = Surface::from_file("apple2.png")?;
-    window.set_icon(apple2_icon);
-    */
-
-    // Create canvas
-    //let mut canvas = window.into_canvas().present_vsync().build().unwrap();
-    let mut canvas = window.into_canvas().build().unwrap();
-    let creator = canvas.texture_creator();
-    let mut texture = creator
-        .create_texture_target(PixelFormatEnum::ABGR8888, WIDTH as u32, HEIGHT as u32)
-        .unwrap();
-
-    canvas.clear();
-    canvas.set_scale(scale, scale).unwrap();
-
-    texture.update(None, &bus.video.frame, WIDTH * 4).unwrap();
-    canvas.copy(&texture, None, None).unwrap();
-    canvas.present();
-
-    // Create audio
-    let audio_subsystem = sdl_context.audio();
-    let desired_spec = AudioSpecDesired {
-        freq: Some(AUDIO_SAMPLE_RATE as i32),
-        channels: Some(2),                       // stereo
-        samples: Some(AUDIO_SAMPLE_SIZE as u16), // default sample size
-    };
-
-    let audio_device = if let Ok(audio) = &audio_subsystem {
-        if let Ok(device) = audio.open_queue::<i16, _>(None, &desired_spec) {
-            device.resume();
-            Some(device)
-        } else {
-            eprintln!("Audio device detected but cannot open queue!");
-            None
-        }
-    } else {
-        eprintln!("No audio device detected!");
-        None
-    };
-
-    // Create SDL event pump
-    let mut _event_pump = sdl_context.event_pump().unwrap();
-    _event_pump.enable_event(DropFile);
-
     let mut cpu = CPU::new(bus);
     let mut _cpu_stats = CpuStats::new();
 
@@ -1821,6 +1752,12 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         }
     }
 
+    let mut scale = 2.0;
+
+    if let Some(scale_value) = pargs.opt_value_from_str::<_, f32>("--scale")? {
+        scale = scale_value;
+    }
+
     let remaining = pargs.finish();
 
     // Check that there are no more flags in the remaining arguments
@@ -1853,6 +1790,71 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             }
         }
     }
+
+    // Create the SDL2 context
+    let sdl_context = sdl2::init()?;
+
+    // Create window
+    let width = (scale * WIDTH as f32) as u32;
+    let height = (scale * HEIGHT as f32) as u32;
+    let video_subsystem = sdl_context.video()?;
+    let window = video_subsystem
+        .window("Apple ][ emulator", width, height)
+        .position_centered()
+        .build()
+        .unwrap();
+
+    // Create the game controller
+    let game_controller = sdl_context.game_controller()?;
+    let mut gamepads: HashMap<u32, (u32, GameController)> = HashMap::new();
+
+    // Set apple2 icon
+    /*
+    let apple2_icon = Surface::from_file("apple2.png")?;
+    window.set_icon(apple2_icon);
+    */
+
+    // Create canvas
+    //let mut canvas = window.into_canvas().present_vsync().build().unwrap();
+    let mut canvas = window.into_canvas().build().unwrap();
+    let creator = canvas.texture_creator();
+    let mut texture = creator
+        .create_texture_target(PixelFormatEnum::ABGR8888, WIDTH as u32, HEIGHT as u32)
+        .unwrap();
+
+    canvas.clear();
+    canvas.set_scale(scale, scale).unwrap();
+
+    texture
+        .update(None, &cpu.bus.video.frame, WIDTH * 4)
+        .unwrap();
+    canvas.copy(&texture, None, None).unwrap();
+    canvas.present();
+
+    // Create audio
+    let audio_subsystem = sdl_context.audio();
+    let desired_spec = AudioSpecDesired {
+        freq: Some(AUDIO_SAMPLE_RATE as i32),
+        channels: Some(2),                       // stereo
+        samples: Some(AUDIO_SAMPLE_SIZE as u16), // default sample size
+    };
+
+    let audio_device = if let Ok(audio) = &audio_subsystem {
+        if let Ok(device) = audio.open_queue::<i16, _>(None, &desired_spec) {
+            device.resume();
+            Some(device)
+        } else {
+            eprintln!("Audio device detected but cannot open queue!");
+            None
+        }
+    } else {
+        eprintln!("No audio device detected!");
+        None
+    };
+
+    // Create SDL event pump
+    let mut _event_pump = sdl_context.event_pump().unwrap();
+    _event_pump.enable_event(DropFile);
 
     let mut t = Instant::now();
     let mut video_time = Instant::now();
