@@ -7,13 +7,16 @@ use emu6502::mmu::AuxType;
 use emu6502::video::DisplayMode;
 //use emu6502::bus::Mem;
 //use emu6502::trace::trace;
-use emu6502::cpu::{CpuSpeed, CpuStats, CPU};
+use emu6502::cpu::{CPU, CpuSpeed, CpuStats};
 use emu6502::mockingboard::Mockingboard;
 use emu6502::trace::{adjust_disassemble_addr, disassemble_addr};
 use image::codecs::png::PngEncoder;
 use image::ColorType;
 use image::ImageEncoder;
+use image::codecs::png::PngEncoder;
 use rfd::FileDialog;
+use sdl2::GameControllerSubsystem;
+use sdl2::VideoSubsystem;
 use sdl2::audio::AudioQueue;
 use sdl2::audio::AudioSpecDesired;
 use sdl2::controller::Axis;
@@ -1345,19 +1348,22 @@ fn update_video(
 ) {
     let disp = &mut cpu.bus.video;
     if *save_screenshot {
-        if let Ok(output) = File::create("screenshot.png") {
-            let encoder = PngEncoder::new(output);
-            let result = encoder.write_image(
-                &disp.frame,
-                WIDTH as u32,
-                HEIGHT as u32,
-                ColorType::Rgba8.into(),
-            );
-            if result.is_err() {
-                eprintln!("Unable to create PNG file");
+        match File::create("screenshot.png") {
+            Ok(output) => {
+                let encoder = PngEncoder::new(output);
+                let result = encoder.write_image(
+                    &disp.frame,
+                    WIDTH as u32,
+                    HEIGHT as u32,
+                    ColorType::Rgba8.into(),
+                );
+                if result.is_err() {
+                    eprintln!("Unable to create PNG file");
+                }
             }
-        } else {
-            eprintln!("Unable to create screenshot.png");
+            _ => {
+                eprintln!("Unable to create screenshot.png");
+            }
         }
 
         *save_screenshot = false;
@@ -1555,7 +1561,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             "robocom1000" => cpu.bus.set_dongle(Dongle::Robocom(1000)),
             "robocom1500" => cpu.bus.set_dongle(Dongle::Robocom(1500)),
             _ => {
-                panic!("Dongle supported: speedstar, hayden, codewriter, robocom500, robocom1000, robocom1500");
+                panic!(
+                    "Dongle supported: speedstar, hayden, codewriter, robocom500, robocom1000, robocom1500"
+                );
             }
         }
     }
@@ -1576,7 +1584,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             "apple2c4" => initialize_apple_system(&mut cpu, &apple2c4_rom, 0xc000, true),
             "apple2cp" => initialize_apple_system(&mut cpu, &apple2cp_rom, 0xc000, true),
             _ => {
-                panic!("Model supported: apple2, apple2p, apple2e, apple2ee, apple2c, apple2c0, apple2c3, apple2c4, apple2cp");
+                panic!(
+                    "Model supported: apple2, apple2p, apple2e, apple2ee, apple2c, apple2c0, apple2c3, apple2c4, apple2cp"
+                );
             }
         }
     }
@@ -1839,17 +1849,21 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         samples: Some(AUDIO_SAMPLE_SIZE as u16), // default sample size
     };
 
-    let audio_device = if let Ok(audio) = &audio_subsystem {
-        if let Ok(device) = audio.open_queue::<i16, _>(None, &desired_spec) {
-            device.resume();
-            Some(device)
-        } else {
-            eprintln!("Audio device detected but cannot open queue!");
+    let audio_device = match &audio_subsystem {
+        Ok(audio) => match audio.open_queue::<i16, _>(None, &desired_spec) {
+            Ok(device) => {
+                device.resume();
+                Some(device)
+            }
+            _ => {
+                eprintln!("Audio device detected but cannot open queue!");
+                None
+            }
+        },
+        _ => {
+            eprintln!("No audio device detected!");
             None
         }
-    } else {
-        eprintln!("No audio device detected!");
-        None
     };
 
     // Create SDL event pump
@@ -1995,25 +2009,29 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         let current_full_screen_value = current_full_screen;
                         current_full_screen = full_screen;
                         if current_full_screen {
-                            if let Err(e) =
-                                canvas.window_mut().set_fullscreen(FullscreenType::Desktop)
-                            {
-                                eprintln!("Unable to set full_screen = {}", e);
-                                current_full_screen = current_full_screen_value;
-                                full_screen = current_full_screen_value;
-                            } else {
-                                sdl_context.mouse().show_cursor(false);
-                                _cpu.bus.video.invalidate_video_cache();
+                            match canvas.window_mut().set_fullscreen(FullscreenType::Desktop) {
+                                Err(e) => {
+                                    eprintln!("Unable to set full_screen = {}", e);
+                                    current_full_screen = current_full_screen_value;
+                                    full_screen = current_full_screen_value;
+                                }
+                                _ => {
+                                    sdl_context.mouse().show_cursor(false);
+                                    _cpu.bus.video.invalidate_video_cache();
+                                }
                             }
-                        } else if let Err(e) =
-                            canvas.window_mut().set_fullscreen(FullscreenType::Off)
-                        {
-                            eprintln!("Unable to restore from full_screen = {}", e);
-                            current_full_screen = current_full_screen_value;
-                            full_screen = current_full_screen_value;
                         } else {
-                            sdl_context.mouse().show_cursor(true);
-                            _cpu.bus.video.invalidate_video_cache();
+                            match canvas.window_mut().set_fullscreen(FullscreenType::Off) {
+                                Err(e) => {
+                                    eprintln!("Unable to restore from full_screen = {}", e);
+                                    current_full_screen = current_full_screen_value;
+                                    full_screen = current_full_screen_value;
+                                }
+                                _ => {
+                                    sdl_context.mouse().show_cursor(true);
+                                    _cpu.bus.video.invalidate_video_cache();
+                                }
+                            }
                         }
                     }
                 } else {

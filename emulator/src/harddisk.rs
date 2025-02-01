@@ -580,18 +580,21 @@ impl HardDisk {
                     }
                 }
 
-                if let Ok(mut f) = OpenOptions::new().write(true).open(filename) {
-                    let result = f
-                        .seek(SeekFrom::Start(start as u64))
-                        .and_then(|_| f.write_all(&buf));
-                    if result.is_err() {
+                match OpenOptions::new().write(true).open(filename) {
+                    Ok(mut f) => {
+                        let result = f
+                            .seek(SeekFrom::Start(start as u64))
+                            .and_then(|_| f.write_all(&buf));
+                        if result.is_err() {
+                            disk.error = DeviceStatus::DeviceIoError as u8;
+                            return;
+                        }
+                    }
+                    _ => {
+                        eprintln!("Unable to open {}", filename);
                         disk.error = DeviceStatus::DeviceIoError as u8;
                         return;
                     }
-                } else {
-                    eprintln!("Unable to open {}", filename);
-                    disk.error = DeviceStatus::DeviceIoError as u8;
-                    return;
                 }
             }
         }
@@ -618,16 +621,19 @@ impl HardDisk {
 
         if self.enable_save {
             if let Some(filename) = &disk.filename {
-                if let Ok(mut f) = OpenOptions::new().write(true).open(filename) {
-                    let result = f.write_all(&disk.raw_data);
-                    if result.is_err() {
+                match OpenOptions::new().write(true).open(filename) {
+                    Ok(mut f) => {
+                        let result = f.write_all(&disk.raw_data);
+                        if result.is_err() {
+                            disk.error = DeviceStatus::DeviceIoError as u8;
+                            return;
+                        }
+                    }
+                    _ => {
+                        eprintln!("Unable to open {}", filename);
                         disk.error = DeviceStatus::DeviceIoError as u8;
                         return;
                     }
-                } else {
-                    eprintln!("Unable to open {}", filename);
-                    disk.error = DeviceStatus::DeviceIoError as u8;
-                    return;
                 }
             }
         }

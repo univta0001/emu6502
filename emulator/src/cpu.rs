@@ -1537,15 +1537,20 @@ impl CPU {
             self.alt_cpu = !self.alt_cpu;
         }
 
-        if let Some(_nmi) = &self.bus.poll_nmi_status() {
-            self.interrupt(interrupt::NMI);
-        } else if !self.status.contains(CpuFlags::INTERRUPT_DISABLE)
-            && self.bus.irq().is_some()
-            && !self.irq_last_tick
-        {
-            // If the interrupt happens on the last cycle of the opcode, execute the opcode and
-            // then the interrupt handling routine
-            self.interrupt(interrupt::IRQ);
+        match &self.bus.poll_nmi_status() {
+            Some(_nmi) => {
+                self.interrupt(interrupt::NMI);
+            }
+            _ => {
+                if !self.status.contains(CpuFlags::INTERRUPT_DISABLE)
+                    && self.bus.irq().is_some()
+                    && !self.irq_last_tick
+                {
+                    // If the interrupt happens on the last cycle of the opcode, execute the opcode and
+                    // then the interrupt handling routine
+                    self.interrupt(interrupt::IRQ);
+                }
+            }
         }
 
         self.irq_last_tick = false;

@@ -1,6 +1,6 @@
 use crate::bus::{Bus, Mem};
 use crate::cpu::AddressingMode;
-use crate::cpu::{OpCode, CPU, OPCODES};
+use crate::cpu::{CPU, OPCODES, OpCode};
 //use std::collections::HashMap;
 use std::cmp::Ordering;
 

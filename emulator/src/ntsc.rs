@@ -63,11 +63,7 @@ fn lanczos_window(n: usize, fc: f32) -> Vec<f32> {
         .enumerate()
         .map(|(i, _)| {
             let x = 2.0 * std::f32::consts::PI * fc * (i as f32 - half_n);
-            if x == 0.0 {
-                1.0
-            } else {
-                f32::sin(x) / x
-            }
+            if x == 0.0 { 1.0 } else { f32::sin(x) / x }
         })
         .collect()
 }

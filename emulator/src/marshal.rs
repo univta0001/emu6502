@@ -1,9 +1,9 @@
 #[cfg(all(feature = "serde_support", feature = "flate"))]
+use flate2::Compression;
+#[cfg(all(feature = "serde_support", feature = "flate"))]
 use flate2::read::GzDecoder;
 #[cfg(all(feature = "serde_support", feature = "flate"))]
 use flate2::write::GzEncoder;
-#[cfg(all(feature = "serde_support", feature = "flate"))]
-use flate2::Compression;
 #[cfg(feature = "serde_support")]
 use serde::de::{Error, Unexpected};
 #[cfg(all(feature = "serde_support", feature = "flate"))]

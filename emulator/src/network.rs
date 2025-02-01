@@ -793,7 +793,9 @@ impl Uthernet2 {
             W5100_SN_MSSR0 | W5100_SN_MSSR1 => self.mem[addr] = value,
             _ => {
                 #[cfg(debug_assertions)]
-                u2_debug!("Write to socket unit = {unit} addr = 0x{addr:04X} loc = 0x{loc:02X} value = 0x{value:02X}")
+                u2_debug!(
+                    "Write to socket unit = {unit} addr = 0x{addr:04X} loc = 0x{loc:02X} value = 0x{value:02X}"
+                )
             }
         }
     }
@@ -1133,17 +1135,19 @@ impl Uthernet2 {
             rtr * 100
         );
 
-        if let Ok(stream) = TcpStream::connect_timeout(&sock_addr, Duration::from_micros(rtr * 100))
-        {
-            u2_debug!("Connect Socket on #{i} to {sock_addr:?} - OK");
-            stream
-                .set_nonblocking(true)
-                .expect("Cannot set non-blocking stream");
-            self.socket[i].set_socket_handle(Proto::Tcp(stream));
-            self.set_socket_status(i, W5100_SN_SR_SOCK_ESTABLISHED);
-        } else {
-            u2_debug!("Connect Socket on #{i} to {sock_addr:?} FAILED");
-            self.clear_socket(i);
+        match TcpStream::connect_timeout(&sock_addr, Duration::from_micros(rtr * 100)) {
+            Ok(stream) => {
+                u2_debug!("Connect Socket on #{i} to {sock_addr:?} - OK");
+                stream
+                    .set_nonblocking(true)
+                    .expect("Cannot set non-blocking stream");
+                self.socket[i].set_socket_handle(Proto::Tcp(stream));
+                self.set_socket_status(i, W5100_SN_SR_SOCK_ESTABLISHED);
+            }
+            _ => {
+                u2_debug!("Connect Socket on #{i} to {sock_addr:?} FAILED");
+                self.clear_socket(i);
+            }
         }
     }
 
@@ -1180,16 +1184,19 @@ impl Uthernet2 {
         let listen_string = format!("{}.{}.{}.{}:{port}", src[0], src[1], src[2], src[3]);
         u2_debug!("Listen Socket on #{i} to {listen_string} ...");
 
-        if let Ok(listener) = TcpListener::bind(&listen_string) {
-            u2_debug!("Listen Socket on #{i} to {listen_string} - OK");
-            listener
-                .set_nonblocking(true)
-                .expect("Cannot set non-blocking listener");
-            self.socket[i].set_socket_handle(Proto::TcpListener(listener));
-            self.set_socket_status(i, W5100_SN_SR_SOCK_LISTEN);
-        } else {
-            u2_debug!("Listen Socket on #{i} to {listen_string} FAILED");
-            self.clear_socket(i);
+        match TcpListener::bind(&listen_string) {
+            Ok(listener) => {
+                u2_debug!("Listen Socket on #{i} to {listen_string} - OK");
+                listener
+                    .set_nonblocking(true)
+                    .expect("Cannot set non-blocking listener");
+                self.socket[i].set_socket_handle(Proto::TcpListener(listener));
+                self.set_socket_status(i, W5100_SN_SR_SOCK_LISTEN);
+            }
+            _ => {
+                u2_debug!("Listen Socket on #{i} to {listen_string} FAILED");
+                self.clear_socket(i);
+            }
         }
     }
 
@@ -1273,31 +1280,38 @@ impl Uthernet2 {
         let socket = &mut self.socket[i];
 
         if socket.is_open() {
-            if let Proto::Tcp(stream) = &mut socket.socket_handle {
-                let result = stream.write_all(data);
-                if let Err(error) = result {
-                    if !(matches!(error.kind(), ErrorKind::WouldBlock)) {
-                        self.clear_socket(i);
+            match &mut socket.socket_handle {
+                Proto::Tcp(stream) => {
+                    let result = stream.write_all(data);
+                    if let Err(error) = result {
+                        if !(matches!(error.kind(), ErrorKind::WouldBlock)) {
+                            self.clear_socket(i);
+                        }
                     }
                 }
-            } else if let Proto::Udp(udp) = &mut socket.socket_handle {
-                let dest = &self.mem[base_addr + W5100_SN_DIPR0..=base_addr + W5100_SN_DIPR3];
-                let port_bytes = [
-                    self.mem[base_addr + W5100_SN_DPORT0],
-                    self.mem[base_addr + W5100_SN_DPORT1],
-                ];
-                let port = u16::from_be_bytes(port_bytes);
-                let sock_addr = SocketAddr::new(
-                    IpAddr::V4(Ipv4Addr::new(dest[0], dest[1], dest[2], dest[3])),
-                    port,
-                );
+                _ => match &mut socket.socket_handle {
+                    Proto::Udp(udp) => {
+                        let dest =
+                            &self.mem[base_addr + W5100_SN_DIPR0..=base_addr + W5100_SN_DIPR3];
+                        let port_bytes = [
+                            self.mem[base_addr + W5100_SN_DPORT0],
+                            self.mem[base_addr + W5100_SN_DPORT1],
+                        ];
+                        let port = u16::from_be_bytes(port_bytes);
+                        let sock_addr = SocketAddr::new(
+                            IpAddr::V4(Ipv4Addr::new(dest[0], dest[1], dest[2], dest[3])),
+                            port,
+                        );
 
-                let result = udp.send_to(data, sock_addr);
-                if let Err(error) = result {
-                    if !(matches!(error.kind(), ErrorKind::WouldBlock)) {
-                        self.clear_socket(i);
+                        let result = udp.send_to(data, sock_addr);
+                        if let Err(error) = result {
+                            if !(matches!(error.kind(), ErrorKind::WouldBlock)) {
+                                self.clear_socket(i);
+                            }
+                        }
                     }
-                }
+                    _ => {}
+                },
             }
         }
     }
