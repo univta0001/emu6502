@@ -1406,33 +1406,31 @@ impl Mem for Bus {
             if (0x400..0xc00).contains(&addr) || (0x2000..=0x9fff).contains(&addr) {
                 // Shadow it to the video ram
                 let aux_bank = self.mem.aux_bank();
-                if aux_bank == 0 {
-                    if aux_memory {
-                        if !self.mem.vidhd {
-                            match self.mem.aux_type {
-                                AuxType::Ext80 | AuxType::RW3 => {
-                                    self.video.update_shadow_memory(aux_memory, addr, data)
-                                }
-                                AuxType::Std80 => {
-                                    if addr < 0x800 {
-                                        self.video.update_shadow_memory(aux_memory, addr, data);
-                                    } else {
-                                        self.video.update_shadow_memory(
-                                            aux_memory,
-                                            0x400 + (addr & 0x3ff),
-                                            data,
-                                        )
-                                    }
-                                }
-
-                                _ => {}
+                if aux_memory && aux_bank == 0 {
+                    if !self.mem.vidhd {
+                        match self.mem.aux_type {
+                            AuxType::Ext80 | AuxType::RW3 => {
+                                self.video.update_shadow_memory(aux_memory, addr, data)
                             }
-                        } else {
-                            self.video.update_shadow_memory(aux_memory, addr, data)
+                            AuxType::Std80 => {
+                                if addr < 0x800 {
+                                    self.video.update_shadow_memory(aux_memory, addr, data);
+                                } else {
+                                    self.video.update_shadow_memory(
+                                        aux_memory,
+                                        0x400 + (addr & 0x3ff),
+                                        data,
+                                    )
+                                }
+                            }
+
+                            _ => {}
                         }
                     } else {
-                        self.video.update_shadow_memory(aux_memory, addr, data);
+                        self.video.update_shadow_memory(aux_memory, addr, data)
                     }
+                } else {
+                    self.video.update_shadow_memory(aux_memory, addr, data);
                 }
             }
         }
