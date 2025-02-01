@@ -308,7 +308,7 @@ pub fn dump_trace(output: &mut String, cpu: &mut CPU, addr: u16, status: bool) {
         AddressingMode::Immediate | AddressingMode::NoneAddressing => (0, 0),
         _ => {
             let addr = cpu.get_cb_operand_address(ops, addr);
-            if addr >> 8 & 0xff == 0xc0 {
+            if (addr >> 8) & 0xff == 0xc0 {
                 (addr, cpu.bus.mem_read(addr))
             } else {
                 (addr, cpu.bus.unclocked_addr_read(addr))
@@ -380,7 +380,7 @@ pub fn dump_trace(output: &mut String, cpu: &mut CPU, addr: u16, status: bool) {
                             if address & 0x00FF == 0x00FF {
                                 let lo = cpu.bus.unclocked_addr_read(address);
                                 let hi = cpu.bus.unclocked_addr_read(address & 0xFF00);
-                                (hi as u16) << 8 | (lo as u16)
+                                ((hi as u16) << 8) | (lo as u16)
                             } else {
                                 cpu.bus.unclocked_addr_read_u16(address)
                             }

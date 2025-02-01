@@ -860,7 +860,7 @@ impl Card for HardDisk {
                 let disk = &mut self.drive[self.drive_select];
 
                 if write_flag {
-                    disk.mem_block = disk.mem_block & 0x00ff | (value as u16) << 8;
+                    disk.mem_block = disk.mem_block & 0x00ff | ((value as u16) << 8);
                 }
                 ((disk.mem_block & 0xff00) >> 8) as u8
             }
@@ -884,7 +884,7 @@ impl Card for HardDisk {
                 let disk = &mut self.drive[self.drive_select];
 
                 if write_flag {
-                    disk.disk_block = disk.disk_block & 0xff00ff | (value as u32) << 8
+                    disk.disk_block = disk.disk_block & 0xff00ff | ((value as u32) << 8)
                 }
                 ((disk.disk_block & 0xff00) >> 8) as u8
             }
@@ -904,7 +904,7 @@ impl Card for HardDisk {
                         0
                     }
                 } else if self.command & 0x80 != 0 {
-                    disk.disk_block = disk.disk_block & 0x00ffff | (value as u32) << 16;
+                    disk.disk_block = disk.disk_block & 0x00ffff | ((value as u32) << 16);
                     ((disk.disk_block & 0xff0000) >> 16) as u8
                 } else {
                     0

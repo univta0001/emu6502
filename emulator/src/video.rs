@@ -822,7 +822,7 @@ impl Video {
         let video_aux_latch = self.read_aux_video_data(val, row);
         let visible_col = col - CYCLES_PER_HBL;
         let video_mode = self.get_video_mode();
-        let video_data = video_value as u32 | (video_aux_latch as u32) << 8 | video_mode;
+        let video_data = video_value as u32 | ((video_aux_latch as u32) << 8) | video_mode;
         let video_index = visible_col + row * 40;
         let flash_status = self.get_flash_mode(video_data, video_mode);
 
@@ -1246,7 +1246,7 @@ impl Video {
         // 000000cd eabab000 -> 000abcde
         let ab = line & 0x18;
         let cde = (line & 0x7) << 7;
-        let addr = cde | ab | ab << 2;
+        let addr = cde | ab | (ab << 2);
 
         self.read_raw_text_memory(addr + col)
     }
@@ -1257,7 +1257,7 @@ impl Video {
         // 000000cd eabab000 -> 000abcde
         let ab = line & 0x18;
         let cde = (line & 0x7) << 7;
-        let addr = cde | ab | ab << 2;
+        let addr = cde | ab | (ab << 2);
 
         self.read_raw_aux_text_memory(addr + col)
     }
@@ -1859,7 +1859,7 @@ impl Video {
         debug_assert!(y1 < 24);
 
         let low_pixel_color = LORES_COLORS[(ch & 0xf) as usize];
-        let high_pixel_color = LORES_COLORS[(ch >> 4 & 0xf) as usize];
+        let high_pixel_color = LORES_COLORS[((ch >> 4) & 0xf) as usize];
 
         if self.mixed_mode && y1 > 19 {
             self.draw_char_a2(x1, y1, ch);
@@ -1884,7 +1884,11 @@ impl Video {
         debug_assert!(y1 < 192);
 
         let yindex = y1 % 8;
-        let value = if yindex < 4 { ch & 0xf } else { ch >> 4 & 0xf };
+        let value = if yindex < 4 {
+            ch & 0xf
+        } else {
+            (ch >> 4) & 0xf
+        };
         let mut mask = if x1 & 1 != 0 { 4 } else { 1 };
         let is_ntsc =
             self.display_mode == DisplayMode::NTSC || self.display_mode == DisplayMode::MONO_NTSC;
@@ -1909,7 +1913,7 @@ impl Video {
                         } else {
                             (prev_ch >> 4) & 0xf
                         };
-                        (val << 3 | val >> 1) & 0xf
+                        ((val << 3) | (val >> 1)) & 0xf
                     } else {
                         0
                     };
@@ -2320,7 +2324,7 @@ impl Video {
                 if value & mask > 0 {
                     color_index |= 1 << index;
                 } else {
-                    color_index &= 1 << index ^ 0xf;
+                    color_index &= (1 << index) ^ 0xf;
                 }
 
                 let mut color = if dhires_mode {
@@ -2334,7 +2338,7 @@ impl Video {
                 if value & mask > 0 {
                     color_index |= 1 << ((index + 1) % 4);
                 } else {
-                    color_index &= 1 << ((index + 1) % 4) ^ 0xf;
+                    color_index &= (1 << ((index + 1) % 4)) ^ 0xf;
                 }
 
                 color = if dhires_mode {
@@ -2565,14 +2569,14 @@ impl Video {
                     if col % 2 == 0 {
                         val
                     } else {
-                        (val & 0x3) << 2 | val >> 2
+                        ((val & 0x3) << 2) | (val >> 2)
                     }
                 } else {
                     let val = (self.read_hires_memory(col - 1, row) >> 3) & 0xf;
                     if col % 2 == 0 {
                         val
                     } else {
-                        (val & 0x3) << 2 | val >> 2
+                        ((val & 0x3) << 2) | (val >> 2)
                     }
                 };
 

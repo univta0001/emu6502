@@ -1289,8 +1289,8 @@ impl Uthernet2 {
                         }
                     }
                 }
-                _ => match &mut socket.socket_handle {
-                    Proto::Udp(udp) => {
+                _ => {
+                    if let Proto::Udp(udp) = &mut socket.socket_handle {
                         let dest =
                             &self.mem[base_addr + W5100_SN_DIPR0..=base_addr + W5100_SN_DIPR3];
                         let port_bytes = [
@@ -1310,8 +1310,7 @@ impl Uthernet2 {
                             }
                         }
                     }
-                    _ => {}
-                },
+                }
             }
         }
     }

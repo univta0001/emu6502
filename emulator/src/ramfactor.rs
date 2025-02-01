@@ -630,7 +630,7 @@ fn from_hex<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Er
             return Err(Error::invalid_value(Unexpected::Seq, &"Invalid hex length"));
         }
         for pair in value.chars().collect::<Vec<_>>().chunks(2) {
-            let result = hex_to_u8(pair[0] as u8).map_err(Error::custom)? << 4
+            let result = (hex_to_u8(pair[0] as u8).map_err(Error::custom)? << 4)
                 | hex_to_u8(pair[1] as u8).map_err(Error::custom)?;
             gz_vector.push(result);
         }
@@ -690,14 +690,14 @@ impl RamFactor {
             if self.addr & 0x8000 != 0 && value & 0x80 == 0 {
                 self.addr += 0x010000;
             }
-            self.addr = (self.addr & 0xff00ff) | (value as usize) << 8;
+            self.addr = (self.addr & 0xff00ff) | ((value as usize) << 8);
         }
         ((self.addr & 0xff00) >> 8) as u8
     }
 
     fn update_high_addr(&mut self, value: u8, write_flag: bool) -> u8 {
         if write_flag {
-            self.addr = (self.addr & 0x00ffff) | (value as usize) << 16;
+            self.addr = (self.addr & 0x00ffff) | ((value as usize) << 16);
         }
         if self.mem.len() <= SIZE_1MB {
             (((self.addr & 0xff0000) >> 16) | 0xf0) as u8

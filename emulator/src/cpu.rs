@@ -1154,13 +1154,13 @@ impl CPU {
     fn stack_pop_u16(&mut self) -> u16 {
         let lo = self.stack_pop() as u16;
         let hi = self.stack_pop() as u16;
-        hi << 8 | lo
+        (hi << 8) | lo
     }
 
     fn last_tick_stack_pop_u16(&mut self) -> u16 {
         let lo = self.stack_pop() as u16;
         let hi = self.last_tick_stack_pop() as u16;
-        hi << 8 | lo
+        (hi << 8) | lo
     }
 
     fn asl_accumulator(&mut self) {
@@ -2159,7 +2159,7 @@ impl CPU {
                         if mem_address & 0x00FF == 0x00FF {
                             let lo = self.addr_read(mem_address);
                             let hi = self.addr_read(mem_address & 0xFF00);
-                            (hi as u16) << 8 | (lo as u16)
+                            ((hi as u16) << 8) | (lo as u16)
                         } else {
                             self.last_tick_addr_read_u16(mem_address)
                         }
@@ -2186,8 +2186,8 @@ impl CPU {
                     let _ = self.addr_read(self.program_counter.wrapping_add(1));
                     self.stack_push_u16(self.program_counter.wrapping_add(1));
                     let target_address =
-                        (self.last_tick_addr_read(self.program_counter.wrapping_add(1)) as u16)
-                            << 8
+                        ((self.last_tick_addr_read(self.program_counter.wrapping_add(1)) as u16)
+                            << 8)
                             | adl as u16;
                     self.program_counter = target_address;
                 }
@@ -2673,7 +2673,7 @@ impl CPU {
             {
                 let z80_cycle = self.z80cpu.cycle_count();
                 self.z80cpu.execute_instruction(&mut self.bus);
-                let z80_cycle = (self.z80cpu.cycle_count() - z80_cycle + 1) / 2;
+                let z80_cycle = (self.z80cpu.cycle_count() - z80_cycle).div_ceil(2);
                 for _ in 0..z80_cycle {
                     self.tick();
                 }

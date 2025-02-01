@@ -243,7 +243,7 @@ impl AY8910 {
         // LFSR generator g(x) = x^16 + x^3 + 1
 
         let bit0 = self.rng & 0x1;
-        let bit3 = self.rng >> 3 & 0x1;
+        let bit3 = (self.rng >> 3) & 0x1;
         self.rng = (self.rng >> 1) | ((bit0 ^ bit3) << 16);
         self.rng
 
@@ -677,7 +677,7 @@ impl W65C22 {
             // T2C-H
             0x19 | 0x09 => {
                 if write_flag {
-                    self.t2c = (value as u16) << 8 | self.t2ll as u16;
+                    self.t2c = ((value as u16) << 8) | self.t2ll as u16;
                     self.t2c = self.t2c.wrapping_add(1);
                     self.t2_loaded = true;
                     self.ifr &= !0x20;

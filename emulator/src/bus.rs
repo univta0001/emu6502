@@ -941,7 +941,7 @@ impl Bus {
             0x40 => {
                 if self.is_apple2c {
                     self.read_floating_bus() & 0x7f
-                        | ((self.mouse.get_iou_mode() & STATUS_MOVE_INTERRUPT > 0) as u8) << 7
+                        | (((self.mouse.get_iou_mode() & STATUS_MOVE_INTERRUPT > 0) as u8) << 7)
                 } else {
                     self.read_floating_bus()
                 }
@@ -950,7 +950,7 @@ impl Bus {
             0x41 => {
                 if self.is_apple2c {
                     self.read_floating_bus() & 0x7f
-                        | ((self.mouse.get_iou_mode() & STATUS_VBL_INTERRUPT > 0) as u8) << 7
+                        | (((self.mouse.get_iou_mode() & STATUS_VBL_INTERRUPT > 0) as u8) << 7)
                 } else {
                     self.read_floating_bus()
                 }
@@ -1178,7 +1178,7 @@ impl Bus {
                         0x0
                     }
                 } else {
-                    ((self.mouse.get_delta_x() > 0) as u8) << 7 | self.read_floating_bus() & 0x7f
+                    (((self.mouse.get_delta_x() > 0) as u8) << 7) | self.read_floating_bus() & 0x7f
                 }
             }
 
@@ -1191,7 +1191,7 @@ impl Bus {
                         Dongle::Hayden => {
                             // Implementation of Hayden dongle
                             let index =
-                                (self.annunciator[2] as u8) << 1 | self.annunciator[0] as u8;
+                                ((self.annunciator[2] as u8) << 1) | self.annunciator[0] as u8;
                             let dongle_value = [0xff, 0x96, 0x96, 0x50];
                             value = dongle_value[index as usize];
                         }
@@ -1232,7 +1232,7 @@ impl Bus {
                         0x0
                     }
                 } else {
-                    ((self.mouse.get_delta_y() < 0) as u8) << 7 | self.read_floating_bus() & 0x7f
+                    (((self.mouse.get_delta_y() < 0) as u8) << 7) | self.read_floating_bus() & 0x7f
                 }
             }
 

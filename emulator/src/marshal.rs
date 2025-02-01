@@ -136,7 +136,7 @@ pub fn from_hex_opt<'de, D: Deserializer<'de>>(
                 return Err(Error::invalid_value(Unexpected::Seq, &"Invalid hex length"));
             }
             for pair in value.chars().collect::<Vec<_>>().chunks(2) {
-                let result = hex_to_u8(pair[0] as u8).map_err(Error::custom)? << 4
+                let result = (hex_to_u8(pair[0] as u8).map_err(Error::custom)? << 4)
                     | hex_to_u8(pair[1] as u8).map_err(Error::custom)?;
                 gz_vector.push(result);
             }
@@ -180,7 +180,7 @@ fn from_hex<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Er
             return Err(Error::invalid_value(Unexpected::Seq, &"Invalid hex length"));
         }
         for pair in value.chars().collect::<Vec<_>>().chunks(2) {
-            let result = hex_to_u8(pair[0] as u8).map_err(Error::custom)? << 4
+            let result = (hex_to_u8(pair[0] as u8).map_err(Error::custom)? << 4)
                 | hex_to_u8(pair[1] as u8).map_err(Error::custom)?;
             v.push(result);
         }

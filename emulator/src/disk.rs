@@ -246,7 +246,7 @@ const BITS_TRACK_SIZE: usize = BITS_BLOCKS_PER_TRACK * BITS_BLOCK_SIZE;
 
 // Based on WOZ 2.1 specification, recommended value is 51200 bits or 6400 bytes
 const NOMINAL_USABLE_BITS_TRACK_SIZE: usize = 51200;
-const NOMINAL_USABLE_BYTES_TRACK_SIZE: usize = (NOMINAL_USABLE_BITS_TRACK_SIZE + 7) / 8;
+const NOMINAL_USABLE_BYTES_TRACK_SIZE: usize = NOMINAL_USABLE_BITS_TRACK_SIZE.div_ceil(8);
 const TRACK_LEADER_SYNC_COUNT: usize = 64;
 const SECTORS_PER_TRACK: usize = 16;
 const BYTES_PER_SECTOR: usize = 256;
@@ -1086,14 +1086,14 @@ fn convert_woz_to_nib(disk: &Disk) -> io::Result<()> {
 
 fn write_woz_u16(dsk: &mut Vec<u8>, value: u16) {
     dsk.push((value & 0xff) as u8);
-    dsk.push((value >> 8 & 0xff) as u8);
+    dsk.push(((value >> 8) & 0xff) as u8);
 }
 
 fn write_woz_u32(dsk: &mut Vec<u8>, value: u32) {
     dsk.push((value & 0xff) as u8);
-    dsk.push((value >> 8 & 0xff) as u8);
-    dsk.push((value >> 16 & 0xff) as u8);
-    dsk.push((value >> 24 & 0xff) as u8);
+    dsk.push(((value >> 8) & 0xff) as u8);
+    dsk.push(((value >> 16) & 0xff) as u8);
+    dsk.push(((value >> 24) & 0xff) as u8);
 }
 
 fn read_woz_u32(dsk: &[u8], offset: usize) -> u32 {
@@ -1443,7 +1443,7 @@ impl DiskDrive {
                     sum / 32 + 1
                 };
 
-                let bytes = (bits + 7) / 8;
+                let bytes = bits.div_ceil(8);
 
                 result.push((
                     track_type,
@@ -2056,7 +2056,7 @@ impl DiskDrive {
         let byte_len = if disk.trackmap[track] == TrackType::Flux {
             bit_count
         } else {
-            (bit_count + 7) / 8
+            bit_count.div_ceil(8)
         };
 
         /*
@@ -2445,9 +2445,9 @@ impl DiskDrive {
 
     fn step_lss(&mut self) {
         let idx = self.lss_state
-            | (self.q7 as u8) << 3
-            | (self.q6 as u8) << 2
-            | (self.latch >> 7) << 1
+            | ((self.q7 as u8) << 3)
+            | ((self.q6 as u8) << 2)
+            | ((self.latch >> 7) << 1)
             | self.pulse;
 
         let command = LSS_SEQUENCER_ROM_16[idx as usize];
@@ -2489,7 +2489,7 @@ impl DiskDrive {
                 self.latch |= (self.is_write_protected() as u8 & 0x1) << 7;
             }
             0x0b | 0x0f => self.latch = self.bus,
-            0x0d => self.latch = self.latch << 1 | 0x1,
+            0x0d => self.latch = (self.latch << 1) | 0x1,
             _ => self.latch = 0,
         }
     }
@@ -2678,7 +2678,7 @@ impl Card for DiskDrive {
         self.request_fast_disk();
 
         let mut return_value = 0;
-        let mode = (self.q7 as u8) << 1 | self.q6 as u8;
+        let mode = ((self.q7 as u8) << 1) | self.q6 as u8;
         if !write_flag {
             if addr & 0x1 == 0 {
                 return_value = if self.iwm {
@@ -2693,8 +2693,8 @@ impl Card for DiskDrive {
                             }
 
                             (self.iwm_mode & 0x1f)
-                                | (self.is_motor_on() as u8 & 0x1) << 5
-                                | status << 7
+                                | ((self.is_motor_on() as u8 & 0x1) << 5)
+                                | (status << 7)
                         }
 
                         // Q6 off, Q7 on, Read handshake register. IWM is always ready.
@@ -2703,7 +2703,7 @@ impl Card for DiskDrive {
                         _ => self.get_value(),
                     }
                 } else if mode == 1 {
-                    self.get_value() & 0x7f | (self.is_write_protected() as u8 & 0x1) << 7
+                    self.get_value() & 0x7f | ((self.is_write_protected() as u8 & 0x1) << 7)
                 } else {
                     self.get_value()
                 };
