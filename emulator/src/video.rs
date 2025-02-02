@@ -830,21 +830,14 @@ impl Video {
             || self.video_reparse[row] != 0
             || flash_status
         {
-            if self.video_cache[video_index] != video_data || flash_status {
-                self.video_dirty[row / 8] = 1;
+            if self.video_reparse[row] != 0 {
+                if visible_col == 0 {
+                    self.video_reparse[row] = 0;
+                }
             }
 
-            // Redraw the whole row in the next 2 cycle
-            if self.video_reparse[row] != 0 {
-                if visible_col == 39 {
-                    if self.video_reparse[row] > 2 {
-                        self.video_reparse[row] = 0;
-                    } else {
-                        self.video_dirty[row / 8] = 1;
-                        self.video_reparse[row] += 1;
-                    }
-                }
-            } else if self.video_cache[video_index] != video_data && self.video_reparse[row] == 0 {
+            if self.video_cache[video_index] != video_data || flash_status {
+                self.video_dirty[row / 8] = 1;
                 self.video_reparse[row] = 1;
             }
 
