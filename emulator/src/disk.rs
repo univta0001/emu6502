@@ -19,7 +19,7 @@ use flate2::write::GzEncoder;
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
 
-const DSK_36_40_SIZE: [usize; 5] = [147456, 151552, 155648, 159744, 163840];
+const DSK_36_40_SIZE: [usize; 7] = [143403, 143488, 147456, 151552, 155648, 159744, 163840];
 const DSK_IMAGE_SIZE: usize = 143360;
 const NIB_IMAGE_SIZE: usize = 232960;
 const NIB40_IMAGE_SIZE: usize = 266240;
