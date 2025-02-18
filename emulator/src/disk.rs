@@ -10,16 +10,16 @@ use std::path::Path;
 use std::path::PathBuf;
 
 #[cfg(feature = "flate")]
-use flate2::Compression;
-#[cfg(feature = "flate")]
 use flate2::read::GzDecoder;
 #[cfg(feature = "flate")]
 use flate2::write::GzEncoder;
+#[cfg(feature = "flate")]
+use flate2::Compression;
 
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
 
-const DSK_36_40_SIZE: [usize; 7] = [143403, 143488, 147456, 151552, 155648, 159744, 163840];
+const DSK_36_40_SIZE: [usize; 5] = [147456, 151552, 155648, 159744, 163840];
 const DSK_IMAGE_SIZE: usize = 143360;
 const NIB_IMAGE_SIZE: usize = 232960;
 const NIB40_IMAGE_SIZE: usize = 266240;
@@ -1195,7 +1195,11 @@ fn read_woz_sector(
                 state = if nibble == 0x96 {
                     3
                 } else if nibble == 0xad {
-                    if decoded { 4 } else { 0 }
+                    if decoded {
+                        4
+                    } else {
+                        0
+                    }
                 } else {
                     0
                 }
@@ -1507,7 +1511,7 @@ impl DiskDrive {
         let filename = filename_path.as_ref();
 
         #[cfg(feature = "flate")]
-        let dsk: Vec<u8> = if let Some(extension) = filename.extension() {
+        let mut dsk: Vec<u8> = if let Some(extension) = filename.extension() {
             if extension.eq_ignore_ascii_case(OsStr::new("gz")) {
                 let data = std::fs::read(filename)?;
                 decompress_array_gz(&data)?
@@ -1519,13 +1523,22 @@ impl DiskDrive {
         };
 
         #[cfg(not(feature = "flate"))]
-        let dsk: Vec<u8> = std::fs::read(filename)?;
+        let mut dsk: Vec<u8> = std::fs::read(filename)?;
 
-        if dsk.len() != DSK_IMAGE_SIZE && !DSK_36_40_SIZE.contains(&dsk.len()) {
+        if !(DSK_36_40_SIZE.contains(&dsk.len())
+            || (dsk.len() >= DSK_IMAGE_SIZE - 255 && dsk.len() <= DSK_IMAGE_SIZE + 255))
+        {
             return Err(std::io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Invalid dsk file",
             ));
+        }
+
+        if dsk.len() < DSK_IMAGE_SIZE {
+            // Pad disk image to DSK_IAMGE_SIZE
+            for _ in 0..dsk.len() {
+                dsk.push(0)
+            }
         }
 
         let disk_type = if po_mode { DiskType::Po } else { DiskType::Dsk };

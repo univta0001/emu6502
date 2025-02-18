@@ -830,14 +830,21 @@ impl Video {
             || self.video_reparse[row] != 0
             || flash_status
         {
-            if self.video_reparse[row] != 0 {
-                if visible_col == 0 {
-                    self.video_reparse[row] = 0;
-                }
-            }
-
             if self.video_cache[video_index] != video_data || flash_status {
                 self.video_dirty[row / 8] = 1;
+            }
+
+            // Redraw the whole row in the next 2 cycle
+            if self.video_reparse[row] != 0 {
+                if visible_col == 39 {
+                    if self.video_reparse[row] > 2 {
+                        self.video_reparse[row] = 0;
+                    } else {
+                        self.video_dirty[row / 8] = 1;
+                        self.video_reparse[row] += 1;
+                    }
+                }
+            } else if self.video_cache[video_index] != video_data && self.video_reparse[row] == 0 {
                 self.video_reparse[row] = 1;
             }
 
@@ -910,13 +917,13 @@ impl Video {
         let io_addr = (addr & 0xff) as u8;
         match io_addr {
             0x0c => {
-                if self.apple2e && !self.disable_aux && write_flag {
+                if self.apple2e && write_flag {
                     self.vid80_mode = false;
                     self.update_video();
                 }
             }
             0x0d => {
-                if self.apple2e && !self.disable_aux && write_flag {
+                if self.apple2e && write_flag {
                     self.vid80_mode = true;
                     self.update_video();
                 }
@@ -1110,7 +1117,11 @@ impl Video {
     }
 
     pub fn is_shr_mode(&self) -> bool {
-        if self.vidhd { self.shr_mode } else { false }
+        if self.vidhd {
+            self.shr_mode
+        } else {
+            false
+        }
     }
 
     pub fn is_shr_linear_mode(&self) -> bool {
@@ -1630,7 +1641,11 @@ impl Video {
 
             for xindex in x1offset..x1offset + 7 {
                 let color = if bitmap & shift == 0 {
-                    if altflag { fore_color } else { back_color }
+                    if altflag {
+                        fore_color
+                    } else {
+                        back_color
+                    }
                 } else if altflag {
                     back_color
                 } else {
@@ -2285,7 +2300,11 @@ impl Video {
 
             if col > 0 {
                 let val = if mixed_mode {
-                    if value & 0x1 > 0 { 0x7f } else { 0 }
+                    if value & 0x1 > 0 {
+                        0x7f
+                    } else {
+                        0
+                    }
                 } else {
                     self.read_hires_memory(col - 1, row)
                 };
@@ -2391,7 +2410,11 @@ impl Video {
             // Populate col-1 luma
             let prev_value = if col > 0 {
                 if !an3 && mixed_mode {
-                    if value & 0x1 > 0 { 0x7f } else { 0 }
+                    if value & 0x1 > 0 {
+                        0x7f
+                    } else {
+                        0
+                    }
                 } else {
                     self.read_hires_memory(col - 1, row)
                 }
@@ -2445,7 +2468,11 @@ impl Video {
             // Populate col+1 luma
             let next_value = if col < 39 {
                 if !an3 && mixed_mode {
-                    if value & 0x1 > 0 { 0x7f } else { 0 }
+                    if value & 0x1 > 0 {
+                        0x7f
+                    } else {
+                        0
+                    }
                 } else {
                     self.read_hires_memory(col + 1, row)
                 }
