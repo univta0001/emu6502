@@ -948,8 +948,13 @@ impl Video {
             0x19 => {
                 if self.apple2e {
                     let val = self.cycles;
-                    let row = val / CYCLES_PER_ROW;
-                    if (!self.is_shr_mode() && row < 192) || (self.is_shr_mode() && row < 200) {
+                    let row = if self.is_shr_mode() {
+                        200 * CYCLES_PER_ROW
+                    } else {
+                        192 * CYCLES_PER_ROW
+                    };
+
+                    if val < row {
                         return 0x80;
                     } else {
                         return 0;
