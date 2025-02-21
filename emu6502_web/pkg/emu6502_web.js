@@ -148,7 +148,7 @@ export function init_emul() {
 }
 
 function __wbg_adapter_20(arg0, arg1, arg2) {
-    wasm.closure37_externref_shim(arg0, arg1, arg2);
+    wasm.closure33_externref_shim(arg0, arg1, arg2);
 }
 
 function __wbg_adapter_73(arg0, arg1, arg2, arg3) {
@@ -504,8 +504,8 @@ function __wbg_get_imports() {
         const ret = false;
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper137 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 38, __wbg_adapter_20);
+    imports.wbg.__wbindgen_closure_wrapper125 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 34, __wbg_adapter_20);
         return ret;
     };
     imports.wbg.__wbindgen_init_externref_table = function() {
