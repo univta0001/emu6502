@@ -349,13 +349,8 @@ impl Bus {
         }
 
         if !self.disable_disk {
-            if self.disk.is_motor_on() {
-                self.disk.tick();
-            }
-
-            if self.harddisk.is_busy() {
-                self.harddisk.tick();
-            }
+            self.disk.tick();
+            self.harddisk.tick();
         }
     }
 

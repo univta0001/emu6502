@@ -2512,6 +2512,10 @@ impl Tick for DiskDrive {
     fn tick(&mut self) {
         self.cycles += 1;
 
+        if !self.is_motor_on() {
+            return
+        }
+
         if self.rotor_pending_ticks > 0 {
             self.rotor_pending_ticks -= 1;
             if self.rotor_pending_ticks == 0 {
