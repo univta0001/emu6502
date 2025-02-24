@@ -1515,7 +1515,7 @@ impl CPU {
 
     pub fn run_with_callback<F>(&mut self, mut callback: F)
     where
-        F: FnMut(&mut CPU),
+        F: FnMut(&mut Self),
     {
         loop {
             if !self.step_with_callback(&mut callback) {
@@ -1526,7 +1526,7 @@ impl CPU {
 
     pub fn step_with_callback<F>(&mut self, mut callback: F) -> bool
     where
-        F: FnMut(&mut CPU),
+        F: FnMut(&mut Self),
     {
         if self.halt_cpu {
             self.halt_cpu = false;

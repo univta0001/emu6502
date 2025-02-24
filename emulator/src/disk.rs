@@ -154,7 +154,6 @@ pub struct DiskDrive {
     lss_cycle: u8,
     lss_state: u8,
     prev_lss_state: u8,
-    cycles: usize,
     pending_ticks: usize,
     random_one_rate: f32,
     override_optimal_timing: u8,
@@ -1312,7 +1311,6 @@ impl DiskDrive {
             lss_cycle: 0,
             lss_state: 0,
             prev_lss_state: 0,
-            cycles: 0,
             pending_ticks: 0,
             random_one_rate: 0.3,
             override_optimal_timing: 0,
@@ -2510,8 +2508,6 @@ impl DiskDrive {
 
 impl Tick for DiskDrive {
     fn tick(&mut self) {
-        self.cycles += 1;
-
         if !self.is_motor_on() {
             return
         }
