@@ -1122,11 +1122,7 @@ impl Video {
     }
 
     pub fn is_shr_mode(&self) -> bool {
-        if self.vidhd {
-            self.shr_mode
-        } else {
-            false
-        }
+        if self.vidhd { self.shr_mode } else { false }
     }
 
     pub fn is_shr_linear_mode(&self) -> bool {
@@ -1646,11 +1642,7 @@ impl Video {
 
             for xindex in x1offset..x1offset + 7 {
                 let color = if bitmap & shift == 0 {
-                    if altflag {
-                        fore_color
-                    } else {
-                        back_color
-                    }
+                    if altflag { fore_color } else { back_color }
                 } else if altflag {
                     back_color
                 } else {
@@ -2305,11 +2297,7 @@ impl Video {
 
             if col > 0 {
                 let val = if mixed_mode {
-                    if value & 0x1 > 0 {
-                        0x7f
-                    } else {
-                        0
-                    }
+                    if value & 0x1 > 0 { 0x7f } else { 0 }
                 } else {
                     self.read_hires_memory(col - 1, row)
                 };
@@ -2415,11 +2403,7 @@ impl Video {
             // Populate col-1 luma
             let prev_value = if col > 0 {
                 if !an3 && mixed_mode {
-                    if value & 0x1 > 0 {
-                        0x7f
-                    } else {
-                        0
-                    }
+                    if value & 0x1 > 0 { 0x7f } else { 0 }
                 } else {
                     self.read_hires_memory(col - 1, row)
                 }
@@ -2473,11 +2457,7 @@ impl Video {
             // Populate col+1 luma
             let next_value = if col < 39 {
                 if !an3 && mixed_mode {
-                    if value & 0x1 > 0 {
-                        0x7f
-                    } else {
-                        0
-                    }
+                    if value & 0x1 > 0 { 0x7f } else { 0 }
                 } else {
                     self.read_hires_memory(col + 1, row)
                 }

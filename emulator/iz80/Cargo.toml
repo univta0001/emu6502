@@ -1,6 +1,6 @@
 [package]
 name = "iz80"
-version = "0.4.1"
+version = "0.4.4"
 authors = ["Ivan Izaguirre <ivanizag@gmail.com>"]
 edition = "2024"
 license = "BSD-3-Clause"
@@ -9,6 +9,8 @@ keywords = ["Z80", "8080", "CPM", "emulator"]
 homepage = "https://github.com/ivanizag/iz80"
 repository = "https://github.com/ivanizag/iz80"
 readme = "README.md"
+
+[dependencies]
 
 [lib]
 doctest = false

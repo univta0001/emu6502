@@ -691,7 +691,7 @@ impl HardDisk {
 impl Tick for HardDisk {
     fn tick(&mut self) {
         if !self.is_busy() {
-            return
+            return;
         }
         let disk = &mut self.drive[self.drive_select];
         if disk.busy_cycle > 0 {

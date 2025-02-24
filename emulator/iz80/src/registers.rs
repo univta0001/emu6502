@@ -1,11 +1,12 @@
-use std::{fmt, mem};
+use std::{fmt, io, mem};
 
 /// 8 bit registers
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[repr(u8)]
 pub enum Reg8 {
     /// 8 bit register A
-    A = 0,
-    /// 8 bit register F, can be accessed vif the flags methods
+    A = 0_u8,
+    /// 8 bit register F, can be accessed with the flags methods
     F = 1, // Flags
     /// 8 bit register B
     B = 2,
@@ -42,25 +43,27 @@ const REG_COUNT8: usize = 16;
 
 /// 16 bit registers, composed from 8 bit registers
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[repr(u8)]
 pub enum Reg16 {
     /// 16 bit register AF
-    AF = Reg8::A as isize,
+    AF = Reg8::A as u8,
     /// 16 bit register BC
-    BC = Reg8::B as isize,
+    BC = Reg8::B as u8,
     /// 16 bit register DE
-    DE = Reg8::D as isize,
+    DE = Reg8::D as u8,
     /// 16 bit register HL
-    HL = Reg8::H as isize,
+    HL = Reg8::H as u8,
     /// 16 bit register IX
-    IX = Reg8::IXH as isize,
+    IX = Reg8::IXH as u8,
     /// 16 bit register IY
-    IY = Reg8::IYH as isize,
+    IY = Reg8::IYH as u8,
     /// 16 bit register SP
-    SP = Reg8::SPH as isize,
+    SP = Reg8::SPH as u8,
 }
 
 /// Z80 flags
 #[derive(Copy, Clone, Debug)]
+#[repr(u8)]
 pub enum Flag {
     /// Carry flag
     C = 1,
@@ -151,18 +154,14 @@ impl Registers {
     /// Returns the value of an 8 bit register
     #[inline]
     pub fn get8(&self, reg: Reg8) -> u8 {
-        if reg == Reg8::_HL {
-            panic!("Can't use the pseudo register (HL)");
-        }
+        assert!(!(reg == Reg8::_HL), "Can't use the pseudo register (HL)");
         self.data[reg as usize]
     }
 
     /// Sets the value of an 8 bit register
     #[inline]
     pub fn set8(&mut self, reg: Reg8, value: u8) {
-        if reg == Reg8::_HL {
-            panic!("Can't use the pseudo register (HL)");
-        }
+        assert!(!(reg == Reg8::_HL), "Can't use the pseudo register (HL)");
         self.data[reg as usize] = value;
     }
 
@@ -288,8 +287,8 @@ impl Registers {
             // S, Z and P/V are not updated
             let xor = ((a ^ b ^ v) >> 8) as u16;
             self.update_undocumented_flags((v >> 8) as u8);
-            self.put_flag(Flag::C, ((xor >> 8) & 1) != 0);
-            self.put_flag(Flag::H, ((xor >> 4) & 1) != 0);
+            self.put_flag(Flag::C, (xor >> 8 & 1) != 0);
+            self.put_flag(Flag::H, (xor >> 4 & 1) != 0);
             self.clear_flag(Flag::N);
         }
     }
@@ -331,7 +330,8 @@ impl Registers {
                 let a_b3 = (a & 0x08) != 0;
                 let b_b3 = (b & 0x08) != 0;
                 let r_b3 = (reference & 0x08) != 0;
-                let neg_half_bit = !((r_b3 || b_b3) && !a_b3 || b_b3 && r_b3);
+                #[allow(clippy::nonminimal_bool)]
+                let neg_half_bit = (!a_b3 && !b_b3 && !r_b3) || (a_b3 && !(b_b3 && r_b3));
                 self.put_flag(Flag::H, neg_half_bit);
             }
         } else {
@@ -376,7 +376,7 @@ impl Registers {
     }
 
     pub(crate) fn update_p_flag_with_iff2(&mut self) {
-        self.put_flag(Flag::P, self.iff2)
+        self.put_flag(Flag::P, self.iff2);
     }
 
     /// Returns the program counter
@@ -412,6 +412,47 @@ impl Registers {
     pub(crate) fn end_nmi(&mut self) {
         self.iff1 = self.iff2;
     }
+
+    pub(crate) const SERIALIZE_SIZE: usize = REG_COUNT8 + REG_COUNT8 + 5;
+
+    pub(crate) fn serialize(&self) -> [u8; Registers::SERIALIZE_SIZE] {
+        let mut data = [0; Registers::SERIALIZE_SIZE];
+        let mut i = 0;
+        for r in self.data.iter() {
+            data[i] = *r;
+            i += 1;
+        }
+        for r in self.shadow.iter() {
+            data[i] = *r;
+            i += 1;
+        }
+        data[i] = self.pc as u8;
+        data[i + 1] = (self.pc >> 8) as u8;
+        data[i + 2] = self.iff1 as u8;
+        data[i + 3] = self.iff2 as u8;
+        data[i + 4] = self.im;
+        data
+    }
+
+    pub(crate) fn deserialize(&mut self, data: &[u8]) -> io::Result<()> {
+        if data.len() < Registers::SERIALIZE_SIZE {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "Data too short"));
+        }
+        let mut i = 0;
+        for r in self.data.iter_mut() {
+            *r = data[i];
+            i += 1;
+        }
+        for r in self.shadow.iter_mut() {
+            *r = data[i];
+            i += 1;
+        }
+        self.pc = u16::from_le_bytes([data[i], data[i + 1]]);
+        self.iff1 = data[i + 2] != 0;
+        self.iff2 = data[i + 3] != 0;
+        self.im = data[i + 4];
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -442,12 +483,12 @@ mod tests {
         let mut r = Registers::new();
 
         r.set_flag(Flag::P);
-        assert_eq!(true, r.get_flag(Flag::P));
+        assert!(r.get_flag(Flag::P));
         r.clear_flag(Flag::P);
-        assert_eq!(false, r.get_flag(Flag::P));
+        assert!(!r.get_flag(Flag::P));
         r.put_flag(Flag::P, true);
-        assert_eq!(true, r.get_flag(Flag::P));
+        assert!(r.get_flag(Flag::P));
         r.put_flag(Flag::P, false);
-        assert_eq!(false, r.get_flag(Flag::P));
+        assert!(!r.get_flag(Flag::P));
     }
 }

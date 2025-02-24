@@ -1,12 +1,14 @@
-use super::decoder_8080::*;
-use super::decoder_z80::*;
-use super::environment::*;
-use super::machine::*;
-use super::opcode::*;
-use super::registers::*;
-use super::state::*;
+use std::io;
 
-const IRQ_ADDRESS: u16 = 0x0036;
+use super::decoder_8080::Decoder8080;
+use super::decoder_z80::DecoderZ80;
+use super::environment::Environment;
+use super::machine::Machine;
+use super::opcode::Opcode;
+use super::registers::{Reg8, Reg16, Registers};
+use super::state::State;
+
+const IRQ_ADDRESS: u16 = 0x0038;
 const NMI_ADDRESS: u16 = 0x0066;
 
 /// The Z80 cpu emulator.
@@ -15,15 +17,21 @@ const NMI_ADDRESS: u16 = 0x0066;
 pub struct Cpu {
     state: State,
     trace: bool,
-    decoder: Box<dyn Decoder>,
+    decoder: Box<dyn Decoder + Send + Sync>,
 }
+
+// Ensure that the Cpu is Send and Sync and can be used with async code
+const _: () = {
+    fn assert_send<T: Send + Sync>() {}
+    let _ = assert_send::<Cpu>;
+};
 
 pub(crate) trait Decoder {
     fn decode(&self, env: &mut Environment) -> &Opcode;
 }
 
 impl Cpu {
-    /// Returns a Z80 Cpu instance. Alias of new_z80()
+    /// Returns a Z80 Cpu instance. Alias of `new_z80()`
     pub fn new() -> Cpu {
         Self::new_z80()
     }
@@ -112,7 +120,8 @@ impl Cpu {
         env.clear_index();
 
         if self.trace {
-            print!(" PC:{:04x} AF:{:04x} BC:{:04x} DE:{:04x} HL:{:04x} SP:{:04x} IX:{:04x} IY:{:04x} Flags:{:08b} Cycle:{:04}",
+            print!(
+                " PC:{:04x} AF:{:04x} BC:{:04x} DE:{:04x} HL:{:04x} SP:{:04x} IX:{:04x} IY:{:04x} Flags:{:08b} Cycle:{:04}",
                 self.state.reg.pc(),
                 self.state.reg.get16(Reg16::AF),
                 self.state.reg.get16(Reg16::BC),
@@ -174,23 +183,33 @@ impl Cpu {
     }
 
     /// Maskable interrupt request. It stays signaled until is is
-    /// deactivated by calling signal_interrupt(false).
+    /// deactivated by calling `signal_interrupt(false)`.
     pub fn signal_interrupt(&mut self, active: bool) {
-        self.state.int_signaled = active
+        self.state.int_signaled = active;
     }
 
     /// Non maskable interrupt request
     pub fn signal_nmi(&mut self) {
-        self.state.nmi_pending = true
+        self.state.nmi_pending = true;
     }
 
     /// Signal reset
     pub fn signal_reset(&mut self) {
-        self.state.reset_pending = true
+        self.state.reset_pending = true;
     }
 
     /// Returns the current cycle count
     pub fn cycle_count(&self) -> u64 {
         self.state.cycle
+    }
+
+    // Serialize the current state of the CPU
+    pub fn serialize(&self) -> Vec<u8> {
+        self.state.serialize()
+    }
+
+    // Update the CPU state from a serialized state
+    pub fn deserialize(&mut self, data: &[u8]) -> io::Result<()> {
+        self.state.deserialize(data)
     }
 }

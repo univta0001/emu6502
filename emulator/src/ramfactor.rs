@@ -3,11 +3,11 @@ use crate::mmu::Mmu;
 use crate::video::Video;
 
 #[cfg(all(feature = "serde_support", feature = "flate"))]
+use flate2::Compression;
+#[cfg(all(feature = "serde_support", feature = "flate"))]
 use flate2::read::GzDecoder;
 #[cfg(all(feature = "serde_support", feature = "flate"))]
 use flate2::write::GzEncoder;
-#[cfg(all(feature = "serde_support", feature = "flate"))]
-use flate2::Compression;
 #[cfg(all(feature = "serde_support", feature = "flate"))]
 use serde::de::{Error, Unexpected};
 #[cfg(all(feature = "serde_support", feature = "flate"))]

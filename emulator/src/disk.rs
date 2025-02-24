@@ -10,11 +10,11 @@ use std::path::Path;
 use std::path::PathBuf;
 
 #[cfg(feature = "flate")]
+use flate2::Compression;
+#[cfg(feature = "flate")]
 use flate2::read::GzDecoder;
 #[cfg(feature = "flate")]
 use flate2::write::GzEncoder;
-#[cfg(feature = "flate")]
-use flate2::Compression;
 
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
@@ -1194,11 +1194,7 @@ fn read_woz_sector(
                 state = if nibble == 0x96 {
                     3
                 } else if nibble == 0xad {
-                    if decoded {
-                        4
-                    } else {
-                        0
-                    }
+                    if decoded { 4 } else { 0 }
                 } else {
                     0
                 }
@@ -2509,7 +2505,7 @@ impl DiskDrive {
 impl Tick for DiskDrive {
     fn tick(&mut self) {
         if !self.is_motor_on() {
-            return
+            return;
         }
 
         if self.rotor_pending_ticks > 0 {

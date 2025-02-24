@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use emu6502::bus::Bus;
 use emu6502::cpu::CPU;
 use std::time::Duration;

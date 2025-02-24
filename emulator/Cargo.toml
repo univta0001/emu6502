@@ -7,7 +7,7 @@ edition = "2024"
 
 [dependencies]
 bitflags = "2.8.0"
-flate2 = { version = "1.0.35", optional = true }
+flate2 = { version = "1.1.0", optional = true }
 web-time = { version = "1.1.0", optional = true }
 serde = { version = "1.0.218", features = ["derive"],  optional = true }
 iz80 = { path = "iz80", optional = true }
