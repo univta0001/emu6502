@@ -287,8 +287,8 @@ impl Registers {
             // S, Z and P/V are not updated
             let xor = ((a ^ b ^ v) >> 8) as u16;
             self.update_undocumented_flags((v >> 8) as u8);
-            self.put_flag(Flag::C, (xor >> 8 & 1) != 0);
-            self.put_flag(Flag::H, (xor >> 4 & 1) != 0);
+            self.put_flag(Flag::C, ((xor >> 8) & 1) != 0);
+            self.put_flag(Flag::H, ((xor >> 4) & 1) != 0);
             self.clear_flag(Flag::N);
         }
     }
