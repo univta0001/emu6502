@@ -1558,9 +1558,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             "robocom1000" => cpu.bus.set_dongle(Dongle::Robocom(1000)),
             "robocom1500" => cpu.bus.set_dongle(Dongle::Robocom(1500)),
             _ => {
-                panic!(
+                eprintln!(
                     "Dongle supported: speedstar, hayden, codewriter, robocom500, robocom1000, robocom1500"
                 );
+                return Ok(())
             }
         }
     }
@@ -1581,9 +1582,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             "apple2c4" => initialize_apple_system(&mut cpu, &apple2c4_rom, 0xc000, true),
             "apple2cp" => initialize_apple_system(&mut cpu, &apple2cp_rom, 0xc000, true),
             _ => {
-                panic!(
+                eprintln!(
                     "Model supported: apple2, apple2p, apple2e, apple2ee, apple2c, apple2c0, apple2c3, apple2c4, apple2cp"
                 );
+                return Ok(())
             }
         }
     }
@@ -1594,7 +1596,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     if let Some(bank) = pargs.opt_value_from_str::<_, usize>("-r")? {
         if bank == 0 || bank > 255 {
-            panic!("RAMWorks III accepts value from 1 to 255 (inclusive)");
+            eprintln!("RAMWorks III accepts value from 1 to 255 (inclusive)");
+            return Ok(())
         }
         let mmu = &mut cpu.bus.mem;
         mmu.set_aux_size(bank as u8);
@@ -1604,7 +1607,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     if let Some(value) = pargs.opt_value_from_str::<_, usize>("--rf")? {
         if value * 1024 > 0x1000000 {
-            panic!("RAMFactor can accept up to 16 MiB");
+            eprintln!("RAMFactor can accept up to 16 MiB");
+            return Ok(())
         }
         cpu.bus.ramfactor.set_size(value * 1024);
     }
@@ -1673,7 +1677,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
 
     if slot_mboard > 2 {
-        panic!("Maximum of two mockingboards supported");
+        eprintln!("Maximum of two mockingboards supported");
+        return Ok(())
     } else if slot_mboard > 0 {
         let audio = &mut cpu.bus.audio;
         audio.mboard.clear();
@@ -1684,7 +1689,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     if let Some(mboard) = pargs.opt_value_from_str::<_, u8>("--mboard")? {
         if mboard > 2 {
-            panic!("mboard only accepts 0, 1 or 2 as value");
+            eprintln!("mboard only accepts 0, 1 or 2 as value");
+            return Ok(())
         }
 
         let audio = &mut cpu.bus.audio;
@@ -1705,14 +1711,16 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     if let Some(luma) = pargs.opt_value_from_str::<_, f32>("--luma")? {
         if luma > 7159090.0 {
-            panic!("luma can only accept value from 0 to 7159090");
+            eprintln!("luma can only accept value from 0 to 7159090");
+            return Ok(())
         }
         ntsc_luma = luma;
     }
 
     if let Some(chroma) = pargs.opt_value_from_str::<_, f32>("--chroma")? {
         if chroma > 7159090.0 {
-            panic!("chroma can only accept value from 0 to 7159090");
+            eprintln!("chroma can only accept value from 0 to 7159090");
+            return Ok(())
         }
         ntsc_chroma = chroma;
     }
