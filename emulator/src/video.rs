@@ -1820,7 +1820,6 @@ impl Video {
                 && !self.video_50hz
                 && !self.is_display_mode_mono()
                 && !self.mono_mode
-                && !self.dhires_mode
             {
                 let data = bitmap.reverse_bits();
                 let alt_ch = self.read_aux_text_memory(x1, y1 * 8 + yindex);
