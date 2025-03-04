@@ -16,14 +16,7 @@ impl Default for VidHD {
 }
 
 impl Card for VidHD {
-    fn rom_access(
-        &mut self,
-        _mem: &mut Mmu,
-        _video: &mut Video,
-        addr: u16,
-        value: u8,
-        _write_flag: bool,
-    ) -> u8 {
+    fn rom_access(&mut self, addr: u16, value: u8, _write_flag: bool) -> u8 {
         match addr & 0xff {
             0 => 0x24,
             1 => 0xea,
@@ -37,9 +30,9 @@ impl Card for VidHD {
         _mem: &mut Mmu,
         _video: &mut Video,
         _addr: u16,
-        _value: u8,
+        value: u8,
         _write_flag: bool,
     ) -> u8 {
-        _value
+        value
     }
 }

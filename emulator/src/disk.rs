@@ -2610,14 +2610,7 @@ impl Default for DiskDrive {
 }
 
 impl Card for DiskDrive {
-    fn rom_access(
-        &mut self,
-        _mem: &mut Mmu,
-        _video: &mut Video,
-        addr: u16,
-        _value: u8,
-        _write_mode: bool,
-    ) -> u8 {
+    fn rom_access(&mut self, addr: u16, _value: u8, _write_mode: bool) -> u8 {
         self.read_rom((addr & 0xff) as u8)
     }
 

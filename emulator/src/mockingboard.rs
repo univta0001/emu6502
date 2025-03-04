@@ -880,14 +880,7 @@ impl Default for Mockingboard {
 }
 
 impl Card for Mockingboard {
-    fn rom_access(
-        &mut self,
-        _mem: &mut Mmu,
-        _video: &mut Video,
-        addr: u16,
-        value: u8,
-        write_flag: bool,
-    ) -> u8 {
+    fn rom_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
         let map_addr: u8 = (addr & 0xff) as u8;
         if self.mb4c || map_addr < 0x80 {
             self.w65c22[0].io_access(map_addr, value, write_flag)

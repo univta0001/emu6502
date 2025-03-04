@@ -538,14 +538,7 @@ impl Default for Mouse {
 }
 
 impl Card for Mouse {
-    fn rom_access(
-        &mut self,
-        _mem: &mut Mmu,
-        _video: &mut Video,
-        addr: u16,
-        _value: u8,
-        _write_flag: bool,
-    ) -> u8 {
+    fn rom_access(&mut self, addr: u16, _value: u8, _write_flag: bool) -> u8 {
         ROM[(addr & 0xff) as usize]
     }
 

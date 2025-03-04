@@ -28,14 +28,7 @@ pub const ROM_START: u16 = 0xd000;
 pub const ROM_END: u16 = 0xffff;
 
 pub trait Card {
-    fn rom_access(
-        &mut self,
-        mem: &mut Mmu,
-        video: &mut Video,
-        addr: u16,
-        value: u8,
-        write_flag: bool,
-    ) -> u8;
+    fn rom_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8;
     fn io_access(
         &mut self,
         mem: &mut Mmu,
@@ -532,13 +525,7 @@ impl Bus {
                 let slot = self.extended_rom as usize;
                 let slot_value = self.io_slot[slot];
                 return match slot_value {
-                    IODevice::RamFactor => self.ramfactor.rom_access(
-                        &mut self.mem,
-                        &mut self.video,
-                        addr,
-                        value,
-                        write_flag,
-                    ),
+                    IODevice::RamFactor => self.ramfactor.rom_access(addr, value, write_flag),
                     _ => self.read_floating_bus(),
                 };
             }
@@ -588,15 +575,9 @@ impl Bus {
 
                 if let Some(device) = return_value {
                     if write_flag {
-                        device.rom_access(&mut self.mem, &mut self.video, addr, value, write_flag)
+                        device.rom_access(addr, value, write_flag)
                     } else {
-                        device.rom_access(
-                            &mut self.mem,
-                            &mut self.video,
-                            addr,
-                            read_value,
-                            write_flag,
-                        )
+                        device.rom_access(addr, read_value, write_flag)
                     }
                 } else {
                     read_value
@@ -615,7 +596,7 @@ impl Bus {
                 && (0xc400..=0xc4ff).contains(&addr)
             {
                 let device = &mut self.audio.mboard[0];
-                device.rom_access(&mut self.mem, &mut self.video, addr, value, write_flag)
+                device.rom_access(addr, value, write_flag)
             } else if self.mem.a2cp && self.mem.rom_bank && (0xcc00..=0xceff).contains(&addr) {
                 let ret_value = self.mem_read(addr);
                 self.mem

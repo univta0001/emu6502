@@ -755,14 +755,7 @@ impl Default for HardDisk {
 }
 
 impl Card for HardDisk {
-    fn rom_access(
-        &mut self,
-        _mem: &mut Mmu,
-        _video: &mut Video,
-        addr: u16,
-        _value: u8,
-        _write_flag: bool,
-    ) -> u8 {
+    fn rom_access(&mut self, addr: u16, _value: u8, _write_flag: bool) -> u8 {
         let addr = (addr & 0xff) as usize;
         match addr {
             0x07 => {

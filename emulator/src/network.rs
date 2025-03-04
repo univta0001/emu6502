@@ -1355,14 +1355,7 @@ impl Uthernet2 {
 }
 
 impl Card for Uthernet2 {
-    fn rom_access(
-        &mut self,
-        _mem: &mut Mmu,
-        _video: &mut Video,
-        _addr: u16,
-        _value: u8,
-        _write_flag: bool,
-    ) -> u8 {
+    fn rom_access(&mut self, _addr: u16, _value: u8, _write_flag: bool) -> u8 {
         panic!("No ROM in Uthernet2. This function should not be called")
     }
 

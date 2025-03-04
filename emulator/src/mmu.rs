@@ -655,14 +655,7 @@ impl Default for Mmu {
 pub struct Saturn(pub u8);
 
 impl Card for Saturn {
-    fn rom_access(
-        &mut self,
-        _mem: &mut Mmu,
-        _video: &mut Video,
-        _addr: u16,
-        _value: u8,
-        _write_flag: bool,
-    ) -> u8 {
+    fn rom_access(&mut self, _addr: u16, _value: u8, _write_flag: bool) -> u8 {
         0
     }
 

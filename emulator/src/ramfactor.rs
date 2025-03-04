@@ -729,14 +729,7 @@ impl Default for RamFactor {
 }
 
 impl Card for RamFactor {
-    fn rom_access(
-        &mut self,
-        _mem: &mut Mmu,
-        _video: &mut Video,
-        addr: u16,
-        _value: u8,
-        _write_flag: bool,
-    ) -> u8 {
+    fn rom_access(&mut self, addr: u16, _value: u8, _write_flag: bool) -> u8 {
         let offset = (addr & 0xff) as usize;
         let page = ((addr - 0xc000) & 0xff00) as usize;
         ROM[(((self.firmware_bank & 0x1) as usize) << 12) | page | offset]
