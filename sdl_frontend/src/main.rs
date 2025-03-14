@@ -1945,7 +1945,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 if latch < 0x80 {
                     if let Some(ch) = clipboard_text.chars().next() {
                         _cpu.bus.set_keyboard_latch((ch as u8) + 0x80);
-                        clipboard_text = clipboard_text[1..].to_string();
+                        clipboard_text.remove(0);
                     }
                 }
             }

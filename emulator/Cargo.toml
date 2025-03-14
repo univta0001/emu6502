@@ -9,9 +9,9 @@ edition = "2024"
 bitflags = "2.9.0"
 flate2 = { version = "1.1.0", optional = true }
 web-time = { version = "1.1.0", optional = true }
-serde = { version = "1.0.218", features = ["derive"],  optional = true }
+serde = { version = "1.0.219", features = ["derive"],  optional = true }
 iz80 = { path = "iz80", optional = true }
-time = { version = "0.3.37", features = ["local-offset","wasm-bindgen"] }
+time = { version = "0.3.39", features = ["local-offset","wasm-bindgen"] }
 fastrand = "2.3.0"
 educe = { version = "0.6.0", default-features = false, features = ["Debug"], optional = true }
 pcap = { version = "2.2.0", default-features = false, optional = true }
