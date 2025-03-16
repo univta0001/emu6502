@@ -1535,7 +1535,25 @@ impl DiskDrive {
             }
         }
 
-        let disk_type = if po_mode { DiskType::Po } else { DiskType::Dsk };
+        let mut disk_type = if po_mode { DiskType::Po } else { DiskType::Dsk };
+
+        // Ensure the DSK type is having DOS order
+        if disk_type == DiskType::Dsk {
+            let mut loop_cnt = 1;
+            let mut mismatch = false;
+            while loop_cnt < 15 && !mismatch {
+                let offset = 0x11002 + (loop_cnt << 8);
+                if dsk[offset] != (loop_cnt - 1) as u8 {
+                    mismatch = true;
+                    break;
+                }
+                loop_cnt += 1;
+            }
+            if mismatch {
+                disk_type = DiskType::Po
+            }
+        }
+
         let metadata = std::fs::metadata(filename)?;
         let write_protect = metadata.permissions().readonly();
 
