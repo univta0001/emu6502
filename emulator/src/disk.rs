@@ -1535,7 +1535,11 @@ impl DiskDrive {
             }
         }
 
-        let disk_type = if po_mode { DiskType::Po } else { DiskType::Dsk };
+        let mut disk_type = if po_mode { DiskType::Po } else { DiskType::Dsk };
+
+        if disk_type == DiskType::Dsk && self.check_dos_disk_in_prodos_order(&dsk) {
+            disk_type = DiskType::Po
+        }
 
         let metadata = std::fs::metadata(filename)?;
         let write_protect = metadata.permissions().readonly();
@@ -1546,6 +1550,20 @@ impl DiskDrive {
             write_protect,
             Self::convert_dsk_po_track_to_woz,
         )
+    }
+
+    fn check_dos_disk_in_prodos_order(&self, image: &[u8]) -> bool {
+        let mut count = 0;
+        let mut dos_match = true;
+
+        while count < 14 {
+            count += 1;
+            let offset = 0x11002 + (count << 8);
+            if image[offset] != (14 - count) as u8 {
+                dos_match = false;
+            }
+        }
+        dos_match
     }
 
     fn convert_nib_to_woz<P>(&mut self, filename_path: P) -> io::Result<()>
