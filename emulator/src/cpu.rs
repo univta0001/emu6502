@@ -666,7 +666,7 @@ impl CPU {
         // Implement false read for RMW ABS,X instructions to pass a2audit test
         if absolute_x_force_tick(op, self.m65c02) {
             self.addr_read(addr);
-        } else if page_crossed {
+        } else if page_crossed && op.code != 0x9d {
             self.tick();
         }
 
@@ -2952,7 +2952,7 @@ impl CpuStats {
 
     fn update_cross_page(&mut self, cpu: &CPU, opcode: &OpCode) {
         if opcode.mode == AddressingMode::Absolute_X
-            && !self.absolute_x_force_tick(opcode, cpu.m65c02)
+            && !self.absolute_x_force_tick(opcode, cpu.m65c02) && opcode.code != 0x9d
         {
             let base = self.next_word(cpu);
             let addr = base.wrapping_add(cpu.register_x as u16);
