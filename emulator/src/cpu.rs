@@ -518,9 +518,9 @@ mod interrupt {
 
 fn absolute_x_force_tick(op: &OpCode, m65c02: bool) -> bool {
     if m65c02 {
-        matches!(op.code, 0xde | 0xfe)
+        matches!(op.code, 0x9d | 0xde | 0xfe)
     } else {
-        matches!(op.code, 0x1e | 0x3e | 0x5e | 0x7e | 0xde | 0xfe)
+        matches!(op.code, 0x9d | 0x1e | 0x3e | 0x5e | 0x7e | 0xde | 0xfe)
     }
 
     /*
@@ -665,8 +665,8 @@ impl CPU {
 
         // Implement false read for RMW ABS,X instructions to pass a2audit test
         if absolute_x_force_tick(op, self.m65c02) {
-            self.addr_read(addr);
-        } else if page_crossed && op.code != 0x9d {
+            self.addr_read(base & 0xff00 | addr & 0xff);
+        } else if page_crossed {
             self.tick();
         }
 
@@ -2305,7 +2305,6 @@ impl CPU {
                 /* STA absolute,X */
                 0x9d => {
                     let addr = self.get_absolute_x_addr(opcode);
-                    self.tick();
                     self.sta(addr);
                 }
 
@@ -2925,9 +2924,9 @@ impl CpuStats {
 
     fn absolute_x_force_tick(&self, op: &OpCode, m65c02: bool) -> bool {
         if m65c02 {
-            matches!(op.code, 0xde | 0xfe)
+            matches!(op.code, 0x9d | 0xde | 0xfe)
         } else {
-            matches!(op.code, 0x1e | 0x3e | 0x5e | 0x7e | 0xde | 0xfe)
+            matches!(op.code, 0x9d | 0x1e | 0x3e | 0x5e | 0x7e | 0xde | 0xfe)
         }
     }
 
@@ -2952,7 +2951,7 @@ impl CpuStats {
 
     fn update_cross_page(&mut self, cpu: &CPU, opcode: &OpCode) {
         if opcode.mode == AddressingMode::Absolute_X
-            && !self.absolute_x_force_tick(opcode, cpu.m65c02) && opcode.code != 0x9d
+            && !self.absolute_x_force_tick(opcode, cpu.m65c02)
         {
             let base = self.next_word(cpu);
             let addr = base.wrapping_add(cpu.register_x as u16);
