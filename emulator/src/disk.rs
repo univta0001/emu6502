@@ -167,9 +167,6 @@ pub struct DiskDrive {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     rotor_pending_ticks: usize,
-
-    #[cfg_attr(feature = "serde_support", serde(default))]
-    lss_counter: u8,
 }
 
 // Q0L: Phase 0 OFF
@@ -1309,7 +1306,6 @@ impl DiskDrive {
             bit_buffer: 0,
             lss_cycle: 0,
             lss_state: 0,
-            lss_counter: 0,
             prev_lss_state: 0,
             pending_ticks: 0,
             random_one_rate: 0.3,
@@ -1472,15 +1468,12 @@ impl DiskDrive {
         // Needed for Test Drive
         // If get_value is called using 0xc088, always return latch value (Fix Mr DO issue)
         if self.pending_ticks == 0 && self.prev_latch & 0x80 != 0 && self.latch & 0x80 == 0 {
-            /*
             // 5% jitter is required for Buzzard Bait
             if fastrand::f32() < 0.05 {
                 self.latch
             } else {
                 self.prev_latch
             }
-            */
-            self.prev_latch
         } else {
             self.latch
         }
@@ -2294,7 +2287,6 @@ impl DiskDrive {
 
         // LSS is running at 2Mhz i.e. 0.5 us
         self.lss_cycle += 4;
-        self.lss_counter += 1;
 
         let random_bits = NOMINAL_USABLE_BITS_TRACK_SIZE;
         let track_bits = if tmap_track == 255 {
@@ -2329,11 +2321,6 @@ impl DiskDrive {
             // Writing is always at 4 microseconds
             32
         };
-
-        if self.lss_counter >= 42 {
-            self.lss_counter = 0;
-            self.lss_cycle = self.lss_cycle.saturating_sub(1);
-        }        
 
         if self.lss_cycle >= optimal_timing {
             if track_bits != 0 {
