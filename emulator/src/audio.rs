@@ -559,7 +559,7 @@ impl Audio {
                 }
 
                 let mut val = *item as isize - prev as isize;
-                if val.abs() < TAPE_TOLERANCE.into() {
+                if val.abs() < TAPE_TOLERANCE as isize {
                     val = 0;
                 }
 
