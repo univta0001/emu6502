@@ -1935,7 +1935,11 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             previous_cycles = current_cycles;
 
             let mut cpu_cycles = CPU_CYCLES_PER_FRAME_60HZ;
-            let mut cpu_period = 16_667;
+
+            // The cpu_period is calculated by 17030 * 1 / CPU_MHZ
+            // For 60Hz, it is 17030 * 1_000_000 / 1_020_484 = 16_688 instead of the 16_667
+            // For 50Hz, it is 20280 * 1_000_000 / 1_015_625 = 19_968
+            let mut cpu_period = 16_688;
 
             // Handle clipboard text if any
             if !clipboard_text.is_empty() {
@@ -1952,7 +1956,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
             if _cpu.bus.video.is_video_50hz() {
                 cpu_cycles = CPU_CYCLES_PER_FRAME_50HZ;
-                cpu_period = 20_000;
+                cpu_period = 19_968;
             }
 
             if dcyc >= cpu_cycles {

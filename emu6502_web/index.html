@@ -800,12 +800,12 @@
 
                 let cpu_6502_cycles = 17030;
                 let cpu_refresh = 16;
-                let cpu_ms = 16.667;
+                let cpu_ms = 16.688;
 
                 if (emu6502.is_video_50hz()) {
                     cpu_6502_cycles = 20280;
                     cpu_refresh = 20;
-                    cpu_ms = 20.0;
+                    cpu_ms = 19.968;
                 }
 
                 if (delta >= cpu_refresh) 

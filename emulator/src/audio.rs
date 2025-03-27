@@ -54,7 +54,7 @@ impl AudioFilter {
     }
 
     /*  Implements the Window Sinc Filtering using Kaiser Window
-     *  For sampling rate of 1021800 Hz, cutoff freq = 11025.0 Hz, 209 taps is required
+     *  For sampling rate of 1020484 Hz, cutoff freq = 11025.0 Hz, 209 taps is required
      *  Ref: www.fiiir.com
      */
     /*
@@ -65,7 +65,7 @@ impl AudioFilter {
          *
          *    N = math.ceil((A - 7.95) / (2.285 * 2 * math.pi * b / fs)) + 1
          *
-         *    fs = 1021800                                     # Sampling rate.
+         *    fs = 1020484                                     # Sampling rate.
          *    fc = 11025                                       # Cutoff frequency.
          *    b  = 11025                                       # Transition bandwidth
          *    N = 209                                          # Filter length, must be odd.
