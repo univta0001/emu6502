@@ -1403,17 +1403,55 @@ impl CPU {
             self.tick();
             let mask = 1 << bit;
             self.last_tick_addr_write(zp as u16, value | mask);
-        } else if bit == 0 {
-            // Implement opcode 0x87 ( SAX zeropage )
-            let addr = self.get_zeropage_addr();
-            self.sax(addr);
-        } else if bit == 1 {
-            // Implement opcode 0x97 ( SAX zeropage,y )
-            let addr = self.get_zeropage_y_addr();
-            self.sax(addr);
         } else {
-            self.increment_pc();
-            self.last_tick();
+            match bit {
+                0 => {
+                    // Implement opcode 0x87 ( SAX zeropage )
+                    let addr = self.get_zeropage_addr();
+                    self.sax(addr);
+                }
+                1 => {
+                    // Implement opcode 0x97 ( SAX zeropage,y )
+                    let addr = self.get_zeropage_y_addr();
+                    self.sax(addr);
+                }
+                2 => {
+                    // Implement opcode 0xa7 ( LAX zeropage )
+                    let addr = self.get_zeropage_addr();
+                    self.lax(addr);
+                }
+                3 => {
+                    // Implement opcode 0xb7 ( LAX zeropage,y )
+                    let addr = self.get_zeropage_y_addr();
+                    self.lax(addr);
+                }
+                4 => {
+                    // Implement opcode 0xc7 ( DCP zeropage )
+                    let addr = self.get_zeropage_addr();
+                    self.dcp(addr);
+                }
+                5 => {
+                    // Implement opcode 0xd7 ( DCP zeropage,x )
+                    let addr = self.get_zeropage_x_addr();
+                    self.dcp(addr);
+                }
+                6 => {
+                    // Implement opcode 0xe7 ( ISC zeropage )
+                    let addr = self.get_zeropage_addr();
+                    self.isc(addr);
+                }
+
+                7 => {
+                    // Implement opcode 0xf7 ( ISC zeropage,x )
+                    let addr = self.get_zeropage_x_addr();
+                    self.isc(addr);
+                }
+
+                _ => {
+                    self.increment_pc();
+                    self.last_tick();
+                }
+            }
         }
     }
 
@@ -1436,7 +1474,7 @@ impl CPU {
         }
     }
 
-    fn bbs(&mut self, bit: u8) {
+    fn bbs(&mut self, opcode: &OpCode, bit: u8) {
         if self.m65c02 && !self.m65c02_rockwell_disable {
             let zp = self.next_byte();
             let value = self.addr_read(zp as u16);
@@ -1448,15 +1486,74 @@ impl CPU {
                 let jump_addr = self.program_counter.wrapping_add(jump as u16);
                 self.program_counter = jump_addr;
             }
-        } else if bit == 0 {
-            // Implement opcode 0x8f ( SAX absolute )
-            let addr = self.get_absolute_addr();
-            self.sax(addr);
+        } else if !self.m65c02 {
+            match bit {
+                0 => {
+                    // Implement opcode 0x8f ( SAX absolute )
+                    let addr = self.get_absolute_addr();
+                    self.sax(addr);
+                }
+
+                2 => {
+                    // Implement opcode 0xaf ( LAX absolute )
+                    let addr = self.get_absolute_addr();
+                    self.lax(addr);
+                }
+
+                3 => {
+                    // Implement opcode 0xbf ( LAX absolute, Y )
+                    let addr = self.get_absolute_y_addr(opcode);
+                    self.lax(addr);
+                }
+
+                4 => {
+                    // Implement opcode 0xcf ( DCP absolute )
+                    let addr = self.get_absolute_addr();
+                    self.dcp(addr);
+                }
+
+                5 => {
+                    // Implement opcode 0xdf ( DCP absolute,x )
+                    let addr = self.get_absolute_x_addr(opcode);
+                    self.dcp(addr);
+                }
+
+                6 => {
+                    // Implement opcode 0xef ( ISC absolute )
+                    let addr = self.get_absolute_addr();
+                    self.isc(addr);
+                }
+
+                7 => {
+                    // Implement opcode 0xef ( ISC absolute, x )
+                    let addr = self.get_absolute_x_addr(opcode);
+                    self.isc(addr);
+                }
+
+                _ => unreachable!(),
+            }
         } else {
             self.increment_pc();
             self.increment_pc();
             self.last_tick();
         }
+    }
+
+    fn dcp(&mut self, addr: u16) {
+        self.dec(addr);
+        self.compare(addr, self.register_a);
+    }
+
+    fn isc(&mut self, addr: u16) {
+        self.inc(addr);
+        let data = self.bus.unclocked_addr_read(addr);
+        self.add_to_register_a(data.wrapping_neg().wrapping_sub(1), true);
+        self.last_tick();
+    }
+
+    fn lax(&mut self, addr: u16) {
+        self.lda(addr);
+        self.register_x = self.register_a;
     }
 
     fn sax(&mut self, addr: u16) {
@@ -2459,13 +2556,75 @@ impl CPU {
                     }
                 }
 
+                0xa3 => {
+                    if !self.m65c02 {
+                        // Implement LAX (indirect, X)
+                        let addr = self.get_indirect_x_addr();
+                        self.lax(addr);
+                    }
+                }
+
+                0xb3 => {
+                    if !self.m65c02 {
+                        // Implement LAX indirect, Y
+                        let addr = self.get_indirect_y_addr(opcode);
+                        self.lax(addr);
+                    }
+                }
+
+                0xc3 => {
+                    if !self.m65c02 {
+                        // Implement DCP (indirect, X)
+                        let addr = self.get_indirect_x_addr();
+                        self.dcp(addr);
+                    }
+                }
+
+                0xd3 => {
+                    if !self.m65c02 {
+                        // Implement DCP indirect, Y
+                        let addr = self.get_indirect_y_addr(opcode);
+                        self.dcp(addr);
+                    }
+                }
+
+                0xfb => {
+                    if !self.m65c02 {
+                        // Implement ISC absolute, Y
+                        let addr = self.get_absolute_y_addr(opcode);
+                        self.isc(addr);
+                    }
+                }
+
+                0xe3 => {
+                    if !self.m65c02 {
+                        // Implement ISC (indirect, X)
+                        let addr = self.get_indirect_x_addr();
+                        self.isc(addr);
+                    }
+                }
+
+                0xf3 => {
+                    if !self.m65c02 {
+                        // Implement ISC indirect, Y
+                        let addr = self.get_indirect_y_addr(opcode);
+                        self.isc(addr);
+                    }
+                }
+
                 /* NOP1 */
-                0x03 | 0x13 | 0x23 | 0x33 | 0x43 | 0x53 | 0x63 | 0x73 | 0x93 | 0xa3 | 0xb3
-                | 0xc3 | 0xd3 | 0xe3 | 0xf3 | 0x0b | 0x1b | 0x2b | 0x3b | 0x4b | 0x5b | 0x6b
-                | 0x7b | 0x8b | 0x9b | 0xab | 0xbb | 0xcb | 0xeb | 0xfb => {}
+                0x03 | 0x13 | 0x23 | 0x33 | 0x43 | 0x53 | 0x63 | 0x73 | 0x93 | 0x0b | 0x1b
+                | 0x2b | 0x3b | 0x4b | 0x5b | 0x6b | 0x7b | 0x8b | 0x9b | 0xab | 0xbb | 0xcb
+                | 0xeb => {}
 
                 0xdb => {
-                    self.increment_pc();
+                    if !self.m65c02 {
+                        // Implement DCP absolute, Y
+                        let addr = self.get_absolute_y_addr(opcode);
+                        self.dcp(addr);
+                    } else {
+                        self.increment_pc();
+                    }
                 }
 
                 /* NOP */
@@ -2529,7 +2688,7 @@ impl CPU {
                 /* BBS0 - BBS7 */
                 0x8f | 0x9f | 0xaf | 0xbf | 0xcf | 0xdf | 0xef | 0xff => {
                     let offset = (code >> 4) - 8;
-                    self.bbs(offset);
+                    self.bbs(opcode, offset);
                 }
 
                 /* BRA */
@@ -3045,6 +3204,9 @@ mod test {
             cycles[i] = OPCODES[i].cycles;
         }
 
+        // Opcode 0xdb has 7 cycles
+        cycles[0xdb] = 7;
+
         let bus = Bus::default();
         let mut cpu = CPU::new(bus);
         for i in 1..cycles.len() {
@@ -3388,6 +3550,9 @@ mod test {
             cpu.program_counter, 0x6c04,
             "Jmp Indirect 6502 PC should have 0x6c04"
         );
+        let bus = Bus::default();
+        let mut cpu = CPU::new(bus);
+        cpu.reset();
         cpu.bus.set_cycles(0);
         cpu.m65c02 = true;
         cpu.load_and_run(&[0x6c, 0x03, 0x00, 0x05, 0x00, 0x00]);
