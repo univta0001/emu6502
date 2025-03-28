@@ -1437,6 +1437,8 @@ impl CPU {
                 self.program_counter = jump_addr;
             }
         } else {
+            self.increment_pc();
+            self.increment_pc();
             self.last_tick();
         }
     }
