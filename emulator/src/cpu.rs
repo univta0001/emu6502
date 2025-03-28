@@ -1391,6 +1391,7 @@ impl CPU {
             let mask = (1 << bit) ^ 0xff;
             self.last_tick_addr_write(zp as u16, value & mask);
         } else {
+            self.increment_pc();
             self.last_tick();
         }
     }
@@ -1403,6 +1404,7 @@ impl CPU {
             let mask = 1 << bit;
             self.last_tick_addr_write(zp as u16, value | mask);
         } else {
+            self.increment_pc();
             self.last_tick();
         }
     }
@@ -1420,6 +1422,8 @@ impl CPU {
                 self.program_counter = jump_addr;
             }
         } else {
+            self.increment_pc();
+            self.increment_pc();
             self.last_tick();
         }
     }
