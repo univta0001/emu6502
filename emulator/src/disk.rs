@@ -2690,8 +2690,8 @@ impl Card for DiskDrive {
             LOC_DRIVEREADMODE => {
                 self.q7 = false;
 
-                //  High bit of latch is cleared to make Epidemic works
-                self.latch &= 0x7f;
+                //  Latch is cleared to make Epidemic works
+                self.latch = 0;
             }
             LOC_DRIVEWRITEMODE => {
                 self.q7 = true;
