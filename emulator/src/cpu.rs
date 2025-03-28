@@ -1403,6 +1403,14 @@ impl CPU {
             self.tick();
             let mask = 1 << bit;
             self.last_tick_addr_write(zp as u16, value | mask);
+        } else if bit == 0 {
+            // Implement opcode 0x87 ( SAX zeropage )
+            let addr = self.get_zeropage_addr();
+            self.sax(addr);
+        } else if bit == 1 {
+            // Implement opcode 0x97 ( SAX zeropage,y )
+            let addr = self.get_zeropage_y_addr();
+            self.sax(addr);
         } else {
             self.increment_pc();
             self.last_tick();
@@ -1440,11 +1448,20 @@ impl CPU {
                 let jump_addr = self.program_counter.wrapping_add(jump as u16);
                 self.program_counter = jump_addr;
             }
+        } else if bit == 0 {
+            // Implement opcode 0x8f ( SAX absolute )
+            let addr = self.get_absolute_addr();
+            self.sax(addr);
         } else {
             self.increment_pc();
             self.increment_pc();
             self.last_tick();
         }
+    }
+
+    fn sax(&mut self, addr: u16) {
+        let result = self.register_a & self.register_x;
+        self.last_tick_addr_write(addr, result);
     }
 
     fn interrupt(&mut self, interrupt: interrupt::Interrupt) {
@@ -2434,10 +2451,18 @@ impl CPU {
                     self.ldy(addr);
                 }
 
+                0x83 => {
+                    if !self.m65c02 {
+                        // Implement SAX (indirect, X)
+                        let addr = self.get_indirect_x_addr();
+                        self.sax(addr);
+                    }
+                }
+
                 /* NOP1 */
-                0x03 | 0x13 | 0x23 | 0x33 | 0x43 | 0x53 | 0x63 | 0x73 | 0x83 | 0x93 | 0xa3
-                | 0xb3 | 0xc3 | 0xd3 | 0xe3 | 0xf3 | 0x0b | 0x1b | 0x2b | 0x3b | 0x4b | 0x5b
-                | 0x6b | 0x7b | 0x8b | 0x9b | 0xab | 0xbb | 0xcb | 0xeb | 0xfb => {}
+                0x03 | 0x13 | 0x23 | 0x33 | 0x43 | 0x53 | 0x63 | 0x73 | 0x93 | 0xa3 | 0xb3
+                | 0xc3 | 0xd3 | 0xe3 | 0xf3 | 0x0b | 0x1b | 0x2b | 0x3b | 0x4b | 0x5b | 0x6b
+                | 0x7b | 0x8b | 0x9b | 0xab | 0xbb | 0xcb | 0xeb | 0xfb => {}
 
                 0xdb => {
                     self.increment_pc();
@@ -2573,6 +2598,8 @@ impl CPU {
                     if self.m65c02 {
                         self.tick();
                         self.last_tick_stack_push(self.register_y);
+                    } else {
+                        self.last_tick();
                     }
                 }
 
@@ -2595,11 +2622,19 @@ impl CPU {
                 }
 
                 0x1a => {
-                    self.inc_accumulator();
+                    if self.m65c02 {
+                        self.inc_accumulator();
+                    } else {
+                        self.last_tick();
+                    }
                 }
 
                 0x3a => {
-                    self.dec_accumulator();
+                    if self.m65c02 {
+                        self.dec_accumulator();
+                    } else {
+                        self.last_tick();
+                    }
                 }
 
                 /* STZ zeropage */
@@ -3350,8 +3385,8 @@ mod test {
         cpu.bus.set_cycles(0);
         cpu.load_and_run(&[0x6c, 0xff, 0x00]);
         assert_eq!(
-            cpu.program_counter, 0x6c03,
-            "Jmp Indirect 6502 PC should have 0x6c03"
+            cpu.program_counter, 0x6c04,
+            "Jmp Indirect 6502 PC should have 0x6c04"
         );
         cpu.bus.set_cycles(0);
         cpu.m65c02 = true;
