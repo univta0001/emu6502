@@ -1465,7 +1465,7 @@ impl DiskDrive {
 
     pub fn get_value(&self) -> u8 {
         if !self.is_motor_on() {
-            return self.latch
+            return self.latch;
         }
 
         // This implementation keeps the previous latch value longer by one clock cycle
@@ -2247,47 +2247,33 @@ impl DiskDrive {
         // Update track information when track is changed
         if tmap_track != 0xff && disk.last_track != track_to_read {
             let last_track = disk.tmap_data[disk.last_track as usize];
-            let last_track_bits = if last_track == 255 {
-                NOMINAL_USABLE_BITS_TRACK_SIZE
-            } else {
-                disk.raw_track_bits[last_track as usize]
-            };
-            let last_track_type = if last_track == 255 {
-                TrackType::None
-            } else {
-                disk.trackmap[last_track as usize]
-            };
+            if last_track != 255 {
+                let last_track_bits = disk.raw_track_bits[last_track as usize];
+                let last_track_type = disk.trackmap[last_track as usize];
 
-            //eprintln!("TRK {} ({:?}) -> TRK {} ({:?})", disk.last_track as f32 / 4.0,disk.trackmap[last_track as usize], track_to_read as f32 / 4.0, track_type);
+                //eprintln!("TRK {} ({:?}) -> TRK {} ({:?})", disk.last_track as f32 / 4.0,disk.trackmap[last_track as usize], track_to_read as f32 / 4.0, track_type);
 
-            if track_type != TrackType::Flux {
-                // Adjust the disk head as each track size is different
-                let new_bit = if last_track_type == TrackType::Flux {
-                    0
-                } else {
-                    let last_head = disk.head * 8 + disk.head_bit;
-
-                    // last_head can be greater than last_track_bits when the last_track is a empty
-                    // track. disk.last_track keeps track of the last readable track. For empty
-                    // track the number of track bits is NOMINAL_USABLE_BITS_TRACK_SIZE
-                    if last_head > last_track_bits {
-                        (last_head * track_bits) / NOMINAL_USABLE_BITS_TRACK_SIZE
+                if track_type != TrackType::Flux {
+                    // Adjust the disk head as each track size is different
+                    let new_bit = if last_track_type == TrackType::Flux {
+                        0
                     } else {
+                        let last_head = disk.head * 8 + disk.head_bit;
                         (last_head * track_bits) / last_track_bits
-                    }
-                };
+                    };
 
-                let (head, remainder) = (new_bit / 8, new_bit % 8);
-                disk.head = head;
-                disk.head_mask = 1 << (7 - remainder);
-                disk.head_bit = remainder;
-            } else if last_track_type != TrackType::Flux {
-                disk.head = 0;
-            } else {
-                disk.head = disk.head * track_bits / last_track_bits;
+                    let (head, remainder) = (new_bit / 8, new_bit % 8);
+                    disk.head = head;
+                    disk.head_mask = 1 << (7 - remainder);
+                    disk.head_bit = remainder;
+                } else if last_track_type != TrackType::Flux {
+                    disk.head = 0;
+                } else {
+                    disk.head = disk.head * track_bits / last_track_bits;
+                }
+
+                disk.last_track = track_to_read;
             }
-
-            disk.last_track = track_to_read;
         }
     }
 

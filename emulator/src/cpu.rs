@@ -1739,7 +1739,7 @@ impl CPU {
                 self.status.set(CpuFlags::OVERFLOW, true);
             }
             if (self.register_a & 0xf) >= 5 {
-               result  = ((result + 6) & 0xf) | (result & 0xF0);
+                result = ((result + 6) & 0xf) | (result & 0xF0);
             }
             if (self.register_a & 0xf0) >= 0x50 {
                 result = result.wrapping_add(0x60);
@@ -2046,7 +2046,6 @@ impl CPU {
                 /* ADC */
                 0x69 | 0x6d | 0x65 | 0x75 | 0x7d | 0x79 | 0x61 | 0x71 | 0x72 => {
                     if !self.m65c02 && code == 0x72 {
-
                     } else {
                         self.adc(opcode);
                     }
@@ -2055,7 +2054,6 @@ impl CPU {
                 /* SBC */
                 0xe9 | 0xed | 0xe5 | 0xf5 | 0xfd | 0xf9 | 0xe1 | 0xf1 | 0xf2 => {
                     if !self.m65c02 && code == 0xf2 {
-
                     } else {
                         self.sbc(opcode);
                     }
