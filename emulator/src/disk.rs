@@ -2244,8 +2244,16 @@ impl DiskDrive {
         // Update track information when track is changed
         if tmap_track != 0xff && disk.last_track != track_to_read {
             let last_track = disk.tmap_data[disk.last_track as usize];
-            let last_track_bits = disk.raw_track_bits[last_track as usize];
-            let last_track_type = disk.trackmap[last_track as usize];
+            let last_track_bits = if last_track == 255 {
+                NOMINAL_USABLE_BITS_TRACK_SIZE
+            } else {
+                disk.raw_track_bits[last_track as usize]
+            };
+            let last_track_type = if last_track == 255 {
+                TrackType::None
+            } else {
+                disk.trackmap[last_track as usize]
+            };
 
             //eprintln!("TRK {} ({:?}) -> TRK {} ({:?})", disk.last_track as f32 / 4.0,disk.trackmap[last_track as usize], track_to_read as f32 / 4.0, track_type);
 
@@ -2311,7 +2319,7 @@ impl DiskDrive {
         };
         */
 
-        //Self::_update_track_if_changed(disk, tmap_track, track_bits, track_to_read, track_type);
+        Self::_update_track_if_changed(disk, tmap_track, track_bits, disk.track, track_type);
         disk.last_track = disk.track;
         let read_pulse = Self::read_flux_data(disk);
         //let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
