@@ -1566,7 +1566,6 @@ impl CPU {
             }
         } else {
             self.increment_pc();
-            self.increment_pc();
             self.last_tick();
         }
     }
@@ -1636,7 +1635,6 @@ impl CPU {
                 _ => unreachable!(),
             }
         } else {
-            self.increment_pc();
             self.increment_pc();
             self.last_tick();
         }
