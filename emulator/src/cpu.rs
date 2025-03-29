@@ -1390,6 +1390,58 @@ impl CPU {
             self.tick();
             let mask = (1 << bit) ^ 0xff;
             self.last_tick_addr_write(zp as u16, value & mask);
+        } else if !self.m65c02 {
+            match bit {
+                0 => {
+                    // Implement opcode 0x07 ( SLO zeropage )
+                    let addr = self.get_zeropage_addr();
+                    self.slo(addr);
+                }
+
+                1 => {
+                    // Implement opcode 0x17 ( SLO zeropage,x )
+                    let addr = self.get_zeropage_x_addr();
+                    self.slo(addr);
+                }
+
+                2 => {
+                    // Implement opcode 0x27 ( RLA zeropage )
+                    let addr = self.get_zeropage_addr();
+                    self.rla(addr);
+                }
+
+                3 => {
+                    // Implement opcode 0x27 ( RLA zeropage,x )
+                    let addr = self.get_zeropage_x_addr();
+                    self.rla(addr);
+                }
+
+                4 => {
+                    // Implement opcode 0x47 ( SRE zeropage )
+                    let addr = self.get_zeropage_addr();
+                    self.sre(addr);
+                }
+
+                5 => {
+                    // Implement opcode 0x57 ( SRE zeropage,x )
+                    let addr = self.get_zeropage_x_addr();
+                    self.sre(addr);
+                }
+
+                6 => {
+                    // Implement opcode 0x67 ( RRA zeropage )
+                    let addr = self.get_zeropage_addr();
+                    self.rra(addr);
+                }
+
+                7 => {
+                    // Implement opcode 0x77 ( RRA zeropage,x )
+                    let addr = self.get_zeropage_x_addr();
+                    self.rra(addr);
+                }
+
+                _ => unreachable!(),
+            }
         } else {
             self.increment_pc();
             self.last_tick();
@@ -1403,7 +1455,7 @@ impl CPU {
             self.tick();
             let mask = 1 << bit;
             self.last_tick_addr_write(zp as u16, value | mask);
-        } else {
+        } else if !self.m65c02 {
             match bit {
                 0 => {
                     // Implement opcode 0x87 ( SAX zeropage )
@@ -1447,15 +1499,15 @@ impl CPU {
                     self.isc(addr);
                 }
 
-                _ => {
-                    self.increment_pc();
-                    self.last_tick();
-                }
+                _ => unreachable!(),
             }
+        } else {
+            self.increment_pc();
+            self.last_tick();
         }
     }
 
-    fn bbr(&mut self, bit: u8) {
+    fn bbr(&mut self, opcode: &OpCode, bit: u8) {
         if self.m65c02 && !self.m65c02_rockwell_disable {
             let zp = self.next_byte();
             let value = self.addr_read(zp as u16);
@@ -1466,6 +1518,51 @@ impl CPU {
             if value & (0x01 << bit) == 0 {
                 let jump_addr = self.program_counter.wrapping_add(jump as u16);
                 self.program_counter = jump_addr;
+            }
+        } else if !self.m65c02 {
+            match bit {
+                0 => {
+                    // Implement opcode 0x0f ( SLO absolute )
+                    let addr = self.get_absolute_addr();
+                    self.slo(addr);
+                }
+                1 => {
+                    // Implement opcode 0x1f ( SLO absolute,x )
+                    let addr = self.get_absolute_x_addr(opcode);
+                    self.slo(addr);
+                }
+                2 => {
+                    // Implement opcode 0x2f ( RLA absolute )
+                    let addr = self.get_absolute_addr();
+                    self.rla(addr);
+                }
+                3 => {
+                    // Implement opcode 0x3f ( RLA absolute,x )
+                    let addr = self.get_absolute_x_addr(opcode);
+                    self.rla(addr);
+                }
+                4 => {
+                    // Implement opcode 0x4f ( SLE absolute )
+                    let addr = self.get_absolute_addr();
+                    self.sre(addr);
+                }
+                5 => {
+                    // Implement opcode 0x5f ( SLE absolute,x )
+                    let addr = self.get_absolute_x_addr(opcode);
+                    self.sre(addr);
+                }
+                6 => {
+                    // Implement opcode 0x6f ( RRA absolute )
+                    let addr = self.get_absolute_addr();
+                    self.rra(addr);
+                }
+                7 => {
+                    // Implement opcode 0x7f ( RRA absolute,x )
+                    let addr = self.get_absolute_x_addr(opcode);
+                    self.rra(addr);
+                }
+
+                _ => unreachable!(),
             }
         } else {
             self.increment_pc();
@@ -1492,6 +1589,12 @@ impl CPU {
                     // Implement opcode 0x8f ( SAX absolute )
                     let addr = self.get_absolute_addr();
                     self.sax(addr);
+                }
+
+                1 => {
+                    // Implement opcode 0x9f ( SHA absolute,y )
+                    let addr = self.get_absolute_y_addr(opcode);
+                    self.sha(addr);
                 }
 
                 2 => {
@@ -1559,6 +1662,108 @@ impl CPU {
     fn sax(&mut self, addr: u16) {
         let result = self.register_a & self.register_x;
         self.last_tick_addr_write(addr, result);
+    }
+
+    fn rla(&mut self, addr: u16) {
+        self.rol(addr);
+        self.and(addr);
+    }
+
+    fn rra(&mut self, addr: u16) {
+        self.ror(addr);
+        let data = self.bus.unclocked_addr_read(addr);
+        self.add_to_register_a(data, false);
+        self.last_tick();
+    }
+
+    fn slo(&mut self, addr: u16) {
+        self.asl(addr);
+        self.ora(addr);
+    }
+
+    fn sre(&mut self, addr: u16) {
+        self.lsr(addr);
+        self.eor(addr);
+    }
+
+    fn sha(&mut self, addr: u16) {
+        let result = self.register_a & self.register_x;
+        let high_addr = (((addr & 0xff00) >> 8) as u8).wrapping_add(1);
+        self.last_tick_addr_write(addr, result & high_addr);
+    }
+
+    fn shx(&mut self, addr: u16) {
+        let high_addr = (((addr & 0xff00) >> 8) as u8).wrapping_add(1);
+        self.last_tick_addr_write(addr, self.register_x & high_addr);
+    }
+
+    fn shy(&mut self, addr: u16) {
+        let high_addr = (((addr & 0xff00) >> 8) as u8).wrapping_add(1);
+        self.last_tick_addr_write(addr, self.register_y & high_addr);
+    }
+
+    fn sbx(&mut self) {
+        let addr = self.get_immediate_addr();
+        let data = self.last_tick_addr_read(addr);
+        let result = ((self.register_a & self.register_x) as u16).wrapping_sub(data as u16);
+        self.status.set(CpuFlags::ZERO, result == 0);
+        self.clear_carry_flag();
+        if (result & 0xff00) == 0 {
+            self.set_carry_flag();
+        }
+        self.register_x = (result & 0xff) as u8;
+    }
+
+    fn arr(&mut self) {
+        let addr = self.get_immediate_addr();
+        let data = self.last_tick_addr_read(addr);
+        self.register_a &= data;
+
+        if self.status.contains(CpuFlags::DECIMAL_MODE) {
+            let carry = self.status.contains(CpuFlags::CARRY);
+            self.status.set(CpuFlags::ZERO, false);
+            self.status.set(CpuFlags::NEGATIVE, false);
+            self.status.set(CpuFlags::OVERFLOW, false);
+            self.status.set(CpuFlags::CARRY, false);
+            let mut result = self.register_a >> 1;
+            if carry {
+                result |= 0x80;
+            }
+            self.status.set(CpuFlags::ZERO, result != 0);
+            if ((result ^ self.register_a) & 0x40) != 0 {
+                self.status.set(CpuFlags::OVERFLOW, true);
+            }
+            if (self.register_a & 0xf) >= 5 {
+               result  = ((result + 6) & 0xf) | (result & 0xF0);
+            }
+            if (self.register_a & 0xf0) >= 0x50 {
+                result = result.wrapping_add(0x60);
+                self.status.set(CpuFlags::CARRY, true);
+            }
+            self.register_a = result;
+        } else {
+            let carry = self.status.contains(CpuFlags::CARRY);
+            self.status.set(CpuFlags::ZERO, false);
+            self.status.set(CpuFlags::NEGATIVE, false);
+            self.status.set(CpuFlags::OVERFLOW, false);
+            self.status.set(CpuFlags::CARRY, false);
+            self.register_a >>= 1;
+            if carry {
+                self.register_a |= 0x80;
+            }
+            self.status.set(CpuFlags::ZERO, self.register_a != 0);
+            if self.register_a & 0x40 != 0 {
+                self.status.set(CpuFlags::CARRY, true);
+                self.status.set(CpuFlags::OVERFLOW, true);
+            }
+            if self.register_a & 0x20 != 0 {
+                if self.status.contains(CpuFlags::OVERFLOW) {
+                    self.status.set(CpuFlags::OVERFLOW, false);
+                } else {
+                    self.status.set(CpuFlags::OVERFLOW, true);
+                }
+            }
+        }
     }
 
     fn interrupt(&mut self, interrupt: interrupt::Interrupt) {
@@ -1734,8 +1939,10 @@ impl CPU {
 
                 /* LDA zeropage,Y */
                 0xb2 => {
-                    let addr = self.get_indirect_zeropage_addr();
-                    self.lda(addr);
+                    if self.m65c02 {
+                        let addr = self.get_indirect_zeropage_addr();
+                        self.lda(addr);
+                    }
                 }
 
                 /* TAX */
@@ -1833,12 +2040,20 @@ impl CPU {
 
                 /* ADC */
                 0x69 | 0x6d | 0x65 | 0x75 | 0x7d | 0x79 | 0x61 | 0x71 | 0x72 => {
-                    self.adc(opcode);
+                    if !self.m65c02 && code == 0x72 {
+
+                    } else {
+                        self.adc(opcode);
+                    }
                 }
 
                 /* SBC */
                 0xe9 | 0xed | 0xe5 | 0xf5 | 0xfd | 0xf9 | 0xe1 | 0xf1 | 0xf2 => {
-                    self.sbc(opcode);
+                    if !self.m65c02 && code == 0xf2 {
+
+                    } else {
+                        self.sbc(opcode);
+                    }
                 }
 
                 /* AND immediate */
@@ -1891,8 +2106,10 @@ impl CPU {
 
                 /* AND indirect,zeropage */
                 0x32 => {
-                    let addr = self.get_indirect_zeropage_addr();
-                    self.and(addr);
+                    if self.m65c02 {
+                        let addr = self.get_indirect_zeropage_addr();
+                        self.and(addr);
+                    }
                 }
 
                 /* EOR immediate  */
@@ -1945,8 +2162,10 @@ impl CPU {
 
                 /* EOR indirect,zeropage  */
                 0x52 => {
-                    let addr = self.get_indirect_zeropage_addr();
-                    self.eor(addr);
+                    if self.m65c02 {
+                        let addr = self.get_indirect_zeropage_addr();
+                        self.eor(addr);
+                    }
                 }
 
                 /* ORA immediate */
@@ -1999,8 +2218,10 @@ impl CPU {
 
                 /* ORA indirect,zeropage */
                 0x12 => {
-                    let addr = self.get_indirect_zeropage_addr();
-                    self.ora(addr);
+                    if self.m65c02 {
+                        let addr = self.get_indirect_zeropage_addr();
+                        self.ora(addr);
+                    }
                 }
 
                 /* LSR */ 0x4a => self.lsr_accumulator(),
@@ -2218,8 +2439,10 @@ impl CPU {
 
                 /* CMP indirect,zeropage */
                 0xd2 => {
-                    let addr = self.get_indirect_zeropage_addr();
-                    self.compare(addr, self.register_a);
+                    if self.m65c02 {
+                        let addr = self.get_indirect_zeropage_addr();
+                        self.compare(addr, self.register_a);
+                    }
                 }
 
                 /* CPY immediate */
@@ -2448,8 +2671,10 @@ impl CPU {
 
                 /* STA indirect,zeropage */
                 0x92 => {
-                    let addr = self.get_indirect_zeropage_addr();
-                    self.sta(addr);
+                    if self.m65c02 {
+                        let addr = self.get_indirect_zeropage_addr();
+                        self.sta(addr);
+                    }
                 }
 
                 /* STX zeropage */
@@ -2612,10 +2837,208 @@ impl CPU {
                     }
                 }
 
-                /* NOP1 */
-                0x03 | 0x13 | 0x23 | 0x33 | 0x43 | 0x53 | 0x63 | 0x73 | 0x93 | 0x0b | 0x1b
-                | 0x2b | 0x3b | 0x4b | 0x5b | 0x6b | 0x7b | 0x8b | 0x9b | 0xab | 0xbb | 0xcb
-                | 0xeb => {}
+                0x4b => {
+                    if !self.m65c02 {
+                        // Implement ALR
+                        let addr = self.get_immediate_addr();
+                        self.lda(addr);
+                        self.lsr_accumulator();
+                    }
+                }
+
+                0x0b => {
+                    if !self.m65c02 {
+                        // Implement ANC
+                        let addr = self.get_immediate_addr();
+                        self.and(addr);
+                        if self.register_a & 0x80 != 0 {
+                            self.set_carry_flag();
+                        } else {
+                            self.clear_carry_flag();
+                        }
+                    }
+                }
+
+                0x2b => {
+                    if !self.m65c02 {
+                        // Implement ANC2
+                        let addr = self.get_immediate_addr();
+                        self.and(addr);
+                        if self.register_a & 0x80 != 0 {
+                            self.set_carry_flag();
+                        } else {
+                            self.clear_carry_flag();
+                        }
+                    }
+                }
+
+                0x8b => {
+                    if !self.m65c02 {
+                        // Implement ANE
+                        let addr = self.get_immediate_addr();
+                        let data = self.last_tick_addr_read(addr);
+                        self.set_register_a((self.register_a | 0xee) & self.register_x & data);
+                    }
+                }
+
+                0xab => {
+                    if !self.m65c02 {
+                        // Implement LXA
+                        let addr = self.get_immediate_addr();
+                        let data = self.last_tick_addr_read(addr);
+                        self.set_register_a((self.register_a | 0xee) & data);
+                        self.register_x = self.register_a;
+                    }
+                }
+
+                0x3b => {
+                    if !self.m65c02 {
+                        // Implement RLA absolute,Y
+                        let addr = self.get_absolute_y_addr(opcode);
+                        self.rla(addr);
+                    }
+                }
+
+                0x23 => {
+                    if !self.m65c02 {
+                        // Implement RLA (indirect,X)
+                        let addr = self.get_indirect_x_addr();
+                        self.rla(addr);
+                    }
+                }
+
+                0x33 => {
+                    if !self.m65c02 {
+                        // Implement RLA (indirect),Y
+                        let addr = self.get_indirect_y_addr(opcode);
+                        self.rla(addr);
+                    }
+                }
+
+                0x7b => {
+                    if !self.m65c02 {
+                        // Implement RRA absolute,Y
+                        let addr = self.get_absolute_y_addr(opcode);
+                        self.rra(addr);
+                    }
+                }
+
+                0x63 => {
+                    if !self.m65c02 {
+                        // Implement RRA (indirect,X)
+                        let addr = self.get_indirect_x_addr();
+                        self.rra(addr);
+                    }
+                }
+
+                0x73 => {
+                    if !self.m65c02 {
+                        // Implement RRA (indirect),Y
+                        let addr = self.get_indirect_y_addr(opcode);
+                        self.rra(addr);
+                    }
+                }
+
+                0x1b => {
+                    if !self.m65c02 {
+                        // Implement SLO absolute,Y
+                        let addr = self.get_absolute_y_addr(opcode);
+                        self.slo(addr);
+                    }
+                }
+
+                0x03 => {
+                    if !self.m65c02 {
+                        // Implement SLO (indirect, X)
+                        let addr = self.get_indirect_x_addr();
+                        self.slo(addr);
+                    }
+                }
+
+                0x13 => {
+                    if !self.m65c02 {
+                        // Implement SLO (indirect),Y
+                        let addr = self.get_indirect_y_addr(opcode);
+                        self.slo(addr);
+                    }
+                }
+
+                0x5b => {
+                    if !self.m65c02 {
+                        // Implement SRE absolute,Y
+                        let addr = self.get_absolute_y_addr(opcode);
+                        self.sre(addr);
+                    }
+                }
+
+                0x43 => {
+                    if !self.m65c02 {
+                        // Implement SRE (indirect, X)
+                        let addr = self.get_indirect_x_addr();
+                        self.sre(addr);
+                    }
+                }
+
+                0x53 => {
+                    if !self.m65c02 {
+                        // Implement SRE (indirect),Y
+                        let addr = self.get_indirect_y_addr(opcode);
+                        self.sre(addr);
+                    }
+                }
+
+                0x9b => {
+                    if !self.m65c02 {
+                        // Implement TAS absolute,Y
+                        let addr = self.get_absolute_y_addr(opcode);
+                        let result = self.register_a & self.register_x;
+                        let high_addr = (((addr & 0xff00) >> 8) as u8).wrapping_add(1);
+                        self.stack_pointer = result;
+                        self.last_tick_addr_write(addr, result & high_addr);
+                    }
+                }
+
+                0xbb => {
+                    if !self.m65c02 {
+                        // Implement LAS absolute,Y
+                        let addr = self.get_absolute_y_addr(opcode);
+                        let data = self.last_tick_addr_read(addr);
+                        let result = data & self.stack_pointer;
+                        self.set_register_a(result);
+                        self.register_x = self.register_a;
+                        self.stack_pointer = self.register_a;
+                    }
+                }
+
+                0xeb => {
+                    if !self.m65c02 {
+                        // Implement USBC (Same as SBC immediate)
+                        let addr = self.get_immediate_addr();
+                        let data = self.bus.unclocked_addr_read(addr);
+                        self.add_to_register_a(data.wrapping_neg().wrapping_sub(1), true);
+                        self.last_tick();
+                    }
+                }
+
+                0x93 => {
+                    if !self.m65c02 {
+                        // Implement SHA (indirect), Y
+                        let addr = self.get_indirect_y_addr(opcode);
+                        self.sha(addr);
+                    }
+                }
+
+                0xcb => {
+                    if !self.m65c02 {
+                        self.sbx();
+                    }
+                }
+
+                0x6b => {
+                    if !self.m65c02 {
+                        self.arr();
+                    }
+                }
 
                 0xdb => {
                     if !self.m65c02 {
@@ -2682,7 +3105,7 @@ impl CPU {
                 /* BBR0 - BBR7 */
                 0x0f | 0x1f | 0x2f | 0x3f | 0x4f | 0x5f | 0x6f | 0x7f => {
                     let offset = code >> 4;
-                    self.bbr(offset);
+                    self.bbr(opcode, offset);
                 }
 
                 /* BBS0 - BBS7 */
@@ -2823,7 +3246,8 @@ impl CPU {
                         let addr = self.get_absolute_addr();
                         self.stz(addr);
                     } else {
-                        self.last_tick();
+                        let addr = self.get_absolute_x_addr(opcode);
+                        self.shy(addr);
                     }
                 }
 
@@ -2834,7 +3258,8 @@ impl CPU {
                         self.tick();
                         self.stz(addr);
                     } else {
-                        self.last_tick();
+                        let addr = self.get_absolute_y_addr(opcode);
+                        self.shx(addr);
                     }
                 }
 
