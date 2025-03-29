@@ -1165,7 +1165,6 @@ impl CPU {
 
     fn asl_accumulator(&mut self) {
         let mut data = self.register_a;
-
         self.status.set(CpuFlags::CARRY, data & 0x80 > 0);
         self.last_tick();
         data <<= 1;
@@ -1174,17 +1173,15 @@ impl CPU {
 
     fn asl(&mut self, addr: u16) {
         let mut data = self.addr_read(addr);
-
         self.status.set(CpuFlags::CARRY, data & 0x80 > 0);
-        self.last_tick();
+        self.tick();
         data <<= 1;
-        self.addr_write(addr, data);
+        self.last_tick_addr_write(addr, data);
         self.update_zero_and_negative_flags(data);
     }
 
     fn lsr_accumulator(&mut self) {
         let mut data = self.register_a;
-
         self.status.set(CpuFlags::CARRY, data & 1 == 1);
         self.last_tick();
         data >>= 1;
@@ -1193,7 +1190,6 @@ impl CPU {
 
     fn lsr(&mut self, addr: u16) {
         let mut data = self.addr_read(addr);
-
         self.status.set(CpuFlags::CARRY, data & 1 == 1);
         data >>= 1;
         self.tick();
@@ -1204,7 +1200,6 @@ impl CPU {
     fn rol(&mut self, addr: u16) {
         let mut data = self.addr_read(addr);
         let old_carry = self.status.contains(CpuFlags::CARRY) as u8;
-
         self.status.set(CpuFlags::CARRY, data & 0x80 > 0);
         data <<= 1;
         data |= old_carry;
@@ -1216,7 +1211,6 @@ impl CPU {
     fn rol_accumulator(&mut self) {
         let mut data = self.register_a;
         let old_carry = self.status.contains(CpuFlags::CARRY) as u8;
-
         self.status.set(CpuFlags::CARRY, data & 0x80 > 0);
         self.last_tick();
         data <<= 1;
@@ -1227,7 +1221,6 @@ impl CPU {
     fn ror(&mut self, addr: u16) {
         let mut data = self.addr_read(addr);
         let old_carry = self.status.contains(CpuFlags::CARRY) as u8;
-
         self.status.set(CpuFlags::CARRY, data & 1 == 1);
         data >>= 1;
         data |= old_carry << 7;
@@ -1239,7 +1232,6 @@ impl CPU {
     fn ror_accumulator(&mut self) {
         let mut data = self.register_a;
         let old_carry = self.status.contains(CpuFlags::CARRY) as u8;
-
         self.status.set(CpuFlags::CARRY, data & 1 == 1);
         self.last_tick();
         data >>= 1;
@@ -1663,8 +1655,15 @@ impl CPU {
     }
 
     fn rla(&mut self, addr: u16) {
-        self.rol(addr);
-        self.and(addr);
+        let mut data = self.addr_read(addr);
+        let old_carry = self.status.contains(CpuFlags::CARRY) as u8;
+        self.status.set(CpuFlags::CARRY, data & 0x80 > 0);
+        data <<= 1;
+        data |= old_carry;
+        self.tick();
+        self.last_tick_addr_write(addr, data);
+        self.register_a &= data;
+        self.update_zero_and_negative_flags(self.register_a);
     }
 
     fn rra(&mut self, addr: u16) {
@@ -1675,13 +1674,25 @@ impl CPU {
     }
 
     fn slo(&mut self, addr: u16) {
-        self.asl(addr);
-        self.ora(addr);
+        let mut data = self.addr_read(addr);
+        self.status.set(CpuFlags::CARRY, data & 0x80 > 0);
+        self.tick();
+        data <<= 1;
+        self.last_tick_addr_write(addr, data);
+        self.register_a |= data;
+        self.update_zero_and_negative_flags(self.register_a);
     }
 
     fn sre(&mut self, addr: u16) {
         self.lsr(addr);
         self.eor(addr);
+        let mut data = self.addr_read(addr);
+        self.status.set(CpuFlags::CARRY, data & 1 == 1);
+        self.tick();
+        data >>= 1;
+        self.last_tick_addr_write(addr, data);
+        self.register_a ^= data;
+        self.update_zero_and_negative_flags(self.register_a);
     }
 
     fn sha(&mut self, addr: u16) {
