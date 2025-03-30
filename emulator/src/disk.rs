@@ -1420,6 +1420,11 @@ impl DiskDrive {
         ((disk.last_track / 4) as usize, sector)
     }
 
+    pub fn get_disk_head_info(&self) -> (usize, usize, usize) {
+        let disk = &self.drive[self.drive_select];
+        (disk.head, disk.head_mask, disk.head_bit)
+    }
+
     pub fn get_disk_info(&self) -> Vec<(TrackType, f32, u8, usize, usize)> {
         let disk = &self.drive[self.drive_select];
         let mut result = Vec::new();
@@ -1470,7 +1475,7 @@ impl DiskDrive {
 
         // This implementation keeps the previous latch value longer by one clock cycle
         // Needed for Test Drive
-        if self.prev_latch & 0x80 != 0 && self.latch & 0x80 == 0 {
+        if self.pending_ticks == 0 && self.prev_latch & 0x80 != 0 && self.latch & 0x80 == 0 {
             // 5% jitter is required for Buzzard Bait
             if fastrand::f32() < 0.05 {
                 self.latch
@@ -2308,7 +2313,7 @@ impl DiskDrive {
         };
         */
 
-        Self::_update_track_if_changed(disk, tmap_track, track_bits, disk.track, track_type);
+        //Self::_update_track_if_changed(disk, tmap_track, track_bits, disk.track, track_type);
         disk.last_track = disk.track;
         let read_pulse = Self::read_flux_data(disk);
         //let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
