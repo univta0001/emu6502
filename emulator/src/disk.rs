@@ -2330,7 +2330,7 @@ impl DiskDrive {
             if track_type != TrackType::Flux {
                 Self::check_disk_head(disk, track_bits);
             }
-            
+
             if disk.loaded && tmap_track != 0xff && track_bits != 0 {
                 let track = &disk.raw_track_data[tmap_track as usize];
 
