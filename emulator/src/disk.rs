@@ -2327,7 +2327,9 @@ impl DiskDrive {
         if self.lss_cycle >= optimal_timing {
             self.bit_buffer <<= 1;
 
-            Self::check_disk_head(disk, track_bits);
+            if track_type != TrackType::Flux {
+                Self::check_disk_head(disk, track_bits);
+            }
             
             if disk.loaded && tmap_track != 0xff && track_bits != 0 {
                 let track = &disk.raw_track_data[tmap_track as usize];
