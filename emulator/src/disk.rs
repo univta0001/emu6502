@@ -1475,7 +1475,7 @@ impl DiskDrive {
 
         // This implementation keeps the previous latch value longer by one clock cycle
         // Needed for Test Drive
-        if self.pending_ticks == 0 && self.prev_latch & 0x80 != 0 && self.latch & 0x80 == 0 {
+        if self.prev_latch & 0x80 != 0 && self.latch & 0x80 == 0 {
             // 5% jitter is required for Buzzard Bait
             if fastrand::f32() < 0.05 {
                 self.latch
@@ -2325,10 +2325,6 @@ impl DiskDrive {
         };
 
         if self.lss_cycle >= optimal_timing {
-            if track_bits != 0 {
-                Self::update_disk_head(disk, track_bits, track_type);
-            }
-
             self.bit_buffer <<= 1;
 
             if disk.loaded && tmap_track != 0xff && track_bits != 0 {
@@ -2337,6 +2333,10 @@ impl DiskDrive {
                 if track_type != TrackType::Flux {
                     self.bit_buffer |= (track[disk.head] & disk.head_mask as u8 != 0) as u8;
                 }
+            }
+
+            if track_bits != 0 {
+                Self::update_disk_head(disk, track_bits, track_type);
             }
 
             if self.bit_buffer & 0x0f != 0 {
