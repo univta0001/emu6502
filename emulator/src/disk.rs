@@ -2327,6 +2327,8 @@ impl DiskDrive {
         if self.lss_cycle >= optimal_timing {
             self.bit_buffer <<= 1;
 
+            Self::check_disk_head(disk, track_bits);
+            
             if disk.loaded && tmap_track != 0xff && track_bits != 0 {
                 let track = &disk.raw_track_data[tmap_track as usize];
 
@@ -2335,8 +2337,8 @@ impl DiskDrive {
                 }
             }
 
-            if track_bits != 0 {
-                Self::update_disk_head(disk, track_bits, track_type);
+            if track_bits != 0 && track_type != TrackType::Flux {
+                Self::update_disk_head(disk);
             }
 
             if self.bit_buffer & 0x0f != 0 {
@@ -2353,24 +2355,24 @@ impl DiskDrive {
         }
     }
 
-    fn update_disk_head(disk: &mut Disk, track_bits: usize, track_type: TrackType) {
-        if track_type != TrackType::Flux {
-            disk.head_mask >>= 1;
-            disk.head_bit += 1;
+    fn update_disk_head(disk: &mut Disk) {
+        disk.head_mask >>= 1;
+        disk.head_bit += 1;
 
-            if disk.head_mask == 0 {
-                disk.head_mask = 0x80;
-                disk.head_bit = 0;
-                disk.head += 1;
-            }
+        if disk.head_mask == 0 {
+            disk.head_mask = 0x80;
+            disk.head_bit = 0;
+            disk.head += 1;
+        }
+    }
 
-            if disk.head * 8 + disk.head_bit >= track_bits {
-                let wrapped = (disk.head * 8 + disk.head_bit) % track_bits;
-                let (head, remainder) = (wrapped / 8, wrapped % 8);
-                disk.head = head;
-                disk.head_mask = 1 << (7 - remainder);
-                disk.head_bit = remainder;
-            }
+    fn check_disk_head(disk: &mut Disk, track_bits: usize) {
+        if disk.head * 8 + disk.head_bit >= track_bits {
+            let wrapped = (disk.head * 8 + disk.head_bit) % track_bits;
+            let (head, remainder) = (wrapped / 8, wrapped % 8);
+            disk.head = head;
+            disk.head_mask = 1 << (7 - remainder);
+            disk.head_bit = remainder;
         }
     }
 
