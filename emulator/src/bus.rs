@@ -912,7 +912,7 @@ impl Bus {
 
             0x29 => self.video.io_access(addr, value, write_flag),
 
-            0x30 => self.audio_io_access(),
+            0x30..=0x3f => self.audio_io_access(),
 
             0x40 => {
                 if self.is_apple2c {
