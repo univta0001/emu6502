@@ -135,6 +135,9 @@ pub struct Disk {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     mc3470_read_pulse: usize,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    flux_weakbit: usize,
 }
 
 #[derive(Debug)]
@@ -2344,14 +2347,23 @@ impl DiskDrive {
             if self.bit_buffer & 0x0f != 0 {
                 self.pulse = (self.bit_buffer & 0x2) >> 1;
             } else {
-                self.pulse = self.get_random_disk_bit(fastrand::f32())
+                self.pulse = Self::get_random_disk_bit(self.random_one_rate, fastrand::f32())
             }
 
             self.lss_cycle -= optimal_timing;
         }
 
         if track_type == TrackType::Flux {
-            self.pulse = read_pulse as u8;
+            if read_pulse {
+                disk.flux_weakbit = 0;
+            } else {
+                disk.flux_weakbit = usize::min(32, disk.flux_weakbit + 1);
+            }
+            if disk.flux_weakbit >= 32 {
+                self.pulse = Self::get_random_disk_bit(self.random_one_rate, fastrand::f32())
+            } else {
+                self.pulse = read_pulse as u8
+            }
         }
     }
 
@@ -2376,13 +2388,9 @@ impl DiskDrive {
         }
     }
 
-    fn get_random_disk_bit(&self, random_value: f32) -> u8 {
+    fn get_random_disk_bit(random_one_rate: f32, random_value: f32) -> u8 {
         // The random bit 1 is generated with probability 0.3 or 30%
-        if random_value < self.random_one_rate {
-            1
-        } else {
-            0
-        }
+        if random_value < random_one_rate { 1 } else { 0 }
     }
 
     pub fn set_disable_fast_disk(&mut self, state: bool) {
@@ -2616,6 +2624,7 @@ impl Disk {
             force_disk_rom13: false,
             mc3470_counter: 0,
             mc3470_read_pulse: 0,
+            flux_weakbit: 0,
         }
     }
 }
