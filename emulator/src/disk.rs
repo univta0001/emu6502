@@ -2328,7 +2328,7 @@ impl DiskDrive {
             32
         };
 
-        if self.lss_cycle >= optimal_timing as usize * 10_016 {
+        if self.lss_cycle >= optimal_timing as usize * 10_017 {
             self.bit_buffer <<= 1;
 
             if track_type != TrackType::Flux {
@@ -2353,7 +2353,7 @@ impl DiskDrive {
                 self.pulse = Self::get_random_disk_bit(self.random_one_rate, fastrand::f32())
             }
 
-            self.lss_cycle -= optimal_timing as usize * 10_016;
+            self.lss_cycle -= optimal_timing as usize * 10_017;
         }
 
         if track_type == TrackType::Flux {
