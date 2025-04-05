@@ -154,7 +154,7 @@ pub struct DiskDrive {
     bit_buffer: u8,
     iwm: bool,
     iwm_mode: u8,
-    lss_cycle: u8,
+    lss_cycle: usize,
     lss_state: u8,
     prev_lss_state: u8,
     pending_ticks: usize,
@@ -1479,12 +1479,15 @@ impl DiskDrive {
         // This implementation keeps the previous latch value longer by one clock cycle
         // Needed for Test Drive
         if self.prev_latch & 0x80 != 0 && self.latch & 0x80 == 0 {
+            /*
             // 5% randomness is required for Buzzard Bait
             if fastrand::f32() < 0.05 {
                 self.latch
             } else {
                 self.prev_latch
             }
+            */
+            self.prev_latch
         } else {
             self.latch
         }
@@ -2289,7 +2292,7 @@ impl DiskDrive {
         let tmap_track = disk.tmap_data[disk.track as usize];
 
         // LSS is running at 2Mhz i.e. 0.5 us
-        self.lss_cycle += 4;
+        self.lss_cycle += 4 * 10_000;
 
         let random_bits = NOMINAL_USABLE_BITS_TRACK_SIZE;
         let track_bits = if tmap_track == 255 {
@@ -2325,7 +2328,7 @@ impl DiskDrive {
             32
         };
 
-        if self.lss_cycle >= optimal_timing {
+        if self.lss_cycle >= optimal_timing as usize * 10_018 {
             self.bit_buffer <<= 1;
 
             if track_type != TrackType::Flux {
@@ -2350,7 +2353,7 @@ impl DiskDrive {
                 self.pulse = Self::get_random_disk_bit(self.random_one_rate, fastrand::f32())
             }
 
-            self.lss_cycle -= optimal_timing;
+            self.lss_cycle -= optimal_timing as usize * 10_018;
         }
 
         if track_type == TrackType::Flux {
