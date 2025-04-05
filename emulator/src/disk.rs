@@ -2266,7 +2266,7 @@ impl DiskDrive {
                     let new_bit = if last_track_type == TrackType::Flux {
                         0
                     } else {
-                        let last_head = disk.head * 8 + disk.head_bit;
+                        let last_head = disk.head * 8 + disk.head_bit + 1;
                         (last_head * track_bits) / last_track_bits
                     };
 
