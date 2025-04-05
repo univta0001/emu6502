@@ -154,7 +154,7 @@ pub struct DiskDrive {
     bit_buffer: u8,
     iwm: bool,
     iwm_mode: u8,
-    lss_cycle: usize,
+    lss_cycle: isize,
     lss_state: u8,
     prev_lss_state: u8,
     pending_ticks: usize,
@@ -1472,6 +1472,7 @@ impl DiskDrive {
     }
 
     pub fn get_value(&self) -> u8 {
+        /*
         if !self.is_motor_on() {
             return self.latch;
         }
@@ -1491,6 +1492,8 @@ impl DiskDrive {
         } else {
             self.latch
         }
+        */
+        self.latch
     }
 
     pub fn read_rom(&self, offset: u8) -> u8 {
@@ -2328,7 +2331,7 @@ impl DiskDrive {
             32
         };
 
-        if self.lss_cycle >= optimal_timing as usize * 10_017 {
+        if self.lss_cycle >= optimal_timing as isize * 10_001 {
             self.bit_buffer <<= 1;
 
             if track_type != TrackType::Flux {
@@ -2353,7 +2356,11 @@ impl DiskDrive {
                 self.pulse = Self::get_random_disk_bit(self.random_one_rate, fastrand::f32())
             }
 
-            self.lss_cycle -= optimal_timing as usize * 10_017;
+            self.lss_cycle -= optimal_timing as isize * 10_001;
+            let delay = optimal_timing as isize * 10_001 - 32 * 10_000;
+            if delay < 0 {
+                self.lss_cycle += delay
+            }
         }
 
         if track_type == TrackType::Flux {
