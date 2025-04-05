@@ -163,7 +163,6 @@ pub struct DiskDrive {
     disable_fast_disk: bool,
     enable_save: bool,
     fast_disk_timer: usize,
-    prev_latch: u8,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     phase: usize,
@@ -1300,7 +1299,6 @@ impl DiskDrive {
             drive_select: 0,
             bus: 0,
             latch: 0,
-            prev_latch: 0,
             q6: false,
             q7: false,
             iwm: false,
@@ -2358,7 +2356,7 @@ impl DiskDrive {
 
             self.lss_cycle -= optimal_timing as isize * 10_001;
             let delay = optimal_timing as isize * 10_001 - 32 * 10_000;
-            if delay < 0 {
+            if delay < 0 && self.pulse > 0 {
                 self.lss_cycle += delay + 1
             }
         }
@@ -2598,8 +2596,6 @@ impl Tick for DiskDrive {
                 return;
             }
         }
-
-        self.prev_latch = self.latch;
 
         self.move_head_woz();
         self.step_lss();
