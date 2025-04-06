@@ -2293,7 +2293,7 @@ impl DiskDrive {
         let tmap_track = disk.tmap_data[disk.track as usize];
 
         // LSS is running at 2Mhz i.e. 0.5 us
-        self.lss_cycle += 4 * 10_000;
+        self.lss_cycle += 4 * 1000;
 
         let random_bits = NOMINAL_USABLE_BITS_TRACK_SIZE;
         let track_bits = if tmap_track == 255 {
@@ -2329,7 +2329,7 @@ impl DiskDrive {
             32
         };
 
-        if self.lss_cycle >= optimal_timing as isize * 10_001 {
+        if self.lss_cycle >= optimal_timing as isize * 1000 - 1 {
             self.bit_buffer <<= 1;
 
             if track_type != TrackType::Flux {
@@ -2354,10 +2354,10 @@ impl DiskDrive {
                 self.pulse = Self::get_random_disk_bit(self.random_one_rate, fastrand::f32())
             }
 
-            self.lss_cycle -= optimal_timing as isize * 10_001;
-            let delay = optimal_timing as isize * 10_001 - 32 * 10_000;
+            self.lss_cycle -= optimal_timing as isize * 1000 - 1;
+            let delay = optimal_timing as isize * 1000 - 32 * 1000;
             if delay < 0 && self.pulse > 0 {
-                self.lss_cycle += delay + 1
+                self.lss_cycle += delay
             }
         }
 
