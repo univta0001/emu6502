@@ -2323,13 +2323,13 @@ impl DiskDrive {
         let read_pulse = Self::read_flux_data(disk);
         //let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
         let optimal_timing = if !self.q7 {
-            disk.optimal_timing
+            disk.optimal_timing as isize * 1000 - 1
         } else {
             // Writing is always at 4 microseconds
-            32
+            32 * 1000
         };
 
-        if self.lss_cycle >= optimal_timing as isize * 1000 - 1 {
+        if self.lss_cycle >= optimal_timing {
             self.bit_buffer <<= 1;
 
             if track_type != TrackType::Flux {
@@ -2354,7 +2354,7 @@ impl DiskDrive {
                 self.pulse = Self::get_random_disk_bit(self.random_one_rate, fastrand::f32())
             }
 
-            self.lss_cycle -= optimal_timing as isize * 1000 - 1;
+            self.lss_cycle -= optimal_timing;
             let delay = optimal_timing as isize * 1000 - 32 * 1000;
             if delay < 0 && self.pulse > 0 {
                 self.lss_cycle += delay
