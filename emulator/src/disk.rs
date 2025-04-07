@@ -2355,7 +2355,7 @@ impl DiskDrive {
             }
 
             self.lss_cycle -= optimal_timing;
-            let delay = optimal_timing as isize * 1000 - 32 * 1000;
+            let delay = optimal_timing - (32 * 1000 - 1);
             if delay < 0 && self.pulse > 0 {
                 self.lss_cycle += delay
             }
