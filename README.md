@@ -45,7 +45,7 @@ Features in the emulator
 
 - `emu6502 --help` will display:
 
-        emu6502 0.9.2 (d3c19a6ad8110a0bc4de3ed321df14674fe9ad9b)
+        emu6502 0.9.2 (7103a757232deba31ab3819751c99d4158c7ca84)
 
         USAGE:
             emu6502 [FLAGS] [disk 1] [disk 2]
