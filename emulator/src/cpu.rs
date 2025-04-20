@@ -3136,7 +3136,7 @@ impl CPU {
                     }
                 }
 
-                /* TRB */
+                /* TSB */
                 0x04 | 0x0c => {
                     if self.m65c02 {
                         self.tsb(opcode);

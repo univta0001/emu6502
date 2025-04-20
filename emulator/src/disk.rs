@@ -1855,7 +1855,9 @@ impl DiskDrive {
 
         // If crc32 checksum is not zero, check the crc32 value
         if crc32_check != 0 && crc32_value != crc32_check {
-            let err_message = format!("Invalid woz2 file - Checksum Failed ({crc32_value:08X}))");
+            let crc32_value_be = crc32_value.to_be();
+            let err_message =
+                format!("Invalid woz2 file - Checksum Failed ({crc32_value_be:08X}))");
             return Err(std::io::Error::new(
                 io::ErrorKind::InvalidInput,
                 err_message,
@@ -2322,8 +2324,10 @@ impl DiskDrive {
         disk.last_track = disk.track;
         let read_pulse = Self::read_flux_data(disk);
         //let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
+
+        let offset = 0;
         let optimal_timing = if !self.q7 {
-            disk.optimal_timing as isize * 1000 - 1
+            disk.optimal_timing as isize * 1000 + offset
         } else {
             // Writing is always at 4 microseconds
             32 * 1000
@@ -2355,7 +2359,7 @@ impl DiskDrive {
             }
 
             self.lss_cycle -= optimal_timing;
-            let delay = optimal_timing - (32 * 1000 - 1);
+            let delay = optimal_timing - (32 * 1000 + offset);
             if delay < 0 && self.pulse > 0 {
                 self.lss_cycle += delay
             }
@@ -2709,9 +2713,12 @@ impl Card for DiskDrive {
             LOC_DRIVEREADMODE => {
                 self.q7 = false;
 
-                //  Latch is cleared to make Epidemic works
-                self.latch = 0;
+                // Workaround to make Epidemic works
+                if !self.q6 {
+                    self.latch = 0;
+                }
             }
+
             LOC_DRIVEWRITEMODE => {
                 self.q7 = true;
             }
