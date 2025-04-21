@@ -148,6 +148,7 @@ pub struct DiskDrive {
     drive_select: usize,
     bus: u8,
     latch: u8,
+    prev_latch: u8,
     q6: bool,
     q7: bool,
     pulse: u8,
@@ -1299,6 +1300,7 @@ impl DiskDrive {
             drive_select: 0,
             bus: 0,
             latch: 0,
+            prev_latch: 0,
             q6: false,
             q7: false,
             iwm: false,
@@ -1470,28 +1472,19 @@ impl DiskDrive {
     }
 
     pub fn get_value(&self) -> u8 {
-        /*
         if !self.is_motor_on() {
             return self.latch;
         }
 
-        // This implementation keeps the previous latch value longer by one clock cycle
-        // Needed for Test Drive
         if self.prev_latch & 0x80 != 0 && self.latch & 0x80 == 0 {
-            /*
-            // 5% randomness is required for Buzzard Bait
-            if fastrand::f32() < 0.05 {
+            if fastrand::f32() < 0.025 {
                 self.latch
             } else {
                 self.prev_latch
             }
-            */
-            self.prev_latch
         } else {
             self.latch
         }
-        */
-        self.latch
     }
 
     pub fn read_rom(&self, offset: u8) -> u8 {
@@ -2272,7 +2265,7 @@ impl DiskDrive {
                     let new_bit = if last_track_type == TrackType::Flux {
                         0
                     } else {
-                        let last_head = disk.head * 8 + disk.head_bit + 1;
+                        let last_head = disk.head * 8 + disk.head_bit;
                         (last_head * track_bits) / last_track_bits
                     };
 
@@ -2320,7 +2313,7 @@ impl DiskDrive {
         };
         */
 
-        Self::_update_track_if_changed(disk, tmap_track, track_bits, disk.track, track_type);
+        //Self::_update_track_if_changed(disk, tmap_track, track_bits, disk.track, track_type);
         disk.last_track = disk.track;
         let read_pulse = Self::read_flux_data(disk);
         //let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
@@ -2601,6 +2594,7 @@ impl Tick for DiskDrive {
             }
         }
 
+        self.prev_latch = self.latch;
         self.move_head_woz();
         self.step_lss();
         self.pulse = 0;
@@ -2712,11 +2706,6 @@ impl Card for DiskDrive {
 
             LOC_DRIVEREADMODE => {
                 self.q7 = false;
-
-                // Workaround to make Epidemic works
-                if !self.q6 {
-                    self.latch = 0;
-                }
             }
 
             LOC_DRIVEWRITEMODE => {
