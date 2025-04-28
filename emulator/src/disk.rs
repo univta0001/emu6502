@@ -1472,10 +1472,6 @@ impl DiskDrive {
     }
 
     pub fn get_value(&self) -> u8 {
-        if !self.is_loaded(self.drive_select) {
-            return 0
-        }
-
         if !self.is_motor_on() {
             return self.latch;
         }
