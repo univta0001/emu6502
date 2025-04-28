@@ -690,14 +690,17 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                     let mut output = String::new();
                     let addr = adjust_disassemble_addr(&mut cpu.bus, cpu.program_counter, -10);
                     disassemble_addr(&mut output, cpu, addr, 20);
+                    let track_info = cpu.bus.disk.get_track_info();
                     eprintln!(
-                        "PC:{:04X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} S:{:02X}\n\n{}\n",
+                        "PC:{:04X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} S:{:02X} T:{:02x} S:{:02x}\n\n{}\n",
                         cpu.program_counter,
                         cpu.register_a,
                         cpu.register_x,
                         cpu.register_y,
                         cpu.status,
                         cpu.stack_pointer,
+                        track_info.0,
+                        track_info.1,
                         output
                     );
                 } else {

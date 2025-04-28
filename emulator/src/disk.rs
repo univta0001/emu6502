@@ -1472,6 +1472,10 @@ impl DiskDrive {
     }
 
     pub fn get_value(&self) -> u8 {
+        if !self.is_loaded(self.drive_select) {
+            return 0
+        }
+
         if !self.is_motor_on() {
             return self.latch;
         }
@@ -2287,9 +2291,6 @@ impl DiskDrive {
         //let track_to_read = 0;
         let tmap_track = disk.tmap_data[disk.track as usize];
 
-        // LSS is running at 2Mhz i.e. 0.5 us
-        self.lss_cycle += 4 * 1000;
-
         let random_bits = NOMINAL_USABLE_BITS_TRACK_SIZE;
         let track_bits = if tmap_track == 255 {
             random_bits
@@ -2302,6 +2303,9 @@ impl DiskDrive {
         } else {
             disk.trackmap[tmap_track as usize]
         };
+
+        // LSS is running at 2Mhz i.e. 0.5 us
+        self.lss_cycle += 4 * 1000;
 
         //let mut rng = rand::thread_rng();
 
