@@ -2301,7 +2301,7 @@ impl DiskDrive {
         };
 
         // LSS is running at 2Mhz i.e. 0.5 us
-        self.lss_cycle += 4 * 1000;
+        self.lss_cycle += 4;
 
         //let mut rng = rand::thread_rng();
 
@@ -2318,12 +2318,11 @@ impl DiskDrive {
         let read_pulse = Self::read_flux_data(disk);
         //let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
 
-        let offset = 0;
         let optimal_timing = if !self.q7 {
-            disk.optimal_timing as isize * 1000 + offset
+            disk.optimal_timing as isize
         } else {
             // Writing is always at 4 microseconds
-            32 * 1000
+            32
         };
 
         if self.lss_cycle >= optimal_timing {
@@ -2352,7 +2351,7 @@ impl DiskDrive {
             }
 
             self.lss_cycle -= optimal_timing;
-            let delay = optimal_timing - (32 * 1000 + offset);
+            let delay = optimal_timing - 32;
             if delay < 0 && self.pulse > 0 {
                 self.lss_cycle += delay
             }
