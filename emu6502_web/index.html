@@ -34,6 +34,7 @@
         <a id="joystick" class="button shadow hover:shadow-lg border-2 rounded-full font-bold py-2 px-3 cursor-pointer hover:bg-sky-400" href="#">Toggle Joystick</a> 
         <input type="checkbox" id="video50hz" name="video50hz"> 50Hz Video
         <input type="checkbox" id="videoNTSC" name="videoNTSC"> NTSC Video
+        <input type="checkbox" id="videoRGB" name="videoRGB"> RGB Video
         <input type="checkbox" id="capslock" name="capslock"> Capslock
         <input type="checkbox" id="diskSound" name="diskSound"> Disk Sound
         <span id = "speed"> </span>
@@ -208,8 +209,18 @@
             document.getElementById("videoNTSC").addEventListener("change", function(e) {
                 if (e.currentTarget.checked) {
                     emu6502.video_ntsc(true);
+                    document.getElementById("videoRGB").checked = false;
                 } else {
                     emu6502.video_ntsc(false);
+                }
+            });
+
+            document.getElementById("videoRGB").addEventListener("change", function(e) {
+                if (e.currentTarget.checked) {
+                    emu6502.video_rgb(true);
+                    document.getElementById("videoNTSC").checked = false;
+                } else {
+                    emu6502.video_rgb(false);
                 }
             });
 
@@ -797,8 +808,16 @@
 
             if (document.getElementById("videoNTSC").checked) {
                  emu6502.video_ntsc(true);
+                 document.getElementById("videoRGB").checked = false;
             } else {
                  emu6502.video_ntsc(false);
+            }
+
+            if (document.getElementById("videoRGB").checked) {
+                 emu6502.video_rgb(true);
+                 document.getElementById("videoNTSC").checked = false;
+            } else {
+                 emu6502.video_rgb(false);
             }
 
             const runloop = async (now) => {

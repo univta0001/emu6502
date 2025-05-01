@@ -202,6 +202,14 @@ impl Emulator {
         }
     }
 
+    pub fn video_rgb(&mut self, rgb: bool) {
+        if rgb {
+            self.cpu.bus.video.set_display_mode(DisplayMode::RGB)
+        } else {
+            self.cpu.bus.video.set_display_mode(DisplayMode::DEFAULT)
+        }
+    }
+
     pub fn set_mouse_state(&mut self, x: i32, y: i32, left_button: bool, right_button: bool) {
         let buttons = [left_button, right_button];
         self.cpu.bus.set_mouse_state(x, y, &buttons);
