@@ -272,6 +272,8 @@ pub struct Audio {
 pub struct AudioData {
     sample: Vec<Channel>,
     phase: Channel,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
     disk_sound: Channel,
 }
 
