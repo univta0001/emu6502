@@ -881,6 +881,7 @@ FLAGS:
                        Default is None. For e.g. eth0
     --vidhd            Enable VidHD at slot 3
     --aux aux_type     Auxiliary Slot type. Supported values (ext80, std80, rw3, none)
+    --disk_sound       Enable disk sound
 
 ARGS:
     [disk 1]           Disk 1 file (woz, dsk, do, po file). Can be in gz format
@@ -1752,6 +1753,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         return Ok(());
     }
 
+    if pargs.contains("--disk_sound") {
+        cpu.bus.disk.set_disk_sound_enable(true);
+    }
+
     if let Some(aux_type) = pargs.opt_value_from_str::<_, String>("--aux")? {
         let aux_type = match aux_type.as_ref() {
             "ext80" => Some(AuxType::Ext80),
@@ -2023,7 +2028,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         if current_full_screen {
                             match canvas.window_mut().set_fullscreen(FullscreenType::Desktop) {
                                 Err(e) => {
-                                    eprintln!("Unable to set full_screen = {}", e);
+                                    eprintln!("Unable to set full_screen = {e}");
                                     current_full_screen = current_full_screen_value;
                                     full_screen = current_full_screen_value;
                                 }
@@ -2035,7 +2040,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         } else {
                             match canvas.window_mut().set_fullscreen(FullscreenType::Off) {
                                 Err(e) => {
-                                    eprintln!("Unable to restore from full_screen = {}", e);
+                                    eprintln!("Unable to restore from full_screen = {e}");
                                     current_full_screen = current_full_screen_value;
                                     full_screen = current_full_screen_value;
                                 }

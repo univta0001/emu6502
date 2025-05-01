@@ -15,3 +15,4 @@ pub mod ramfactor;
 pub mod trace;
 pub mod video;
 pub mod vidhd;
+pub mod disksound;

@@ -151,7 +151,7 @@ function __wbg_adapter_20(arg0, arg1, arg2) {
     wasm.closure33_externref_shim(arg0, arg1, arg2);
 }
 
-function __wbg_adapter_73(arg0, arg1, arg2, arg3) {
+function __wbg_adapter_75(arg0, arg1, arg2, arg3) {
     wasm.closure115_externref_shim(arg0, arg1, arg2, arg3);
 }
 
@@ -332,6 +332,19 @@ export class Emulator {
     set_mouse_state(x, y, left_button, right_button) {
         wasm.emulator_set_mouse_state(this.__wbg_ptr, x, y, left_button, right_button);
     }
+    /**
+     * @param {boolean} flag
+     */
+    disk_sound(flag) {
+        wasm.emulator_disk_sound(this.__wbg_ptr, flag);
+    }
+    /**
+     * @returns {boolean}
+     */
+    is_disk_sound_enabled() {
+        const ret = wasm.emulator_is_disk_sound_enabled(this.__wbg_ptr);
+        return ret !== 0;
+    }
 }
 
 async function __wbg_load(module, imports) {
@@ -414,7 +427,7 @@ function __wbg_get_imports() {
                 const a = state0.a;
                 state0.a = 0;
                 try {
-                    return __wbg_adapter_73(a, state0.b, arg0, arg1);
+                    return __wbg_adapter_75(a, state0.b, arg0, arg1);
                 } finally {
                     state0.a = a;
                 }
@@ -504,7 +517,7 @@ function __wbg_get_imports() {
         const ret = false;
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper125 = function(arg0, arg1, arg2) {
+    imports.wbg.__wbindgen_closure_wrapper127 = function(arg0, arg1, arg2) {
         const ret = makeMutClosure(arg0, arg1, 34, __wbg_adapter_20);
         return ret;
     };

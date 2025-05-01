@@ -1,4 +1,5 @@
 use crate::bus::{Card, Tick};
+use crate::disksound::DiskSound;
 use crate::mmu::Mmu;
 use crate::video::Video;
 //use rand::prelude::*;
@@ -170,6 +171,9 @@ pub struct DiskDrive {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     rotor_pending_ticks: usize,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    disk_sound: DiskSound,
 }
 
 // Q0L: Phase 0 OFF
@@ -1318,6 +1322,7 @@ impl DiskDrive {
             fast_disk_timer: 0,
             phase: 0,
             rotor_pending_ticks: 0,
+            disk_sound: DiskSound::default(),
         }
     }
 
@@ -1344,6 +1349,10 @@ impl DiskDrive {
                 self.drive[self.drive_select].motor_status = false;
             }
         }
+
+        let motor_status = self.drive[self.drive_select].motor_status;
+        let disk_loaded = self.is_loaded(self.drive_select);
+        self.disk_sound.set_motor_sample(motor_status, disk_loaded);
     }
 
     pub fn is_motor_on(&self) -> bool {
@@ -1485,6 +1494,24 @@ impl DiskDrive {
         } else {
             self.latch
         }
+    }
+
+    pub fn is_disk_sound_enabled(&self) -> bool {
+        self.disk_sound.is_enabled()
+    }
+
+    pub fn set_disk_sound_enable(&mut self, flag: bool) {
+        self.disk_sound.set_enabled(flag)
+    }
+
+    pub fn get_disk_sound_sample(&self) -> i16 {
+        self.disk_sound.get_sample()
+    }
+
+    pub fn update_disk_sound_sample(&mut self) {
+        let disk_loaded = self.is_loaded(self.drive_select);
+        self.disk_sound
+            .update_sample(self.is_motor_on(), disk_loaded);
     }
 
     pub fn read_rom(&self, offset: u8) -> u8 {
@@ -2550,6 +2577,7 @@ impl Tick for DiskDrive {
 
                 if position >= 0 {
                     let disk = &mut self.drive[self.drive_select];
+                    let old_track = disk.track;
                     let last_position = disk.track & 7;
                     let direction =
                         POSITION_TO_DIRECTION[last_position as usize][position as usize];
@@ -2560,6 +2588,10 @@ impl Tick for DiskDrive {
                         disk.track = 0;
                     } else if disk.track >= disk.tmap_data.len() as i32 {
                         disk.track = (disk.tmap_data.len() - 1) as i32;
+                    }
+
+                    if disk.track != old_track {
+                        self.disk_sound.set_stepper_sample();
                     }
                 }
             }

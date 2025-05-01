@@ -206,6 +206,14 @@ impl Emulator {
         let buttons = [left_button, right_button];
         self.cpu.bus.set_mouse_state(x, y, &buttons);
     }
+
+    pub fn disk_sound(&mut self, flag: bool) {
+        self.cpu.bus.disk.set_disk_sound_enable(flag);
+    }
+
+    pub fn is_disk_sound_enabled(&self) -> bool {
+        self.cpu.bus.disk.is_disk_sound_enabled()
+    }
 }
 
 #[wasm_bindgen]

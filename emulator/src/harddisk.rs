@@ -347,7 +347,7 @@ impl HardDisk {
         let id_string = if controller {
             HD_ID_STRING.to_string()
         } else {
-            format!("{} {:02}", HD_ID_STRING, unit)
+            format!("{HD_ID_STRING} {unit:02}")
         };
 
         let id_len = id_string.len().min(16);
@@ -591,7 +591,7 @@ impl HardDisk {
                         }
                     }
                     _ => {
-                        eprintln!("Unable to open {}", filename);
+                        eprintln!("Unable to open {filename}");
                         disk.error = DeviceStatus::DeviceIoError as u8;
                         return;
                     }
@@ -630,7 +630,7 @@ impl HardDisk {
                         }
                     }
                     _ => {
-                        eprintln!("Unable to open {}", filename);
+                        eprintln!("Unable to open {filename}");
                         disk.error = DeviceStatus::DeviceIoError as u8;
                         return;
                     }

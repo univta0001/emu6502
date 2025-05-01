@@ -338,6 +338,11 @@ impl Bus {
         }
 
         if !self.disable_audio {
+            if self.audio.ready_update_disk_sound() {
+                self.disk.update_disk_sound_sample();
+                let sample_value = self.disk.get_disk_sound_sample();
+                self.audio.update_disk_sound(sample_value);
+            }
             self.audio.tick();
         }
 
@@ -394,7 +399,9 @@ impl Bus {
     }
 
     pub fn is_normal_speed(&self) -> bool {
-        self.disk.is_normal_disk() || self.audio.is_audio_active()
+        self.disk.is_normal_disk()
+            || self.audio.is_audio_active()
+            || self.disk.is_disk_sound_enabled()
     }
 
     pub fn get_z80_cirtech(&self) -> bool {

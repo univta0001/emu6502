@@ -272,6 +272,7 @@ pub struct Audio {
 pub struct AudioData {
     sample: Vec<Channel>,
     phase: Channel,
+    disk_sound: Channel,
 }
 
 impl Audio {
@@ -279,6 +280,7 @@ impl Audio {
         let data = AudioData {
             sample: Vec::new(),
             phase: -MAX_AMPLITUDE,
+            disk_sound: 0,
         };
 
         Audio {
@@ -317,6 +319,10 @@ impl Audio {
             self.fcycles_per_sample = self.ntsc_cycles();
             self.audio_filter.filter_parameter = AudioFilter::filter_parameter_ntsc();
         }
+    }
+
+    pub fn ready_update_disk_sound(&self) -> bool {
+        self.fcycles + 1.0 >= (self.fcycles_per_sample)
     }
 
     fn update_phase(&mut self, phase: &mut HigherChannel, channel: usize) -> usize {
@@ -393,6 +399,10 @@ impl Audio {
     pub fn click(&mut self) {
         self.dc_filter = 70000 + 30000;
         self.data.phase = -self.data.phase;
+    }
+
+    pub fn update_disk_sound(&mut self, sample: i16) {
+        self.data.disk_sound = sample
     }
 
     pub fn tape_out(&mut self) {
@@ -710,7 +720,7 @@ impl Tick for Audio {
                 if self.cycles > self.tape.active {
                     if self.enable_save && self.tape.record {
                         if let Err(e) = self.save_tape_data() {
-                            eprintln!("Unable to save tape data: {}", e);
+                            eprintln!("Unable to save tape data: {e}");
                         }
                     }
 
@@ -745,18 +755,25 @@ impl Tick for Audio {
                 self.audio_filter.filter_tap[1] = 0.0;
             }
 
+            // Add the disk sound
+            let disk_sound = self.data.disk_sound;
+
             let mut left_phase: HigherChannel = 0;
             let mut right_phase: HigherChannel = 0;
 
             // Update left channel
-            let tone_count = self.update_phase(&mut left_phase, 0) + 1;
-            let left_phase =
-                left_phase.saturating_add(beep as HigherChannel) / (tone_count as HigherChannel);
+            let tone_count = self.update_phase(&mut left_phase, 0) + 2;
+            let left_phase = left_phase
+                .saturating_add(beep as HigherChannel)
+                .saturating_add(disk_sound as HigherChannel)
+                / (tone_count as HigherChannel);
 
             // Update right channel
-            let tone_count = self.update_phase(&mut right_phase, 1) + 1;
-            let right_phase =
-                right_phase.saturating_add(beep as HigherChannel) / (tone_count as HigherChannel);
+            let tone_count = self.update_phase(&mut right_phase, 1) + 2;
+            let right_phase = right_phase
+                .saturating_add(beep as HigherChannel)
+                .saturating_add(disk_sound as HigherChannel)
+                / (tone_count as HigherChannel);
 
             // Left audio
             self.data.sample.push(left_phase as Channel);
