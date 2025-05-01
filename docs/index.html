@@ -781,6 +781,12 @@
             var key_caps = true;
             var anim_ms;
 
+            if (emu6502.is_video_50hz()) {
+                cpu_delta = 20280 - 65 * 192
+            } else {
+                cpu_delta = 17030 - 65 * 192
+            }
+
             document.getElementById("capslock").checked = true;
 
             if (document.getElementById("video50hz").checked) {
