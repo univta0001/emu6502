@@ -210,11 +210,11 @@ impl DiskSound {
             // Update the seek sound state
             let sample_bytes = self.sample(&self.seek_sample);
             let sample_length = sample_bytes.len();
-            let seek_pos = self.seek_pos as usize / 128 - (self.seek_pos as usize / 128) % 2;
+            let seek_pos = self.seek_pos / 128 - (self.seek_pos / 128) % 2;
             let sample = [ sample_bytes[seek_pos], sample_bytes[seek_pos + 1] ];
             self.sample_value = self.sample_value.wrapping_add(i16::from_le_bytes(sample));
             self.seek_pos += self.seek_pitch * 2;
-            if self.seek_pos as usize / 128 >= sample_length {
+            if self.seek_pos / 128 >= sample_length {
                 self.seek_pos = 0;
             }
         } else if self.step_sample != SoundType::Quiet {
