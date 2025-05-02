@@ -2321,7 +2321,7 @@ impl DiskDrive {
         };
         */
 
-        //Self::_update_position_if_track_changed(disk, track_bits);
+        Self::_update_position_if_track_changed(disk, track_bits);
         disk.last_track = disk.track;
         let read_pulse = Self::read_flux_data(disk);
         //let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
