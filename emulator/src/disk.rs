@@ -2271,41 +2271,22 @@ impl DiskDrive {
         }
     }
 
-    fn _update_track_if_changed(
-        disk: &mut Disk,
-        tmap_track: u8,
-        track_bits: usize,
-        track_to_read: i32,
-        track_type: TrackType,
-    ) {
-        // Update track information when track is changed
-        if tmap_track != 0xff && disk.last_track != track_to_read {
+    fn _update_position_if_track_changed(disk: &mut Disk, track_bits: usize) {
+        if disk.last_track != disk.track {
             let last_track = disk.tmap_data[disk.last_track as usize];
-            if last_track != 255 {
-                let last_track_bits = disk.raw_track_bits[last_track as usize];
-                let last_track_type = disk.trackmap[last_track as usize];
+            let last_track_bits = if last_track == 255 {
+                NOMINAL_USABLE_BITS_TRACK_SIZE
+            } else {
+                disk.raw_track_bits[last_track as usize]
+            };
 
-                //eprintln!("TRK {} ({:?}) -> TRK {} ({:?})", disk.last_track as f32 / 4.0,disk.trackmap[last_track as usize], track_to_read as f32 / 4.0, track_type);
-
-                if track_type != TrackType::Flux {
-                    // Adjust the disk head as each track size is different
-                    let new_bit = if last_track_type == TrackType::Flux {
-                        0
-                    } else {
-                        let last_head = disk.head * 8 + disk.head_bit;
-                        (last_head * track_bits) / last_track_bits
-                    };
-
-                    let (head, remainder) = (new_bit / 8, new_bit % 8);
-                    disk.head = head;
-                    disk.head_mask = 1 << (7 - remainder);
-                    disk.head_bit = remainder;
-                } else if last_track_type != TrackType::Flux {
-                    disk.head = 0;
-                } else {
-                    disk.head = disk.head * track_bits / last_track_bits;
-                }
-            }
+            let last_position = disk.head * 8 + disk.head_bit;
+            let new_position = last_position * track_bits / last_track_bits;
+            let wrapped = new_position % track_bits;
+            let (head, remainder) = (wrapped / 8, wrapped % 8);
+            disk.head = head;
+            disk.head_mask = 1 << (7 - remainder);
+            disk.head_bit = remainder;
         }
     }
 
@@ -2340,7 +2321,7 @@ impl DiskDrive {
         };
         */
 
-        //Self::_update_track_if_changed(disk, tmap_track, track_bits, disk.track, track_type);
+        //Self::_update_position_if_track_changed(disk, track_bits);
         disk.last_track = disk.track;
         let read_pulse = Self::read_flux_data(disk);
         //let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
