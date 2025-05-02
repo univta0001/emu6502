@@ -156,7 +156,7 @@ pub struct DiskDrive {
     bit_buffer: u8,
     iwm: bool,
     iwm_mode: u8,
-    lss_cycle: isize,
+    lss_cycle: usize,
     lss_state: u8,
     prev_lss_state: u8,
     pending_ticks: usize,
@@ -1486,7 +1486,7 @@ impl DiskDrive {
         }
 
         if self.prev_latch & 0x80 != 0 && self.latch & 0x80 == 0 {
-            if fastrand::f32() < 0.0125 {
+            if fastrand::f32() < 0.015 {
                 self.latch
             } else {
                 self.prev_latch
@@ -2346,7 +2346,7 @@ impl DiskDrive {
         //let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
 
         let optimal_timing = if !self.q7 {
-            disk.optimal_timing as isize
+            disk.optimal_timing as usize
         } else {
             // Writing is always at 4 microseconds
             32
