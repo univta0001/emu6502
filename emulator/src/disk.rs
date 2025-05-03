@@ -1486,7 +1486,7 @@ impl DiskDrive {
         }
 
         if self.prev_latch & 0x80 != 0 && self.latch & 0x80 == 0 {
-            if fastrand::f32() < 0.0175 {
+            if fastrand::f32() < 0.02 {
                 self.latch
             } else {
                 self.prev_latch
