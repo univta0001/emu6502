@@ -2326,7 +2326,11 @@ impl DiskDrive {
         let read_pulse = Self::read_flux_data(disk);
         //let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
 
-        let optimal_timing = disk.optimal_timing as usize;
+        let optimal_timing = if !self.q7 {
+            disk.optimal_timing as usize
+        } else {
+            32
+        };
 
         if self.lss_cycle >= optimal_timing {
             self.bit_buffer <<= 1;
