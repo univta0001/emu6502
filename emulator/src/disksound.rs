@@ -55,7 +55,7 @@ pub struct DiskSound {
 impl Default for DiskSound {
     fn default() -> Self {
         DiskSound {
-            enable: false,
+            enable: true,
             sample_value: 0,
             spin_sample: SoundType::Quiet,
             seek_sample: SoundType::Quiet,

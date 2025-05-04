@@ -881,7 +881,7 @@ FLAGS:
                        Default is None. For e.g. eth0
     --vidhd            Enable VidHD at slot 3
     --aux aux_type     Auxiliary Slot type. Supported values (ext80, std80, rw3, none)
-    --disk_sound       Enable disk sound
+    --disk_sound       Turn off disk sound (Default: disk sound is on)
 
 ARGS:
     [disk 1]           Disk 1 file (woz, dsk, do, po file). Can be in gz format
@@ -1754,7 +1754,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
 
     if pargs.contains("--disk_sound") {
-        cpu.bus.disk.set_disk_sound_enable(true);
+        cpu.bus.disk.set_disk_sound_enable(false);
     }
 
     if let Some(aux_type) = pargs.opt_value_from_str::<_, String>("--aux")? {
