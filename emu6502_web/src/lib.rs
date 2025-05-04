@@ -1,4 +1,4 @@
-use emu6502::bus::Bus;
+use emu6502::bus::{Bus, IODevice};
 use emu6502::cpu::{CpuSpeed, CPU};
 use emu6502::video::DisplayMode;
 use wasm_bindgen::prelude::*;
@@ -234,6 +234,7 @@ pub async fn init_emul() -> Emulator {
     cpu.load(&apple2ee_rom, 0xc000);
     cpu.reset();
     cpu.setup_emulator();
+    cpu.bus.register_device(IODevice::VidHD, 3);
 
     Emulator { cpu }
 }
