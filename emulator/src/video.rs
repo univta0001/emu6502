@@ -1911,7 +1911,7 @@ impl Video {
                         };
                         ((val >> 3) | (val << 1)) & 0xf
                     } else if x1 > 0 {
-                        let prev_ch = self.read_text_memory(x1 - 1, y1);
+                        let prev_ch = self.read_text_memory(x1, y1);
                         let val = if yindex < 4 {
                             prev_ch & 0xf
                         } else {
@@ -2149,7 +2149,7 @@ impl Video {
             if (x1 - 1) & 1 != 0 {
                 mask <<= 2;
             }
-            let prev_ch = self.read_text_memory(x1 - 1, y1);
+            let prev_ch = self.read_text_memory(x1, y1);
             if yindex < 4 {
                 prev_ch & 0xf
             } else {
