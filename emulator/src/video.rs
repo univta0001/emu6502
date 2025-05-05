@@ -1962,6 +1962,7 @@ impl Video {
             if is_ntsc {
                 self.draw_lores_ntsc_a2_y(x1, y1, ch);
             } else {
+                /*
                 let mut color_index = if x1 > 0 {
                     let prev_ch = self.read_text_memory(x1 - 1, y1);
                     if yindex < 4 {
@@ -1972,6 +1973,8 @@ impl Video {
                 } else {
                     0
                 };
+                */
+                let mut color_index = value;
 
                 for xindex in 0..14 {
                     if value & mask > 0 {
@@ -2014,7 +2017,8 @@ impl Video {
 
         // Prepare luma for col - 1
         let prev_value = if x1 > 0 {
-            let prev_ch = self.read_text_memory(x1 - 1, y1);
+            //let prev_ch = self.read_text_memory(x1 - 1, y1);
+            let prev_ch = ch;
             if yindex < 4 {
                 prev_ch & 0xf
             } else {
