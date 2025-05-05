@@ -1773,7 +1773,7 @@ impl Video {
         }
 
         if self.display_mode == DisplayMode::RGB && self.dhires_mode && !self.vid80_mode {
-            let aux_value = self.read_aux_text_memory(x1, y1);
+            let aux_value = self.read_aux_text_memory(x1, y1 * 8);
             back_color = LORES_COLORS[(aux_value & 0xf) as usize];
             fore_color = LORES_COLORS[((aux_value >> 4) & 0xf) as usize];
         }
