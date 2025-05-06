@@ -1427,7 +1427,7 @@ impl DiskDrive {
         } else {
             track_bits / 16
         };
-        let disk_pos = disk.head * 8 + disk.head_bit;
+        let disk_pos = (disk.head * 8 + disk.head_bit) % track_bits;
         let sector = disk_pos / sector_bits;
         ((disk.track / 4) as usize, sector)
     }
