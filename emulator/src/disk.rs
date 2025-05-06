@@ -2280,6 +2280,7 @@ impl DiskDrive {
                 disk.raw_track_bits[last_track as usize]
             };
 
+            Self::check_disk_head(disk, last_track_bits);
             let last_position = disk.head * 8 + disk.head_bit;
             let new_position = last_position * track_bits / last_track_bits;
             let wrapped = new_position % track_bits;
