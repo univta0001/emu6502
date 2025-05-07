@@ -1413,7 +1413,7 @@ impl DiskDrive {
         */
     }
 
-    pub fn get_track_info(&self) -> (usize, usize) {
+    pub fn get_track_info(&self) -> (usize, usize, usize) {
         let disk = &self.drive[self.drive_select];
         let tmap_track = disk.tmap_data[disk.track as usize];
         let random_bits = NOMINAL_USABLE_BITS_TRACK_SIZE;
@@ -1429,7 +1429,7 @@ impl DiskDrive {
         };
         let disk_pos = (disk.head * 8 + disk.head_bit) % track_bits;
         let sector = disk_pos / sector_bits;
-        ((disk.track / 4) as usize, sector)
+        (disk.track as usize, tmap_track as usize, sector)
     }
 
     pub fn get_disk_head_info(&self) -> (usize, usize, usize) {
