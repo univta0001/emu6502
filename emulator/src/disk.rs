@@ -2397,7 +2397,7 @@ impl DiskDrive {
 
     fn get_random_disk_bit(random_one_rate: f32, random_value: f32) -> u8 {
         // The random bit 1 is generated with probability 0.3 or 30%
-        if random_value < random_one_rate { 1 } else { 0 }
+        if random_value <= random_one_rate { 1 } else { 0 }
     }
 
     pub fn set_disable_fast_disk(&mut self, state: bool) {
