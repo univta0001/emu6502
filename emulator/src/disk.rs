@@ -2309,9 +2309,6 @@ impl DiskDrive {
             disk.trackmap[tmap_track as usize]
         };
 
-        // LSS is running at 2Mhz i.e. 0.5 us
-        self.lss_cycle += 4;
-
         //let mut rng = rand::thread_rng();
 
         /*
@@ -2322,7 +2319,9 @@ impl DiskDrive {
         };
         */
 
-        Self::_update_position_if_track_changed(disk, track_bits);
+        // LSS is running at 2Mhz i.e. 0.5 us
+        self.lss_cycle += 4;
+
         disk.last_track = disk.track;
         let read_pulse = Self::read_flux_data(disk);
         //let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
