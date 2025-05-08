@@ -80,6 +80,7 @@ struct EventParam<'a> {
     speed_mode: &'a [CpuSpeed; 5],
     display_index: &'a mut usize,
     speed_index: &'a mut usize,
+    disk_mode_index: &'a mut usize,
     clipboard_text: &'a mut String,
     full_screen: &'a mut bool,
 }
@@ -642,8 +643,23 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                 let mode = !cpu.bus.video.get_scanline();
                 cpu.bus.video.set_scanline(mode);
             } else {
-                let drive_flag = cpu.bus.disk.get_disable_fast_disk();
-                cpu.bus.disk.set_disable_fast_disk(!drive_flag);
+                *event_param.disk_mode_index =
+                    (*event_param.disk_mode_index + 1) % 3;
+                match *event_param.disk_mode_index {
+                    0 => {
+                        cpu.bus.disk.set_disk_sound_enable(true);
+                        cpu.bus.disk.set_disable_fast_disk(false);
+                    }
+                    1 => {
+                        cpu.bus.disk.set_disk_sound_enable(false);
+                        cpu.bus.disk.set_disable_fast_disk(false);
+                    }
+                    2 => {
+                        cpu.bus.disk.set_disk_sound_enable(false);
+                        cpu.bus.disk.set_disable_fast_disk(true);
+                    }
+                    _ => {},
+                }
             }
         }
         Event::KeyDown {
@@ -883,7 +899,6 @@ FLAGS:
                        Default is None. For e.g. eth0
     --vidhd            Enable VidHD at slot 3
     --aux aux_type     Auxiliary Slot type. Supported values (ext80, std80, rw3, none)
-    --disk_sound       Turn off disk sound (Default: disk sound is on)
 
 ARGS:
     [disk 1]           Disk 1 file (woz, dsk, do, po file). Can be in gz format
@@ -911,7 +926,7 @@ Function Keys:
     F2                 Load Disk 2 file
     F3                 Swap Disk 1 and Disk 2
     F4                 Disable / Enable Joystick
-    F5                 Disable / Enable Fask Disk emulation
+    F5                 Toggle Disk Mode (Disk Sound, Fast Disk, Normal Disk)
     F6 / Shift-F6      Toggle Display Mode (Default, NTSC, RGB, Mono)
     F7                 Disable / Enable 50/60 Hz video
     F8                 Disable / Enable Joystick jitter
@@ -1416,7 +1431,7 @@ fn update_video(
 }
 
 #[cfg(feature = "serde_support")]
-fn initialize_new_cpu(cpu: &mut CPU, display_index: &mut usize, speed_index: &mut usize) {
+fn initialize_new_cpu(cpu: &mut CPU, display_index: &mut usize, speed_index: &mut usize, disk_mode_index: &mut usize) {
     let mmu = &mut cpu.bus.mem;
     let disp = &mut cpu.bus.video;
     disp.video_main[0x400..0xc00].clone_from_slice(&mmu.cpu_memory[0x400..0xc00]);
@@ -1444,6 +1459,15 @@ fn initialize_new_cpu(cpu: &mut CPU, display_index: &mut usize, speed_index: &mu
         _ => *speed_index = 0,
     }
 
+    // Restore disk mode
+    if cpu.bus.disk.is_disk_sound_enabled() {
+        *disk_mode_index = 0;
+    } else if !cpu.bus.disk.get_disable_fast_disk() {
+        *disk_mode_index = 1;
+    } else {
+        *disk_mode_index = 2;
+    }
+        
     // Update NTSC details
     let luma_bandwidth = disp.luma_bandwidth;
     let chroma_bandwidth = disp.chroma_bandwidth;
@@ -1921,6 +1945,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let speed_numerator = [1, 10, 10, 10, 1];
     let speed_denominator = [1, 28, 40, 80, 1];
 
+    let mut disk_mode_index = 0;
+
     cpu.reset();
     cpu.setup_emulator();
 
@@ -2000,6 +2026,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                             display_index: &mut display_index,
                             speed_mode: &speed_mode,
                             speed_index: &mut speed_index,
+                            disk_mode_index: &mut disk_mode_index,
                             clipboard_text: &mut clipboard_text,
                             full_screen: &mut full_screen,
                         };
@@ -2087,7 +2114,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 match result {
                     Ok(mut new_cpu) => {
                         previous_cycles = new_cpu.bus.get_cycles();
-                        initialize_new_cpu(&mut new_cpu, &mut display_index, &mut speed_index);
+                        initialize_new_cpu(&mut new_cpu, &mut display_index, &mut speed_index, &mut disk_mode_index);
                         cpu = new_cpu
                     }
                     Err(message) => {
