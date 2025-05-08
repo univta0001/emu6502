@@ -2284,10 +2284,8 @@ impl DiskDrive {
             let last_position = disk.head * 8 + disk.head_bit;
             let new_position = last_position * track_bits / last_track_bits;
             let wrapped = new_position % track_bits;
-            let (head, remainder) = (wrapped / 8, wrapped % 8);
-            disk.head = head;
-            disk.head_mask = 1 << (7 - remainder);
-            disk.head_bit = remainder;
+            (disk.head, disk.head_bit) = (wrapped / 8, wrapped % 8);
+            disk.head_mask = 1 << (7 - disk.head_bit);
         }
     }
 
@@ -2388,10 +2386,8 @@ impl DiskDrive {
     fn check_disk_head(disk: &mut Disk, track_bits: usize) {
         if disk.head * 8 + disk.head_bit >= track_bits {
             let wrapped = (disk.head * 8 + disk.head_bit) % track_bits;
-            let (head, remainder) = (wrapped / 8, wrapped % 8);
-            disk.head = head;
-            disk.head_mask = 1 << (7 - remainder);
-            disk.head_bit = remainder;
+            (disk.head, disk.head_bit) = (wrapped / 8, wrapped % 8);
+            disk.head_mask = 1 << (7 - disk.head_bit);
         }
     }
 
@@ -2448,10 +2444,8 @@ impl DiskDrive {
 
             if disk.head * 8 + disk.head_bit >= track_bits {
                 let wrapped = (disk.head * 8 + disk.head_bit) % track_bits;
-                let (head, remainder) = (wrapped / 8, wrapped % 8);
-                disk.head = head;
-                disk.head_mask = 1 << (7 - remainder);
-                disk.head_bit = remainder;
+                (disk.head, disk.head_bit) = (wrapped / 8, wrapped % 8);
+                disk.head_mask = 1 << (7 - disk.head_bit);
             }
 
             if !write_protected {
