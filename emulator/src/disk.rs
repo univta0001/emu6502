@@ -139,6 +139,9 @@ pub struct Disk {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     flux_weakbit: usize,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    revolution: usize,
 }
 
 #[derive(Debug)]
@@ -2388,6 +2391,13 @@ impl DiskDrive {
             let wrapped = (disk.head * 8 + disk.head_bit) % track_bits;
             (disk.head, disk.head_bit) = (wrapped / 8, wrapped % 8);
             disk.head_mask = 1 << (7 - disk.head_bit);
+            disk.revolution += 1;
+
+            // Jitter the track by 1 bit when the turn is more than 8 times
+            if disk.revolution >= 8 {
+                Self::update_disk_head(disk);
+                disk.revolution = 0;
+            }
         }
     }
 
@@ -2553,6 +2563,7 @@ impl Tick for DiskDrive {
                         POSITION_TO_DIRECTION[last_position as usize][position as usize];
 
                     disk.track += direction;
+                    disk.revolution = 0;
 
                     if disk.track < 0 {
                         disk.track = 0;
@@ -2640,6 +2651,7 @@ impl Disk {
             mc3470_counter: 0,
             mc3470_read_pulse: 0,
             flux_weakbit: 0,
+            revolution: 0,
         }
     }
 }
