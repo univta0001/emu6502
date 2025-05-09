@@ -708,7 +708,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                     disassemble_addr(&mut output, cpu, addr, 20);
                     let track_info = cpu.bus.disk.get_track_info();
                     eprintln!(
-                        "PC:{:04X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} S:{:02X} T:0x{:02x}.{:02x} (0x{:02x}) S:{:02x}\n\n{}\n",
+                        "PC:{:04X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} S:{:02X} T:0x{:02x}.{:02} (0x{:02x}) S:{:02x}\n\n{}\n",
                         cpu.program_counter,
                         cpu.register_a,
                         cpu.register_x,
@@ -1297,7 +1297,7 @@ fn dump_track_sector_info(cpu: &CPU) {
     let disk = &cpu.bus.disk;
     let track_info = disk.get_track_info();
     eprintln!(
-        "Track Information: T:0x{:02x}.{:02x} (0x{:02x}) S:0x{:02x}",
+        "Track Information: T:0x{:02x}.{:02} (0x{:02x}) S:0x{:02x}",
         track_info.0 / 4, track_info.0 % 4 * 25, track_info.1, track_info.2
     );
 
