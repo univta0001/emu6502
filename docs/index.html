@@ -823,12 +823,7 @@
             }
 
             document.getElementById("diskSound").checked = true;
-            if (document.getElementById("diskSound").checked) {
-                 emu6502.disk_sound(true);
-                 document.getElementById("diskSound").checked = false;
-            } else {
-                 emu6502.disk_sound(false);
-            }
+            emu6502.disk_sound(true);
 
             const runloop = async (now) => {
                 if (!then) { then = now; then2 = then }
