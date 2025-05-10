@@ -2329,7 +2329,7 @@ impl DiskDrive {
         //let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
 
         let optimal_timing = if !self.q7 {
-            disk.optimal_timing as isize * 1000 + 32
+            disk.optimal_timing as isize * 1000 + 8
         } else {
             32 * 1000
         };
