@@ -156,7 +156,7 @@ pub struct DiskDrive {
     bit_buffer: u8,
     iwm: bool,
     iwm_mode: u8,
-    lss_cycle: usize,
+    lss_cycle: isize,
     lss_state: u8,
     prev_lss_state: u8,
     pending_ticks: usize,
@@ -2329,7 +2329,7 @@ impl DiskDrive {
         //let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
 
         let optimal_timing = if !self.q7 {
-            disk.optimal_timing as usize * 1000 + 32
+            disk.optimal_timing as isize * 1000 + 32
         } else {
             32 * 1000
         };
