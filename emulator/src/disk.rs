@@ -139,9 +139,6 @@ pub struct Disk {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     flux_weakbit: usize,
-
-    #[cfg_attr(feature = "serde_support", serde(default))]
-    revolution: usize,
 }
 
 #[derive(Debug)]
@@ -1485,6 +1482,7 @@ impl DiskDrive {
     }
 
     pub fn get_value(&self) -> u8 {
+        /*
         if !self.is_motor_on() {
             return self.latch;
         }
@@ -1498,6 +1496,8 @@ impl DiskDrive {
         } else {
             self.latch
         }
+        */
+        self.latch
     }
 
     pub fn is_disk_sound_enabled(&self) -> bool {
@@ -2322,16 +2322,16 @@ impl DiskDrive {
         */
 
         // LSS is running at 2Mhz i.e. 0.5 us
-        self.lss_cycle += 4;
+        self.lss_cycle += 4000;
 
         disk.last_track = disk.track;
         let read_pulse = Self::read_flux_data(disk);
         //let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
 
         let optimal_timing = if !self.q7 {
-            disk.optimal_timing as usize
+            disk.optimal_timing as usize * 1000 + 32
         } else {
-            32
+            32 * 1000
         };
 
         if self.lss_cycle >= optimal_timing {
@@ -2360,6 +2360,10 @@ impl DiskDrive {
             }
 
             self.lss_cycle -= optimal_timing;
+
+            if disk.optimal_timing == 28 {
+                self.lss_cycle -= 2000
+            }
         }
 
         if track_type == TrackType::Flux {
@@ -2392,13 +2396,6 @@ impl DiskDrive {
             let wrapped = (disk.head * 8 + disk.head_bit) % track_bits;
             (disk.head, disk.head_bit) = (wrapped / 8, wrapped % 8);
             disk.head_mask = 1 << (7 - disk.head_bit);
-            disk.revolution += 1;
-
-            // Jitter the track by 1 bit when the turn is more than 8 times
-            if disk.revolution >= 8 {
-                Self::update_disk_head(disk);
-                disk.revolution = 0;
-            }
         }
     }
 
@@ -2564,7 +2561,6 @@ impl Tick for DiskDrive {
                         POSITION_TO_DIRECTION[last_position as usize][position as usize];
 
                     disk.track += direction;
-                    disk.revolution = 0;
 
                     if disk.track < 0 {
                         disk.track = 0;
@@ -2652,7 +2648,6 @@ impl Disk {
             mc3470_counter: 0,
             mc3470_read_pulse: 0,
             flux_weakbit: 0,
-            revolution: 0,
         }
     }
 }
