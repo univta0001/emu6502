@@ -2310,7 +2310,7 @@ impl DiskDrive {
         let read_pulse = Self::read_flux_data(disk);
 
         let optimal_timing = if !self.q7 {
-            disk.optimal_timing as isize * 10000 + 4
+            disk.optimal_timing as isize * 10000 + 2
         } else {
             32 * 10000
         };
