@@ -251,7 +251,8 @@ const BITS_BLOCK_SIZE: usize = 512;
 const BITS_TRACK_SIZE: usize = BITS_BLOCKS_PER_TRACK * BITS_BLOCK_SIZE;
 
 // Based on WOZ 2.1 specification, recommended value is 51200 bits or 6400 bytes
-const NOMINAL_USABLE_BITS_TRACK_SIZE: usize = 51200;
+// The nominal value is set to 51024 instead for 300 RPM
+const NOMINAL_USABLE_BITS_TRACK_SIZE: usize = 51024;
 const NOMINAL_USABLE_BYTES_TRACK_SIZE: usize = NOMINAL_USABLE_BITS_TRACK_SIZE.div_ceil(8);
 const TRACK_LEADER_SYNC_COUNT: usize = 64;
 const SECTORS_PER_TRACK: usize = 16;
@@ -2310,7 +2311,7 @@ impl DiskDrive {
         let read_pulse = Self::read_flux_data(disk);
 
         let optimal_timing = if !self.q7 {
-            disk.optimal_timing as isize * 10000 + 2
+            disk.optimal_timing as isize * 10000 + 4
         } else {
             32 * 10000
         };
