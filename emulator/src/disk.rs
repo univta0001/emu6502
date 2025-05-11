@@ -1482,22 +1482,15 @@ impl DiskDrive {
     }
 
     pub fn get_value(&self) -> u8 {
-        /*
         if !self.is_motor_on() {
             return self.latch;
         }
 
-        if self.prev_latch & 0x80 != 0 && self.latch & 0x80 == 0 {
-            if fastrand::f32() <= 0.02 {
-                self.latch
-            } else {
-                self.prev_latch
-            }
+        if self.prev_latch & 0x80 != 0 && self.latch == 0 {
+            self.prev_latch
         } else {
             self.latch
         }
-        */
-        self.latch
     }
 
     pub fn is_disk_sound_enabled(&self) -> bool {
@@ -2362,7 +2355,7 @@ impl DiskDrive {
             self.lss_cycle -= optimal_timing;
 
             if disk.optimal_timing == 28 {
-                self.lss_cycle -= 2000
+                self.lss_cycle -= 1000
             }
         }
 
