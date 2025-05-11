@@ -2304,22 +2304,11 @@ impl DiskDrive {
             disk.trackmap[tmap_track as usize]
         };
 
-        //let mut rng = rand::thread_rng();
-
-        /*
-        let disk_jitter = if !self.q7 && fastrand::f32() < self.random_one_rate {
-            0.25
-        } else {
-            0.0
-        };
-        */
-
         // LSS is running at 2Mhz i.e. 0.5 us
         self.lss_cycle += 4000;
 
         disk.last_track = disk.track;
         let read_pulse = Self::read_flux_data(disk);
-        //let optimal_timing = (disk.optimal_timing as f32 + disk_jitter) / 8.0;
 
         let optimal_timing = if !self.q7 {
             disk.optimal_timing as isize * 1000 + 8
@@ -2349,7 +2338,7 @@ impl DiskDrive {
             if self.bit_buffer & 0x0f != 0 {
                 self.pulse = (self.bit_buffer & 0x2) >> 1;
             } else {
-                self.pulse = Self::get_random_disk_bit(self.random_one_rate, fastrand::f32())
+                self.pulse = Self::get_random_disk_bit(self.random_one_rate)
             }
 
             self.lss_cycle -= optimal_timing;
@@ -2366,7 +2355,7 @@ impl DiskDrive {
                 disk.flux_weakbit = usize::min(32, disk.flux_weakbit + 1);
             }
             if disk.flux_weakbit >= 32 {
-                self.pulse = Self::get_random_disk_bit(self.random_one_rate, fastrand::f32())
+                self.pulse = Self::get_random_disk_bit(self.random_one_rate)
             } else {
                 self.pulse = read_pulse as u8
             }
@@ -2392,7 +2381,8 @@ impl DiskDrive {
         }
     }
 
-    fn get_random_disk_bit(random_one_rate: f32, random_value: f32) -> u8 {
+    fn get_random_disk_bit(random_one_rate: f32) -> u8 {
+        let random_value = fastrand::f32();
         // The random bit 1 is generated with probability 0.3 or 30%
         if random_value <= random_one_rate { 1 } else { 0 }
     }
