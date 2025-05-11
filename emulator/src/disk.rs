@@ -251,8 +251,7 @@ const BITS_BLOCK_SIZE: usize = 512;
 const BITS_TRACK_SIZE: usize = BITS_BLOCKS_PER_TRACK * BITS_BLOCK_SIZE;
 
 // Based on WOZ 2.1 specification, recommended value is 51200 bits or 6400 bytes
-// The nominal value is set to 51024 instead as this is average number of bits for 300 RPM
-const NOMINAL_USABLE_BITS_TRACK_SIZE: usize = 51024;
+const NOMINAL_USABLE_BITS_TRACK_SIZE: usize = 51200;
 const NOMINAL_USABLE_BYTES_TRACK_SIZE: usize = NOMINAL_USABLE_BITS_TRACK_SIZE.div_ceil(8);
 const TRACK_LEADER_SYNC_COUNT: usize = 64;
 const SECTORS_PER_TRACK: usize = 16;
@@ -2305,15 +2304,15 @@ impl DiskDrive {
         };
 
         // LSS is running at 2Mhz i.e. 0.5 us
-        self.lss_cycle += 4000;
+        self.lss_cycle += 4 * 10000;
 
         disk.last_track = disk.track;
         let read_pulse = Self::read_flux_data(disk);
 
         let optimal_timing = if !self.q7 {
-            disk.optimal_timing as isize * 1000 + 8
+            disk.optimal_timing as isize * 10000 + 8
         } else {
-            32 * 1000
+            32 * 10000
         };
 
         if self.lss_cycle >= optimal_timing {
@@ -2344,7 +2343,7 @@ impl DiskDrive {
             self.lss_cycle -= optimal_timing;
 
             if disk.optimal_timing == 28 {
-                self.lss_cycle -= 1000
+                self.lss_cycle -= 10000
             }
         }
 
