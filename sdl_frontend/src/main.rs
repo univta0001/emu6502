@@ -643,8 +643,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                 let mode = !cpu.bus.video.get_scanline();
                 cpu.bus.video.set_scanline(mode);
             } else {
-                *event_param.disk_mode_index =
-                    (*event_param.disk_mode_index + 1) % 3;
+                *event_param.disk_mode_index = (*event_param.disk_mode_index + 1) % 3;
                 match *event_param.disk_mode_index {
                     0 => {
                         cpu.bus.disk.set_disk_sound_enable(true);
@@ -658,7 +657,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                         cpu.bus.disk.set_disk_sound_enable(false);
                         cpu.bus.disk.set_disable_fast_disk(true);
                     }
-                    _ => {},
+                    _ => {}
                 }
             }
         }
@@ -1298,7 +1297,10 @@ fn dump_track_sector_info(cpu: &CPU) {
     let track_info = disk.get_track_info();
     eprintln!(
         "Track Information: T:0x{:02x}.{:02} (0x{:02x}) S:0x{:02x}",
-        track_info.0 / 4, track_info.0 % 4 * 25, track_info.1, track_info.2
+        track_info.0 / 4,
+        track_info.0 % 4 * 25,
+        track_info.1,
+        track_info.2
     );
 
     /*
@@ -1431,7 +1433,12 @@ fn update_video(
 }
 
 #[cfg(feature = "serde_support")]
-fn initialize_new_cpu(cpu: &mut CPU, display_index: &mut usize, speed_index: &mut usize, disk_mode_index: &mut usize) {
+fn initialize_new_cpu(
+    cpu: &mut CPU,
+    display_index: &mut usize,
+    speed_index: &mut usize,
+    disk_mode_index: &mut usize,
+) {
     let mmu = &mut cpu.bus.mem;
     let disp = &mut cpu.bus.video;
     disp.video_main[0x400..0xc00].clone_from_slice(&mmu.cpu_memory[0x400..0xc00]);
@@ -1467,7 +1474,7 @@ fn initialize_new_cpu(cpu: &mut CPU, display_index: &mut usize, speed_index: &mu
     } else {
         *disk_mode_index = 2;
     }
-        
+
     // Update NTSC details
     let luma_bandwidth = disp.luma_bandwidth;
     let chroma_bandwidth = disp.chroma_bandwidth;
@@ -1850,8 +1857,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let window = video_subsystem
         .window("Apple ][ emulator", width, height)
         .position_centered()
-        .build()
-        .unwrap();
+        .build()?;
 
     // Create the game controller
     let game_controller = sdl_context.game_controller()?;
@@ -1865,19 +1871,16 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     // Create canvas
     //let mut canvas = window.into_canvas().present_vsync().build().unwrap();
-    let mut canvas = window.into_canvas().build().unwrap();
+    let mut canvas = window.into_canvas().build()?;
     let creator = canvas.texture_creator();
-    let mut texture = creator
-        .create_texture_target(PixelFormatEnum::ABGR8888, WIDTH as u32, HEIGHT as u32)
-        .unwrap();
+    let mut texture =
+        creator.create_texture_target(PixelFormatEnum::ABGR8888, WIDTH as u32, HEIGHT as u32)?;
 
     canvas.clear();
-    canvas.set_scale(scale, scale).unwrap();
+    canvas.set_scale(scale, scale)?;
 
-    texture
-        .update(None, &cpu.bus.video.frame, WIDTH * 4)
-        .unwrap();
-    canvas.copy(&texture, None, None).unwrap();
+    texture.update(None, &cpu.bus.video.frame, WIDTH * 4)?;
+    canvas.copy(&texture, None, None)?;
     canvas.present();
 
     // Create audio
@@ -1906,7 +1909,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     };
 
     // Create SDL event pump
-    let mut _event_pump = sdl_context.event_pump().unwrap();
+    let mut _event_pump = sdl_context.event_pump()?;
     _event_pump.enable_event(DropFile);
 
     let mut t = Instant::now();
@@ -2114,7 +2117,12 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 match result {
                     Ok(mut new_cpu) => {
                         previous_cycles = new_cpu.bus.get_cycles();
-                        initialize_new_cpu(&mut new_cpu, &mut display_index, &mut speed_index, &mut disk_mode_index);
+                        initialize_new_cpu(
+                            &mut new_cpu,
+                            &mut display_index,
+                            &mut speed_index,
+                            &mut disk_mode_index,
+                        );
                         cpu = new_cpu
                     }
                     Err(message) => {

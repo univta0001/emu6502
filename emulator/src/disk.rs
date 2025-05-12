@@ -2269,7 +2269,7 @@ impl DiskDrive {
     }
 
     fn _update_position_if_track_changed(disk: &mut Disk, track_bits: usize) {
-        if track_bits !=0 && disk.last_track != disk.track {
+        if track_bits != 0 && disk.last_track != disk.track {
             let last_track = disk.tmap_data[disk.last_track as usize];
             let last_track_bits = if last_track == 255 {
                 NOMINAL_USABLE_BITS_TRACK_SIZE
@@ -2384,7 +2384,11 @@ impl DiskDrive {
     fn get_random_disk_bit(random_one_rate: f32) -> u8 {
         let random_value = fastrand::f32();
         // The random bit 1 is generated with probability 0.3 or 30%
-        if random_value <= random_one_rate { 1 } else { 0 }
+        if random_value <= random_one_rate {
+            1
+        } else {
+            0
+        }
     }
 
     pub fn set_disable_fast_disk(&mut self, state: bool) {
