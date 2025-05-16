@@ -2262,6 +2262,11 @@ impl DiskDrive {
                     disk.mc3470_counter += 1;
                 };
             }
+            if return_value {
+                disk.flux_weakbit = 0;
+            } else {
+                disk.flux_weakbit = usize::min(32, disk.flux_weakbit + 1);
+            }
             return_value
         } else {
             false
@@ -2309,6 +2314,7 @@ impl DiskDrive {
 
         disk.last_track = disk.track;
         let read_pulse = Self::read_flux_data(disk);
+        let flux_weakbit = disk.flux_weakbit;
 
         let optimal_timing = if !self.q7 {
             disk.optimal_timing as isize * 10000 + 4
@@ -2349,12 +2355,7 @@ impl DiskDrive {
         }
 
         if track_type == TrackType::Flux {
-            if read_pulse {
-                disk.flux_weakbit = 0;
-            } else {
-                disk.flux_weakbit = usize::min(32, disk.flux_weakbit + 1);
-            }
-            if disk.flux_weakbit >= 32 {
+            if flux_weakbit >= 32 {
                 self.pulse = Self::get_random_disk_bit(self.random_one_rate)
             } else {
                 self.pulse = read_pulse as u8
