@@ -1313,7 +1313,7 @@ impl DiskDrive {
             pulse: 0,
             bit_buffer: 0,
             lss_cycle: 0,
-            lss_state: 0,
+            lss_state: 0x20,
             prev_lss_state: 0,
             pending_ticks: 0,
             random_one_rate: 0.3,
