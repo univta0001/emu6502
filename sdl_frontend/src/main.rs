@@ -897,8 +897,9 @@ FLAGS:
     --interface name   Set the interface name for Uthernet2
                        Default is None. For e.g. eth0
     --vidhd            Enable VidHD at slot 3
-    --aux aux_type     Auxiliary Slot type. Supported values (ext80, std80, rw3, none)
-    --exact_write      Enable exact track writing (No spilling to neighboring tracks)
+    --aux aux_type     Auxiliary Slot type. 
+                       Supported values (ext80, std80, rw3, none)
+    --exact_write      Enable exact track writing (No write to neighbor tracks)
 
 ARGS:
     [disk 1]           Disk 1 file (woz, dsk, do, po file). Can be in gz format
