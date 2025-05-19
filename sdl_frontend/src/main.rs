@@ -898,6 +898,7 @@ FLAGS:
                        Default is None. For e.g. eth0
     --vidhd            Enable VidHD at slot 3
     --aux aux_type     Auxiliary Slot type. Supported values (ext80, std80, rw3, none)
+    --exact_write      Enable exact track writing (No spilling to neighboring tracks)
 
 ARGS:
     [disk 1]           Disk 1 file (woz, dsk, do, po file). Can be in gz format
@@ -1788,6 +1789,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     if pargs.contains("--disk_sound") {
         cpu.bus.disk.set_disk_sound_enable(false);
+    }
+
+    if pargs.contains("--exact_write") {
+        cpu.bus.disk.set_exact_write(true);
     }
 
     if let Some(aux_type) = pargs.opt_value_from_str::<_, String>("--aux")? {

@@ -174,6 +174,9 @@ pub struct DiskDrive {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     disk_sound: DiskSound,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    exact_write: bool,
 }
 
 // Q0L: Phase 0 OFF
@@ -1324,6 +1327,7 @@ impl DiskDrive {
             phase: 0,
             rotor_pending_ticks: 0,
             disk_sound: DiskSound::default(),
+            exact_write: false,
         }
     }
 
@@ -2414,6 +2418,14 @@ impl DiskDrive {
 
     pub fn get_enable_save(&self) -> bool {
         self.enable_save
+    }
+
+    pub fn is_exact_write(&self) -> bool {
+        self.exact_write
+    }
+
+    pub fn set_exact_write(&mut self, flag: bool) {
+        self.exact_write = flag
     }
 
     fn is_write_protected(&self) -> bool {
