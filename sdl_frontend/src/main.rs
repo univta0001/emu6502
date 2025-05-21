@@ -1496,6 +1496,16 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         }
     }
     */
+    #[cfg(target_os = "windows")]
+    #[cfg(feature = "pcap")]
+    {
+        use windows_sys::Win32::System::LibraryLoader::{
+            LOAD_LIBRARY_SEARCH_SYSTEM32, SetDefaultDllDirectories,
+        };
+        unsafe {
+            SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32);
+        }
+    }
 
     let mut pargs = pico_args::Arguments::from_env();
 
