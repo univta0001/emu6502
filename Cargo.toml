@@ -21,5 +21,6 @@ lto = "fat"
 opt-level = 3
 codegen-units = 1
 debug = true
-strip = true
 panic = "abort"
+split-debuginfo = "packed"  # generates a separate *.dwp/*.dSYM so the binary can get stripped
+strip = "symbols"
