@@ -339,7 +339,11 @@ impl Uthernet2 {
         let names: Vec<String>;
         #[cfg(feature = "pcap")]
         {
-            names = self.list_pcap_device_names();
+            if self.is_pcap_available() {
+                names = self.list_pcap_device_names();
+            } else {
+                names = Vec::new()
+            }
         }
 
         #[cfg(not(feature = "pcap"))]
