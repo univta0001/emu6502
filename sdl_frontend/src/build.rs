@@ -22,6 +22,6 @@ fn main() {
         }
         // When using delayload, it's necessary to also link delayimp.lib
         // https://learn.microsoft.com/en-us/cpp/build/reference/dependentloadflag?view=msvc-170
-        println!("cargo:rustc-link-arg=delayimp.lib");
+        println!("cargo:rustc-link-lib=delayimp");
     }
 }
