@@ -1914,6 +1914,10 @@ impl DiskDrive {
                 // INFO
                 WOZ_INFO_CHUNK => {
                     self.handle_woz_info(dsk, woz_offset, woz1, write_protect)?;
+                    if info {
+                        info = false;
+                        break
+                    }
                     info = true;
                     woz_offset += chunk_size as usize;
                 }
@@ -1921,12 +1925,20 @@ impl DiskDrive {
                 // TMAP
                 WOZ_TMAP_CHUNK => {
                     self.handle_woz_tmap(dsk, woz_offset);
+                    if tmap {
+                        tmap = false;
+                        break
+                    }
                     tmap = true;
                     woz_offset += chunk_size as usize;
                 }
 
                 // TRKS
                 WOZ_TRKS_CHUNK => {
+                    if trks {
+                        trks = false;
+                        break
+                    }
                     trks_woz_offset = woz_offset;
                     trks_chunk_size = chunk_size as usize;
                     trks = true;
