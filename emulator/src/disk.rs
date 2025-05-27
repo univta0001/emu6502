@@ -1949,7 +1949,7 @@ impl DiskDrive {
             }
         }
 
-        if !self.handle_woz_trks(dsk, trks_woz_offset, trks_chunk_size, woz1) {
+        if trks && !self.handle_woz_trks(dsk, trks_woz_offset, trks_chunk_size, woz1) {
             trks = false;
         }
 
