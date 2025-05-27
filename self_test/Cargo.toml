@@ -9,7 +9,7 @@ edition = "2024"
 emu6502 = { path = "../emulator" }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
-pprof = { version = "0.14.0", features = ["flamegraph","protobuf-codec"] }
+pprof = { version = "0.15.0", features = ["flamegraph","protobuf-codec"] }
 symbolic-demangle = "12.15.5"
 inferno = "0.12.2"
 

@@ -1916,7 +1916,7 @@ impl DiskDrive {
                     self.handle_woz_info(dsk, woz_offset, woz1, write_protect)?;
                     if info {
                         info = false;
-                        break
+                        break;
                     }
                     info = true;
                     woz_offset += chunk_size as usize;
@@ -1927,7 +1927,7 @@ impl DiskDrive {
                     self.handle_woz_tmap(dsk, woz_offset);
                     if tmap {
                         tmap = false;
-                        break
+                        break;
                     }
                     tmap = true;
                     woz_offset += chunk_size as usize;
@@ -1937,7 +1937,7 @@ impl DiskDrive {
                 WOZ_TRKS_CHUNK => {
                     if trks {
                         trks = false;
-                        break
+                        break;
                     }
                     trks_woz_offset = woz_offset;
                     trks_chunk_size = chunk_size as usize;
@@ -2087,7 +2087,10 @@ impl DiskDrive {
                 let bit_count = read_woz_u32(dsk, track_offset + 4);
                 if start_block != 0 {
                     let block_offset = (start_block << 9) as usize;
-                    self.handle_woz_process_trks(dsk, track, block_offset, bit_count as usize);
+                    if !self.handle_woz_process_trks(dsk, track, block_offset, bit_count as usize) {
+                        eprintln!("Invalid WOZ disk, bit_count > file_size");
+                        return false;
+                    }
                 }
                 track_offset += 8;
             }
@@ -2104,7 +2107,10 @@ impl DiskDrive {
             while num_of_tracks > 0 && block_offset + 6648 < dsk.len() {
                 let bit_count =
                     dsk[block_offset + 6648] as u32 + dsk[block_offset + 6649] as u32 * 256;
-                self.handle_woz_process_trks(dsk, track, block_offset, bit_count as usize);
+                if !self.handle_woz_process_trks(dsk, track, block_offset, bit_count as usize) {
+                    eprintln!("Invalid WOZ disk, bit_count > file_size");
+                    return false;
+                }
                 block_offset += NIB_TRACK_SIZE;
                 num_of_tracks -= 1;
                 track += 1;
@@ -2124,7 +2130,7 @@ impl DiskDrive {
         track: usize,
         offset: usize,
         bit_count: usize,
-    ) {
+    ) -> bool {
         let disk = &mut self.drive[self.drive_select];
         disk.raw_track_data[track].clear();
         disk.raw_track_bits[track] = bit_count;
@@ -2143,9 +2149,15 @@ impl DiskDrive {
         }
         */
 
+        if byte_len + offset >= dsk.len() {
+            return false;
+        }
+
         for index in 0..byte_len {
             disk.raw_track_data[track].push(dsk[offset + index]);
         }
+
+        true
     }
 
     fn absolute_path(&self, path: impl AsRef<Path>) -> io::Result<PathBuf> {
