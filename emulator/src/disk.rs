@@ -821,63 +821,68 @@ fn save_woz_file(disk: &Disk) -> io::Result<()> {
         newdsk[11] = ((crc32_value >> 24) & 0xff) as u8;
 
         // Write to new file
+        write_disk_content_to_disk(disk, &newdsk)?;
+    }
 
-        #[cfg(feature = "flate")]
-        {
-            if let Some(filename) = &disk.filename {
-                let path = Path::new(filename);
-                let mut gz_compress = false;
-                let mut zip_compress = false;
-                if let Some(extension) = path.extension() {
-                    if extension.eq_ignore_ascii_case(OsStr::new("gz")) {
-                        gz_compress = true;
-                    }
-                    if extension.eq_ignore_ascii_case(OsStr::new("zip")) {
-                        zip_compress = true;
-                    }
+    //expand_unused_disk_tracks(disk);
+    Ok(())
+}
+
+fn write_disk_content_to_disk(disk: &Disk, disk_content: &[u8]) -> io::Result<()> {
+    #[cfg(feature = "flate")]
+    {
+        if let Some(filename) = &disk.filename {
+            let path = Path::new(filename);
+            let mut gz_compress = false;
+            let mut zip_compress = false;
+            if let Some(extension) = path.extension() {
+                if extension.eq_ignore_ascii_case(OsStr::new("gz")) {
+                    gz_compress = true;
                 }
-
-                if zip_compress {
-                    #[cfg(feature = "zip")]
-                    {
-                        let file_name_in_zip = {
-                            let file = std::fs::File::open(filename)?;
-                            let mut archive = ZipArchive::new(file)?;
-                            let file_in_zip = archive.by_index(0)?;
-                            file_in_zip.name().to_string()
-                        };
-                        let file = File::create(filename)?;
-                        let mut zip = ZipWriter::new(file);
-                        let options: FileOptions<'_, ()> = FileOptions::default()
-                            .compression_method(CompressionMethod::Deflated)
-                            .unix_permissions(0o755);
-                        zip.start_file::<&str, ()>(&file_name_in_zip, options)?;
-                        zip.write_all(&newdsk)?;
-                        zip.finish()?;
-                    }
-                } else if !gz_compress {
-                    let mut file = File::create(filename)?;
-                    file.write_all(&newdsk)?;
-                } else {
-                    let mut file = GzEncoder::new(
-                        io::BufWriter::new(File::create(filename)?),
-                        Compression::best(),
-                    );
-                    file.write_all(&newdsk)?;
+                if extension.eq_ignore_ascii_case(OsStr::new("zip")) {
+                    zip_compress = true;
                 }
             }
-        }
 
-        #[cfg(not(feature = "flate"))]
-        {
-            if let Some(filename) = &disk.filename {
+            if zip_compress {
+                #[cfg(feature = "zip")]
+                {
+                    let file_name_in_zip = {
+                        let file = std::fs::File::open(filename)?;
+                        let mut archive = ZipArchive::new(file)?;
+                        let file_in_zip = archive.by_index(0)?;
+                        file_in_zip.name().to_string()
+                    };
+                    let file = File::create(filename)?;
+                    let mut zip = ZipWriter::new(file);
+                    let options: FileOptions<'_, ()> = FileOptions::default()
+                        .compression_method(CompressionMethod::Deflated)
+                        .unix_permissions(0o755);
+                    zip.start_file::<&str, ()>(&file_name_in_zip, options)?;
+                    zip.write_all(disk_content)?;
+                    zip.finish()?;
+                }
+            } else if !gz_compress {
                 let mut file = File::create(filename)?;
-                file.write_all(&newdsk)?;
+                file.write_all(disk_content)?;
+            } else {
+                let mut file = GzEncoder::new(
+                    io::BufWriter::new(File::create(filename)?),
+                    Compression::best(),
+                );
+                file.write_all(disk_content)?;
             }
         }
     }
 
-    //expand_unused_disk_tracks(disk);
+    #[cfg(not(feature = "flate"))]
+    {
+        if let Some(filename) = &disk.filename {
+            let mut file = File::create(filename)?;
+            file.write_all(&newdsk)?;
+        }
+    }
+
     Ok(())
 }
 
@@ -1006,66 +1011,7 @@ fn convert_woz_to_dsk(disk: &Disk) -> io::Result<()> {
     }
 
     // Write to new file
-
-    #[cfg(feature = "flate")]
-    {
-        if let Some(filename) = &disk.filename {
-            let path = Path::new(filename);
-            let mut gz_compress = false;
-            let mut zip_compress = false;
-            if let Some(extension) = path.extension() {
-                if extension.eq_ignore_ascii_case(OsStr::new("gz")) {
-                    gz_compress = true;
-                }
-
-                #[cfg(feature = "zip")]
-                if extension.eq_ignore_ascii_case(OsStr::new("zip")) {
-                    zip_compress = true;
-                }
-
-                #[cfg(not(feature = "zip"))]
-                {
-                    zip_compress = false;
-                }
-            }
-            if zip_compress {
-                #[cfg(feature = "zip")]
-                {
-                    let file_name_in_zip = {
-                        let file = std::fs::File::open(filename)?;
-                        let mut archive = ZipArchive::new(file)?;
-                        let file_in_zip = archive.by_index(0)?;
-                        file_in_zip.name().to_string()
-                    };
-                    let file = File::create(filename)?;
-                    let mut zip = ZipWriter::new(file);
-                    let options: FileOptions<'_, ()> = FileOptions::default()
-                        .compression_method(CompressionMethod::Deflated)
-                        .unix_permissions(0o755);
-                    zip.start_file::<&str, ()>(&file_name_in_zip, options)?;
-                    zip.write_all(&data)?;
-                    zip.finish()?;
-                }
-            } else if !gz_compress {
-                let mut file = File::create(filename)?;
-                file.write_all(&data)?;
-            } else {
-                let mut file = GzEncoder::new(
-                    io::BufWriter::new(File::create(filename)?),
-                    Compression::best(),
-                );
-                file.write_all(&data)?;
-            }
-        }
-    }
-
-    #[cfg(not(feature = "flate"))]
-    {
-        if let Some(filename) = &disk.filename {
-            let mut file = File::create(filename)?;
-            file.write_all(&data)?;
-        }
-    }
+    write_disk_content_to_disk(disk, &data)?;
 
     Ok(())
 }
@@ -1151,59 +1097,7 @@ fn convert_woz_to_nib(disk: &Disk) -> io::Result<()> {
     }
 
     // Write to new file
-    #[cfg(feature = "flate")]
-    {
-        if let Some(filename) = &disk.filename {
-            let path = Path::new(filename);
-            let mut gz_compress = false;
-            let mut zip_compress = false;
-            if let Some(extension) = path.extension() {
-                if extension.eq_ignore_ascii_case(OsStr::new("gz")) {
-                    gz_compress = true;
-                }
-                if extension.eq_ignore_ascii_case(OsStr::new("zip")) {
-                    zip_compress = true;
-                }
-            }
-
-            if zip_compress {
-                #[cfg(feature = "zip")]
-                {
-                    let file_name_in_zip = {
-                        let file = std::fs::File::open(filename)?;
-                        let mut archive = ZipArchive::new(file)?;
-                        let file_in_zip = archive.by_index(0)?;
-                        file_in_zip.name().to_string()
-                    };
-                    let file = File::create(filename)?;
-                    let mut zip = ZipWriter::new(file);
-                    let options: FileOptions<'_, ()> = FileOptions::default()
-                        .compression_method(CompressionMethod::Deflated)
-                        .unix_permissions(0o755);
-                    zip.start_file::<&str, ()>(&file_name_in_zip, options)?;
-                    zip.write_all(&data)?;
-                    zip.finish()?;
-                }
-            } else if !gz_compress {
-                let mut file = File::create(filename)?;
-                file.write_all(&data)?;
-            } else {
-                let mut file = GzEncoder::new(
-                    io::BufWriter::new(File::create(filename)?),
-                    Compression::best(),
-                );
-                file.write_all(&data)?;
-            }
-        }
-    }
-
-    #[cfg(not(feature = "flate"))]
-    {
-        if let Some(filename) = &disk.filename {
-            let mut file = File::create(filename)?;
-            file.write_all(&data)?;
-        }
-    }
+    write_disk_content_to_disk(disk, &data)?;
 
     Ok(())
 }
