@@ -16,6 +16,8 @@ use flate2::Compression;
 use flate2::read::GzDecoder;
 #[cfg(feature = "flate")]
 use flate2::write::GzEncoder;
+#[cfg(feature = "zip")]
+use zip::{CompressionMethod, ZipArchive, ZipWriter, write::FileOptions};
 
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
@@ -544,7 +546,7 @@ fn check_extension(ext: &OsStr, target_ext: &str) -> bool {
     ext.eq_ignore_ascii_case(OsStr::new(target_ext))
 }
 
-fn check_file_extension<P>(file_ext: &OsStr, stem_path: P, ext: &str) -> bool
+fn check_file_extension<P>(_file_path: P, file_ext: &OsStr, stem_path: P, ext: &str) -> bool
 where
     P: AsRef<Path>,
 {
@@ -560,6 +562,24 @@ where
         }
     }
 
+    #[cfg(feature = "zip")]
+    if check_extension(file_ext, "zip") {
+        let zip_file_path = _file_path.as_ref();
+        if let Ok(file) = std::fs::File::open(zip_file_path) {
+            if let Ok(mut archive) = ZipArchive::new(file) {
+                if archive.len() == 1 {
+                    if let Ok(file_in_zip) = archive.by_index(0) {
+                        if file_in_zip.is_file() {
+                            let filename = file_in_zip.name();
+                            let file_ext = format!(".{}", ext);
+                            return filename.to_lowercase().ends_with(&file_ext);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     false
 }
 
@@ -569,14 +589,14 @@ fn save_dsk_woz_to_disk(disk: &Disk) -> io::Result<()> {
         if let Some(file_stem) = path.file_stem() {
             let stem_path = Path::new(file_stem);
             if let Some(path_ext) = path.extension() {
-                if check_file_extension(path_ext, stem_path, "dsk")
-                    || check_file_extension(path_ext, stem_path, "do")
-                    || check_file_extension(path_ext, stem_path, "po")
+                if check_file_extension(path, path_ext, stem_path, "dsk")
+                    || check_file_extension(path, path_ext, stem_path, "do")
+                    || check_file_extension(path, path_ext, stem_path, "po")
                 {
                     convert_woz_to_dsk(disk)?;
-                } else if check_file_extension(path_ext, stem_path, "nib") {
+                } else if check_file_extension(path, path_ext, stem_path, "nib") {
                     convert_woz_to_nib(disk)?;
-                } else if check_file_extension(path_ext, stem_path, "woz") {
+                } else if check_file_extension(path, path_ext, stem_path, "woz") {
                     save_woz_file(disk)?;
                 }
             }
@@ -672,6 +692,16 @@ fn decompress_array_gz(data: &[u8]) -> io::Result<Vec<u8>> {
     Ok(buffer)
 }
 
+#[cfg(feature = "zip")]
+fn decompress_array_zip(data: &[u8]) -> io::Result<Vec<u8>> {
+    let mut buffer: Vec<u8> = Vec::new();
+    let cursor = std::io::Cursor::new(data);
+    let mut archive = ZipArchive::new(cursor)?;
+    let mut file_in_zip = archive.by_index(0)?;
+    file_in_zip.read_to_end(&mut buffer)?;
+    Ok(buffer)
+}
+
 // It is assumed that the woz structure is the same when saving back
 fn save_woz_file(disk: &Disk) -> io::Result<()> {
     if let Some(filename) = &disk.filename {
@@ -682,6 +712,17 @@ fn save_woz_file(disk: &Disk) -> io::Result<()> {
             if extension.eq_ignore_ascii_case(OsStr::new("gz")) {
                 let data = std::fs::read(path)?;
                 decompress_array_gz(&data)?
+            } else if extension.eq_ignore_ascii_case(OsStr::new("zip")) {
+                let data = std::fs::read(path)?;
+                #[cfg(feature = "zip")]
+                {
+                    decompress_array_zip(&data)?
+                }
+
+                #[cfg(not(feature = "zip"))]
+                {
+                    data    
+                }
             } else {
                 std::fs::read(path)?
             }
@@ -786,13 +827,35 @@ fn save_woz_file(disk: &Disk) -> io::Result<()> {
             if let Some(filename) = &disk.filename {
                 let path = Path::new(filename);
                 let mut gz_compress = false;
+                let mut zip_compress = false;
                 if let Some(extension) = path.extension() {
                     if extension.eq_ignore_ascii_case(OsStr::new("gz")) {
                         gz_compress = true;
                     }
+                    if extension.eq_ignore_ascii_case(OsStr::new("zip")) {
+                        zip_compress = true;
+                    }
                 }
 
-                if !gz_compress {
+                if zip_compress {
+                    #[cfg(feature = "zip")]
+                    {
+                        let file_name_in_zip = {
+                            let file = std::fs::File::open(filename)?;
+                            let mut archive = ZipArchive::new(file)?;
+                            let file_in_zip = archive.by_index(0)?;
+                            file_in_zip.name().to_string()
+                        };
+                        let file = File::create(filename)?;
+                        let mut zip = ZipWriter::new(file);
+                        let options: FileOptions<'_, ()> = FileOptions::default()
+                            .compression_method(CompressionMethod::Deflated)
+                            .unix_permissions(0o755);
+                        zip.start_file::<&str, ()>(&file_name_in_zip, options)?;
+                        zip.write_all(&newdsk)?;
+                        zip.finish()?;
+                    }
+                } else if !gz_compress {
                     let mut file = File::create(filename)?;
                     file.write_all(&newdsk)?;
                 } else {
@@ -949,12 +1012,41 @@ fn convert_woz_to_dsk(disk: &Disk) -> io::Result<()> {
         if let Some(filename) = &disk.filename {
             let path = Path::new(filename);
             let mut gz_compress = false;
+            let mut zip_compress = false;
             if let Some(extension) = path.extension() {
                 if extension.eq_ignore_ascii_case(OsStr::new("gz")) {
                     gz_compress = true;
                 }
+
+                #[cfg(feature = "zip")]
+                if extension.eq_ignore_ascii_case(OsStr::new("zip")) {
+                    zip_compress = true;
+                }
+
+                #[cfg(not(feature = "zip"))]
+                {
+                    zip_compress = false;
+                }
             }
-            if !gz_compress {
+            if zip_compress {
+                #[cfg(feature = "zip")]
+                {
+                    let file_name_in_zip = {
+                        let file = std::fs::File::open(filename)?;
+                        let mut archive = ZipArchive::new(file)?;
+                        let file_in_zip = archive.by_index(0)?;
+                        file_in_zip.name().to_string()
+                    };
+                    let file = File::create(filename)?;
+                    let mut zip = ZipWriter::new(file);
+                    let options: FileOptions<'_, ()> = FileOptions::default()
+                        .compression_method(CompressionMethod::Deflated)
+                        .unix_permissions(0o755);
+                    zip.start_file::<&str, ()>(&file_name_in_zip, options)?;
+                    zip.write_all(&data)?;
+                    zip.finish()?;
+                }
+            } else if !gz_compress {
                 let mut file = File::create(filename)?;
                 file.write_all(&data)?;
             } else {
@@ -1064,13 +1156,35 @@ fn convert_woz_to_nib(disk: &Disk) -> io::Result<()> {
         if let Some(filename) = &disk.filename {
             let path = Path::new(filename);
             let mut gz_compress = false;
+            let mut zip_compress = false;
             if let Some(extension) = path.extension() {
                 if extension.eq_ignore_ascii_case(OsStr::new("gz")) {
                     gz_compress = true;
                 }
+                if extension.eq_ignore_ascii_case(OsStr::new("zip")) {
+                    zip_compress = true;
+                }
             }
 
-            if !gz_compress {
+            if zip_compress {
+                #[cfg(feature = "zip")]
+                {
+                    let file_name_in_zip = {
+                        let file = std::fs::File::open(filename)?;
+                        let mut archive = ZipArchive::new(file)?;
+                        let file_in_zip = archive.by_index(0)?;
+                        file_in_zip.name().to_string()
+                    };
+                    let file = File::create(filename)?;
+                    let mut zip = ZipWriter::new(file);
+                    let options: FileOptions<'_, ()> = FileOptions::default()
+                        .compression_method(CompressionMethod::Deflated)
+                        .unix_permissions(0o755);
+                    zip.start_file::<&str, ()>(&file_name_in_zip, options)?;
+                    zip.write_all(&data)?;
+                    zip.finish()?;
+                }
+            } else if !gz_compress {
                 let mut file = File::create(filename)?;
                 file.write_all(&data)?;
             } else {
@@ -1545,6 +1659,16 @@ impl DiskDrive {
             if extension.eq_ignore_ascii_case(OsStr::new("gz")) {
                 let data = std::fs::read(filename)?;
                 decompress_array_gz(&data)?
+            } else if extension.eq_ignore_ascii_case(OsStr::new("zip")) {
+                let data = std::fs::read(filename)?;
+
+                #[cfg(feature = "zip")] {
+                    decompress_array_zip(&data)?
+                }
+
+                #[cfg(not(feature = "zip"))] {
+                    data
+                }
             } else {
                 std::fs::read(filename)?
             }
@@ -1613,6 +1737,18 @@ impl DiskDrive {
             if extension.eq_ignore_ascii_case(OsStr::new("gz")) {
                 let data = std::fs::read(filename)?;
                 decompress_array_gz(&data)?
+            } else if extension.eq_ignore_ascii_case(OsStr::new("zip")) {
+                let data = std::fs::read(filename)?;
+        
+                #[cfg(feature = "zip")]
+                {
+                    decompress_array_zip(&data)?
+                }
+
+                #[cfg(not(feature = "zip"))]
+                {
+                    data
+                }
             } else {
                 std::fs::read(filename)?
             }
@@ -1825,6 +1961,16 @@ impl DiskDrive {
             if extension.eq_ignore_ascii_case(OsStr::new("gz")) {
                 let data = std::fs::read(filename)?;
                 decompress_array_gz(&data)?
+            } else if extension.eq_ignore_ascii_case(OsStr::new("zip")) {
+                let data = std::fs::read(filename)?;
+                #[cfg(feature = "zip")]
+                {
+                    decompress_array_zip(&data)?
+                }
+                #[cfg(not(feature = "zip"))]
+                {
+                    data
+                }
             } else {
                 std::fs::read(filename)?
             }
@@ -2237,15 +2383,15 @@ impl DiskDrive {
             let extension = filename.extension();
 
             if let Some(filename_ext) = extension {
-                if check_file_extension(filename_ext, stem_path, "dsk")
-                    || check_file_extension(filename_ext, stem_path, "do")
+                if check_file_extension(filename, filename_ext, stem_path, "dsk")
+                    || check_file_extension(filename, filename_ext, stem_path, "do")
                 {
                     return self.convert_dsk_po_to_woz(filename, false);
-                } else if check_file_extension(filename_ext, stem_path, "po") {
+                } else if check_file_extension(filename, filename_ext, stem_path, "po") {
                     return self.convert_dsk_po_to_woz(filename, true);
-                } else if check_file_extension(filename_ext, stem_path, "nib") {
+                } else if check_file_extension(filename, filename_ext, stem_path, "nib") {
                     return self.convert_nib_to_woz(filename);
-                } else if check_file_extension(filename_ext, stem_path, "woz") {
+                } else if check_file_extension(filename, filename_ext, stem_path, "woz") {
                     return self.load_woz_file(filename);
                 }
             }
@@ -2487,12 +2633,14 @@ impl DiskDrive {
             }
 
             if !write_protected {
-                if track_to_write > 0 {
-                    disk.tmap_data[(track_to_write - 1) as usize] = tmap_track;
-                }
+                if !self.exact_write {
+                    if track_to_write > 0 {
+                        disk.tmap_data[(track_to_write - 1) as usize] = tmap_track;
+                    }
 
-                if track_to_write + 1 < 160 {
-                    disk.tmap_data[(track_to_write + 1) as usize] = tmap_track;
+                    if track_to_write + 1 < 160 {
+                        disk.tmap_data[(track_to_write + 1) as usize] = tmap_track;
+                    }
                 }
 
                 let mut value = track[disk.head];

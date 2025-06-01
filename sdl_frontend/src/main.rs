@@ -1000,6 +1000,7 @@ fn open_disk_dialog(cpu: &mut CPU, drive: usize) {
             "Disk image",
             &[
                 "dsk", "do", "po", "nib", "woz", "nib.gz", "dsk.gz", "do.gz", "po.gz", "woz.gz",
+                "zip",
             ],
         )
         .pick_file();

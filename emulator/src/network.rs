@@ -281,17 +281,13 @@ impl Uthernet2 {
     #[cfg(target_os = "windows")]
     #[cfg(feature = "pcap")]
     fn check_pcap_availability() -> bool {
-        if let Ok(_) = unsafe { libloading::Library::new("wpcap") } {
-            true
-        } else {
-            false
-        }
+        unsafe { libloading::Library::new("wpcap") }.is_ok()
     }
 
     #[cfg(target_os = "windows")]
     #[cfg(feature = "pcap")]
     fn is_pcap_available(&self) -> bool {
-        *PCAP_LOADED.get_or_init(|| Uthernet2::check_pcap_availability())
+        *PCAP_LOADED.get_or_init(Uthernet2::check_pcap_availability)
     }
 
     pub fn new() -> Self {
@@ -951,10 +947,8 @@ impl Uthernet2 {
             let result = pcap::Device::lookup();
             if let Ok(Some(lookup_device)) = result {
                 device = Some(lookup_device)
-            } else {
-                if let Err(error) = result {
-                    u2_debug!("Unable to lookup device: {:?}", error);
-                }
+            } else if let Err(error) = result {
+                u2_debug!("Unable to lookup device: {:?}", error);
             }
         }
 
@@ -996,7 +990,7 @@ impl Uthernet2 {
                 let name = if let Some(desc) = device.desc {
                     format!("{} - {}", desc, device.name)
                 } else {
-                    format!("{}", device.name)
+                    device.name.to_string()
                 };
                 names.push(name);
             }
@@ -1015,7 +1009,7 @@ impl Uthernet2 {
                             || device
                                 .desc
                                 .as_ref()
-                                .map_or(false, |s| s.to_lowercase().contains(&name.to_lowercase()))
+                                .is_some_and(|s| s.to_lowercase().contains(&name.to_lowercase()))
                         {
                             return Some(device);
                         }

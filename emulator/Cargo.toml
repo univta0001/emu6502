@@ -8,6 +8,7 @@ edition = "2024"
 [dependencies]
 bitflags = "2.9.1"
 flate2 = { version = "1.1.1", optional = true }
+zip = { version = "4.0.0", optional = true }
 web-time = { version = "1.1.0", optional = true }
 serde = { version = "1.0.219", features = ["derive"],  optional = true }
 iz80 = { path = "iz80", optional = true }
@@ -26,7 +27,7 @@ crossbeam-epoch = "0.9.18"
 ryu = "1.0.20"
 autocfg = "1.4.0"
 crossbeam-channel = "0.5.15"
-num_cpus = "1.16.0"
+num_cpus = "1.17.0"
 
 [features]
 default = []
@@ -35,6 +36,7 @@ serde_support = ["dep:serde", "dep:educe"]
 z80 = ["dep:iz80"]
 web_time = ["dep:web-time"]
 flate = ["dep:flate2"]
+zip = ["dep:zip"]
 pcap = ["dep:pcap", "dep:libloading"]
 
 [[bench]]
