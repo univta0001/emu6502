@@ -83,6 +83,11 @@ impl Emulator {
                 if result.is_err() {
                     return false;
                 }
+            } else if lname.ends_with(".zip") {
+                let result = drv.load_woz_dsk_po_nib_zip_array_to_woz(&dsk, false);
+                if result.is_err() {
+                    return false;
+                }
             } else {
                 let result = drv.load_woz_array(&dsk, false);
                 if result.is_err() {

@@ -721,7 +721,7 @@ fn save_woz_file(disk: &Disk) -> io::Result<()> {
 
                 #[cfg(not(feature = "zip"))]
                 {
-                    data    
+                    data
                 }
             } else {
                 std::fs::read(path)?
@@ -1556,11 +1556,13 @@ impl DiskDrive {
             } else if extension.eq_ignore_ascii_case(OsStr::new("zip")) {
                 let data = std::fs::read(filename)?;
 
-                #[cfg(feature = "zip")] {
+                #[cfg(feature = "zip")]
+                {
                     decompress_array_zip(&data)?
                 }
 
-                #[cfg(not(feature = "zip"))] {
+                #[cfg(not(feature = "zip"))]
+                {
                     data
                 }
             } else {
@@ -1633,7 +1635,7 @@ impl DiskDrive {
                 decompress_array_gz(&data)?
             } else if extension.eq_ignore_ascii_case(OsStr::new("zip")) {
                 let data = std::fs::read(filename)?;
-        
+
                 #[cfg(feature = "zip")]
                 {
                     decompress_array_zip(&data)?
@@ -1698,6 +1700,43 @@ impl DiskDrive {
             write_protect,
             Self::convert_dsk_po_track_to_woz,
         )
+    }
+
+    #[cfg(feature = "zip")]
+    pub fn load_woz_dsk_po_nib_zip_array_to_woz(
+        &mut self,
+        dsk: &[u8],
+        write_protect: bool,
+    ) -> io::Result<()> {
+        let mut data: Vec<u8> = Vec::new();
+        let cursor = std::io::Cursor::new(dsk);
+        let mut archive = ZipArchive::new(cursor)?;
+        let mut file_in_zip = archive.by_index(0)?;
+        let file_in_zip_name = file_in_zip.name();
+        let po_mode = file_in_zip_name.to_lowercase().ends_with(".po");
+        let nib_mode = file_in_zip_name.to_lowercase().ends_with(".nib");
+        let woz_mode = file_in_zip_name.to_lowercase().ends_with(".woz");
+        file_in_zip.read_to_end(&mut data)?;
+        let disk_type = if po_mode { DiskType::Po } else { DiskType::Dsk };
+        if woz_mode {
+            self.load_woz_array(&data, false)?;
+        } else if nib_mode {
+            self.load_dsk_po_nib_array_to_woz(
+                &data,
+                DiskType::Nib,
+                write_protect,
+                Self::convert_nib_track_to_woz,
+            )?;
+        } else {
+            self.load_dsk_po_nib_array_to_woz(
+                &data,
+                disk_type,
+                write_protect,
+                Self::convert_dsk_po_track_to_woz,
+            )?;
+        }
+
+        Ok(())
     }
 
     pub fn load_dsk_po_array_to_woz(
@@ -2350,12 +2389,14 @@ impl DiskDrive {
                 disk.raw_track_bits[last_track as usize]
             };
 
-            Self::check_disk_head(disk, last_track_bits);
-            let last_position = disk.head * 8 + disk.head_bit;
-            let new_position = last_position * track_bits / last_track_bits;
-            let wrapped = new_position % track_bits;
-            (disk.head, disk.head_bit) = (wrapped / 8, wrapped % 8);
-            disk.head_mask = 1 << (7 - disk.head_bit);
+            if last_track_bits != 0 {
+                Self::check_disk_head(disk, last_track_bits);
+                let last_position = disk.head * 8 + disk.head_bit;
+                let new_position = last_position * track_bits / last_track_bits;
+                let wrapped = new_position % track_bits;
+                (disk.head, disk.head_bit) = (wrapped / 8, wrapped % 8);
+                disk.head_mask = 1 << (7 - disk.head_bit);
+            }
         }
     }
 
@@ -2449,7 +2490,7 @@ impl DiskDrive {
     }
 
     fn check_disk_head(disk: &mut Disk, track_bits: usize) {
-        if disk.head * 8 + disk.head_bit >= track_bits {
+        if track_bits !=0 && disk.head * 8 + disk.head_bit >= track_bits {
             let wrapped = (disk.head * 8 + disk.head_bit) % track_bits;
             (disk.head, disk.head_bit) = (wrapped / 8, wrapped % 8);
             disk.head_mask = 1 << (7 - disk.head_bit);

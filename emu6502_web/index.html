@@ -79,7 +79,7 @@
             document.getElementById("emulator").addEventListener("touchstart", show_keyboard);
             document.getElementById("emulator").addEventListener("touchend", show_keyboard);
 
-            const load_disk = (success,filter=".nib,.dsk,.po,.woz,.hdv,.2mg,.nib.gz,.dsk.gz,.po.gz,.woz.gz") => {
+            const load_disk = (success,filter=".nib,.dsk,.po,.woz,.hdv,.2mg,.nib.gz,.dsk.gz,.po.gz,.woz.gz,.zip") => {
                 var frm = document.createElement("form");
                 var upload = document.createElement("input");
                 upload.type = "file";
