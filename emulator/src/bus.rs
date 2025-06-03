@@ -189,8 +189,7 @@ pub trait Mem {
     }
 
     fn unclocked_addr_write_u16(&mut self, pos: u16, data: u16) {
-        let hi = (data >> 8) as u8;
-        let lo = (data & 0xff) as u8;
+        let [lo, hi] = data.to_le_bytes();
         self.unclocked_addr_write(pos, lo);
         self.unclocked_addr_write(pos.wrapping_add(1), hi);
     }
@@ -202,8 +201,7 @@ pub trait Mem {
     }
 
     fn mem_write_u16(&mut self, pos: u16, data: u16) {
-        let hi = (data >> 8) as u8;
-        let lo = (data & 0xff) as u8;
+        let [lo, hi] = data.to_le_bytes();
         self.mem_write(pos, lo);
         self.mem_write(pos.wrapping_add(1), hi);
     }
@@ -297,10 +295,7 @@ impl Bus {
         self.uthernet2.reset(true);
 
         // Clear the annunciator
-        self.annunciator[0] = false;
-        self.annunciator[1] = false;
-        self.annunciator[2] = false;
-        self.annunciator[3] = false;
+        self.annunciator.fill(false);
 
         // Reset joystick
         self.update_joystick();
@@ -370,11 +365,7 @@ impl Bus {
             && self.mem.cpu_memory[0xfbbf] >= 0x3
             && self.mem.cpu_memory[0xfbbf] <= 5;
         let a2ee = self.mem.cpu_memory[0xfbb3] == 0x06 && self.mem.cpu_memory[0xfbc0] == 0xe0;
-        if a2c || a2ee {
-            self.harddisk.set_smartport(true);
-        } else {
-            self.harddisk.set_smartport(false);
-        }
+        self.harddisk.set_smartport(a2c || a2ee);
     }
 
     pub fn reset_apple2c_slot(&mut self) {
@@ -429,15 +420,9 @@ impl Bus {
     }
 
     fn setup_vidhd(&mut self) {
-        for i in 1..8 {
-            if self.io_slot[i] == IODevice::VidHD {
-                self.video.set_vidhd(true);
-                self.mem.vidhd = true;
-                return;
-            }
-        }
-        self.video.set_vidhd(false);
-        self.mem.vidhd = false;
+        let vidhd_enabled = (1..8).any(|i| self.io_slot[i] == IODevice::VidHD);
+        self.video.set_vidhd(vidhd_enabled);
+        self.mem.vidhd = vidhd_enabled;
     }
 
     pub fn register_device(&mut self, device: IODevice, slot: usize) {
@@ -477,55 +462,56 @@ impl Bus {
     fn iodevice_io_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
         let slot = (((addr & 0x00ff) - 0x0080) >> 4) as usize;
         let floating_value = self.read_floating_bus();
-        if slot < self.io_slot.len() {
-            let slot_value = self.io_slot[slot];
-            //eprintln!("IOAccess - {:04x} {} {}",addr,slot,io_addr);
 
-            let mut saturn;
-            let return_value: Option<&mut dyn Card> = match slot_value {
-                IODevice::Printer => Some(&mut self.parallel),
-                IODevice::RamFactor => Some(&mut self.ramfactor),
-                IODevice::Mouse => Some(&mut self.mouse),
-                IODevice::Disk => Some(&mut self.disk),
-                IODevice::Disk13 => {
-                    self.disk.force_disk_rom13();
-                    Some(&mut self.disk)
-                }
-                IODevice::HardDisk => Some(&mut self.harddisk),
-                IODevice::Mockingboard(_) => None,
-                #[cfg(feature = "z80")]
-                IODevice::Z80 => None,
-                #[cfg(not(target_os = "wasi"))]
-                IODevice::Uthernet2 => Some(&mut self.uthernet2),
-                IODevice::Saturn(value) => {
-                    saturn = Saturn(value);
-                    Some(&mut saturn)
-                }
-                _ => None,
-            };
+        if slot >= self.io_slot.len() {
+            return floating_value
+        }
 
-            if let Some(device) = return_value {
-                if write_flag {
-                    device.io_access(&mut self.mem, &mut self.video, addr, value, write_flag)
-                } else {
-                    device.io_access(
-                        &mut self.mem,
-                        &mut self.video,
-                        addr,
-                        floating_value,
-                        write_flag,
-                    )
-                }
+        let slot_value = self.io_slot[slot];
+        //eprintln!("IOAccess - {:04x} {} {}",addr,slot,io_addr);
+
+        let mut saturn;
+        let return_value: Option<&mut dyn Card> = match slot_value {
+            IODevice::Printer => Some(&mut self.parallel),
+            IODevice::RamFactor => Some(&mut self.ramfactor),
+            IODevice::Mouse => Some(&mut self.mouse),
+            IODevice::Disk => Some(&mut self.disk),
+            IODevice::Disk13 => {
+                self.disk.force_disk_rom13();
+                Some(&mut self.disk)
+            }
+            IODevice::HardDisk => Some(&mut self.harddisk),
+            IODevice::Mockingboard(_) => None,
+            #[cfg(feature = "z80")]
+            IODevice::Z80 => None,
+            #[cfg(not(target_os = "wasi"))]
+            IODevice::Uthernet2 => Some(&mut self.uthernet2),
+            IODevice::Saturn(value) => {
+                saturn = Saturn(value);
+                Some(&mut saturn)
+            }
+            _ => None,
+        };
+
+        if let Some(device) = return_value {
+            if write_flag {
+                device.io_access(&mut self.mem, &mut self.video, addr, value, write_flag)
             } else {
-                self.read_floating_bus() & 0x7f
+                device.io_access(
+                    &mut self.mem,
+                    &mut self.video,
+                    addr,
+                    floating_value,
+                    write_flag,
+                )
             }
         } else {
-            self.read_floating_bus()
+            floating_value & 0x7f
         }
     }
 
     fn iodevice_rom_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
-        let read_value = self.read_floating_bus();
+        let floating_value = self.read_floating_bus();
         if !self.mem.intcxrom {
             if addr >= 0xc800 {
                 // Handle the extended rom separately
@@ -533,7 +519,7 @@ impl Bus {
                 let slot_value = self.io_slot[slot];
                 return match slot_value {
                     IODevice::RamFactor => self.ramfactor.rom_access(addr, value, write_flag),
-                    _ => self.read_floating_bus(),
+                    _ => floating_value,
                 };
             }
 
@@ -550,7 +536,6 @@ impl Bus {
                     clock.io_access(addr, 0, false);
                 }
 
-                let audio = &mut self.audio;
                 self.latch_extended_rom = slot as u8;
                 let return_value: Option<&mut dyn Card> = match slot_value {
                     IODevice::Printer => Some(&mut self.parallel),
@@ -571,11 +556,10 @@ impl Bus {
                         None
                     }
                     IODevice::Mockingboard(device_no) => {
-                        if audio.mboard.is_empty() || device_no >= audio.mboard.len() {
-                            None
-                        } else {
-                            Some(&mut audio.mboard[device_no])
-                        }
+                        self.audio
+                            .mboard
+                            .get_mut(device_no)
+                            .map(|mb| mb as &mut dyn Card)
                     }
                     _ => None,
                 };
@@ -584,13 +568,13 @@ impl Bus {
                     if write_flag {
                         device.rom_access(addr, value, write_flag)
                     } else {
-                        device.rom_access(addr, read_value, write_flag)
+                        device.rom_access(addr, floating_value, write_flag)
                     }
                 } else {
-                    read_value
+                    floating_value
                 }
             } else {
-                read_value
+                floating_value
             }
         } else {
             if self.is_apple2c && write_flag && (0xc400..=0xc40f).contains(&addr) {
@@ -690,9 +674,8 @@ impl Bus {
 
     pub fn irq(&mut self) -> Option<usize> {
         if !self.disable_video {
-            let irq = self.mouse.poll_irq();
-            if irq.is_some() {
-                return irq;
+            if let Some(irq_val) = self.mouse.poll_irq() {
+                return Some(irq_val)
             }
         }
 
@@ -1016,12 +999,8 @@ impl Bus {
             0x58..=0x5d => {
                 if self.is_apple2c && self.mouse.get_iou() {
                     match io_addr {
-                        0x58 => {
-                            self.mouse.set_iou_mode(STATUS_MOVE_INTERRUPT, false);
-                        }
-                        0x59 => {
-                            self.mouse.set_iou_mode(STATUS_MOVE_INTERRUPT, true);
-                        }
+                        0x58 => self.mouse.set_iou_mode(STATUS_MOVE_INTERRUPT, false),
+                        0x59 => self.mouse.set_iou_mode(STATUS_MOVE_INTERRUPT, true),
                         0x5a => self.mouse.set_iou_mode(STATUS_VBL_INTERRUPT, false),
                         0x5b => self.mouse.set_iou_mode(STATUS_VBL_INTERRUPT, true),
                         _ => {}
