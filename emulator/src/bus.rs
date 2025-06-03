@@ -170,9 +170,9 @@ pub trait Mem {
     fn addr_write(&mut self, addr: u16, data: u8);
 
     fn addr_read_u16(&mut self, pos: u16) -> u16 {
-        let lo = self.addr_read(pos) as u16;
-        let hi = self.addr_read(pos.wrapping_add(1)) as u16;
-        (hi << 8) | (lo)
+        let lo = self.addr_read(pos);
+        let hi = self.addr_read(pos.wrapping_add(1));
+        u16::from_le_bytes([lo, hi])
     }
 
     fn addr_write_u16(&mut self, pos: u16, data: u16) {
@@ -183,9 +183,9 @@ pub trait Mem {
     }
 
     fn unclocked_addr_read_u16(&mut self, pos: u16) -> u16 {
-        let lo = self.unclocked_addr_read(pos) as u16;
-        let hi = self.unclocked_addr_read(pos.wrapping_add(1)) as u16;
-        (hi << 8) | (lo)
+        let lo = self.unclocked_addr_read(pos);
+        let hi = self.unclocked_addr_read(pos.wrapping_add(1));
+        u16::from_le_bytes([lo, hi])
     }
 
     fn unclocked_addr_write_u16(&mut self, pos: u16, data: u16) {
@@ -196,9 +196,9 @@ pub trait Mem {
     }
 
     fn mem_read_u16(&self, pos: u16) -> u16 {
-        let lo = self.mem_read(pos) as u16;
-        let hi = self.mem_read(pos.wrapping_add(1)) as u16;
-        (hi << 8) | (lo)
+        let lo = self.mem_read(pos);
+        let hi = self.mem_read(pos.wrapping_add(1));
+        u16::from_le_bytes([lo, hi])
     }
 
     fn mem_write_u16(&mut self, pos: u16, data: u16) {
