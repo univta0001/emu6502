@@ -1152,15 +1152,15 @@ impl CPU {
     }
 
     fn stack_pop_u16(&mut self) -> u16 {
-        let lo = self.stack_pop() as u16;
-        let hi = self.stack_pop() as u16;
-        (hi << 8) | lo
+        let lo = self.stack_pop();
+        let hi = self.stack_pop();
+        u16::from_le_bytes([lo, hi])
     }
 
     fn last_tick_stack_pop_u16(&mut self) -> u16 {
-        let lo = self.stack_pop() as u16;
-        let hi = self.last_tick_stack_pop() as u16;
-        (hi << 8) | lo
+        let lo = self.stack_pop();
+        let hi = self.last_tick_stack_pop();
+        u16::from_le_bytes([lo, hi])
     }
 
     fn asl_accumulator(&mut self) {
@@ -2505,7 +2505,7 @@ impl CPU {
                         if mem_address & 0x00FF == 0x00FF {
                             let lo = self.addr_read(mem_address);
                             let hi = self.addr_read(mem_address & 0xFF00);
-                            ((hi as u16) << 8) | (lo as u16)
+                            u16::from_le_bytes([lo, hi])
                         } else {
                             self.last_tick_addr_read_u16(mem_address)
                         }
@@ -2531,10 +2531,8 @@ impl CPU {
                     let adl = self.addr_read(self.program_counter);
                     let _ = self.addr_read(self.program_counter.wrapping_add(1));
                     self.stack_push_u16(self.program_counter.wrapping_add(1));
-                    let target_address =
-                        ((self.last_tick_addr_read(self.program_counter.wrapping_add(1)) as u16)
-                            << 8)
-                            | adl as u16;
+                    let adh = self.last_tick_addr_read(self.program_counter.wrapping_add(1));
+                    let target_address = u16::from_le_bytes([adl, adh]);
                     self.program_counter = target_address;
                 }
 
@@ -3568,9 +3566,9 @@ impl CpuStats {
 
     fn next_word(&self, cpu: &CPU) -> u16 {
         let pc = cpu.program_counter.wrapping_add(1);
-        let lo = cpu.bus.mem_read(pc) as u16;
-        let hi = cpu.bus.mem_read(pc.wrapping_add(1)) as u16;
-        (hi << 8) | lo
+        let lo = cpu.bus.mem_read(pc);
+        let hi = cpu.bus.mem_read(pc.wrapping_add(1));
+        u16::from_le_bytes([lo, hi])
     }
 
     fn page_cross(&mut self, addr1: u16, addr2: u16) -> bool {
