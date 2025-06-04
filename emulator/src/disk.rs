@@ -1542,38 +1542,37 @@ impl DiskDrive {
         }
     }
 
+    fn read_and_decompress_file(&self, filename: &Path) -> io::Result<Vec<u8>> {
+        let data = std::fs::read(filename)?;
+
+        #[cfg(feature = "flate")]
+        if let Some(extension) = filename.extension() {
+            if extension.eq_ignore_ascii_case(OsStr::new("gz")) {
+                return decompress_array_gz(&data);
+            } else if extension.eq_ignore_ascii_case(OsStr::new("zip")) {
+                #[cfg(feature = "zip")]
+                {
+                    return decompress_array_zip(&data);
+                }
+                #[cfg(not(feature = "zip"))]
+                {
+                    // If 'zip' feature is not enabled, treat it as a regular file
+                    // or return an error if zip support is expected.
+                    // For now, return the raw data if zip feature is missing.
+                    return Ok(data);
+                }
+            }
+        }
+        // If no matching extension for decompression or `flate` feature is off, return raw data.
+        Ok(data)
+    }
+
     fn convert_dsk_po_to_woz<P>(&mut self, filename_path: P, po_mode: bool) -> io::Result<()>
     where
         P: AsRef<Path>,
     {
         let filename = filename_path.as_ref();
-
-        #[cfg(feature = "flate")]
-        let mut dsk: Vec<u8> = if let Some(extension) = filename.extension() {
-            if extension.eq_ignore_ascii_case(OsStr::new("gz")) {
-                let data = std::fs::read(filename)?;
-                decompress_array_gz(&data)?
-            } else if extension.eq_ignore_ascii_case(OsStr::new("zip")) {
-                let data = std::fs::read(filename)?;
-
-                #[cfg(feature = "zip")]
-                {
-                    decompress_array_zip(&data)?
-                }
-
-                #[cfg(not(feature = "zip"))]
-                {
-                    data
-                }
-            } else {
-                std::fs::read(filename)?
-            }
-        } else {
-            std::fs::read(filename)?
-        };
-
-        #[cfg(not(feature = "flate"))]
-        let mut dsk: Vec<u8> = std::fs::read(filename)?;
+        let mut dsk = self.read_and_decompress_file(filename)?;
 
         if !(DSK_36_40_SIZE.contains(&dsk.len())
             || (dsk.len() >= DSK_IMAGE_SIZE - 255 && dsk.len() <= DSK_IMAGE_SIZE + 255))
@@ -1585,7 +1584,7 @@ impl DiskDrive {
         }
 
         if dsk.len() < DSK_IMAGE_SIZE {
-            // Pad disk image to DSK_IAMGE_SIZE
+            // Pad disk image to DSK_IMAGE_SIZE
             for _ in 0..dsk.len() {
                 dsk.push(0)
             }
@@ -1627,33 +1626,7 @@ impl DiskDrive {
         P: AsRef<Path>,
     {
         let filename = filename_path.as_ref();
-
-        #[cfg(feature = "flate")]
-        let dsk: Vec<u8> = if let Some(extension) = filename.extension() {
-            if extension.eq_ignore_ascii_case(OsStr::new("gz")) {
-                let data = std::fs::read(filename)?;
-                decompress_array_gz(&data)?
-            } else if extension.eq_ignore_ascii_case(OsStr::new("zip")) {
-                let data = std::fs::read(filename)?;
-
-                #[cfg(feature = "zip")]
-                {
-                    decompress_array_zip(&data)?
-                }
-
-                #[cfg(not(feature = "zip"))]
-                {
-                    data
-                }
-            } else {
-                std::fs::read(filename)?
-            }
-        } else {
-            std::fs::read(filename)?
-        };
-
-        #[cfg(not(feature = "flate"))]
-        let dsk: Vec<u8> = std::fs::read(filename)?;
+        let dsk = self.read_and_decompress_file(filename)?;
 
         if dsk.len() != NIB_IMAGE_SIZE && dsk.len() != NIB40_IMAGE_SIZE {
             return Err(std::io::Error::new(
