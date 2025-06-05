@@ -375,7 +375,8 @@ impl Bus {
             self.io_slot[5] = IODevice::None;
             self.audio.mboard[0].set_mb4c(false);
 
-            if self.mem.cpu_memory[0xfbbf] >= 0x3 && self.mem.cpu_memory[0xfbbf] <= 5 {
+            // Apple 2c rom 3 to 5 contains ramfactor
+            if (0x3..=0x5).contains(&self.mem.cpu_memory[0xfbbf]) {
                 self.io_slot[4] = IODevice::RamFactor;
             }
 
