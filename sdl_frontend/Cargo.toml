@@ -32,11 +32,13 @@ sdl2 = "0.37.0"
 
 [build-dependencies]
 embed-resource = "3.0.3"
-cc = "1.2.25"
+cc = "1.2.26"
 
 [features]
 #default = [ ]
-default = ["serde_support", "z80", "flate", "zip"]
+default = ["serialization", "serde_support", "z80", "flate","zip"]
+
+serialization = []
 #default = ["serde_support", "z80", "flate", "regex"]
 serde_support = ["dep:serde_yaml", "emu6502/serde_support"]
 #regex = ["dep:regex"]

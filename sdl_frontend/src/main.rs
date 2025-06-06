@@ -40,7 +40,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsStr;
 
-#[cfg(feature = "serde_support")]
+#[cfg(feature = "serialization")]
 use std::fs;
 
 use std::fs::File;
@@ -687,7 +687,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                 if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
                     dump_track_sector_info(cpu);
                 } else {
-                    #[cfg(feature = "serde_support")]
+                    #[cfg(feature = "serialization")]
                     save_serialized_image(cpu);
                 }
             } else {
@@ -1063,22 +1063,22 @@ fn eject_disk(cpu: &mut CPU, drive: usize) {
     cpu.bus.disk.eject(drive);
 }
 
-#[cfg(feature = "serde_support")]
+#[cfg(feature = "serialization")]
 fn is_disk_loaded(cpu: &CPU, drive: usize) -> bool {
     cpu.bus.disk.is_loaded(drive)
 }
 
-#[cfg(feature = "serde_support")]
+#[cfg(feature = "serialization")]
 fn is_harddisk_loaded(cpu: &CPU, drive: usize) -> bool {
     cpu.bus.harddisk.is_loaded(drive)
 }
 
-#[cfg(feature = "serde_support")]
+#[cfg(feature = "serialization")]
 fn get_disk_filename(cpu: &CPU, drive: usize) -> Option<String> {
     cpu.bus.disk.get_disk_filename(drive)
 }
 
-#[cfg(feature = "serde_support")]
+#[cfg(feature = "serialization")]
 fn get_harddisk_filename(cpu: &CPU, drive: usize) -> Option<String> {
     cpu.bus.harddisk.get_disk_filename(drive)
 }
@@ -1146,7 +1146,7 @@ fn register_device(cpu: &mut CPU, device: &str, slot: usize, mboard: &mut usize,
     }
 }
 
-#[cfg(feature = "serde_support")]
+#[cfg(feature = "serialization")]
 fn replace_quoted_hex_values(string: &str) -> String {
     let mut result = String::new();
     let chars: Vec<_> = string.chars().collect();
@@ -1186,8 +1186,9 @@ fn replace_quoted_hex_values(string: &str) -> String {
     result
 }
 
-#[cfg(feature = "serde_support")]
+#[cfg(feature = "serialization")]
 fn save_serialized_image(cpu: &CPU) {
+    #[cfg(feature = "serde_support")]
     let output = serde_yaml::to_string(&cpu).unwrap();
     let output = output.replace("\"\"", "''").replace(['"', '\''], "");
 
@@ -1214,7 +1215,7 @@ fn save_serialized_image(cpu: &CPU) {
     }
 }
 
-#[cfg(feature = "serde_support")]
+#[cfg(feature = "serialization")]
 fn load_serialized_image() -> Result<CPU, String> {
     let result = FileDialog::new()
         .add_filter("Load state", &["yaml"])
@@ -1229,6 +1230,7 @@ fn load_serialized_image() -> Result<CPU, String> {
         return Err(format!("Unable to restore the image : {result:?}"));
     };
 
+    #[cfg(feature = "serde_support")]
     let deserialized_result = serde_yaml::from_str::<CPU>(&input);
     let Ok(mut new_cpu) = deserialized_result else {
         return Err(format!(
@@ -1435,7 +1437,7 @@ fn update_video(
     canvas.present();
 }
 
-#[cfg(feature = "serde_support")]
+#[cfg(feature = "serialization")]
 fn initialize_new_cpu(
     cpu: &mut CPU,
     display_index: &mut usize,
@@ -2128,7 +2130,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         if !reload_cpu {
             break;
         } else {
-            #[cfg(feature = "serde_support")]
+            #[cfg(feature = "serialization")]
             {
                 let result = load_serialized_image();
                 match result {
