@@ -830,6 +830,10 @@
 
                 if (!anim_ms) { anim_ms = now }
 
+                if (ctx_audio.state === 'suspended') {
+                    ctx_audio.resume()
+                }                
+
                 let anim_elapsed = now - anim_ms;
                 anim_ms = now;
 
