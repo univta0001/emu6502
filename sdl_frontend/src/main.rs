@@ -2118,7 +2118,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 }
             }
 
-            update_audio(&mut cpu, &audio_device, normal_cpu_speed);
+            update_audio(&cpu, &audio_device, normal_cpu_speed);
             cpu.bus.audio.clear_buffer();
             let elapsed = t.elapsed().as_micros();
             estimated_mhz = (dcyc as f32) / elapsed as f32;
