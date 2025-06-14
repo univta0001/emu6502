@@ -1331,8 +1331,8 @@ fn dump_track_sector_info(cpu: &CPU) {
     */
 }
 
-fn update_audio(cpu: &mut CPU, audio_device: &Option<AudioQueue<i16>>, normal_speed: bool) {
-    let snd = &mut cpu.bus.audio;
+fn update_audio(cpu: &CPU, audio_device: &Option<AudioQueue<i16>>, normal_speed: bool) {
+    let snd = &cpu.bus.audio;
 
     let video_50hz = cpu.bus.video.is_video_50hz();
     let audio_sample_size = if video_50hz {
@@ -1340,8 +1340,6 @@ fn update_audio(cpu: &mut CPU, audio_device: &Option<AudioQueue<i16>>, normal_sp
     } else {
         AUDIO_SAMPLE_SIZE
     };
-
-    snd.update_cycles(video_50hz);
 
     if let Some(audio) = audio_device {
         let buffer = if normal_speed || snd.get_buffer().len() < (audio_sample_size * 2) as usize {
@@ -2014,6 +2012,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         if cpu.bus.video.is_video_50hz() {
             cpu_cycles = CPU_CYCLES_PER_FRAME_50HZ;
             cpu_period = 19_968;
+            cpu.bus.audio.update_cycles(true);
+        } else {
+            cpu.bus.audio.update_cycles(false);
         }
 
         if dcyc >= cpu_cycles {
