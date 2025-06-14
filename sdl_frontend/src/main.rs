@@ -1983,153 +1983,149 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut prev_y: i32 = 0;
 
     loop {
-        if reload_cpu {
-            reload_cpu = false;
+        if !cpu.step_with_callback(|_| {}) {
+            break;
         }
+        
+        let current_cycles = cpu.bus.get_cycles();
+        dcyc += current_cycles - previous_cycles;
+        previous_cycles = current_cycles;
 
-        cpu.run_with_callback(|_cpu| {
-            let current_cycles = _cpu.bus.get_cycles();
-            dcyc += current_cycles - previous_cycles;
-            previous_cycles = current_cycles;
+        let mut cpu_cycles = CPU_CYCLES_PER_FRAME_60HZ;
 
-            let mut cpu_cycles = CPU_CYCLES_PER_FRAME_60HZ;
+        // The cpu_period is calculated by 17030 * 1 / CPU_MHZ
+        // For 60Hz, it is 17030 * 1_000_000 / 1_020_484 = 16_688 instead of the 16_667
+        // For 50Hz, it is 20280 * 1_000_000 / 1_015_625 = 19_968
+        let mut cpu_period = 16_688;
 
-            // The cpu_period is calculated by 17030 * 1 / CPU_MHZ
-            // For 60Hz, it is 17030 * 1_000_000 / 1_020_484 = 16_688 instead of the 16_667
-            // For 50Hz, it is 20280 * 1_000_000 / 1_015_625 = 19_968
-            let mut cpu_period = 16_688;
+        // Handle clipboard text if any
+        if !clipboard_text.is_empty() {
+            let latch = cpu.bus.get_keyboard_latch();
 
-            // Handle clipboard text if any
-            if !clipboard_text.is_empty() {
-                let latch = _cpu.bus.get_keyboard_latch();
-
-                // Only put into keyboard latch when it is ready
-                if latch < 0x80 {
-                    if let Some(ch) = clipboard_text.chars().next() {
-                        _cpu.bus.set_keyboard_latch((ch as u8) + 0x80);
-                        clipboard_text.remove(0);
-                    }
+            // Only put into keyboard latch when it is ready
+            if latch < 0x80 {
+                if let Some(ch) = clipboard_text.chars().next() {
+                    cpu.bus.set_keyboard_latch((ch as u8) + 0x80);
+                    clipboard_text.remove(0);
                 }
             }
+        }
 
-            if _cpu.bus.video.is_video_50hz() {
-                cpu_cycles = CPU_CYCLES_PER_FRAME_50HZ;
-                cpu_period = 19_968;
-            }
+        if cpu.bus.video.is_video_50hz() {
+            cpu_cycles = CPU_CYCLES_PER_FRAME_50HZ;
+            cpu_period = 19_968;
+        }
 
-            if dcyc >= cpu_cycles {
-                let normal_disk_speed = _cpu.bus.is_normal_speed();
-                let normal_cpu_speed =
-                    normal_disk_speed && _cpu.full_speed != CpuSpeed::SPEED_FASTEST;
+        if dcyc >= cpu_cycles {
+            let normal_disk_speed = cpu.bus.is_normal_speed();
+            let normal_cpu_speed =
+                normal_disk_speed && cpu.full_speed != CpuSpeed::SPEED_FASTEST;
 
-                // Update video, audio and events at multiple of 60Hz or 50Hz
-                if normal_cpu_speed || video_time.elapsed().as_micros() >= cpu_period as u128 {
-                    update_video(
-                        _cpu,
-                        &mut save_screenshot,
-                        &mut canvas,
-                        &mut texture,
-                        current_full_screen,
-                    );
-                    video_time = Instant::now();
+            // Update video, audio and events at multiple of 60Hz or 50Hz
+            if normal_cpu_speed || video_time.elapsed().as_micros() >= cpu_period as u128 {
+                update_video(
+                    &mut cpu,
+                    &mut save_screenshot,
+                    &mut canvas,
+                    &mut texture,
+                    current_full_screen,
+                );
+                video_time = Instant::now();
 
-                    _cpu.bus.video.skip_update = false;
+                cpu.bus.video.skip_update = false;
 
-                    for event_value in _event_pump.poll_iter() {
-                        let mut event_param = EventParam {
-                            video_subsystem: &video_subsystem,
-                            game_controller: &game_controller,
-                            gamepads: &mut gamepads,
-                            key_caps: &mut key_caps,
-                            estimated_mhz,
-                            reload_cpu: &mut reload_cpu,
-                            save_screenshot: &mut save_screenshot,
-                            display_mode: &display_mode,
-                            display_index: &mut display_index,
-                            speed_mode: &speed_mode,
-                            speed_index: &mut speed_index,
-                            disk_mode_index: &mut disk_mode_index,
-                            clipboard_text: &mut clipboard_text,
-                            full_screen: &mut full_screen,
-                        };
+                for event_value in _event_pump.poll_iter() {
+                    let mut event_param = EventParam {
+                        video_subsystem: &video_subsystem,
+                        game_controller: &game_controller,
+                        gamepads: &mut gamepads,
+                        key_caps: &mut key_caps,
+                        estimated_mhz,
+                        reload_cpu: &mut reload_cpu,
+                        save_screenshot: &mut save_screenshot,
+                        display_mode: &display_mode,
+                        display_index: &mut display_index,
+                        speed_mode: &speed_mode,
+                        speed_index: &mut speed_index,
+                        disk_mode_index: &mut disk_mode_index,
+                        clipboard_text: &mut clipboard_text,
+                        full_screen: &mut full_screen,
+                    };
 
-                        handle_event(_cpu, event_value, &mut event_param);
-                    }
+                    handle_event(&mut cpu, event_value, &mut event_param);
+                }
 
-                    // Update keyboard akd state
-                    _cpu.bus.any_key_down =
-                        _event_pump.keyboard_state().pressed_scancodes().count() > 0;
+                // Update keyboard akd state
+                cpu.bus.any_key_down =
+                    _event_pump.keyboard_state().pressed_scancodes().count() > 0;
 
-                    // Update mouse state
-                    let mouse_state = _event_pump.mouse_state();
-                    let x = mouse_state.x();
-                    let y = mouse_state.y();
-                    let buttons = [mouse_state.left(), mouse_state.right()];
+                // Update mouse state
+                let mouse_state = _event_pump.mouse_state();
+                let x = mouse_state.x();
+                let y = mouse_state.y();
+                let buttons = [mouse_state.left(), mouse_state.right()];
 
-                    let delta_x = x.saturating_sub(prev_x);
-                    let delta_y = y.saturating_sub(prev_y);
-                    prev_x = x;
-                    prev_y = y;
-                    _cpu.bus.set_mouse_state(delta_x, delta_y, &buttons);
+                let delta_x = x.saturating_sub(prev_x);
+                let delta_y = y.saturating_sub(prev_y);
+                prev_x = x;
+                prev_y = y;
+                cpu.bus.set_mouse_state(delta_x, delta_y, &buttons);
 
-                    // Check the full_screen state is not change
-                    if full_screen != current_full_screen {
-                        let current_full_screen_value = current_full_screen;
-                        current_full_screen = full_screen;
-                        if current_full_screen {
-                            match canvas.window_mut().set_fullscreen(FullscreenType::Desktop) {
-                                Err(e) => {
-                                    eprintln!("Unable to set full_screen = {e}");
-                                    current_full_screen = current_full_screen_value;
-                                    full_screen = current_full_screen_value;
-                                }
-                                _ => {
-                                    sdl_context.mouse().show_cursor(false);
-                                    _cpu.bus.video.invalidate_video_cache();
-                                }
+                // Check the full_screen state is not change
+                if full_screen != current_full_screen {
+                    let current_full_screen_value = current_full_screen;
+                    current_full_screen = full_screen;
+                    if current_full_screen {
+                        match canvas.window_mut().set_fullscreen(FullscreenType::Desktop) {
+                            Err(e) => {
+                                eprintln!("Unable to set full_screen = {e}");
+                                current_full_screen = current_full_screen_value;
+                                full_screen = current_full_screen_value;
                             }
-                        } else {
-                            match canvas.window_mut().set_fullscreen(FullscreenType::Off) {
-                                Err(e) => {
-                                    eprintln!("Unable to restore from full_screen = {e}");
-                                    current_full_screen = current_full_screen_value;
-                                    full_screen = current_full_screen_value;
-                                }
-                                _ => {
-                                    sdl_context.mouse().show_cursor(true);
-                                    _cpu.bus.video.invalidate_video_cache();
-                                }
+                            _ => {
+                                sdl_context.mouse().show_cursor(false);
+                                cpu.bus.video.invalidate_video_cache();
+                            }
+                        }
+                    } else {
+                        match canvas.window_mut().set_fullscreen(FullscreenType::Off) {
+                            Err(e) => {
+                                eprintln!("Unable to restore from full_screen = {e}");
+                                current_full_screen = current_full_screen_value;
+                                full_screen = current_full_screen_value;
+                            }
+                            _ => {
+                                sdl_context.mouse().show_cursor(true);
+                                cpu.bus.video.invalidate_video_cache();
                             }
                         }
                     }
-                } else {
-                    _cpu.bus.video.skip_update = true;
                 }
-
-                let video_cpu_update = t.elapsed().as_micros();
-
-                if normal_cpu_speed {
-                    let adj_ms = cpu_period as usize * speed_numerator[speed_index]
-                        / speed_denominator[speed_index];
-                    let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
-
-                    if adj_time > 0 {
-                        spin_sleep::sleep(std::time::Duration::from_micros(adj_time as u64))
-                    }
-                }
-
-                update_audio(_cpu, &audio_device, normal_cpu_speed);
-                _cpu.bus.audio.clear_buffer();
-                let elapsed = t.elapsed().as_micros();
-                estimated_mhz = (dcyc as f32) / elapsed as f32;
-                dcyc -= cpu_cycles;
-                t = Instant::now();
+            } else {
+                cpu.bus.video.skip_update = true;
             }
-        });
 
-        if !reload_cpu {
-            break;
-        } else {
+            let video_cpu_update = t.elapsed().as_micros();
+
+            if normal_cpu_speed {
+                let adj_ms = cpu_period as usize * speed_numerator[speed_index]
+                    / speed_denominator[speed_index];
+                let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
+
+                if adj_time > 0 {
+                    spin_sleep::sleep(std::time::Duration::from_micros(adj_time as u64))
+                }
+            }
+
+            update_audio(&mut cpu, &audio_device, normal_cpu_speed);
+            cpu.bus.audio.clear_buffer();
+            let elapsed = t.elapsed().as_micros();
+            estimated_mhz = (dcyc as f32) / elapsed as f32;
+            dcyc -= cpu_cycles;
+            t = Instant::now();
+        }
+
+        if reload_cpu {
             #[cfg(feature = "serialization")]
             {
                 let result = load_serialized_image();
@@ -2151,6 +2147,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     }
                 }
             }
+            reload_cpu = false;
         }
     }
 
