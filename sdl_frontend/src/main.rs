@@ -2056,6 +2056,31 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     handle_event(&mut cpu, event_value, &mut event_param);
                 }
 
+                if reload_cpu {
+                    #[cfg(feature = "serialization")]
+                    {
+                        let result = load_serialized_image();
+                        match result {
+                            Ok(mut new_cpu) => {
+                                previous_cycles = new_cpu.bus.get_cycles();
+                                initialize_new_cpu(
+                                    &mut new_cpu,
+                                    &mut display_index,
+                                    &mut speed_index,
+                                    &mut disk_mode_index,
+                                );
+                                cpu = new_cpu
+                            }
+                            Err(message) => {
+                                if !message.is_empty() {
+                                    eprintln!("{message}")
+                                }
+                            }
+                        }
+                    }
+                    reload_cpu = false;
+                }
+
                 // Update keyboard akd state
                 cpu.bus.any_key_down =
                     _event_pump.keyboard_state().pressed_scancodes().count() > 0;
@@ -2124,31 +2149,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             estimated_mhz = (dcyc as f32) / elapsed as f32;
             dcyc -= cpu_cycles;
             t = Instant::now();
-        }
-
-        if reload_cpu {
-            #[cfg(feature = "serialization")]
-            {
-                let result = load_serialized_image();
-                match result {
-                    Ok(mut new_cpu) => {
-                        previous_cycles = new_cpu.bus.get_cycles();
-                        initialize_new_cpu(
-                            &mut new_cpu,
-                            &mut display_index,
-                            &mut speed_index,
-                            &mut disk_mode_index,
-                        );
-                        cpu = new_cpu
-                    }
-                    Err(message) => {
-                        if !message.is_empty() {
-                            eprintln!("{message}")
-                        }
-                    }
-                }
-            }
-            reload_cpu = false;
         }
     }
 
