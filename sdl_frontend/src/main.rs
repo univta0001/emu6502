@@ -1981,7 +1981,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut prev_y: i32 = 0;
 
     loop {
-        if !cpu.step_with_callback(|_| {}) {
+        if !cpu.step_instruction() {
             break;
         }
         
