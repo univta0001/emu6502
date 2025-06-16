@@ -40,7 +40,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsStr;
 
-#[cfg(feature = "serialization")]
+#[cfg(feature = "serde_support")]
 use std::fs;
 
 use std::fs::File;
@@ -687,7 +687,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                 if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
                     dump_track_sector_info(cpu);
                 } else {
-                    #[cfg(feature = "serialization")]
+                    #[cfg(feature = "serde_support")]
                     save_serialized_image(cpu);
                 }
             } else {
@@ -1063,22 +1063,22 @@ fn eject_disk(cpu: &mut CPU, drive: usize) {
     cpu.bus.disk.eject(drive);
 }
 
-#[cfg(feature = "serialization")]
+#[cfg(feature = "serde_support")]
 fn is_disk_loaded(cpu: &CPU, drive: usize) -> bool {
     cpu.bus.disk.is_loaded(drive)
 }
 
-#[cfg(feature = "serialization")]
+#[cfg(feature = "serde_support")]
 fn is_harddisk_loaded(cpu: &CPU, drive: usize) -> bool {
     cpu.bus.harddisk.is_loaded(drive)
 }
 
-#[cfg(feature = "serialization")]
+#[cfg(feature = "serde_support")]
 fn get_disk_filename(cpu: &CPU, drive: usize) -> Option<String> {
     cpu.bus.disk.get_disk_filename(drive)
 }
 
-#[cfg(feature = "serialization")]
+#[cfg(feature = "serde_support")]
 fn get_harddisk_filename(cpu: &CPU, drive: usize) -> Option<String> {
     cpu.bus.harddisk.get_disk_filename(drive)
 }
@@ -1146,7 +1146,7 @@ fn register_device(cpu: &mut CPU, device: &str, slot: usize, mboard: &mut usize,
     }
 }
 
-#[cfg(feature = "serialization")]
+#[cfg(feature = "serde_support")]
 fn replace_quoted_hex_values(string: &str) -> String {
     let mut result = String::new();
     let chars: Vec<_> = string.chars().collect();
@@ -1186,9 +1186,8 @@ fn replace_quoted_hex_values(string: &str) -> String {
     result
 }
 
-#[cfg(feature = "serialization")]
+#[cfg(feature = "serde_support")]
 fn save_serialized_image(cpu: &CPU) {
-    #[cfg(feature = "serde_support")]
     let output = serde_yaml::to_string(&cpu).unwrap();
     let output = output.replace("\"\"", "''").replace(['"', '\''], "");
 
@@ -1215,7 +1214,7 @@ fn save_serialized_image(cpu: &CPU) {
     }
 }
 
-#[cfg(feature = "serialization")]
+#[cfg(feature = "serde_support")]
 fn load_serialized_image() -> Result<CPU, String> {
     let result = FileDialog::new()
         .add_filter("Load state", &["yaml"])
@@ -1230,7 +1229,6 @@ fn load_serialized_image() -> Result<CPU, String> {
         return Err(format!("Unable to restore the image : {result:?}"));
     };
 
-    #[cfg(feature = "serde_support")]
     let deserialized_result = serde_yaml::from_str::<CPU>(&input);
     let Ok(mut new_cpu) = deserialized_result else {
         return Err(format!(
@@ -1331,8 +1329,8 @@ fn dump_track_sector_info(cpu: &CPU) {
     */
 }
 
-fn update_audio(cpu: &CPU, audio_device: &Option<AudioQueue<i16>>, normal_speed: bool) {
-    let snd = &cpu.bus.audio;
+fn update_audio(cpu: &mut CPU, audio_device: &Option<AudioQueue<i16>>, normal_speed: bool) {
+    let snd = &mut cpu.bus.audio;
 
     let video_50hz = cpu.bus.video.is_video_50hz();
     let audio_sample_size = if video_50hz {
@@ -1340,6 +1338,8 @@ fn update_audio(cpu: &CPU, audio_device: &Option<AudioQueue<i16>>, normal_speed:
     } else {
         AUDIO_SAMPLE_SIZE
     };
+
+    snd.update_cycles(video_50hz);
 
     if let Some(audio) = audio_device {
         let buffer = if normal_speed || snd.get_buffer().len() < (audio_sample_size * 2) as usize {
@@ -1435,7 +1435,7 @@ fn update_video(
     canvas.present();
 }
 
-#[cfg(feature = "serialization")]
+#[cfg(feature = "serde_support")]
 fn initialize_new_cpu(
     cpu: &mut CPU,
     display_index: &mut usize,
@@ -1981,172 +1981,174 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut prev_y: i32 = 0;
 
     loop {
-        if !cpu.step_instruction() {
-            break;
+        if reload_cpu {
+            reload_cpu = false;
         }
 
-        let current_cycles = cpu.bus.get_cycles();
-        dcyc += current_cycles - previous_cycles;
-        previous_cycles = current_cycles;
+        cpu.run_with_callback(|_cpu| {
+            let current_cycles = _cpu.bus.get_cycles();
+            dcyc += current_cycles - previous_cycles;
+            previous_cycles = current_cycles;
 
-        let mut cpu_cycles = CPU_CYCLES_PER_FRAME_60HZ;
+            let mut cpu_cycles = CPU_CYCLES_PER_FRAME_60HZ;
 
-        // The cpu_period is calculated by 17030 * 1 / CPU_MHZ
-        // For 60Hz, it is 17030 * 1_000_000 / 1_020_484 = 16_688 instead of the 16_667
-        // For 50Hz, it is 20280 * 1_000_000 / 1_015_625 = 19_968
-        let mut cpu_period = 16_688;
+            // The cpu_period is calculated by 17030 * 1 / CPU_MHZ
+            // For 60Hz, it is 17030 * 1_000_000 / 1_020_484 = 16_688 instead of the 16_667
+            // For 50Hz, it is 20280 * 1_000_000 / 1_015_625 = 19_968
+            let mut cpu_period = 16_688;
 
-        // Handle clipboard text if any
-        if !clipboard_text.is_empty() {
-            let latch = cpu.bus.get_keyboard_latch();
+            // Handle clipboard text if any
+            if !clipboard_text.is_empty() {
+                let latch = _cpu.bus.get_keyboard_latch();
 
-            // Only put into keyboard latch when it is ready
-            if latch < 0x80 {
-                if let Some(ch) = clipboard_text.chars().next() {
-                    cpu.bus.set_keyboard_latch((ch as u8) + 0x80);
-                    clipboard_text.remove(0);
+                // Only put into keyboard latch when it is ready
+                if latch < 0x80 {
+                    if let Some(ch) = clipboard_text.chars().next() {
+                        _cpu.bus.set_keyboard_latch((ch as u8) + 0x80);
+                        clipboard_text.remove(0);
+                    }
                 }
             }
-        }
 
-        if cpu.bus.video.is_video_50hz() {
-            cpu_cycles = CPU_CYCLES_PER_FRAME_50HZ;
-            cpu_period = 19_968;
-            cpu.bus.audio.update_cycles(true);
-        } else {
-            cpu.bus.audio.update_cycles(false);
-        }
+            if _cpu.bus.video.is_video_50hz() {
+                cpu_cycles = CPU_CYCLES_PER_FRAME_50HZ;
+                cpu_period = 19_968;
+            }
 
-        if dcyc >= cpu_cycles {
-            let normal_disk_speed = cpu.bus.is_normal_speed();
-            let normal_cpu_speed = normal_disk_speed && cpu.full_speed != CpuSpeed::SPEED_FASTEST;
+            if dcyc >= cpu_cycles {
+                let normal_disk_speed = _cpu.bus.is_normal_speed();
+                let normal_cpu_speed =
+                    normal_disk_speed && _cpu.full_speed != CpuSpeed::SPEED_FASTEST;
 
-            // Update video, audio and events at multiple of 60Hz or 50Hz
-            if normal_cpu_speed || video_time.elapsed().as_micros() >= cpu_period as u128 {
-                update_video(
-                    &mut cpu,
-                    &mut save_screenshot,
-                    &mut canvas,
-                    &mut texture,
-                    current_full_screen,
-                );
-                video_time = Instant::now();
+                // Update video, audio and events at multiple of 60Hz or 50Hz
+                if normal_cpu_speed || video_time.elapsed().as_micros() >= cpu_period as u128 {
+                    update_video(
+                        _cpu,
+                        &mut save_screenshot,
+                        &mut canvas,
+                        &mut texture,
+                        current_full_screen,
+                    );
+                    video_time = Instant::now();
 
-                cpu.bus.video.skip_update = false;
+                    _cpu.bus.video.skip_update = false;
 
-                for event_value in _event_pump.poll_iter() {
-                    let mut event_param = EventParam {
-                        video_subsystem: &video_subsystem,
-                        game_controller: &game_controller,
-                        gamepads: &mut gamepads,
-                        key_caps: &mut key_caps,
-                        estimated_mhz,
-                        reload_cpu: &mut reload_cpu,
-                        save_screenshot: &mut save_screenshot,
-                        display_mode: &display_mode,
-                        display_index: &mut display_index,
-                        speed_mode: &speed_mode,
-                        speed_index: &mut speed_index,
-                        disk_mode_index: &mut disk_mode_index,
-                        clipboard_text: &mut clipboard_text,
-                        full_screen: &mut full_screen,
-                    };
+                    for event_value in _event_pump.poll_iter() {
+                        let mut event_param = EventParam {
+                            video_subsystem: &video_subsystem,
+                            game_controller: &game_controller,
+                            gamepads: &mut gamepads,
+                            key_caps: &mut key_caps,
+                            estimated_mhz,
+                            reload_cpu: &mut reload_cpu,
+                            save_screenshot: &mut save_screenshot,
+                            display_mode: &display_mode,
+                            display_index: &mut display_index,
+                            speed_mode: &speed_mode,
+                            speed_index: &mut speed_index,
+                            disk_mode_index: &mut disk_mode_index,
+                            clipboard_text: &mut clipboard_text,
+                            full_screen: &mut full_screen,
+                        };
 
-                    handle_event(&mut cpu, event_value, &mut event_param);
-                }
+                        handle_event(_cpu, event_value, &mut event_param);
+                    }
 
-                if reload_cpu {
-                    #[cfg(feature = "serialization")]
-                    {
-                        let result = load_serialized_image();
-                        match result {
-                            Ok(mut new_cpu) => {
-                                previous_cycles = new_cpu.bus.get_cycles();
-                                initialize_new_cpu(
-                                    &mut new_cpu,
-                                    &mut display_index,
-                                    &mut speed_index,
-                                    &mut disk_mode_index,
-                                );
-                                cpu = new_cpu
+                    // Update keyboard akd state
+                    _cpu.bus.any_key_down =
+                        _event_pump.keyboard_state().pressed_scancodes().count() > 0;
+
+                    // Update mouse state
+                    let mouse_state = _event_pump.mouse_state();
+                    let x = mouse_state.x();
+                    let y = mouse_state.y();
+                    let buttons = [mouse_state.left(), mouse_state.right()];
+
+                    let delta_x = x.saturating_sub(prev_x);
+                    let delta_y = y.saturating_sub(prev_y);
+                    prev_x = x;
+                    prev_y = y;
+                    _cpu.bus.set_mouse_state(delta_x, delta_y, &buttons);
+
+                    // Check the full_screen state is not change
+                    if full_screen != current_full_screen {
+                        let current_full_screen_value = current_full_screen;
+                        current_full_screen = full_screen;
+                        if current_full_screen {
+                            match canvas.window_mut().set_fullscreen(FullscreenType::Desktop) {
+                                Err(e) => {
+                                    eprintln!("Unable to set full_screen = {e}");
+                                    current_full_screen = current_full_screen_value;
+                                    full_screen = current_full_screen_value;
+                                }
+                                _ => {
+                                    sdl_context.mouse().show_cursor(false);
+                                    _cpu.bus.video.invalidate_video_cache();
+                                }
                             }
-                            Err(message) => {
-                                if !message.is_empty() {
-                                    eprintln!("{message}")
+                        } else {
+                            match canvas.window_mut().set_fullscreen(FullscreenType::Off) {
+                                Err(e) => {
+                                    eprintln!("Unable to restore from full_screen = {e}");
+                                    current_full_screen = current_full_screen_value;
+                                    full_screen = current_full_screen_value;
+                                }
+                                _ => {
+                                    sdl_context.mouse().show_cursor(true);
+                                    _cpu.bus.video.invalidate_video_cache();
                                 }
                             }
                         }
                     }
-                    reload_cpu = false;
+                } else {
+                    _cpu.bus.video.skip_update = true;
                 }
 
-                // Update keyboard akd state
-                cpu.bus.any_key_down = _event_pump.keyboard_state().pressed_scancodes().count() > 0;
+                let video_cpu_update = t.elapsed().as_micros();
 
-                // Update mouse state
-                let mouse_state = _event_pump.mouse_state();
-                let x = mouse_state.x();
-                let y = mouse_state.y();
-                let buttons = [mouse_state.left(), mouse_state.right()];
+                if normal_cpu_speed {
+                    let adj_ms = cpu_period as usize * speed_numerator[speed_index]
+                        / speed_denominator[speed_index];
+                    let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
 
-                let delta_x = x.saturating_sub(prev_x);
-                let delta_y = y.saturating_sub(prev_y);
-                prev_x = x;
-                prev_y = y;
-                cpu.bus.set_mouse_state(delta_x, delta_y, &buttons);
+                    if adj_time > 0 {
+                        spin_sleep::sleep(std::time::Duration::from_micros(adj_time as u64))
+                    }
+                }
 
-                // Check the full_screen state is not change
-                if full_screen != current_full_screen {
-                    let current_full_screen_value = current_full_screen;
-                    current_full_screen = full_screen;
-                    if current_full_screen {
-                        match canvas.window_mut().set_fullscreen(FullscreenType::Desktop) {
-                            Err(e) => {
-                                eprintln!("Unable to set full_screen = {e}");
-                                current_full_screen = current_full_screen_value;
-                                full_screen = current_full_screen_value;
-                            }
-                            _ => {
-                                sdl_context.mouse().show_cursor(false);
-                                cpu.bus.video.invalidate_video_cache();
-                            }
-                        }
-                    } else {
-                        match canvas.window_mut().set_fullscreen(FullscreenType::Off) {
-                            Err(e) => {
-                                eprintln!("Unable to restore from full_screen = {e}");
-                                current_full_screen = current_full_screen_value;
-                                full_screen = current_full_screen_value;
-                            }
-                            _ => {
-                                sdl_context.mouse().show_cursor(true);
-                                cpu.bus.video.invalidate_video_cache();
-                            }
+                update_audio(_cpu, &audio_device, normal_cpu_speed);
+                _cpu.bus.audio.clear_buffer();
+                let elapsed = t.elapsed().as_micros();
+                estimated_mhz = (dcyc as f32) / elapsed as f32;
+                dcyc -= cpu_cycles;
+                t = Instant::now();
+            }
+        });
+
+        if !reload_cpu {
+            break;
+        } else {
+            #[cfg(feature = "serde_support")]
+            {
+                let result = load_serialized_image();
+                match result {
+                    Ok(mut new_cpu) => {
+                        previous_cycles = new_cpu.bus.get_cycles();
+                        initialize_new_cpu(
+                            &mut new_cpu,
+                            &mut display_index,
+                            &mut speed_index,
+                            &mut disk_mode_index,
+                        );
+                        cpu = new_cpu
+                    }
+                    Err(message) => {
+                        if !message.is_empty() {
+                            eprintln!("{message}")
                         }
                     }
                 }
-            } else {
-                cpu.bus.video.skip_update = true;
             }
-
-            let video_cpu_update = t.elapsed().as_micros();
-
-            if normal_cpu_speed {
-                let adj_ms = cpu_period as usize * speed_numerator[speed_index]
-                    / speed_denominator[speed_index];
-                let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
-
-                if adj_time > 0 {
-                    spin_sleep::sleep(std::time::Duration::from_micros(adj_time as u64))
-                }
-            }
-
-            update_audio(&cpu, &audio_device, normal_cpu_speed);
-            cpu.bus.audio.clear_buffer();
-            let elapsed = t.elapsed().as_micros();
-            estimated_mhz = (dcyc as f32) / elapsed as f32;
-            dcyc -= cpu_cycles;
-            t = Instant::now();
         }
     }
 
@@ -2173,3 +2175,4 @@ fn initialize_apple_system(cpu: &mut CPU, rom_image: &[u8], offset: u16, extende
         cpu.bus.mem.rom_bank = false;
     }
 }
+
