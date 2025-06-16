@@ -1984,7 +1984,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         if !cpu.step_instruction() {
             break;
         }
-        
+
         let current_cycles = cpu.bus.get_cycles();
         dcyc += current_cycles - previous_cycles;
         previous_cycles = current_cycles;
@@ -2019,8 +2019,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
         if dcyc >= cpu_cycles {
             let normal_disk_speed = cpu.bus.is_normal_speed();
-            let normal_cpu_speed =
-                normal_disk_speed && cpu.full_speed != CpuSpeed::SPEED_FASTEST;
+            let normal_cpu_speed = normal_disk_speed && cpu.full_speed != CpuSpeed::SPEED_FASTEST;
 
             // Update video, audio and events at multiple of 60Hz or 50Hz
             if normal_cpu_speed || video_time.elapsed().as_micros() >= cpu_period as u128 {
@@ -2082,8 +2081,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 }
 
                 // Update keyboard akd state
-                cpu.bus.any_key_down =
-                    _event_pump.keyboard_state().pressed_scancodes().count() > 0;
+                cpu.bus.any_key_down = _event_pump.keyboard_state().pressed_scancodes().count() > 0;
 
                 // Update mouse state
                 let mouse_state = _event_pump.mouse_state();

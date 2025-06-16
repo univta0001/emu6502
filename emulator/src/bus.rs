@@ -465,7 +465,7 @@ impl Bus {
         let floating_value = self.read_floating_bus();
 
         if slot >= self.io_slot.len() {
-            return floating_value
+            return floating_value;
         }
 
         let slot_value = self.io_slot[slot];
@@ -556,12 +556,11 @@ impl Bus {
                         }
                         None
                     }
-                    IODevice::Mockingboard(device_no) => {
-                        self.audio
-                            .mboard
-                            .get_mut(device_no)
-                            .map(|mb| mb as &mut dyn Card)
-                    }
+                    IODevice::Mockingboard(device_no) => self
+                        .audio
+                        .mboard
+                        .get_mut(device_no)
+                        .map(|mb| mb as &mut dyn Card),
                     _ => None,
                 };
 
@@ -676,7 +675,7 @@ impl Bus {
     pub fn irq(&mut self) -> Option<usize> {
         if !self.disable_video {
             if let Some(irq_val) = self.mouse.poll_irq() {
-                return Some(irq_val)
+                return Some(irq_val);
             }
         }
 

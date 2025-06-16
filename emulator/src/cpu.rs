@@ -1891,7 +1891,7 @@ impl CPU {
             if !self.execute_instruction() {
                 return false;
             }
-            
+
             if self.self_test && self.program_counter == program_counter_state {
                 if self.bus.mem_read(0x200) == 0xf0 || self.bus.mem_read(0x202) == 0xf0 {
                     eprintln!("Successful Self Test");
