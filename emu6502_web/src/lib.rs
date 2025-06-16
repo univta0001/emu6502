@@ -136,7 +136,7 @@ impl Emulator {
     }
 
     pub fn step_cpu(&mut self) {
-        self.cpu.step_instruction();
+        self.cpu.step_with_callback(|_| {});
     }
 
     pub fn cpu_cycles(&self) -> u32 {
