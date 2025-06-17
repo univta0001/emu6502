@@ -2378,17 +2378,10 @@ impl DiskDrive {
         //let track_to_read = 0;
         let tmap_track = disk.tmap_data[disk.track as usize];
 
-        let random_bits = NOMINAL_USABLE_BITS_TRACK_SIZE;
-        let track_bits = if tmap_track == 255 {
-            random_bits
+        let (track_bits, track_type) = if tmap_track == 255 {
+            (NOMINAL_USABLE_BITS_TRACK_SIZE, TrackType::None)
         } else {
-            disk.raw_track_bits[tmap_track as usize]
-        };
-
-        let track_type = if tmap_track == 255 {
-            TrackType::None
-        } else {
-            disk.trackmap[tmap_track as usize]
+            (disk.raw_track_bits[tmap_track as usize], disk.trackmap[tmap_track as usize])
         };
 
         let multiplier = 100000;

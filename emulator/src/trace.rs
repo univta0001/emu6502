@@ -380,7 +380,7 @@ pub fn dump_trace(output: &mut String, cpu: &mut CPU, addr: u16, status: bool) {
                             if address & 0x00FF == 0x00FF {
                                 let lo = cpu.bus.unclocked_addr_read(address);
                                 let hi = cpu.bus.unclocked_addr_read(address & 0xFF00);
-                                ((hi as u16) << 8) | (lo as u16)
+                                u16::from_le_bytes([lo, hi])
                             } else {
                                 cpu.bus.unclocked_addr_read_u16(address)
                             }
