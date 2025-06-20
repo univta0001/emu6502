@@ -16,7 +16,7 @@ js-sys = "0.3.77"
 web-time = "1.1.0"
 console_error_panic_hook = "0.1.7"
 #wee_alloc = "0.4.5"
-autocfg = "1.4.0"
+autocfg = "1.5.0"
 
 [lib]
 name = "emu6502_web"

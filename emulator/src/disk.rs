@@ -855,9 +855,16 @@ fn write_disk_content_to_disk(disk: &Disk, disk_content: &[u8]) -> io::Result<()
                     };
                     let file = File::create(filename)?;
                     let mut zip = ZipWriter::new(file);
-                    let options: FileOptions<'_, ()> = FileOptions::default()
+                    let mut options: FileOptions<'_, ()> = FileOptions::default()
                         .compression_method(CompressionMethod::Deflated)
                         .unix_permissions(0o755);
+
+                    if let Ok(local_offset) = time::OffsetDateTime::now_local() {
+                        if let Ok(modified_time) = local_offset.try_into() {
+                            options = options.last_modified_time(modified_time);
+                        }
+                    }
+
                     zip.start_file::<&str, ()>(&file_name_in_zip, options)?;
                     zip.write_all(disk_content)?;
                     zip.finish()?;
