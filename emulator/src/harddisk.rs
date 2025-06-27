@@ -619,21 +619,21 @@ impl HardDisk {
             disk.raw_data[i] = 0;
         }
 
-        if self.enable_save {
-            if let Some(filename) = &disk.filename {
-                match OpenOptions::new().write(true).open(filename) {
-                    Ok(mut f) => {
-                        let result = f.write_all(&disk.raw_data);
-                        if result.is_err() {
-                            disk.error = DeviceStatus::DeviceIoError as u8;
-                            return;
-                        }
-                    }
-                    _ => {
-                        eprintln!("Unable to open {filename}");
+        if self.enable_save
+            && let Some(filename) = &disk.filename
+        {
+            match OpenOptions::new().write(true).open(filename) {
+                Ok(mut f) => {
+                    let result = f.write_all(&disk.raw_data);
+                    if result.is_err() {
                         disk.error = DeviceStatus::DeviceIoError as u8;
                         return;
                     }
+                }
+                _ => {
+                    eprintln!("Unable to open {filename}");
+                    disk.error = DeviceStatus::DeviceIoError as u8;
+                    return;
                 }
             }
         }

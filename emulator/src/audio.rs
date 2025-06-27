@@ -720,10 +720,11 @@ impl Tick for Audio {
             */
             if self.tape.active != 0 {
                 if self.cycles > self.tape.active {
-                    if self.enable_save && self.tape.record {
-                        if let Err(e) = self.save_tape_data() {
-                            eprintln!("Unable to save tape data: {e}");
-                        }
+                    if self.enable_save
+                        && self.tape.record
+                        && let Err(e) = self.save_tape_data()
+                    {
+                        eprintln!("Unable to save tape data: {e}");
                     }
 
                     self.tape.play = false;
@@ -765,13 +766,17 @@ impl Tick for Audio {
 
             // Update left channel
             let tone_count = self.update_phase(&mut left_phase, 0) + 1;
-            let left_phase = left_phase.saturating_add(beep as HigherChannel)
-                .saturating_add(disk_sound as HigherChannel) / tone_count as HigherChannel;
+            let left_phase = left_phase
+                .saturating_add(beep as HigherChannel)
+                .saturating_add(disk_sound as HigherChannel)
+                / tone_count as HigherChannel;
 
             // Update right channel
             let tone_count = self.update_phase(&mut right_phase, 1) + 1;
-            let right_phase = right_phase.saturating_add(beep as HigherChannel)
-                .saturating_add(disk_sound as HigherChannel) / tone_count as HigherChannel;
+            let right_phase = right_phase
+                .saturating_add(beep as HigherChannel)
+                .saturating_add(disk_sound as HigherChannel)
+                / tone_count as HigherChannel;
 
             // Left audio
             self.data.sample.push(left_phase as Channel);

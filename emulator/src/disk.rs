@@ -556,27 +556,24 @@ where
         return true;
     }
 
-    if check_extension(file_ext, "gz") {
-        if let Some(stem_ext) = stem.extension() {
-            return check_extension(stem_ext, ext);
-        }
+    if check_extension(file_ext, "gz")
+        && let Some(stem_ext) = stem.extension()
+    {
+        return check_extension(stem_ext, ext);
     }
 
     #[cfg(feature = "zip")]
     if check_extension(file_ext, "zip") {
         let zip_file_path = _file_path.as_ref();
-        if let Ok(file) = std::fs::File::open(zip_file_path) {
-            if let Ok(mut archive) = ZipArchive::new(file) {
-                if archive.len() == 1 {
-                    if let Ok(file_in_zip) = archive.by_index(0) {
-                        if file_in_zip.is_file() {
-                            let filename = file_in_zip.name();
-                            let file_ext = format!(".{}", ext);
-                            return filename.to_lowercase().ends_with(&file_ext);
-                        }
-                    }
-                }
-            }
+        if let Ok(file) = std::fs::File::open(zip_file_path)
+            && let Ok(mut archive) = ZipArchive::new(file)
+            && archive.len() == 1
+            && let Ok(file_in_zip) = archive.by_index(0)
+            && file_in_zip.is_file()
+        {
+            let filename = file_in_zip.name();
+            let file_ext = format!(".{ext}");
+            return filename.to_lowercase().ends_with(&file_ext);
         }
     }
 
@@ -855,13 +852,13 @@ fn write_disk_content_to_disk(disk: &Disk, disk_content: &[u8]) -> io::Result<()
                     };
                     let file = File::create(filename)?;
                     let mut zip = ZipWriter::new(file);
-                    let mut options: FileOptions<'_, ()> = FileOptions::default()
-                        .compression_method(CompressionMethod::Deflated);
+                    let mut options: FileOptions<'_, ()> =
+                        FileOptions::default().compression_method(CompressionMethod::Deflated);
 
-                    if let Ok(local_offset) = time::OffsetDateTime::now_local() {
-                        if let Ok(modified_time) = local_offset.try_into() {
-                            options = options.last_modified_time(modified_time);
-                        }
+                    if let Ok(local_offset) = time::OffsetDateTime::now_local()
+                        && let Ok(modified_time) = local_offset.try_into()
+                    {
+                        options = options.last_modified_time(modified_time);
                     }
 
                     zip.start_file::<&str, ()>(&file_name_in_zip, options)?;
@@ -2387,7 +2384,10 @@ impl DiskDrive {
         let (track_bits, track_type) = if tmap_track == 255 {
             (NOMINAL_USABLE_BITS_TRACK_SIZE, TrackType::None)
         } else {
-            (disk.raw_track_bits[tmap_track as usize], disk.trackmap[tmap_track as usize])
+            (
+                disk.raw_track_bits[tmap_track as usize],
+                disk.trackmap[tmap_track as usize],
+            )
         };
 
         let multiplier = 100000;

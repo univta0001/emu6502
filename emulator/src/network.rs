@@ -338,7 +338,7 @@ impl Uthernet2 {
             if self.is_pcap_available() {
                 names = self.list_pcap_device_names();
             } else {
-                names = Vec::new()
+                names = Vec::new();
             }
         }
 
@@ -511,34 +511,34 @@ impl Uthernet2 {
     fn receive_one_packet_from_socket(&mut self, i: usize) {
         let base_addr = self.get_base_socket_addr(i);
         let socket = &mut self.socket[i];
-        if socket.is_open() {
-            if let Proto::Tcp(stream) = &mut socket.socket_handle {
-                let rsr = u16::from_be_bytes([
-                    self.mem[base_addr + W5100_SN_RX_RSR0],
-                    self.mem[base_addr + W5100_SN_RX_RSR1],
-                ]) as usize;
-                let free_available = socket.receive_size - rsr;
-                if free_available > 32 {
-                    let mut buffer = vec![0; free_available - 1];
-                    match stream.read(&mut buffer) {
-                        Ok(size) => {
-                            //u2_debug!("Read bytes received from peer = 0x{size:02X}");
-                            if size == 0 {
-                                self.clear_socket(i);
-                            } else {
-                                self.write_data_for_protocol(i, &buffer[0..size]);
-                            }
-                        }
-
-                        Err(ref error) if error.kind() == ErrorKind::WouldBlock => {}
-
-                        Err(error) => {
-                            u2_debug!(
-                                "Read bytes received from peer ERROR {:?} - Closing socket",
-                                error
-                            );
+        if socket.is_open()
+            && let Proto::Tcp(stream) = &mut socket.socket_handle
+        {
+            let rsr = u16::from_be_bytes([
+                self.mem[base_addr + W5100_SN_RX_RSR0],
+                self.mem[base_addr + W5100_SN_RX_RSR1],
+            ]) as usize;
+            let free_available = socket.receive_size - rsr;
+            if free_available > 32 {
+                let mut buffer = vec![0; free_available - 1];
+                match stream.read(&mut buffer) {
+                    Ok(size) => {
+                        //u2_debug!("Read bytes received from peer = 0x{size:02X}");
+                        if size == 0 {
                             self.clear_socket(i);
+                        } else {
+                            self.write_data_for_protocol(i, &buffer[0..size]);
                         }
+                    }
+
+                    Err(ref error) if error.kind() == ErrorKind::WouldBlock => {}
+
+                    Err(error) => {
+                        u2_debug!(
+                            "Read bytes received from peer ERROR {:?} - Closing socket",
+                            error
+                        );
+                        self.clear_socket(i);
                     }
                 }
             }
@@ -548,47 +548,45 @@ impl Uthernet2 {
     fn receive_one_udp_packet_from_socket(&mut self, i: usize) {
         let base_addr = self.get_base_socket_addr(i);
         let socket = &mut self.socket[i];
-        if socket.is_open() {
-            if let Proto::Udp(udp) = &mut socket.socket_handle {
-                let rsr = u16::from_be_bytes([
-                    self.mem[base_addr + W5100_SN_RX_RSR0],
-                    self.mem[base_addr + W5100_SN_RX_RSR1],
-                ]) as usize;
-                let free_available = socket.receive_size - rsr;
-                if free_available > 8 {
-                    let mut buffer = vec![0; free_available - 1];
-                    match udp.recv_from(&mut buffer) {
-                        Ok((size, sock_addr)) => {
-                            //u2_debug!("Read bytes received from peer = 0x{size:02X}");
-                            if size == 0 {
-                                self.clear_socket(i);
-                            } else {
-                                let ip = sock_addr.ip();
-                                let port = sock_addr.port();
+        if socket.is_open()
+            && let Proto::Udp(udp) = &mut socket.socket_handle
+        {
+            let rsr = u16::from_be_bytes([
+                self.mem[base_addr + W5100_SN_RX_RSR0],
+                self.mem[base_addr + W5100_SN_RX_RSR1],
+            ]) as usize;
+            let free_available = socket.receive_size - rsr;
+            if free_available > 8 {
+                let mut buffer = vec![0; free_available - 1];
+                match udp.recv_from(&mut buffer) {
+                    Ok((size, sock_addr)) => {
+                        //u2_debug!("Read bytes received from peer = 0x{size:02X}");
+                        if size == 0 {
+                            self.clear_socket(i);
+                        } else {
+                            let ip = sock_addr.ip();
+                            let port = sock_addr.port();
 
-                                // Only accept ipv4 packets
-                                if let IpAddr::V4(ipv4_addr) = ip {
-                                    let ipv4 = ipv4_addr.octets();
-                                    self.mem
-                                        [base_addr + W5100_SN_DIPR0..=base_addr + W5100_SN_DIPR3]
-                                        .copy_from_slice(&[ipv4[0], ipv4[1], ipv4[2], ipv4[3]]);
-                                    self.mem
-                                        [base_addr + W5100_SN_DPORT0..=base_addr + W5100_SN_DPORT1]
-                                        .copy_from_slice(&port.to_be_bytes());
-                                    self.write_data_for_protocol(i, &buffer[0..size]);
-                                }
+                            // Only accept ipv4 packets
+                            if let IpAddr::V4(ipv4_addr) = ip {
+                                let ipv4 = ipv4_addr.octets();
+                                self.mem[base_addr + W5100_SN_DIPR0..=base_addr + W5100_SN_DIPR3]
+                                    .copy_from_slice(&[ipv4[0], ipv4[1], ipv4[2], ipv4[3]]);
+                                self.mem[base_addr + W5100_SN_DPORT0..=base_addr + W5100_SN_DPORT1]
+                                    .copy_from_slice(&port.to_be_bytes());
+                                self.write_data_for_protocol(i, &buffer[0..size]);
                             }
                         }
+                    }
 
-                        Err(ref error) if error.kind() == ErrorKind::WouldBlock => {}
+                    Err(ref error) if error.kind() == ErrorKind::WouldBlock => {}
 
-                        Err(error) => {
-                            u2_debug!(
-                                "Read bytes received from peer ERROR: {:?} - Closing socket",
-                                error
-                            );
-                            self.clear_socket(i);
-                        }
+                    Err(error) => {
+                        u2_debug!(
+                            "Read bytes received from peer ERROR: {:?} - Closing socket",
+                            error
+                        );
+                        self.clear_socket(i);
                     }
                 }
             }
@@ -1087,20 +1085,20 @@ impl Uthernet2 {
 
             let resolve_name = format!("{name}:{port}");
             let addrs_iter = resolve_name.to_socket_addrs();
-            if let Ok(mut addrs) = addrs_iter {
-                if let Some(addr) = addrs.next() {
-                    u2_debug!("DNS name={name} resolved to {}", addr.ip());
+            if let Ok(mut addrs) = addrs_iter
+                && let Some(addr) = addrs.next()
+            {
+                u2_debug!("DNS name={name} resolved to {}", addr.ip());
 
-                    if let IpAddr::V4(ip) = addr.ip() {
-                        let octets = ip.octets().to_vec();
+                if let IpAddr::V4(ip) = addr.ip() {
+                    let octets = ip.octets().to_vec();
 
-                        let dest =
-                            &mut self.mem[base_addr + W5100_SN_DIPR0..=base_addr + W5100_SN_DIPR3];
-                        dest[0] = octets[0];
-                        dest[1] = octets[1];
-                        dest[2] = octets[2];
-                        dest[3] = octets[3];
-                    }
+                    let dest =
+                        &mut self.mem[base_addr + W5100_SN_DIPR0..=base_addr + W5100_SN_DIPR3];
+                    dest[0] = octets[0];
+                    dest[1] = octets[1];
+                    dest[2] = octets[2];
+                    dest[3] = octets[3];
                 }
             }
         }
@@ -1281,10 +1279,10 @@ impl Uthernet2 {
             match &mut socket.socket_handle {
                 Proto::Tcp(stream) => {
                     let result = stream.write_all(data);
-                    if let Err(error) = result {
-                        if !(matches!(error.kind(), ErrorKind::WouldBlock)) {
-                            self.clear_socket(i);
-                        }
+                    if let Err(error) = result
+                        && !(matches!(error.kind(), ErrorKind::WouldBlock))
+                    {
+                        self.clear_socket(i);
                     }
                 }
                 _ => {
@@ -1302,10 +1300,10 @@ impl Uthernet2 {
                         );
 
                         let result = udp.send_to(data, sock_addr);
-                        if let Err(error) = result {
-                            if !(matches!(error.kind(), ErrorKind::WouldBlock)) {
-                                self.clear_socket(i);
-                            }
+                        if let Err(error) = result
+                            && !(matches!(error.kind(), ErrorKind::WouldBlock))
+                        {
+                            self.clear_socket(i);
                         }
                     }
                 }

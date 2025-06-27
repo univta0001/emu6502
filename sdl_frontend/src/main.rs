@@ -1240,20 +1240,20 @@ fn load_serialized_image() -> Result<CPU, String> {
 
     // Load the loaded disk into the new cpu
     for drive in 0..2 {
-        if is_disk_loaded(&new_cpu, drive) {
-            if let Some(disk_filename) = get_disk_filename(&new_cpu, drive) {
-                let result = load_disk(&mut new_cpu, &disk_filename, drive);
-                if let Err(e) = result {
-                    eprintln!("Unable to load disk {} : {e}", file_path.display());
-                }
+        if is_disk_loaded(&new_cpu, drive)
+            && let Some(disk_filename) = get_disk_filename(&new_cpu, drive)
+        {
+            let result = load_disk(&mut new_cpu, &disk_filename, drive);
+            if let Err(e) = result {
+                eprintln!("Unable to load disk {} : {e}", file_path.display());
             }
         }
-        if is_harddisk_loaded(&new_cpu, drive) {
-            if let Some(disk_filename) = get_harddisk_filename(&new_cpu, drive) {
-                let result = load_harddisk(&mut new_cpu, &disk_filename, drive);
-                if let Err(e) = result {
-                    eprintln!("Unable to load disk {} : {e}", file_path.display());
-                }
+        if is_harddisk_loaded(&new_cpu, drive)
+            && let Some(disk_filename) = get_harddisk_filename(&new_cpu, drive)
+        {
+            let result = load_harddisk(&mut new_cpu, &disk_filename, drive);
+            if let Err(e) = result {
+                eprintln!("Unable to load disk {} : {e}", file_path.display());
             }
         }
     }
@@ -1782,10 +1782,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
 
     let mut key_caps = true;
-    if let Some(capslock) = pargs.opt_value_from_str::<_, String>("--capslock")? {
-        if capslock == "off" {
-            key_caps = false;
-        }
+    if let Some(capslock) = pargs.opt_value_from_str::<_, String>("--capslock")?
+        && capslock == "off"
+    {
+        key_caps = false;
     }
 
     if let Some(name) = pargs.opt_value_from_str::<_, String>("--interface")? {
@@ -2004,11 +2004,11 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 let latch = _cpu.bus.get_keyboard_latch();
 
                 // Only put into keyboard latch when it is ready
-                if latch < 0x80 {
-                    if let Some(ch) = clipboard_text.chars().next() {
-                        _cpu.bus.set_keyboard_latch((ch as u8) + 0x80);
-                        clipboard_text.remove(0);
-                    }
+                if latch < 0x80
+                    && let Some(ch) = clipboard_text.chars().next()
+                {
+                    _cpu.bus.set_keyboard_latch((ch as u8) + 0x80);
+                    clipboard_text.remove(0);
                 }
             }
 
@@ -2177,4 +2177,3 @@ fn initialize_apple_system(cpu: &mut CPU, rom_image: &[u8], offset: u16, extende
         cpu.bus.mem.rom_bank = false;
     }
 }
-

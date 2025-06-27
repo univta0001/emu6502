@@ -261,10 +261,10 @@ impl Mmu {
     }
 
     pub fn set_aux_bank(&mut self, value: u8) {
-        if let Some(aux_mem) = &self.ext_aux_mem {
-            if (value as usize) * 0x10000 <= aux_mem.len() {
-                self.aux_bank = value
-            }
+        if let Some(aux_mem) = &self.ext_aux_mem
+            && (value as usize) * 0x10000 <= aux_mem.len()
+        {
+            self.aux_bank = value
         }
     }
 

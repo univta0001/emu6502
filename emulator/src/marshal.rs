@@ -192,13 +192,13 @@ fn from_hex<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Er
 #[cfg(feature = "serde_support")]
 pub fn from_hex_64k<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
     let result = from_hex(deserializer);
-    if let Ok(ref value) = result {
-        if value.len() != 0x10000 {
-            return Err(Error::invalid_value(
-                Unexpected::Seq,
-                &"Array should be 64K",
-            ));
-        }
+    if let Ok(ref value) = result
+        && value.len() != 0x10000
+    {
+        return Err(Error::invalid_value(
+            Unexpected::Seq,
+            &"Array should be 64K",
+        ));
     }
     result
 }
@@ -206,13 +206,14 @@ pub fn from_hex_64k<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8
 #[cfg(feature = "serde_support")]
 pub fn from_hex_12k<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
     let result = from_hex(deserializer);
-    if let Ok(ref value) = result {
-        if value.len() != 0x3000 && value.len() % 0x3000 * 8 != 0 {
-            return Err(Error::invalid_value(
-                Unexpected::Seq,
-                &"Array should be 12K or multiple of 128k",
-            ));
-        }
+    if let Ok(ref value) = result
+        && value.len() != 0x3000
+        && value.len() % 0x3000 * 8 != 0
+    {
+        return Err(Error::invalid_value(
+            Unexpected::Seq,
+            &"Array should be 12K or multiple of 128k",
+        ));
     }
     result
 }
@@ -220,13 +221,13 @@ pub fn from_hex_12k<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8
 #[cfg(feature = "serde_support")]
 pub fn from_hex_32k<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
     let result = from_hex(deserializer);
-    if let Ok(ref value) = result {
-        if value.len() != 0x8000 {
-            return Err(Error::invalid_value(
-                Unexpected::Seq,
-                &"Array should be 32K",
-            ));
-        }
+    if let Ok(ref value) = result
+        && value.len() != 0x8000
+    {
+        return Err(Error::invalid_value(
+            Unexpected::Seq,
+            &"Array should be 32K",
+        ));
     }
     result
 }

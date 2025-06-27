@@ -673,10 +673,10 @@ impl Bus {
     }
 
     pub fn irq(&mut self) -> Option<usize> {
-        if !self.disable_video {
-            if let Some(irq_val) = self.mouse.poll_irq() {
-                return Some(irq_val);
-            }
+        if !self.disable_video
+            && let Some(irq_val) = self.mouse.poll_irq()
+        {
+            return Some(irq_val);
         }
 
         if !self.disable_audio {
