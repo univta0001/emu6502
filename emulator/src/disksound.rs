@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 const WAV_OFFSET: usize = 44;
 
 // Disk sound samples
+// Licensed under CC0 1.0 Universal (CC0 1.0)
 const SPIN_START_EMPTY: &[u8] = include_bytes!("../../resource/disk/525_spin_start_empty.wav");
 const SPIN_START_LOADED: &[u8] = include_bytes!("../../resource/disk/525_spin_start_loaded.wav");
 const SPIN_EMPTY: &[u8] = include_bytes!("../../resource/disk/525_spin_empty.wav");
