@@ -1921,8 +1921,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 None
             }
         },
-        _ => {
-            eprintln!("No audio device detected!");
+        err => {
+            eprintln!("No audio device detected!: {:?}", err);
             None
         }
     };
