@@ -1922,7 +1922,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             }
         },
         err => {
-            eprintln!("No audio device detected!: {:?}", err);
+            eprintln!("No audio device detected!: {err:?}");
             None
         }
     };
