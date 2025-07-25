@@ -567,17 +567,36 @@ where
         let zip_file_path = _file_path.as_ref();
         if let Ok(file) = std::fs::File::open(zip_file_path)
             && let Ok(mut archive) = ZipArchive::new(file)
-            && archive.len() == 1
-            && let Ok(file_in_zip) = archive.by_index(0)
-            && file_in_zip.is_file()
+            && let Some(index) = zip_file_index(&mut archive)
         {
-            let filename = file_in_zip.name();
-            let file_ext = format!(".{ext}");
-            return filename.to_lowercase().ends_with(&file_ext);
+            if let Ok(file_in_zip) = archive.by_index(index) {
+                let filename = file_in_zip.name();
+                let file_ext = format!(".{ext}");
+                return filename.to_lowercase().ends_with(&file_ext);
+            }
         }
     }
 
     false
+}
+
+fn zip_file_index<R: Read + Seek>(archive: &mut ZipArchive<R>) -> Option<usize> {
+    let mut index = 0;
+    let mut files_count = 0;
+    for i in 0..archive.len() {
+        if let Ok(item_in_zip) = archive.by_index(i)
+            && item_in_zip.is_file()
+        {
+            files_count += 1;
+            index = i;
+
+            if files_count > 1 {
+                break;
+            }
+        }
+    }
+
+    if files_count == 1 { Some(index) } else { None }
 }
 
 fn save_dsk_woz_to_disk(disk: &Disk) -> io::Result<()> {
@@ -694,9 +713,16 @@ fn decompress_array_zip(data: &[u8]) -> io::Result<Vec<u8>> {
     let mut buffer: Vec<u8> = Vec::new();
     let cursor = std::io::Cursor::new(data);
     let mut archive = ZipArchive::new(cursor)?;
-    let mut file_in_zip = archive.by_index(0)?;
-    file_in_zip.read_to_end(&mut buffer)?;
-    Ok(buffer)
+    if let Some(index) = zip_file_index(&mut archive) {
+        let mut file_in_zip = archive.by_index(index)?;
+        file_in_zip.read_to_end(&mut buffer)?;
+        Ok(buffer)
+    } else {
+        Err(std::io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Unable to decompress array zip file",
+        ))
+    }
 }
 
 // It is assumed that the woz structure is the same when saving back
@@ -847,8 +873,15 @@ fn write_disk_content_to_disk(disk: &Disk, disk_content: &[u8]) -> io::Result<()
                     let file_name_in_zip = {
                         let file = std::fs::File::open(filename)?;
                         let mut archive = ZipArchive::new(file)?;
-                        let file_in_zip = archive.by_index(0)?;
-                        file_in_zip.name().to_string()
+                        if let Some(index) = zip_file_index(&mut archive) {
+                            let file_in_zip = archive.by_index(index)?;
+                            file_in_zip.name().to_string()
+                        } else {
+                            return Err(std::io::Error::new(
+                                io::ErrorKind::InvalidInput,
+                                "Unable to get file index in zip file",
+                            ));
+                        }
                     };
                     let file = File::create(filename)?;
                     let mut zip = ZipWriter::new(file);

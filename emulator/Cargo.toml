@@ -15,14 +15,14 @@ iz80 = { path = "iz80", optional = true }
 time = { version = "0.3.41", features = ["local-offset","wasm-bindgen"] }
 fastrand = "2.3.0"
 educe = { version = "0.6.0", default-features = false, features = ["Debug"], optional = true }
-pcap = { version = "2.2.0", default-features = false, optional = true }
+pcap = { version = "2.3.0", default-features = false, optional = true }
 libloading = { version = "0.8.8", default-features = false, optional = true }
 
 [dev-dependencies]
 regex = "1.11.1"
 criterion = { version = "0.6.0", features = ['html_reports'] }
 crossbeam-utils = "0.8.21"
-serde_json = "1.0.140"
+serde_json = "1.0.141"
 crossbeam-epoch = "0.9.18"
 ryu = "1.0.20"
 autocfg = "1.5.0"
