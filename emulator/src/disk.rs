@@ -1139,22 +1139,17 @@ fn convert_woz_to_nib(disk: &Disk) -> io::Result<()> {
 }
 
 fn write_woz_u16(dsk: &mut Vec<u8>, value: u16) {
-    dsk.push((value & 0xff) as u8);
-    dsk.push(((value >> 8) & 0xff) as u8);
+    dsk.extend_from_slice(&value.to_le_bytes());
 }
 
 fn write_woz_u32(dsk: &mut Vec<u8>, value: u32) {
-    dsk.push((value & 0xff) as u8);
-    dsk.push(((value >> 8) & 0xff) as u8);
-    dsk.push(((value >> 16) & 0xff) as u8);
-    dsk.push(((value >> 24) & 0xff) as u8);
+    dsk.extend_from_slice(&value.to_le_bytes());
 }
 
 fn read_woz_u32(dsk: &[u8], offset: usize) -> u32 {
-    dsk[offset] as u32
-        + (dsk[offset + 1] as u32) * 256
-        + (dsk[offset + 2] as u32) * 65536
-        + (dsk[offset + 3] as u32) * 16777216
+    let mut data = [0u8; 4];
+    data.copy_from_slice(&dsk[offset..offset + 4]);
+    u32::from_le_bytes(data)
 }
 
 fn read_woz_bit(
