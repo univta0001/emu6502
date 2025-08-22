@@ -723,7 +723,7 @@ fn parse_2mg_array(dsk: &[u8]) -> io::Result<(usize, usize)> {
     let creator_len = read_dsk_u32(dsk, 0x28);
 
     if dsk.len() != (offset + len + comment_len + creator_len) as usize
-        || len % HD_BLOCK_SIZE as u32 != 0
+        || !len.is_multiple_of(HD_BLOCK_SIZE as u32)
     {
         return Err(std::io::Error::new(
             io::ErrorKind::InvalidInput,

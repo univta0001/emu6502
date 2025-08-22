@@ -2292,7 +2292,7 @@ impl Video {
 
         if row < 192 && col < 40 {
             let x = col * 14;
-            let odd = col % 2 > 0;
+            let odd = !col.is_multiple_of(2);
             let dhires_mode =
                 self.display_mode != DisplayMode::RGB && self.dhires_mode && !self.vid80_mode;
             let mixed_mode = self.mixed_mode && row >= 160;
@@ -2574,14 +2574,14 @@ impl Video {
                         .reverse_bits()
                         >> 3)
                         & 0xf;
-                    if col % 2 == 0 {
+                    if col.is_multiple_of(2) {
                         val
                     } else {
                         ((val & 0x3) << 2) | (val >> 2)
                     }
                 } else {
                     let val = (self.read_hires_memory(col - 1, row) >> 3) & 0xf;
-                    if col % 2 == 0 {
+                    if col.is_multiple_of(2) {
                         val
                     } else {
                         ((val & 0x3) << 2) | (val >> 2)

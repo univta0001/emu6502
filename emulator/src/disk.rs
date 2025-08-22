@@ -568,12 +568,11 @@ where
         if let Ok(file) = std::fs::File::open(zip_file_path)
             && let Ok(mut archive) = ZipArchive::new(file)
             && let Some(index) = zip_file_index(&mut archive)
+            && let Ok(file_in_zip) = archive.by_index(index)
         {
-            if let Ok(file_in_zip) = archive.by_index(index) {
-                let filename = file_in_zip.name();
-                let file_ext = format!(".{ext}");
-                return filename.to_lowercase().ends_with(&file_ext);
-            }
+            let filename = file_in_zip.name();
+            let file_ext = format!(".{ext}");
+            return filename.to_lowercase().ends_with(&file_ext);
         }
     }
 
@@ -964,7 +963,7 @@ fn create_woz2_trk(dsk: &[u8], woz_offset: usize, disk: &Disk, newdsk: &mut Vec<
     for qt in 0..160 {
         let len = disk.raw_track_data[qt].len();
         chunk_size += disk.raw_track_data[qt].len() + 8;
-        if len % 512 != 0 {
+        if !len.is_multiple_of(512) {
             chunk_size += 512 - (len % 512);
         }
     }
@@ -981,7 +980,7 @@ fn create_woz2_trk(dsk: &[u8], woz_offset: usize, disk: &Disk, newdsk: &mut Vec<
 
         if len > 0 {
             // If the len is not divisible by 512, pad it
-            if len % 512 != 0 {
+            if !len.is_multiple_of(512) {
                 len += 512 - (len % 512);
             }
 
@@ -1006,7 +1005,7 @@ fn create_woz2_trk(dsk: &[u8], woz_offset: usize, disk: &Disk, newdsk: &mut Vec<
             newdsk.extend_from_slice(&disk.raw_track_data[qt]);
 
             // If the len is not divisible by 512, pad it
-            if len % 512 != 0 {
+            if !len.is_multiple_of(512) {
                 let pad = 512 - (len % 512);
                 for _ in 0..pad {
                     newdsk.push(0);

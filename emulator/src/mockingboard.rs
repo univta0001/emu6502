@@ -470,7 +470,7 @@ impl W65C22 {
             self.irq_happen = cycles;
         }
 
-        if cycles % 8 == 0 {
+        if cycles.is_multiple_of(8) {
             self.ay8910[0].tick();
             self.ay8910[1].tick();
         }
