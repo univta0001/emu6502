@@ -2463,10 +2463,10 @@ impl DiskDrive {
             self.lss_cycle -= optimal_timing;
             if !self.q7 {
                 self.lss_cycle -= lss_adjustment;
-            }
 
-            if disk.optimal_timing == 28 {
-                self.lss_cycle -= multiplier
+                if disk.optimal_timing == 28 {
+                    self.lss_cycle -= multiplier
+                }
             }
         }
 
