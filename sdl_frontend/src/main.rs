@@ -14,28 +14,27 @@ use image::ColorType;
 use image::ImageEncoder;
 use image::codecs::png::PngEncoder;
 use rfd::FileDialog;
-use sdl2::GameControllerSubsystem;
-use sdl2::VideoSubsystem;
-use sdl2::audio::AudioQueue;
-use sdl2::audio::AudioSpecDesired;
-use sdl2::controller::Axis;
-use sdl2::controller::Button;
-use sdl2::controller::GameController;
-use sdl2::event::Event;
-use sdl2::event::EventType::DropFile;
-use sdl2::keyboard::Keycode;
-use sdl2::keyboard::Mod;
-use sdl2::mouse::MouseButton;
-use sdl2::pixels::Color;
-use sdl2::pixels::PixelFormatEnum;
-use sdl2::rect::Point;
-use sdl2::rect::Rect;
-use sdl2::render::BlendMode;
-use sdl2::render::Canvas;
-use sdl2::render::RenderTarget;
-use sdl2::render::Texture;
-use sdl2::video::FullscreenType;
-use sdl2::video::Window;
+use sdl3::GamepadSubsystem;
+use sdl3::VideoSubsystem;
+use sdl3::audio::AudioFormat;
+use sdl3::audio::AudioSpec;
+use sdl3::audio::AudioStreamOwner;
+use sdl3::event::Event;
+use sdl3::gamepad::Axis;
+use sdl3::gamepad::Button;
+use sdl3::gamepad::Gamepad;
+use sdl3::keyboard::Keycode;
+use sdl3::keyboard::Mod;
+use sdl3::pixels::Color;
+use sdl3::pixels::PixelFormat;
+use sdl3::pixels::PixelMasks;
+use sdl3::rect::Point;
+use sdl3::rect::Rect;
+use sdl3::render::BlendMode;
+use sdl3::render::Canvas;
+use sdl3::render::RenderTarget;
+use sdl3::render::Texture;
+use sdl3::video::Window;
 use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsStr;
@@ -70,8 +69,8 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 struct EventParam<'a> {
     video_subsystem: &'a VideoSubsystem,
-    game_controller: &'a GameControllerSubsystem,
-    gamepads: &'a mut HashMap<u32, (u32, GameController)>,
+    game_controller: &'a GamepadSubsystem,
+    gamepads: &'a mut HashMap<u32, (u16, Gamepad)>,
     key_caps: &'a mut bool,
     estimated_mhz: f32,
     reload_cpu: &'a mut bool,
@@ -107,30 +106,15 @@ fn translate_key_to_apple_key(
         return (true, 10);
     }
 
-    if !apple2e && keycode == Keycode::Backquote {
+    if !apple2e && keycode == Keycode::Grave {
         return (false, 0);
     }
 
-    if [
-        Keycode::Pause,
-        Keycode::Home,
-        Keycode::PageUp,
-        Keycode::PageDown,
-        Keycode::End,
-        Keycode::Application,
-        Keycode::LGui,
-        Keycode::RGui,
-    ]
-    .contains(&keycode)
-    {
+    if keycode as u16 >= 0x100 {
         return (false, 0);
     }
 
-    if keycode.into_i32() as i16 >= 0x100 {
-        return (false, 0);
-    }
-
-    let mut value = keycode.into_i32() as i16 & 0x7f;
+    let mut value = keycode as i16 & 0x7f;
     let shift_mode = keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD);
     let ctrl_mode = keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD);
 
@@ -148,21 +132,21 @@ fn translate_key_to_apple_key(
 
     if shift_mode {
         match keycode {
-            Keycode::Backquote => value = '~' as i16,
-            Keycode::Num1 => value = '!' as i16,
-            Keycode::Num2 => value = '@' as i16,
-            Keycode::Num3 => value = '#' as i16,
-            Keycode::Num4 => value = '$' as i16,
-            Keycode::Num5 => value = '%' as i16,
-            Keycode::Num6 => value = '^' as i16,
-            Keycode::Num7 => value = '&' as i16,
-            Keycode::Num8 => value = '*' as i16,
-            Keycode::Num9 => value = '(' as i16,
-            Keycode::Num0 => value = ')' as i16,
+            Keycode::Grave => value = '~' as i16,
+            Keycode::_1 => value = '!' as i16,
+            Keycode::_2 => value = '@' as i16,
+            Keycode::_3 => value = '#' as i16,
+            Keycode::_4 => value = '$' as i16,
+            Keycode::_5 => value = '%' as i16,
+            Keycode::_6 => value = '^' as i16,
+            Keycode::_7 => value = '&' as i16,
+            Keycode::_8 => value = '*' as i16,
+            Keycode::_9 => value = '(' as i16,
+            Keycode::_0 => value = ')' as i16,
             Keycode::Minus => value = '_' as i16,
             Keycode::Equals => value = '+' as i16,
             Keycode::Semicolon => value = ':' as i16,
-            Keycode::Quote => value = '"' as i16,
+            Keycode::Apostrophe => value = '"' as i16,
             Keycode::Comma => value = '<' as i16,
             Keycode::Period => value = '>' as i16,
             Keycode::Slash => value = '?' as i16,
@@ -299,10 +283,10 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                 let joystick_id = entry.0;
                 if joystick_id < 2 {
                     match button {
-                        Button::A => {
+                        Button::South => {
                             cpu.bus.pushbutton_latch[2 * joystick_id as usize] = 0x80;
                         }
-                        Button::B => {
+                        Button::East => {
                             cpu.bus.pushbutton_latch[2 * joystick_id as usize + 1] = 0x80;
                         }
                         Button::DPadUp => {
@@ -328,10 +312,10 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
                 let joystick_id = entry.0;
                 if joystick_id < 2 {
                     match button {
-                        Button::A => {
+                        Button::South => {
                             cpu.bus.pushbutton_latch[2 * joystick_id as usize] = 0x00;
                         }
-                        Button::B => {
+                        Button::East => {
                             cpu.bus.pushbutton_latch[2 * joystick_id as usize + 1] = 0x00;
                         }
                         Button::DPadUp | Button::DPadDown => {
@@ -349,10 +333,11 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         Event::ControllerDeviceAdded { which, .. } => {
             // Which refers to joystick device index
             if let Ok(controller) = event_param.game_controller.open(which) {
-                let instance_id = controller.instance_id();
-                event_param
-                    .gamepads
-                    .insert(instance_id, (which, controller));
+                if let Some(player_index) = controller.player_index() {
+                    event_param
+                        .gamepads
+                        .insert(which, (player_index, controller));
+                }
             }
         }
 
@@ -764,7 +749,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         }
 
         Event::MouseButtonDown {
-            mouse_btn: MouseButton::Middle,
+            mouse_btn: sdl3::mouse::MouseButton::Middle,
             ..
         } => {
             if event_param.clipboard_text.is_empty() {
@@ -1331,7 +1316,7 @@ fn dump_track_sector_info(cpu: &CPU) {
     */
 }
 
-fn update_audio(cpu: &mut CPU, audio_device: &Option<AudioQueue<i16>>, normal_speed: bool) {
+fn update_audio(cpu: &mut CPU, audio_stream: &Option<AudioStreamOwner>, normal_speed: bool) {
     let snd = &mut cpu.bus.audio;
 
     let video_50hz = cpu.bus.video.is_video_50hz();
@@ -1343,7 +1328,7 @@ fn update_audio(cpu: &mut CPU, audio_device: &Option<AudioQueue<i16>>, normal_sp
 
     snd.update_cycles(video_50hz);
 
-    if let Some(audio) = audio_device {
+    if let Some(stream) = audio_stream {
         let buffer = if normal_speed || snd.get_buffer().len() < (audio_sample_size * 2) as usize {
             snd.get_buffer()
         } else {
@@ -1358,8 +1343,12 @@ fn update_audio(cpu: &mut CPU, audio_device: &Option<AudioQueue<i16>>, normal_sp
         };
 
         // Only buffer for 1 second of audio
-        if audio.size() < audio_sample_size * 2 * 8 {
-            let _ = audio.queue_audio(buffer);
+        if let Ok(available) = stream.available_bytes() {
+            if available < audio_sample_size as i32 * 2 * 8 {
+                let mut byte_buffer = Vec::with_capacity(buffer.len() * 2);
+                byte_buffer.extend(buffer.iter().flat_map(|&item| item.to_ne_bytes()));
+                let _ = stream.put_data(&byte_buffer);
+            }
         }
     }
 }
@@ -1373,22 +1362,19 @@ fn update_video(
 ) {
     let disp = &mut cpu.bus.video;
     if *save_screenshot {
-        match File::create("screenshot.png") {
-            Ok(output) => {
-                let encoder = PngEncoder::new(output);
-                let result = encoder.write_image(
-                    &disp.frame,
-                    WIDTH as u32,
-                    HEIGHT as u32,
-                    ColorType::Rgba8.into(),
-                );
-                if result.is_err() {
-                    eprintln!("Unable to create PNG file");
-                }
+        if let Ok(output) = File::create("screenshot.png") {
+            let encoder = PngEncoder::new(output);
+            let result = encoder.write_image(
+                &disp.frame,
+                WIDTH as u32,
+                HEIGHT as u32,
+                ColorType::Rgba8.into(),
+            );
+            if result.is_err() {
+                eprintln!("Unable to create PNG file");
             }
-            _ => {
-                eprintln!("Unable to create screenshot.png");
-            }
+        } else {
+            eprintln!("Unable to create screenshot.png");
         }
 
         *save_screenshot = false;
@@ -1427,12 +1413,12 @@ fn update_video(
             canvas.set_draw_color(Color::RGBA(255, 0, 0, 128));
         }
 
-        if fullscreen {
-            let width = canvas.viewport().width() as i32;
-            let _ = draw_circle(canvas, width - 4, 4, 2);
+        let width = if fullscreen {
+            canvas.viewport().width() as i32
         } else {
-            let _ = draw_circle(canvas, (WIDTH - 4) as i32, 4, 2);
-        }
+            WIDTH as i32
+        };
+        let _ = draw_circle(canvas, width - 4, 4, 2);
     }
     canvas.present();
 }
@@ -1782,10 +1768,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
 
     let mut key_caps = true;
-    if let Some(capslock) = pargs.opt_value_from_str::<_, String>("--capslock")?
-        && capslock == "off"
-    {
-        key_caps = false;
+    if let Some(capslock) = pargs.opt_value_from_str::<_, String>("--capslock")? {
+        if capslock == "off" {
+            key_caps = false;
+        }
     }
 
     if let Some(name) = pargs.opt_value_from_str::<_, String>("--interface")? {
@@ -1867,7 +1853,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
 
     // Create the SDL2 context
-    let sdl_context = sdl2::init()?;
+    let sdl_context = sdl3::init()?;
 
     // Create window
     let width = (scale * WIDTH as f32) as u32;
@@ -1879,8 +1865,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         .build()?;
 
     // Create the game controller
-    let game_controller = sdl_context.game_controller()?;
-    let mut gamepads: HashMap<u32, (u32, GameController)> = HashMap::new();
+    let game_controller = sdl_context.gamepad()?;
+    let mut gamepads: HashMap<u32, (u16, Gamepad)> = HashMap::new();
 
     // Set apple2 icon
     /*
@@ -1890,10 +1876,20 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     // Create canvas
     //let mut canvas = window.into_canvas().present_vsync().build().unwrap();
-    let mut canvas = window.into_canvas().build()?;
+    let mut canvas = window.into_canvas();
     let creator = canvas.texture_creator();
-    let mut texture =
-        creator.create_texture_target(PixelFormatEnum::ABGR8888, WIDTH as u32, HEIGHT as u32)?;
+    let abgr8888_mask = PixelMasks {
+        bpp: 32,
+        amask: 0xff000000,
+        bmask: 0x00ff0000,
+        gmask: 0x0000ff00,
+        rmask: 0x000000ff,
+    };
+    let mut texture = creator.create_texture_target::<PixelFormat>(
+        PixelFormat::from_masks(abgr8888_mask),
+        WIDTH as u32,
+        HEIGHT as u32,
+    )?;
 
     canvas.clear();
     canvas.set_scale(scale, scale)?;
@@ -1904,32 +1900,32 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     // Create audio
     let audio_subsystem = sdl_context.audio();
-    let desired_spec = AudioSpecDesired {
+    let desired_spec = AudioSpec {
         freq: Some(AUDIO_SAMPLE_RATE as i32),
-        channels: Some(2),                       // stereo
-        samples: Some(AUDIO_SAMPLE_SIZE as u16), // default sample size
+        channels: Some(2),
+        format: Some(AudioFormat::s16_sys()),
     };
 
-    let audio_device = match &audio_subsystem {
-        Ok(audio) => match audio.open_queue::<i16, _>(None, &desired_spec) {
-            Ok(device) => {
-                device.resume();
-                Some(device)
-            }
-            _ => {
-                eprintln!("Audio device detected but cannot open queue!");
+    let audio_stream = match &audio_subsystem {
+        Ok(audio) => {
+            let audio_device = audio.default_playback_device();
+            if let Ok(stream) = audio_device.open_device_stream(Some(&desired_spec)) {
+                stream.resume().expect("Unable to resume playback");
+                Some(stream)
+            } else {
+                eprintln!("Unable to get audio stream");
                 None
             }
-        },
+        }
         err => {
-            eprintln!("No audio device detected!: {err:?}");
+            eprintln!("No audio device detected!: {:?}", err);
             None
         }
     };
 
     // Create SDL event pump
-    let mut _event_pump = sdl_context.event_pump()?;
-    _event_pump.enable_event(DropFile);
+    let mut _event_pump = sdl_context.event_pump().unwrap();
+    //_event_pump.enable_event(DropFile);
 
     let mut t = Instant::now();
     let mut video_time = Instant::now();
@@ -2066,10 +2062,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     let y = mouse_state.y();
                     let buttons = [mouse_state.left(), mouse_state.right()];
 
-                    let delta_x = x.saturating_sub(prev_x);
-                    let delta_y = y.saturating_sub(prev_y);
-                    prev_x = x;
-                    prev_y = y;
+                    let delta_x = (x as i32).saturating_sub(prev_x);
+                    let delta_y = (y as i32).saturating_sub(prev_y);
+                    prev_x = x as i32;
+                    prev_y = y as i32;
                     _cpu.bus.set_mouse_state(delta_x, delta_y, &buttons);
 
                     // Check the full_screen state is not change
@@ -2077,29 +2073,21 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         let current_full_screen_value = current_full_screen;
                         current_full_screen = full_screen;
                         if current_full_screen {
-                            match canvas.window_mut().set_fullscreen(FullscreenType::Desktop) {
-                                Err(e) => {
-                                    eprintln!("Unable to set full_screen = {e}");
-                                    current_full_screen = current_full_screen_value;
-                                    full_screen = current_full_screen_value;
-                                }
-                                _ => {
-                                    sdl_context.mouse().show_cursor(false);
-                                    _cpu.bus.video.invalidate_video_cache();
-                                }
+                            if let Err(e) = canvas.window_mut().set_fullscreen(true) {
+                                eprintln!("Unable to set full_screen = {}", e);
+                                current_full_screen = current_full_screen_value;
+                                full_screen = current_full_screen_value;
+                            } else {
+                                sdl_context.mouse().show_cursor(false);
+                                _cpu.bus.video.invalidate_video_cache();
                             }
+                        } else if let Err(e) = canvas.window_mut().set_fullscreen(false) {
+                            eprintln!("Unable to restore from full_screen = {}", e);
+                            current_full_screen = current_full_screen_value;
+                            full_screen = current_full_screen_value;
                         } else {
-                            match canvas.window_mut().set_fullscreen(FullscreenType::Off) {
-                                Err(e) => {
-                                    eprintln!("Unable to restore from full_screen = {e}");
-                                    current_full_screen = current_full_screen_value;
-                                    full_screen = current_full_screen_value;
-                                }
-                                _ => {
-                                    sdl_context.mouse().show_cursor(true);
-                                    _cpu.bus.video.invalidate_video_cache();
-                                }
-                            }
+                            sdl_context.mouse().show_cursor(true);
+                            _cpu.bus.video.invalidate_video_cache();
                         }
                     }
                 } else {
@@ -2118,7 +2106,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     }
                 }
 
-                update_audio(_cpu, &audio_device, normal_cpu_speed);
+                update_audio(_cpu, &audio_stream, normal_cpu_speed);
                 _cpu.bus.audio.clear_buffer();
                 let elapsed = t.elapsed().as_micros();
                 estimated_mhz = (dcyc as f32) / elapsed as f32;
