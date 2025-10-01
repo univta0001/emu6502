@@ -332,12 +332,12 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
 
         Event::ControllerDeviceAdded { which, .. } => {
             // Which refers to joystick device index
-            if let Ok(controller) = event_param.game_controller.open(which) {
-                if let Some(player_index) = controller.player_index() {
-                    event_param
-                        .gamepads
-                        .insert(which, (player_index, controller));
-                }
+            if let Ok(controller) = event_param.game_controller.open(which)
+                && let Some(player_index) = controller.player_index()
+            {
+                event_param
+                    .gamepads
+                    .insert(which, (player_index, controller));
             }
         }
 
@@ -1343,12 +1343,10 @@ fn update_audio(cpu: &mut CPU, audio_stream: &Option<AudioStreamOwner>, normal_s
         };
 
         // Only buffer for 1 second of audio
-        if let Ok(available) = stream.available_bytes() {
-            if available < audio_sample_size as i32 * 2 * 8 {
-                let mut byte_buffer = Vec::with_capacity(buffer.len() * 2);
-                byte_buffer.extend(buffer.iter().flat_map(|&item| item.to_ne_bytes()));
-                let _ = stream.put_data(&byte_buffer);
-            }
+        if let Ok(available) = stream.available_bytes()
+            && available < audio_sample_size as i32 * 2 * 8
+        {
+            let _ = stream.put_data_i16(buffer);
         }
     }
 }
@@ -1768,10 +1766,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
 
     let mut key_caps = true;
-    if let Some(capslock) = pargs.opt_value_from_str::<_, String>("--capslock")? {
-        if capslock == "off" {
-            key_caps = false;
-        }
+    if let Some(capslock) = pargs.opt_value_from_str::<_, String>("--capslock")?
+        && capslock == "off"
+    {
+        key_caps = false;
     }
 
     if let Some(name) = pargs.opt_value_from_str::<_, String>("--interface")? {
