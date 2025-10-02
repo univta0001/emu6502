@@ -784,27 +784,7 @@ impl Video {
         let (row, col) = (val / CYCLES_PER_ROW, val % CYCLES_PER_ROW);
 
         if val == 0 {
-            let elapsed = (SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap_or(std::time::Duration::ZERO)
-                .as_millis()
-                .saturating_sub(self.blink_time.into())) as u64;
-
-            let blink_period = if !self.video_50hz {
-                BLINK_PERIOD_60HZ
-            } else {
-                BLINK_PERIOD_50HZ
-            };
-
-            if elapsed > blink_period as u64 {
-                if !self.vid80_mode {
-                    self.blink = !self.blink;
-                }
-                self.blink_time = (SystemTime::now()
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .unwrap_or(std::time::Duration::ZERO)
-                    .as_millis()) as u64;
-            }
+            self.update_blink_state();
         }
 
         // Video line takes 65 clock cycles
@@ -826,16 +806,16 @@ impl Video {
         let video_index = visible_col + row * 40;
         let flash_status = self.get_flash_mode(video_data, video_mode);
 
-        if self.video_cache[video_index] != video_data
-            || self.video_reparse[row] != 0
-            || flash_status
-        {
-            if self.video_cache[video_index] != video_data || flash_status {
+        let cache_changed = self.video_cache[video_index] != video_data;
+        let needs_reparse = self.video_reparse[row] != 0;
+
+        if cache_changed || needs_reparse || flash_status {
+            if cache_changed || flash_status {
                 self.video_dirty[row / 8] = 1;
             }
 
             // Redraw the whole row in the next 2 cycle
-            if self.video_reparse[row] != 0 {
+            if needs_reparse {
                 if visible_col == 39 {
                     if self.video_reparse[row] > 2 {
                         self.video_reparse[row] = 0;
@@ -844,7 +824,7 @@ impl Video {
                         self.video_reparse[row] += 1;
                     }
                 }
-            } else if self.video_cache[video_index] != video_data && self.video_reparse[row] == 0 {
+            } else if cache_changed && !needs_reparse {
                 self.video_reparse[row] = 1;
             }
 
@@ -1130,6 +1110,28 @@ impl Video {
             self.shr_linear_mode
         } else {
             false
+        }
+    }
+
+    fn update_blink_state(&mut self) {
+        let current_time_ms = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or(std::time::Duration::ZERO)
+            .as_millis() as u64;
+
+        let elapsed = current_time_ms.saturating_sub(self.blink_time);
+
+        let blink_period = if !self.video_50hz {
+            BLINK_PERIOD_60HZ
+        } else {
+            BLINK_PERIOD_50HZ
+        };
+
+        if elapsed > blink_period as u64 {
+            if !self.vid80_mode {
+                self.blink = !self.blink;
+            }
+            self.blink_time = current_time_ms;
         }
     }
 
