@@ -463,7 +463,9 @@ impl Audio {
             ));
         }
 
-        let file_size = u32::from_le_bytes(data[4..8].try_into().unwrap());
+        let mut buffer = [0u8; 4];
+        buffer.copy_from_slice(&data[4..8]);
+        let file_size = u32::from_le_bytes(buffer);
 
         if file_size + 8 != data.len() as u32 {
             return Err(std::io::Error::new(
@@ -495,8 +497,11 @@ impl Audio {
 
         let stereo_size = data[22] as usize;
 
-        let samples_per_second = u32::from_le_bytes(data[24..28].try_into().unwrap());
-        let bytes_rate = u32::from_le_bytes(data[28..32].try_into().unwrap());
+        buffer.copy_from_slice(&data[24..28]);
+        let samples_per_second = u32::from_le_bytes(buffer);
+
+        buffer.copy_from_slice(&data[28..32]);
+        let bytes_rate = u32::from_le_bytes(buffer);
 
         if bytes_rate != samples_per_second * stereo_size as u32 {
             return Err(std::io::Error::new(
@@ -514,8 +519,8 @@ impl Audio {
                 break;
             }
 
-            let chunk_size =
-                u32::from_le_bytes(data[data_pos + 4..data_pos + 8].try_into().unwrap());
+            buffer.copy_from_slice(&data[data_pos + 4..data_pos + 8]);
+            let chunk_size = u32::from_le_bytes(buffer);
             data_pos += (8 + ((chunk_size + 1) & !1)) as usize;
         }
 
@@ -526,8 +531,8 @@ impl Audio {
             ));
         }
 
-        let actual_data_size =
-            u32::from_le_bytes(data[data_pos + 4..data_pos + 8].try_into().unwrap());
+        buffer.copy_from_slice(&data[data_pos + 4..data_pos + 8]);
+        let actual_data_size = u32::from_le_bytes(buffer);
 
         if (actual_data_size + data_pos as u32) != file_size
             || actual_data_size != data[data_pos + 8..].len() as u32
