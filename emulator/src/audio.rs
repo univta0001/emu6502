@@ -26,6 +26,11 @@ const TAPE_TOLERANCE: u8 = 8;
 const TAPE_HIGH_LEVEL: u8 = 224;
 const TAPE_LOW_LEVEL: u8 = 32;
 
+const RIFF_HEADER: &[u8] = b"RIFF";
+const WAVE_CHUNK: &[u8] = b"WAVE";
+const FMT_CHUNK: &[u8] = b"fmt ";
+const DATA_CHUNK: &[u8] = b"data";
+
 const AY_LEVEL: [u16; 16] = [
     0x0000, 0x0385, 0x053d, 0x0770, 0x0ad7, 0x0fd5, 0x15b0, 0x230c, 0x2b4c, 0x43c1, 0x5a4c, 0x732f,
     0x9204, 0xaff1, 0xd921, 0xffff,
@@ -451,16 +456,14 @@ impl Audio {
         }
 
         // Check for RIFF header
-        if &data[0..4] != b"RIFF" {
+        if &data[0..4] != RIFF_HEADER {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
                 "Invalid WAV file - Missing RIFF",
             ));
         }
 
-        let mut buffer = [0u8; 4];
-        buffer.copy_from_slice(&data[4..8]);
-        let file_size = u32::from_le_bytes(buffer);
+        let file_size = u32::from_le_bytes(data[4..8].try_into().unwrap());
 
         if file_size + 8 != data.len() as u32 {
             return Err(std::io::Error::new(
@@ -469,7 +472,7 @@ impl Audio {
             ));
         }
 
-        if &data[8..12] != b"WAVE" || &data[12..16] != b"fmt " {
+        if &data[8..12] != WAVE_CHUNK || &data[12..16] != FMT_CHUNK {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
                 "Invalid WAV file - WAVE and fmt expected",
@@ -492,10 +495,8 @@ impl Audio {
 
         let stereo_size = data[22] as usize;
 
-        buffer.copy_from_slice(&data[24..28]);
-        let samples_per_second = u32::from_le_bytes(buffer);
-        buffer.copy_from_slice(&data[28..32]);
-        let bytes_rate = u32::from_le_bytes(buffer);
+        let samples_per_second = u32::from_le_bytes(data[24..28].try_into().unwrap());
+        let bytes_rate = u32::from_le_bytes(data[28..32].try_into().unwrap());
 
         if bytes_rate != samples_per_second * stereo_size as u32 {
             return Err(std::io::Error::new(
@@ -504,23 +505,39 @@ impl Audio {
             ));
         }
 
-        if &data[36..40] != b"data" {
+        // Find data chunk
+        let mut data_pos = 36;
+        let mut data_found = false;
+        while data_pos + 8 <= data.len() {
+            if &data[data_pos..data_pos + 4] == DATA_CHUNK {
+                data_found = true;
+                break;
+            }
+
+            let chunk_size =
+                u32::from_le_bytes(data[data_pos + 4..data_pos + 8].try_into().unwrap());
+            data_pos += (8 + ((chunk_size + 1) & !1)) as usize;
+        }
+
+        if !data_found {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
                 "Invalid WAV file - data expected",
             ));
         }
 
-        buffer.copy_from_slice(&data[40..44]);
-        let actual_data_size = u32::from_le_bytes(buffer);
+        let actual_data_size =
+            u32::from_le_bytes(data[data_pos + 4..data_pos + 8].try_into().unwrap());
 
-        if actual_data_size + 36 != file_size || actual_data_size != data[44..].len() as u32 {
+        if (actual_data_size + data_pos as u32) != file_size
+            || actual_data_size != data[data_pos + 8..].len() as u32
+        {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
                 format!(
                     "Invalid WAV file - Size mismatched ({} != {})",
                     actual_data_size,
-                    data[44..].len(),
+                    data[data_pos + 8..].len(),
                 ),
             ));
         }
@@ -655,10 +672,10 @@ impl Audio {
                 }
             }
 
-            file.write_all(b"RIFF")?;
+            file.write_all(RIFF_HEADER)?;
             file.write_all(&((data.len() + 36) as u32).to_le_bytes())?;
-            file.write_all(b"WAVE")?;
-            file.write_all(b"fmt ")?;
+            file.write_all(WAVE_CHUNK)?;
+            file.write_all(FMT_CHUNK)?;
             file.write_all(&16_u32.to_le_bytes())?;
 
             // PCM, and mono one channel
@@ -674,7 +691,7 @@ impl Audio {
             file.write_all(&8_u16.to_le_bytes())?;
 
             // data header and data len
-            file.write_all(b"data")?;
+            file.write_all(DATA_CHUNK)?;
             file.write_all(&(data.len() as u32).to_le_bytes())?;
 
             file.write_all(&data)?;
