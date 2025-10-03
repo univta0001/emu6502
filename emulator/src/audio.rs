@@ -447,16 +447,20 @@ impl Audio {
     }
 
     pub fn load_tape_data_array(&mut self, data: &[u8]) -> std::io::Result<()> {
-        let (samples_per_second, mut processed_data) = self.parse_wav_header(data)?;
+        let (samples_per_second, wav_data) = self.parse_wav_header(data)?;
 
         self.tape.data.clear();
         self.tape_reset();
 
-        if processed_data.is_empty() || samples_per_second == 0 {
+        if wav_data.is_empty() || samples_per_second == 0 {
             return Ok(())
         }
 
-        self.convert_to_square_wave(&mut processed_data);
+        let processed_data = self.convert_to_square_wave(&wav_data);
+
+        if processed_data.is_empty() {
+            return Ok(())
+        }
 
         let resampling_ratio = AUDIO_SAMPLE_RATE / samples_per_second as f32;
         let output_len = (processed_data.len() as f32 * resampling_ratio) as usize;
@@ -464,26 +468,28 @@ impl Audio {
             return Ok(())
         }
 
-        let mut prev = processed_data[0];
-        let mut slope_was = (prev <= 128) as isize;
-        let mut polarity = slope_was > 0;
+        let mut prev_sample = processed_data[0];
+        let mut last_slope_sign = (prev_sample <= 128) as isize;
+        let mut current_polarity = last_slope_sign > 0;
         let input_len = processed_data.len();
 
         self.tape.data.reserve(output_len);
         for i in 0..output_len {
             let index = (i as f32 / resampling_ratio) as usize;
-            let item = processed_data[index.min(input_len - 1)];
-            let slope_is = self.slope(prev, item);
-            if slope_is != 0 && slope_is != slope_was {
-                polarity = !polarity;
-                slope_was = slope_is;
+            let current_sample = processed_data[index.min(input_len - 1)];
+            let current_slope = self.slope(prev_sample, current_sample);
+            if current_slope != 0 && current_slope != last_slope_sign {
+                current_polarity = !current_polarity;
+                last_slope_sign = current_slope;
             }
-            if polarity {
-                self.tape.data.push(TAPE_HIGH_LEVEL);
+
+            self.tape.data.push(if current_polarity {
+                TAPE_HIGH_LEVEL
             } else {
-                self.tape.data.push(TAPE_LOW_LEVEL);
-            }
-            prev = item;
+                TAPE_LOW_LEVEL
+            });
+
+            prev_sample = current_sample;
         }
 
         Ok(())
@@ -597,19 +603,22 @@ impl Audio {
             .collect()))
     }
 
-    fn convert_to_square_wave(&self, data: &mut [u8]) {
+    fn convert_to_square_wave(&self, data: &[u8]) -> Vec<u8> {
         let mut prev = 128;
-        for item in data {
-            if *item > 128 + TAPE_TOLERANCE {
-                *item = TAPE_HIGH_LEVEL;
-                prev = *item;
-            } else if *item < 128 - TAPE_TOLERANCE {
-                *item = TAPE_LOW_LEVEL;
-                prev = *item;
+        let mut return_data = Vec::new();
+        return_data.reserve(data.len());
+        for &item in data {
+            if item > 128 + TAPE_TOLERANCE {
+                return_data.push(TAPE_HIGH_LEVEL);
+                prev = TAPE_HIGH_LEVEL;
+            } else if item < 128 - TAPE_TOLERANCE {
+                return_data.push(TAPE_LOW_LEVEL);
+                prev = TAPE_LOW_LEVEL;
             } else {
-                *item = prev;
+                return_data.push(prev)
             }
         }
+        return_data
     }
 
     fn slope(&self, prev: u8, curr: u8) -> isize {
