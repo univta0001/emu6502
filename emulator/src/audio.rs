@@ -452,7 +452,7 @@ impl Audio {
         self.tape.data.clear();
         self.tape_reset();
 
-        if processed_data.is_empty() {
+        if processed_data.is_empty() || samples_per_second == 0 {
             return Ok(())
         }
 
@@ -467,10 +467,12 @@ impl Audio {
         let mut prev = processed_data[0];
         let mut slope_was = (prev <= 128) as isize;
         let mut polarity = slope_was > 0;
+        let input_len = processed_data.len();
 
+        self.tape.data.reserve(output_len);
         for i in 0..output_len {
             let index = (i as f32 / resampling_ratio) as usize;
-            let item = processed_data[index];
+            let item = processed_data[index.min(input_len - 1)];
             let slope_is = self.slope(prev, item);
             if slope_is != 0 && slope_is != slope_was {
                 polarity = !polarity;
