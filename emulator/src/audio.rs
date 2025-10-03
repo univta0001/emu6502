@@ -448,113 +448,10 @@ impl Audio {
     }
 
     pub fn load_tape_data_array(&mut self, data: &[u8]) -> std::io::Result<()> {
-        if data.len() < 44 {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Invalid WAV file",
-            ));
-        }
-
-        // Check for RIFF header
-        if &data[0..4] != RIFF_HEADER {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Invalid WAV file - Missing RIFF",
-            ));
-        }
-
-        let mut buffer = [0u8; 4];
-        buffer.copy_from_slice(&data[4..8]);
-        let file_size = u32::from_le_bytes(buffer);
-
-        if file_size + 8 != data.len() as u32 {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Invalid WAV file - Wrong Data Len",
-            ));
-        }
-
-        if &data[8..12] != WAVE_CHUNK || &data[12..16] != FMT_CHUNK {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Invalid WAV file - WAVE and fmt expected",
-            ));
-        }
-
-        if data[16..20] != [0x10, 0, 0, 0] {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Invalid WAV file - Only PCM supported",
-            ));
-        }
-
-        if data[20..24] != [0x01, 0, 0x2, 0] && data[20..24] != [0x01, 0, 0x1, 0] {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Invalid WAV file - Only mono or stereo supported",
-            ));
-        }
-
-        let stereo_size = data[22] as usize;
-
-        buffer.copy_from_slice(&data[24..28]);
-        let samples_per_second = u32::from_le_bytes(buffer);
-
-        buffer.copy_from_slice(&data[28..32]);
-        let bytes_rate = u32::from_le_bytes(buffer);
-
-        if bytes_rate != samples_per_second * stereo_size as u32 {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Invalid WAV file - Sample rate should match bytes rate",
-            ));
-        }
-
-        // Find data chunk
-        let mut data_pos = 36;
-        let mut data_found = false;
-        while data_pos + 8 <= data.len() {
-            if &data[data_pos..data_pos + 4] == DATA_CHUNK {
-                data_found = true;
-                break;
-            }
-
-            buffer.copy_from_slice(&data[data_pos + 4..data_pos + 8]);
-            let chunk_size = u32::from_le_bytes(buffer);
-            data_pos += (8 + ((chunk_size + 1) & !1)) as usize;
-        }
-
-        if !data_found {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Invalid WAV file - data expected",
-            ));
-        }
-
-        buffer.copy_from_slice(&data[data_pos + 4..data_pos + 8]);
-        let actual_data_size = u32::from_le_bytes(buffer);
-
-        if (actual_data_size + data_pos as u32) != file_size
-            || actual_data_size != data[data_pos + 8..].len() as u32
-        {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                format!(
-                    "Invalid WAV file - Size mismatched ({} != {})",
-                    actual_data_size,
-                    data[data_pos + 8..].len(),
-                ),
-            ));
-        }
+        let (samples_per_second, mut processed_data) = self.parse_wav_header(data)?;
 
         self.tape.data.clear();
         self.tape_reset();
-
-        let mut processed_data: Vec<_> = data[data_pos + 8..]
-            .iter()
-            .step_by(stereo_size)
-            .copied()
-            .collect();
         self.convert_to_square_wave(&mut processed_data);
 
         let resampling_ratio = AUDIO_SAMPLE_RATE / samples_per_second as f32;
@@ -580,6 +477,114 @@ impl Audio {
         }
 
         Ok(())
+    }
+
+    fn parse_wav_header(&self, data: &[u8]) -> std::io::Result<(u32, Vec<u8>)> {
+        if data.len() < 44 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid WAV file: too short",
+            ));
+        }
+
+        // Check for RIFF header
+        if &data[0..4] != RIFF_HEADER {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid WAV file - Missing RIFF header",
+            ));
+        }
+
+        let mut buffer = [0u8;4];
+        buffer.copy_from_slice(&data[4..8]);
+        let file_size = u32::from_le_bytes(buffer);
+
+        if file_size + 8 != data.len() as u32 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid WAV file - Incorrect file size",
+            ));
+        }
+
+        if &data[8..12] != WAVE_CHUNK || &data[12..16] != FMT_CHUNK {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid WAV file - Expected WAVE and fmt chunks",
+            ));
+        }
+
+        if data[16..20] != [0x10, 0, 0, 0] {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid WAV file - Only PCM format supported",
+            ));
+        }
+
+        // Check audio format: must be 1 (PCM), and channels 1 or 2
+        if data[20..24] != [0x01, 0, 0x01, 0] && data[20..24] != [0x01, 0, 0x02, 0] {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid WAV file - Only mono or stereo PCM supported",
+            ));
+        }
+
+        let stereo_size = data[22] as usize;
+
+        buffer.copy_from_slice(&data[24..28]);
+        let samples_per_second = u32::from_le_bytes(buffer);
+        buffer.copy_from_slice(&data[28..32]);
+        let bytes_rate = u32::from_le_bytes(buffer);
+
+        if bytes_rate != samples_per_second * stereo_size as u32 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid WAV file - Bytes rate doesn't match sample rate and channel count",
+            ));
+        }
+
+        // Find data chunk
+        let mut data_pos = 36;
+        let mut data_found = false;
+        while data_pos + 8 <= data.len() {
+            if &data[data_pos..data_pos + 4] == DATA_CHUNK {
+                data_found = true;
+                break;
+            }
+
+            buffer.copy_from_slice(&data[data_pos + 4..data_pos + 8]);
+            let chunk_size = u32::from_le_bytes(buffer);
+            // WAV uses 2-byte alignment for chunks
+            data_pos += (8 + ((chunk_size + 1) & !1)) as usize;
+        }
+
+        if !data_found {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid WAV file - Missing data chunk",
+            ));
+        }
+
+        buffer.copy_from_slice(&data[data_pos + 4..data_pos + 8]);
+        let actual_data_size =
+            u32::from_le_bytes(buffer);
+        let audio_data = &data[data_pos + 8..];
+
+        if actual_data_size != audio_data.len() as u32 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!(
+                    "Invalid WAV file - Data size mismatch: declared {} bytes, found {}",
+                    actual_data_size,
+                    audio_data.len()
+                ),
+            ));
+        }
+
+        Ok((samples_per_second, data[data_pos + 8..]
+            .iter()
+            .step_by(stereo_size)
+            .copied()
+            .collect()))
     }
 
     fn convert_to_square_wave(&self, data: &mut [u8]) {

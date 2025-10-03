@@ -11,9 +11,9 @@ license = "MIT"
 
 [dependencies]
 emu6502 = { path = "../emulator", features=["serde_support","z80","web_time","flate","zip"] }
-wasm-bindgen = "0.2.101"
-wasm-bindgen-futures = "0.4.51"
-js-sys = "0.3.78"
+wasm-bindgen = "0.2.104"
+wasm-bindgen-futures = "0.4.54"
+js-sys = "0.3.81"
 web-time = "1.1.0"
 console_error_panic_hook = "0.1.7"
 #wee_alloc = "0.4.5"
