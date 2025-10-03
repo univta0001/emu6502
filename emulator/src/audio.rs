@@ -1,6 +1,5 @@
 use crate::bus::Tick;
 use crate::mockingboard::Mockingboard;
-use std::cmp::Ordering;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -452,10 +451,19 @@ impl Audio {
 
         self.tape.data.clear();
         self.tape_reset();
+
+        if processed_data.is_empty() {
+            return Ok(())
+        }
+
         self.convert_to_square_wave(&mut processed_data);
 
         let resampling_ratio = AUDIO_SAMPLE_RATE / samples_per_second as f32;
         let output_len = (processed_data.len() as f32 * resampling_ratio) as usize;
+        if output_len == 0 {
+            return Ok(())
+        }
+
         let mut prev = processed_data[0];
         let mut slope_was = (prev <= 128) as isize;
         let mut polarity = slope_was > 0;
@@ -592,28 +600,13 @@ impl Audio {
         for item in data {
             if *item > 128 + TAPE_TOLERANCE {
                 *item = TAPE_HIGH_LEVEL;
+                prev = *item;
             } else if *item < 128 - TAPE_TOLERANCE {
                 *item = TAPE_LOW_LEVEL;
+                prev = *item;
             } else {
                 *item = prev;
-
-                if (128 - TAPE_TOLERANCE..=128 + TAPE_TOLERANCE).contains(&prev) {
-                    prev = 128;
-                }
-
-                let mut val = *item as isize - prev as isize;
-                if val.abs() < TAPE_TOLERANCE as isize {
-                    val = 0;
-                }
-
-                let slope = val.signum();
-                match slope.cmp(&0) {
-                    Ordering::Greater => *item = TAPE_HIGH_LEVEL,
-                    Ordering::Less => *item = TAPE_LOW_LEVEL,
-                    _ => {}
-                };
             }
-            prev = *item
         }
     }
 
