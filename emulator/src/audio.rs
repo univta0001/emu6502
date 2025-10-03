@@ -545,7 +545,11 @@ impl Audio {
         self.tape.data.clear();
         self.tape_reset();
 
-        let mut processed_data: Vec<_> = data[44..].iter().step_by(stereo_size).copied().collect();
+        let mut processed_data: Vec<_> = data[data_pos + 8..]
+            .iter()
+            .step_by(stereo_size)
+            .copied()
+            .collect();
         self.convert_to_square_wave(&mut processed_data);
 
         let resampling_ratio = AUDIO_SAMPLE_RATE / samples_per_second as f32;
