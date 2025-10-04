@@ -469,8 +469,8 @@ impl Audio {
         }
 
         let mut prev_sample = processed_data[0];
-        let mut last_slope_sign = (prev_sample <= 128) as isize;
-        let mut current_polarity = last_slope_sign > 0;
+        let mut last_slope_sign = -1isize;
+        let mut current_polarity = true;
         let input_len = processed_data.len();
 
         self.tape.data.reserve(output_len);
@@ -511,9 +511,7 @@ impl Audio {
             ));
         }
 
-        let mut buffer = [0u8;4];
-        buffer.copy_from_slice(&data[4..8]);
-        let file_size = u32::from_le_bytes(buffer);
+        let file_size = u32::from_le_bytes([data[4], data[5], data[6], data[7]]);
 
         if file_size + 8 != data.len() as u32 {
             return Err(std::io::Error::new(
@@ -544,14 +542,36 @@ impl Audio {
             ));
         }
 
-        let stereo_size = data[22] as usize;
+        let num_channels = u16::from_le_bytes([data[22], data[23]]) as usize;
+        if num_channels != 1 && num_channels != 2 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid WAV file - Only number of channels of 1 or 2 is supported",
+            ));
+        }
 
-        buffer.copy_from_slice(&data[24..28]);
-        let samples_per_second = u32::from_le_bytes(buffer);
-        buffer.copy_from_slice(&data[28..32]);
-        let bytes_rate = u32::from_le_bytes(buffer);
+        let samples_per_second = u32::from_le_bytes([data[24], data[25], data[26], data[27]]);
+        let bytes_rate = u32::from_le_bytes([data[28], data[29], data[30], data[31]]);
 
-        if bytes_rate != samples_per_second * stereo_size as u32 {
+        let bits_per_sample = u16::from_le_bytes([data[34], data[35]]);
+
+        if bits_per_sample != 8 && bits_per_sample != 16 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid WAV file - Only 8-bit or 16-bit PCM supported",
+            ));
+        }
+
+        let block_align = u16::from_le_bytes([data[32], data[33]]);
+        let expected_block_align = num_channels as u16 * bits_per_sample / 8;
+        if block_align != expected_block_align {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Invalid WAV file - Block align mismatch",
+            ));
+        }
+
+        if bytes_rate != samples_per_second * num_channels as u32 * bits_per_sample as u32 / 8 {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
                 "Invalid WAV file - Bytes rate doesn't match sample rate and channel count",
@@ -567,8 +587,9 @@ impl Audio {
                 break;
             }
 
-            buffer.copy_from_slice(&data[data_pos + 4..data_pos + 8]);
-            let chunk_size = u32::from_le_bytes(buffer);
+            let ptr = data_pos + 4;
+            let chunk_size =
+                u32::from_le_bytes([data[ptr], data[ptr + 1], data[ptr + 2], data[ptr + 3]]);
             // WAV uses 2-byte alignment for chunks
             data_pos += (8 + ((chunk_size + 1) & !1)) as usize;
         }
@@ -580,9 +601,9 @@ impl Audio {
             ));
         }
 
-        buffer.copy_from_slice(&data[data_pos + 4..data_pos + 8]);
+        let ptr = data_pos + 4;
         let actual_data_size =
-            u32::from_le_bytes(buffer);
+            u32::from_le_bytes([data[ptr], data[ptr + 1], data[ptr + 2], data[ptr + 3]]);
         let audio_data = &data[data_pos + 8..];
 
         if actual_data_size != audio_data.len() as u32 {
@@ -596,17 +617,30 @@ impl Audio {
             ));
         }
 
-        Ok((samples_per_second, data[data_pos + 8..]
-            .iter()
-            .step_by(stereo_size)
-            .copied()
-            .collect()))
+        if bits_per_sample == 8 {
+            Ok((
+                samples_per_second,
+                data[data_pos + 8..]
+                    .iter()
+                    .step_by(num_channels)
+                    .copied()
+                    .collect(),
+            ))
+        } else {
+            Ok((
+                samples_per_second,
+                data[data_pos + 8..]
+                    .chunks_exact(2)
+                    .step_by(num_channels)
+                    .map(|chunk| (i16::from_le_bytes([chunk[0], chunk[1]]) / 256 + 128) as u8)
+                    .collect(),
+            ))
+        }
     }
 
     fn convert_to_square_wave(&self, data: &[u8]) -> Vec<u8> {
         let mut prev = 128;
-        let mut return_data = Vec::new();
-        return_data.reserve(data.len());
+        let mut return_data = Vec::with_capacity(data.len());
         for &item in data {
             if item > 128 + TAPE_TOLERANCE {
                 return_data.push(TAPE_HIGH_LEVEL);
