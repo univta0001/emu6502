@@ -469,8 +469,8 @@ impl Audio {
         }
 
         let mut prev_sample = processed_data[0];
-        let mut last_slope_sign = -1isize;
-        let mut current_polarity = true;
+        let mut last_slope_sign = (prev_sample <= 128) as isize;
+        let mut current_polarity = last_slope_sign > 0;
         let input_len = processed_data.len();
 
         self.tape.data.reserve(output_len);
