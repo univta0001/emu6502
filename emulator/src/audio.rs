@@ -463,7 +463,7 @@ impl Audio {
         }
 
         let resampling_ratio = AUDIO_SAMPLE_RATE / samples_per_second as f32;
-        let output_len = (processed_data.len() as f32 * resampling_ratio) as usize;
+        let output_len = (processed_data.len() as f32 * resampling_ratio).ceil() as usize;
         if output_len == 0 {
             return Ok(())
         }
@@ -474,22 +474,29 @@ impl Audio {
         let input_len = processed_data.len();
 
         self.tape.data.reserve(output_len);
-        for i in 0..output_len {
-            let index = (i as f32 / resampling_ratio) as usize;
-            let current_sample = processed_data[index.min(input_len - 1)];
+
+        let mut input_index = 0.0;
+        let input_index_increment = 1.0 / resampling_ratio;
+        for _ in 0..output_len {
+            let index = input_index as usize;
+            let index = if index >= input_len { input_len - 1 } else { index };
+            let current_sample = processed_data[index];
             let current_slope = self.slope(prev_sample, current_sample);
             if current_slope != 0 && current_slope != last_slope_sign {
                 current_polarity = !current_polarity;
                 last_slope_sign = current_slope;
             }
 
-            self.tape.data.push(if current_polarity {
+            let tape_level = if current_polarity {
                 TAPE_HIGH_LEVEL
             } else {
                 TAPE_LOW_LEVEL
-            });
+            };
+
+            self.tape.data.push(tape_level);
 
             prev_sample = current_sample;
+            input_index += input_index_increment;
         }
 
         Ok(())
