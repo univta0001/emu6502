@@ -1907,11 +1907,12 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let audio_stream = match &audio_subsystem {
         Ok(audio) => {
             let audio_device = audio.default_playback_device();
-            if let Ok(stream) = audio_device.open_device_stream(Some(&desired_spec)) {
+            let audio_status = audio_device.open_device_stream(Some(&desired_spec));
+            if let Ok(stream) = audio_status {
                 stream.resume().expect("Unable to resume playback");
                 Some(stream)
             } else {
-                eprintln!("Unable to get audio stream");
+                eprintln!("Unable to get audio stream: {:?}", audio_status.err());
                 None
             }
         }
