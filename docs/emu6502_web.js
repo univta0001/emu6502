@@ -184,7 +184,7 @@ function __wbg_adapter_6(arg0, arg1, arg2) {
 }
 
 function __wbg_adapter_66(arg0, arg1, arg2, arg3) {
-    wasm.closure183_externref_shim(arg0, arg1, arg2, arg3);
+    wasm.closure184_externref_shim(arg0, arg1, arg2, arg3);
 }
 
 const EmulatorFinalization = (typeof FinalizationRegistry === 'undefined')

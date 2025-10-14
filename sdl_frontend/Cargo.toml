@@ -21,7 +21,7 @@ spin_sleep = "1.3.3"
 #regex = { version = "1.10.6", optional = true }
 
 [target.'cfg(any(target_os="windows"))'.dependencies]
-windows-sys = { version="0.61.1", features = ['Win32_System_LibraryLoader'] }
+windows-sys = { version="0.61.2", features = ['Win32_System_LibraryLoader'] }
 
 [target.'cfg(any(target_os="windows", target_os="linux"))'.dependencies]
 #sdl2 = { version = "0.38.0", features = ['bundled', 'static-link'] }
@@ -36,7 +36,7 @@ sdl3 = "0.15.1"
 
 [build-dependencies]
 embed-resource = "3.0.6"
-cc = "1.2.40"
+cc = "1.2.41"
 
 [features]
 #default = [ ]
