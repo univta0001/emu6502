@@ -453,19 +453,19 @@ impl Audio {
         self.tape_reset();
 
         if wav_data.is_empty() || samples_per_second == 0 {
-            return Ok(())
+            return Ok(());
         }
 
         let processed_data = self.convert_to_square_wave(&wav_data);
 
         if processed_data.is_empty() {
-            return Ok(())
+            return Ok(());
         }
 
         let resampling_ratio = AUDIO_SAMPLE_RATE / samples_per_second as f32;
         let output_len = (processed_data.len() as f32 * resampling_ratio).ceil() as usize;
         if output_len == 0 {
-            return Ok(())
+            return Ok(());
         }
 
         let mut prev_sample = processed_data[0];
@@ -479,7 +479,11 @@ impl Audio {
         let input_index_increment = 1.0 / resampling_ratio;
         for _ in 0..output_len {
             let index = input_index as usize;
-            let index = if index >= input_len { input_len - 1 } else { index };
+            let index = if index >= input_len {
+                input_len - 1
+            } else {
+                index
+            };
             let current_sample = processed_data[index];
             let current_slope = self.slope(prev_sample, current_sample);
             if current_slope != 0 && current_slope != last_slope_sign {
@@ -841,14 +845,20 @@ impl Tick for Audio {
             let mut right_phase: HigherChannel = 0;
 
             // Update left channel
-            let tone_count = self.update_phase(&mut left_phase, 0) + 1;
+            let tone_count = std::cmp::max(
+                1,
+                self.update_phase(&mut left_phase, 0) + (beep > 0) as usize,
+            );
             let left_phase = left_phase
                 .saturating_add(beep as HigherChannel)
                 .saturating_add(disk_sound as HigherChannel)
                 / tone_count as HigherChannel;
 
             // Update right channel
-            let tone_count = self.update_phase(&mut right_phase, 1) + 1;
+            let tone_count = std::cmp::max(
+                1,
+                self.update_phase(&mut right_phase, 1) + (beep > 0) as usize,
+            );
             let right_phase = right_phase
                 .saturating_add(beep as HigherChannel)
                 .saturating_add(disk_sound as HigherChannel)
