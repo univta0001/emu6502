@@ -75,6 +75,18 @@ impl DiskSound {
         Self::default()
     }
 
+    pub fn reset(&mut self) {
+        self.sample_value =  0;
+        self.spin_sample = SoundType::Quiet;
+        self.seek_sample = SoundType::Quiet;
+        self.step_sample = SoundType::Quiet;
+        self.spin_pos = 0;
+        self.seek_pos = 0;
+        self.seek_timeout = 0;
+        self.seek_pitch = 1;
+        self.step_pos = 0;
+    }
+
     pub fn is_enabled(&self) -> bool {
         self.enable
     }

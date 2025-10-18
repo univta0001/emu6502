@@ -1553,6 +1553,10 @@ impl DiskDrive {
             .update_sample(self.is_motor_on(), disk_loaded);
     }
 
+    pub fn reset_disk_sound_sample(&mut self) {
+        self.disk_sound.reset();
+    }
+
     pub fn read_rom(&self, offset: u8) -> u8 {
         let disk = &self.drive[self.drive_select];
         if disk.force_disk_rom13 || disk.disk_rom13 {

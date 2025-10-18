@@ -339,6 +339,7 @@ impl Bus {
                     let sample_value = self.disk.get_disk_sound_sample();
                     self.audio.update_disk_sound(sample_value);
                 } else {
+                    self.disk.reset_disk_sound_sample();
                     self.audio.update_disk_sound(0);
                 }
             }
