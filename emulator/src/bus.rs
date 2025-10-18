@@ -894,7 +894,10 @@ impl Bus {
                 self.read_floating_bus()
             }
 
-            0x21 => self.video.io_access(addr, value, write_flag),
+            0x21 => {
+                self.video.io_access(addr, value, write_flag);
+                self.read_floating_bus()
+            }
 
             0x28 => {
                 if self.is_apple2c && self.mem.cpu_memory[0xfbbf] != 0xff {
@@ -905,7 +908,10 @@ impl Bus {
                 self.read_floating_bus()
             }
 
-            0x29 => self.video.io_access(addr, value, write_flag),
+            0x29 => {
+                self.video.io_access(addr, value, write_flag);
+                self.read_floating_bus()
+            }
 
             0x30..=0x3f => self.audio_io_access(),
 
@@ -1232,7 +1238,10 @@ impl Bus {
                 }
             }
 
-            0x80..=0x8f => self.mem.io_access(addr, value, write_flag),
+            0x80..=0x8f => {
+                self.mem.io_access(addr, value, write_flag);
+                self.read_floating_bus()
+            }
 
             0x90..=0xff => self.iodevice_io_access(addr, value, write_flag),
 
