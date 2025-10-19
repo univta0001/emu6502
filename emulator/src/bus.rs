@@ -710,9 +710,9 @@ impl Bus {
 
     fn get_io_status(&self, flag: bool) -> u8 {
         if flag {
-            0x80 | (self.read_floating_bus() & 0x7f)
+            0x80 | (self.get_keyboard_latch() & 0x7f)
         } else {
-            self.read_floating_bus() & 0x7f
+            self.get_keyboard_latch() & 0x7f
         }
     }
 
@@ -1124,9 +1124,9 @@ impl Bus {
                 let delta = self.get_cycles() - self.get_paddle_trigger();
                 let value = self.get_joystick_value(self.paddle_latch[0]);
                 if delta < (value as usize * 11) {
-                    0x80
+                    (self.read_floating_bus() & 0x7f) | 0x80
                 } else {
-                    0x0
+                    self.read_floating_bus() & 0x7f
                 }
             }
 
@@ -1134,9 +1134,9 @@ impl Bus {
                 let delta = self.get_cycles() - self.get_paddle_trigger();
                 let value = self.get_joystick_value(self.paddle_latch[1]);
                 if delta < (value as usize * 11) {
-                    0x80
+                    (self.read_floating_bus() & 0x7f) | 0x80
                 } else {
-                    0x0
+                    self.read_floating_bus() & 0x7f
                 }
             }
 
@@ -1146,9 +1146,9 @@ impl Bus {
                     let delta = self.get_cycles() - self.get_paddle_trigger();
                     let value = self.get_joystick_value(self.paddle_latch[2]);
                     if delta < (value as usize * 11) {
-                        0x80
+                        (self.read_floating_bus() & 0x7f) | 0x80
                     } else {
-                        0x0
+                        self.read_floating_bus() & 0x7f
                     }
                 } else {
                     (((self.mouse.get_delta_x() > 0) as u8) << 7) | self.read_floating_bus() & 0x7f
@@ -1200,9 +1200,9 @@ impl Bus {
                     }
 
                     if delta < (value as usize * 11) {
-                        0x80
+                        (self.read_floating_bus() & 0x7f) | 0x80
                     } else {
-                        0x0
+                        self.read_floating_bus() & 0x7f
                     }
                 } else {
                     (((self.mouse.get_delta_y() < 0) as u8) << 7) | self.read_floating_bus() & 0x7f
