@@ -1408,7 +1408,7 @@ impl Video {
     pub fn is_vbl(&self) -> bool {
         let val = self.cycles;
         let row = val / CYCLES_PER_ROW;
-        (!self.is_shr_mode() && row >= 192) || (self.is_shr_mode() && row >= 200)
+        row >= 192
     }
 
     pub fn enable_video_80col(&mut self, state: bool) {
