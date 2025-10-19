@@ -1473,7 +1473,8 @@ fn initialize_new_cpu(
     disp.invalidate_video_cache()
 }
 
-fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     /*
     #[cfg(target_os = "windows")]
     {
