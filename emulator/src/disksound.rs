@@ -76,7 +76,7 @@ impl DiskSound {
     }
 
     pub fn reset(&mut self) {
-        self.sample_value =  0;
+        self.sample_value = 0;
         self.spin_sample = SoundType::Quiet;
         self.seek_sample = SoundType::Quiet;
         self.step_sample = SoundType::Quiet;

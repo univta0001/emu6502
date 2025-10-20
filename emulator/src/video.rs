@@ -2301,7 +2301,7 @@ impl Video {
             let mut color_index = 0;
 
             if col > 0 {
-                let val = if mixed_mode {
+                let val = if mixed_mode || (self.color_burst && !self.graphics_mode) {
                     if value & 0x1 > 0 { 0x7f } else { 0 }
                 } else {
                     self.read_hires_memory(col - 1, row)
@@ -2407,7 +2407,7 @@ impl Video {
             let mut luma = [0u8; 14 + 2 * NTSC_PIXEL_NEIGHBOR + 1];
             // Populate col-1 luma
             let prev_value = if col > 0 {
-                if !an3 && mixed_mode {
+                if !an3 && (mixed_mode || self.color_burst && !self.graphics_mode) {
                     if value & 0x1 > 0 { 0x7f } else { 0 }
                 } else {
                     self.read_hires_memory(col - 1, row)
@@ -2461,7 +2461,7 @@ impl Video {
 
             // Populate col+1 luma
             let next_value = if col < 39 {
-                if !an3 && mixed_mode {
+                if !an3 && (mixed_mode || self.color_burst && !self.graphics_mode) {
                     if value & 0x1 > 0 { 0x7f } else { 0 }
                 } else {
                     self.read_hires_memory(col + 1, row)
