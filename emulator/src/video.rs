@@ -182,6 +182,8 @@ impl Tick for Video {
 const TEXT_LEN: usize = 0x400;
 const HIRES_LEN: usize = 0x2000;
 const CYCLES_PER_ROW: usize = 65;
+const CYCLES_PER_BURST_START: usize = 12;
+const CYCLES_PER_BURST_END: usize = 16;
 const CYCLES_PER_HBL: usize = 25;
 const CYCLES_PER_FIELD_60HZ: usize = 17030;
 const CYCLES_PER_FIELD_50HZ: usize = 20280;
@@ -795,6 +797,10 @@ impl Video {
         self.prev_video_data = video_value;
         let is_shr = self.is_shr_mode();
 
+        if (CYCLES_PER_BURST_START..CYCLES_PER_BURST_END).contains(&col) {
+            self.color_burst = self.graphics_mode;
+        }
+
         if (!is_shr && row >= 192) || (is_shr && row >= 200) || col < CYCLES_PER_HBL {
             return;
         }
@@ -1099,6 +1105,7 @@ impl Video {
         self.display_mode == DisplayMode::MONO_WHITE
             || self.display_mode == DisplayMode::MONO_GREEN
             || self.display_mode == DisplayMode::MONO_AMBER
+            || !self.color_burst
     }
 
     pub fn is_shr_mode(&self) -> bool {
@@ -1788,9 +1795,7 @@ impl Video {
         if !self.vid80_mode {
             let x1offset = x1 * 7;
             let y1offset = y1 * 8 + yindex;
-            if self.graphics_mode
-                && self.color_burst
-                && !self.video_50hz
+            if !self.video_50hz
                 && !self.is_display_mode_mono()
                 && !self.mono_mode
             {
@@ -1817,9 +1822,7 @@ impl Video {
             let x1offset = x1 * 14 + offset;
             let y1offset = y1 * 16 + yindex * 2;
 
-            if self.graphics_mode
-                && self.color_burst
-                && !self.video_50hz
+            if !self.video_50hz
                 && !self.is_display_mode_mono()
                 && !self.mono_mode
             {
