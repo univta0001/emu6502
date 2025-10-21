@@ -120,7 +120,6 @@ Features in the emulator
             Ctrl-F4            Load state from YAML file
             Ctrl-F5            Disable / Enable video scanline mode
             Ctrl-F6            Disable / Enable audio filter
-            Ctrl-F7            Disable / Enable color burst for 60 Hz display
             Ctrl-F8            Load Tape
             Ctrl-F9            Eject Tape
             Ctrl-F10           Eject Hard Disk 1
