@@ -154,8 +154,14 @@ pub struct HardDisk {
     unit_num: u8,
     command: u8,
     enable_save: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
     status_code: u8,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
     smartport: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
     fifo_index: u8,
 }
 
