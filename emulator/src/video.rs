@@ -150,6 +150,9 @@ pub struct Video {
     pub color_burst: bool,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
+    color_burst_pixel: u16,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
     pub mac_lc_dlgr: bool,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
@@ -761,6 +764,7 @@ impl Video {
             scanline: false,
             skip_update: false,
             color_burst: false,
+            color_burst_pixel: 0,
             mac_lc_dlgr: false,
             vidhd: false,
             shr_mode: false,
@@ -798,7 +802,7 @@ impl Video {
         let is_shr = self.is_shr_mode();
 
         if (CYCLES_PER_BURST_START..CYCLES_PER_BURST_END).contains(&col) {
-            self.color_burst = self.graphics_mode;
+            self.update_color_burst();
         }
 
         if (!is_shr && row >= 192) || (is_shr && row >= 200) || col < CYCLES_PER_HBL {
@@ -856,6 +860,20 @@ impl Video {
                 self.draw_lores_a2_y(visible_col, row, video_value, 7, false);
             }
         }
+    }
+
+    fn update_color_burst(&mut self) {
+        if self.graphics_mode {
+            self.color_burst_pixel = 1024;
+        } else {
+            self.color_burst_pixel = self.color_burst_pixel.saturating_sub(1);
+        }
+
+        self.color_burst = if self.color_burst_pixel > 2 {
+            true
+        } else {
+            false
+        };
     }
 
     pub fn update_shadow_memory(&mut self, aux_memory: bool, addr: u16, value: u8) {
