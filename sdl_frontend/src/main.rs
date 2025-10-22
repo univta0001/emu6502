@@ -1167,7 +1167,7 @@ fn replace_quoted_hex_values(string: &str) -> String {
 #[cfg(feature = "serialization")]
 fn save_serialized_image(cpu: &CPU) {
     #[cfg(feature = "serde_support")]
-    let output = serde_yaml::to_string(&cpu).unwrap();
+    let output = serde_saphyr::to_string(&cpu).unwrap();
     let output = output.replace("\"\"", "''").replace(['"', '\''], "");
 
     /*
@@ -1209,7 +1209,7 @@ fn load_serialized_image() -> Result<CPU, String> {
     };
 
     #[cfg(feature = "serde_support")]
-    let deserialized_result = serde_yaml::from_str::<CPU>(&input);
+    let deserialized_result = serde_saphyr::from_str::<CPU>(&input);
     let Ok(mut new_cpu) = deserialized_result else {
         return Err(format!(
             "Unable to restore the image : {deserialized_result:?}"
