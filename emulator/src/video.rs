@@ -802,7 +802,7 @@ impl Video {
         let is_shr = self.is_shr_mode();
 
         if (CYCLES_PER_BURST_START..CYCLES_PER_BURST_END).contains(&col) {
-            self.update_color_burst();
+            self.update_color_burst(row);
         }
 
         if (!is_shr && row >= 192) || (is_shr && row >= 200) || col < CYCLES_PER_HBL {
@@ -862,11 +862,15 @@ impl Video {
         }
     }
 
-    fn update_color_burst(&mut self) {
+    fn update_color_burst(&mut self, row: usize) {
         if self.graphics_mode {
             self.color_burst_pixel = 1024;
         } else {
             self.color_burst_pixel = self.color_burst_pixel.saturating_sub(1);
+        }
+
+        if self.video_50hz && self.mixed_mode && row >= 20 {
+            self.color_burst_pixel = 0;
         }
 
         self.color_burst = if self.color_burst_pixel > 2 {
@@ -1813,7 +1817,7 @@ impl Video {
         if !self.vid80_mode {
             let x1offset = x1 * 7;
             let y1offset = y1 * 8 + yindex;
-            if !self.video_50hz
+            if !(self.video_50hz && self.mixed_mode && y1 >= 20)
                 && !self.is_display_mode_mono()
                 && !self.mono_mode
             {
@@ -1840,7 +1844,7 @@ impl Video {
             let x1offset = x1 * 14 + offset;
             let y1offset = y1 * 16 + yindex * 2;
 
-            if !self.video_50hz
+            if !(self.video_50hz && self.mixed_mode && y1 >= 20)
                 && !self.is_display_mode_mono()
                 && !self.mono_mode
             {
