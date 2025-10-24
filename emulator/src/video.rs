@@ -802,7 +802,7 @@ impl Video {
         let is_shr = self.is_shr_mode();
 
         if (CYCLES_PER_BURST_START..CYCLES_PER_BURST_END).contains(&col) {
-            self.update_color_burst(row);
+            self.update_color_burst();
         }
 
         if (!is_shr && row >= 192) || (is_shr && row >= 200) || col < CYCLES_PER_HBL {
@@ -862,15 +862,11 @@ impl Video {
         }
     }
 
-    fn update_color_burst(&mut self, row: usize) {
+    fn update_color_burst(&mut self) {
         if self.graphics_mode {
             self.color_burst_pixel = 1024;
         } else {
             self.color_burst_pixel = self.color_burst_pixel.saturating_sub(1);
-        }
-
-        if self.video_50hz && self.mixed_mode && row >= 20 {
-            self.color_burst_pixel = 0;
         }
 
         self.color_burst = if self.color_burst_pixel > 2 {
