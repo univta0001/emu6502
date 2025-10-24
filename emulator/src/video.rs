@@ -864,7 +864,7 @@ impl Video {
 
     fn update_color_burst(&mut self) {
         if self.graphics_mode {
-            self.color_burst_pixel = 1024;
+            self.color_burst_pixel = 280;
         } else {
             self.color_burst_pixel = self.color_burst_pixel.saturating_sub(1);
         }
