@@ -869,11 +869,7 @@ impl Video {
             self.color_burst_pixel = self.color_burst_pixel.saturating_sub(1);
         }
 
-        self.color_burst = if self.color_burst_pixel > 2 {
-            true
-        } else {
-            false
-        };
+        self.color_burst = self.color_burst_pixel > 2;
     }
 
     pub fn update_shadow_memory(&mut self, aux_memory: bool, addr: u16, value: u8) {
@@ -1813,10 +1809,7 @@ impl Video {
         if !self.vid80_mode {
             let x1offset = x1 * 7;
             let y1offset = y1 * 8 + yindex;
-            if !(self.video_50hz && self.mixed_mode && y1 >= 20)
-                && !self.is_display_mode_mono()
-                && !self.mono_mode
-            {
+            if !(self.is_display_mode_mono() || self.video_50hz && self.mixed_mode && y1 >= 20) {
                 let mut data = bitmap.reverse_bits() & 0x7f;
                 if !self.apple2e {
                     data >>= 1;
@@ -1840,10 +1833,7 @@ impl Video {
             let x1offset = x1 * 14 + offset;
             let y1offset = y1 * 16 + yindex * 2;
 
-            if !(self.video_50hz && self.mixed_mode && y1 >= 20)
-                && !self.is_display_mode_mono()
-                && !self.mono_mode
-            {
+            if !(self.is_display_mode_mono() || self.video_50hz && self.mixed_mode && y1 >= 20) {
                 let data = bitmap.reverse_bits();
                 let alt_ch = self.read_aux_text_memory(x1, y1 * 8 + yindex);
                 let alt_val = if !self.altchar {
