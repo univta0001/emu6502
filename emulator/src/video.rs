@@ -948,13 +948,9 @@ impl Video {
             0x19 => {
                 if self.apple2e {
                     let val = self.cycles;
-                    let row = if self.is_shr_mode() {
-                        200 * CYCLES_PER_ROW
-                    } else {
-                        192 * CYCLES_PER_ROW
-                    };
 
-                    if val < row {
+                    // VBL start after line 192
+                    if val < 192 * CYCLES_PER_ROW {
                         return 0x80;
                     } else {
                         return 0;
