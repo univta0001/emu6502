@@ -2780,7 +2780,6 @@ impl CPU {
         self.status.p.set(CpuFlags::CARRY, old_e);
 
         if self.e {
-            self.register_a &= 0xff;
             self.register_x &= 0xff;
             self.register_y &= 0xff;
             self.stack_pointer = (0x01 << 8) | (self.stack_pointer & 0xff);
