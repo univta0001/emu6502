@@ -4168,6 +4168,7 @@ mod test {
         let bus = Bus::default();
         let mut cpu = CPU::new(bus);
         cpu.status.set_small_acc(false);
+        cpu.e = false;
         for i in 0..cycles_8.len() {
             cpu.bus.set_cycles(0);
             cpu.self_test = true;
@@ -4353,6 +4354,7 @@ mod test {
         for i in 0..codes.len() {
             let bus = Bus::default();
             let mut cpu = CPU::new(bus);
+            cpu.e = false;
             cpu.status.set_small_acc(false);
             cpu.bus.set_cycles(0);
             cpu.self_test = true;
@@ -4405,6 +4407,7 @@ mod test {
         cpu.register_x = 0x2000;
         cpu.register_y = 0x4000;
         cpu.register_a = 0x1fff;
+        cpu.e = false;
         cpu.status.set_small_index(false);
         cpu.load_and_run(&code);
         assert_eq!(
@@ -4443,6 +4446,7 @@ mod test {
         cpu.register_x = 0x2000;
         cpu.register_y = 0x4000;
         cpu.register_a = 0x1fff;
+        cpu.e = false;
         cpu.status.set_small_index(false);
         cpu.load_and_run(&code);
         assert_eq!(
