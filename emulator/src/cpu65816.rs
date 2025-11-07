@@ -145,12 +145,19 @@ bitflags! {
 #[derive(Default, Debug, Copy, Clone)]
 pub struct StatusReg {
     pub p: CpuFlags,
+    pub e: bool,
 }
 
 impl StatusReg {
     pub fn new() -> Self {
         // Acc and index regs start in 8-bit mode, IRQs disabled
-        Default::default()
+        let mut status_reg = Self::default();
+        status_reg.e = true;
+        status_reg
+    }
+
+    pub fn emulation(&self) -> bool {
+        self.e
     }
 
     pub fn negative(&self) -> bool {
@@ -225,6 +232,10 @@ impl StatusReg {
         self.p.insert(CpuFlags::INTERRUPT_DISABLE)
     }
 
+    pub fn set_emulation(&mut self, flag: bool) {
+        self.e = flag
+    }
+
     pub fn clear_interrupt_flag(&mut self) {
         self.p.remove(CpuFlags::INTERRUPT_DISABLE)
     }
@@ -248,6 +259,7 @@ impl std::fmt::Display for StatusReg {
         (f.write_str(if self.irq_disable() { "I" } else { "i" }))?;
         (f.write_str(if self.zero() { "Z" } else { "z" }))?;
         (f.write_str(if self.carry() { "C" } else { "c" }))?;
+        (f.write_str(if self.e { "E" } else { "e" }))?;
 
         Ok(())
     }
@@ -349,7 +361,6 @@ pub struct CPU {
     pub pbr: u8,
     pub program_counter: u16,
     pub d: u16,
-    pub e: bool,
     pub status: StatusReg,
     pub bus: Bus,
     pub full_speed: CpuSpeed,
@@ -362,6 +373,7 @@ impl Default for CPU {
     fn default() -> Self {
         let reset_status = StatusReg {
             p: CpuFlags::from_bits_truncate(0b110100),
+            e: true
         };
 
         CPU {
@@ -373,7 +385,6 @@ impl Default for CPU {
             pbr: 0,
             d: 0,
             program_counter: 0xfffc,
-            e: true,
             status: reset_status,
             full_speed: Default::default(),
             bus: Default::default(),
@@ -749,7 +760,7 @@ impl CPU {
     }
 
     fn interrupt(&mut self, interrupt: interrupt::Interrupt) {
-        if !self.e {
+        if !self.status.e {
             self.push_byte(self.pbr);
         }
 
@@ -901,7 +912,7 @@ impl CPU {
     fn push_byte(&mut self, value: u8) {
         let s = self.stack_pointer;
         self.addr_bank_write(0, s, value);
-        if self.e {
+        if self.status.e {
             let s = (self.stack_pointer as u8).wrapping_sub(1);
             self.stack_pointer = (self.stack_pointer & 0xff00) | s as u16;
         } else {
@@ -912,7 +923,7 @@ impl CPU {
     fn last_tick_push_byte(&mut self, value: u8) {
         let s = self.stack_pointer;
         self.last_tick_addr_bank_write(0, s, value);
-        if self.e {
+        if self.status.e {
             let s = (self.stack_pointer as u8).wrapping_sub(1);
             self.stack_pointer = (self.stack_pointer & 0xff00) | s as u16;
         } else {
@@ -935,7 +946,7 @@ impl CPU {
     }
 
     fn pop_byte(&mut self) -> u8 {
-        if self.e {
+        if self.status.e {
             let s = (self.stack_pointer as u8).wrapping_add(1);
             self.stack_pointer = (self.stack_pointer & 0xff00) | s as u16;
         } else {
@@ -947,7 +958,7 @@ impl CPU {
     }
 
     fn last_tick_pop_byte(&mut self) -> u8 {
-        if self.e {
+        if self.status.e {
             let s = (self.stack_pointer as u8).wrapping_add(1);
             self.stack_pointer = (self.stack_pointer & 0xff00) | s as u16;
         } else {
@@ -981,11 +992,11 @@ impl CPU {
     }
 
     fn small_accumulator(&self) -> bool {
-        self.e || self.status.small_acc()
+        self.status.e || self.status.small_acc()
     }
 
     fn small_index(&self) -> bool {
-        self.e || self.status.small_index()
+        self.status.e || self.status.small_index()
     }
 
     pub fn load_and_run(&mut self, program: &[u8]) {
@@ -1030,7 +1041,7 @@ impl CPU {
 
         match self.bus.poll_nmi_status() {
             Some(_nmi) => {
-                if self.e {
+                if self.status.e {
                     self.interrupt(interrupt::NMI);
                 } else {
                     self.interrupt(interrupt::NMI16);
@@ -1043,7 +1054,7 @@ impl CPU {
                 {
                     // If the interrupt happens on the last cycle of the opcode, execute the opcode and
                     // then the interrupt handling routine
-                    if self.e {
+                    if self.status.e {
                         self.interrupt(interrupt::IRQ);
                     } else {
                         self.interrupt(interrupt::IRQ16);
@@ -1060,7 +1071,7 @@ impl CPU {
         let code = self.next_program_byte();
         let _opcode = &OPCODES[code as usize];
 
-        if self.e {
+        if self.status.e {
             self.stack_pointer = (0x01 << 8) | (self.stack_pointer & 0xff);
         }
 
@@ -2639,7 +2650,7 @@ impl CPU {
 
         let value = (result & 0xffff) as u16;
 
-        if !self.e {
+        if !self.status.e {
             if result > 0xffff {
                 (self.dbr + 1, value)
             } else {
@@ -2663,7 +2674,7 @@ impl CPU {
         let addr_h = (addr as u32).wrapping_add(self.register_y as u32);
         let value = (addr_h & 0xffff) as u16;
 
-        if !self.e {
+        if !self.status.e {
             if addr_h > 0xffff {
                 (bank + 1, value)
             } else {
@@ -2703,7 +2714,7 @@ impl CPU {
         let addr_h = (addr as u32).wrapping_add(self.register_y as u32);
         let value = (addr_h & 0xffff) as u16;
 
-        if !self.e {
+        if !self.status.e {
             if addr_h > 0xffff {
                 (self.dbr + 1, value)
             } else {
@@ -2775,11 +2786,11 @@ impl CPU {
 
     fn xce(&mut self) {
         self.last_tick();
-        let old_e = self.e;
-        self.e = self.status.p.contains(CpuFlags::CARRY);
+        let old_e = self.status.e;
+        self.status.e = self.status.p.contains(CpuFlags::CARRY);
         self.status.p.set(CpuFlags::CARRY, old_e);
 
-        if self.e {
+        if self.status.e {
             self.register_x &= 0xff;
             self.register_y &= 0xff;
             self.stack_pointer = (0x01 << 8) | (self.stack_pointer & 0xff);
@@ -2802,7 +2813,7 @@ impl CPU {
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
         self.last_tick_addr_bank_write(0, self.stack_pointer, d_low);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
-        if self.e {
+        if self.status.e {
             self.stack_pointer = (1 << 8) | self.stack_pointer as u8 as u16;
         }
     }
@@ -2818,7 +2829,7 @@ impl CPU {
         self.stack_pointer = self.stack_pointer.wrapping_add(1);
         let dbr = self.last_tick_addr_bank_read(0, self.stack_pointer);
         self.dbr = dbr;
-        if self.e {
+        if self.status.e {
             self.stack_pointer = (1 << 8) | self.stack_pointer as u8 as u16;
         }
 
@@ -2829,7 +2840,7 @@ impl CPU {
         self.last_tick();
         let p = self.status.p.bits() & !value;
         *self.status.p.0.bits_mut() = p;
-        if self.e {
+        if self.status.e {
             self.status.p.set(CpuFlags::M_FLAG, true);
             self.status.p.set(CpuFlags::X_FLAG, true);
         }
@@ -2960,7 +2971,7 @@ impl CPU {
             self.tick();
             let offset = self.bus.unclocked_addr_bank_read(addr.0, addr.1) as i8 as u16;
             let jump_addr = self.program_counter.wrapping_add(offset);
-            if self.e && self.program_counter & 0xff00 != jump_addr & 0xff00 {
+            if self.status.e && self.program_counter & 0xff00 != jump_addr & 0xff00 {
                 self.tick();
             }
             self.last_tick();
@@ -3143,7 +3154,7 @@ impl CPU {
         self.stack_pointer = self.stack_pointer.wrapping_add(1);
         let d_high = self.last_tick_addr_bank_read(0, self.stack_pointer);
         self.d = u16::from_le_bytes([d_low, d_high]);
-        if self.e {
+        if self.status.e {
             self.stack_pointer = (1 << 8) | self.stack_pointer as u8 as u16;
         }
         self.update_zero_and_negative_flags(self.d, true);
@@ -3154,7 +3165,7 @@ impl CPU {
         self.tick();
         let value = self.last_tick_pop_byte();
         *self.status.p.0.bits_mut() = value;
-        if self.e {
+        if self.status.e {
             self.status.p.set(CpuFlags::M_FLAG, true);
             self.status.p.set(CpuFlags::X_FLAG, true);
         } else if self.small_index() {
@@ -3213,7 +3224,7 @@ impl CPU {
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
         self.last_tick_addr_bank_write(0, self.stack_pointer, return_addr as u8);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
-        if self.e {
+        if self.status.e {
             self.stack_pointer = (1 << 8) | self.stack_pointer as u8 as u16;
         }
         self.program_counter = addr.1
@@ -3232,7 +3243,7 @@ impl CPU {
         self.last_tick_addr_bank_write(0, self.stack_pointer, return_addr as u8);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
 
-        if self.e {
+        if self.status.e {
             self.stack_pointer = (1 << 8) | self.stack_pointer as u8 as u16;
         }
 
@@ -3700,7 +3711,7 @@ impl CPU {
 
     fn brk(&mut self) {
         self.fetch_byte();
-        if self.e {
+        if self.status.e {
             self.interrupt(interrupt::BRK);
         } else {
             self.interrupt(interrupt::BRK16);
@@ -3717,7 +3728,7 @@ impl CPU {
     fn rti(&mut self) {
         self.tick();
         self.tick();
-        if self.e {
+        if self.status.e {
             *self.status.p.0.bits_mut() = self.pop_byte();
             self.status.p.insert(CpuFlags::M_FLAG | CpuFlags::X_FLAG);
             self.register_x &= 0xff;
@@ -3744,14 +3755,14 @@ impl CPU {
         self.pbr = self.last_tick_addr_bank_read(0, self.stack_pointer);
         self.program_counter = u16::from_le_bytes([pc_low, pc_high]).wrapping_add(1);
 
-        if self.e {
+        if self.status.e {
             self.stack_pointer = (1 << 8) | self.stack_pointer as u8 as u16;
         }
     }
 
     fn tcs(&mut self) {
         self.last_tick();
-        if !self.e {
+        if !self.status.e {
             self.stack_pointer = self.register_a;
         } else {
             self.stack_pointer = (0x1 << 8) | self.register_a & 0xff;
@@ -3809,7 +3820,7 @@ impl CPU {
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
         self.last_tick_addr_bank_write(0, self.stack_pointer, addr as u8);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
-        if self.e {
+        if self.status.e {
             self.stack_pointer = (1 << 8) | self.stack_pointer as u8 as u16;
         }
     }
@@ -3820,7 +3831,7 @@ impl CPU {
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
         self.last_tick_addr_bank_write(0, self.stack_pointer, addr.1 as u8);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
-        if self.e {
+        if self.status.e {
             self.stack_pointer = (1 << 8) | self.stack_pointer as u8 as u16;
         }
     }
@@ -3833,7 +3844,7 @@ impl CPU {
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
         self.last_tick_addr_bank_write(0, self.stack_pointer, addr as u8);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
-        if self.e {
+        if self.status.e {
             self.stack_pointer = (1 << 8) | self.stack_pointer as u8 as u16;
         }
     }
@@ -3891,7 +3902,7 @@ impl CPU {
 
     fn cop(&mut self) {
         self.last_tick_fetch_byte();
-        if self.e {
+        if self.status.e {
             self.interrupt(interrupt::COP);
         } else {
             self.interrupt(interrupt::COP16);
@@ -4037,7 +4048,7 @@ mod test {
             "CPX immediate should have 2 cycles"
         );
 
-        cpu.e = false;
+        cpu.status.e = false;
         let p = cpu.status.p.bits() & !0x10;
         *cpu.status.p.0.bits_mut() = p;
         cpu.bus.set_cycles(0);
@@ -4063,7 +4074,7 @@ mod test {
             "STA directpage should have 3 cycles"
         );
 
-        cpu.e = false;
+        cpu.status.e = false;
         let p = cpu.status.p.bits() & !0x20;
         *cpu.status.p.0.bits_mut() = p;
         cpu.bus.set_cycles(0);
@@ -4167,7 +4178,7 @@ mod test {
         let bus = Bus::default();
         let mut cpu = CPU::new(bus);
         cpu.status.set_small_acc(false);
-        cpu.e = false;
+        cpu.status.e = false;
         for i in 0..cycles_8.len() {
             cpu.bus.set_cycles(0);
             cpu.self_test = true;
@@ -4353,7 +4364,7 @@ mod test {
         for i in 0..codes.len() {
             let bus = Bus::default();
             let mut cpu = CPU::new(bus);
-            cpu.e = false;
+            cpu.status.e = false;
             cpu.status.set_small_acc(false);
             cpu.bus.set_cycles(0);
             cpu.self_test = true;
@@ -4406,7 +4417,7 @@ mod test {
         cpu.register_x = 0x2000;
         cpu.register_y = 0x4000;
         cpu.register_a = 0x1fff;
-        cpu.e = false;
+        cpu.status.e = false;
         cpu.status.set_small_index(false);
         cpu.load_and_run(&code);
         assert_eq!(
@@ -4445,7 +4456,7 @@ mod test {
         cpu.register_x = 0x2000;
         cpu.register_y = 0x4000;
         cpu.register_a = 0x1fff;
-        cpu.e = false;
+        cpu.status.e = false;
         cpu.status.set_small_index(false);
         cpu.load_and_run(&code);
         assert_eq!(
