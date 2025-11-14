@@ -1344,33 +1344,31 @@ fn update_audio(cpu: &mut CPU, audio_stream: &Option<AudioStreamOwner>, normal_s
     }
 }
 
+fn save_emulator_screenshot(cpu: &mut CPU) {
+    let disp = &mut cpu.bus.video;
+    if let Ok(output) = File::create("screenshot.png") {
+        let encoder = PngEncoder::new(output);
+        let result = encoder.write_image(
+            &disp.frame,
+            WIDTH as u32,
+            HEIGHT as u32,
+            ColorType::Rgba8.into(),
+        );
+        if result.is_err() {
+            eprintln!("Unable to create PNG file");
+        }
+    } else {
+        eprintln!("Unable to create screenshot.png");
+    }
+}
+
 fn update_video(
     cpu: &mut CPU,
-    save_screenshot: &mut bool,
     canvas: &mut Canvas<Window>,
     texture: &mut Texture,
     fullscreen: bool,
 ) {
     let disp = &mut cpu.bus.video;
-    if *save_screenshot {
-        if let Ok(output) = File::create("screenshot.png") {
-            let encoder = PngEncoder::new(output);
-            let result = encoder.write_image(
-                &disp.frame,
-                WIDTH as u32,
-                HEIGHT as u32,
-                ColorType::Rgba8.into(),
-            );
-            if result.is_err() {
-                eprintln!("Unable to create PNG file");
-            }
-        } else {
-            eprintln!("Unable to create screenshot.png");
-        }
-
-        *save_screenshot = false;
-    }
-
     let dirty_region = disp.get_dirty_region();
 
     /*
@@ -2013,9 +2011,14 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
                 // Update video, audio and events at multiple of 60Hz or 50Hz
                 if normal_cpu_speed || video_time.elapsed().as_micros() >= cpu_period as u128 {
+
+                    if save_screenshot {
+                        save_emulator_screenshot(_cpu);   
+                        save_screenshot = false;
+                    }
+
                     update_video(
                         _cpu,
-                        &mut save_screenshot,
                         &mut canvas,
                         &mut texture,
                         current_full_screen,
