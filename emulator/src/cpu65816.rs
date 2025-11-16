@@ -151,9 +151,10 @@ pub struct StatusReg {
 impl StatusReg {
     pub fn new() -> Self {
         // Acc and index regs start in 8-bit mode, IRQs disabled
-        let mut status_reg = Self::default();
-        status_reg.e = true;
-        status_reg
+        Self {
+            e: true,
+            ..Default::default()
+        }
     }
 
     pub fn emulation(&self) -> bool {
