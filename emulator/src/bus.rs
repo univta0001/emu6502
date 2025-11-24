@@ -18,6 +18,8 @@ use crate::network::Uthernet2;
 
 use crate::vidhd::VidHD;
 
+use strum::EnumIter;
+
 //use rand::Rng;
 //use std::collections::HashMap;
 
@@ -43,7 +45,7 @@ pub trait Tick {
     fn tick(&mut self);
 }
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, EnumIter)]
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub enum IODevice {
     None,

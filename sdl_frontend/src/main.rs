@@ -1842,7 +1842,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         }
     }
 
-    // Create the SDL2 context
+    // Create the SDL3 context
     let sdl_context = sdl3::init()?;
 
     // Create window
