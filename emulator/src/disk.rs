@@ -1536,6 +1536,10 @@ impl DiskDrive {
     }
 
     pub fn is_disk_sound_enabled(&self) -> bool {
+        self.is_motor_on() && self.disk_sound.is_enabled()
+    }
+
+    pub fn get_disk_sound_enabled(&self) -> bool {
         self.disk_sound.is_enabled()
     }
 
@@ -2526,7 +2530,7 @@ impl DiskDrive {
     }
 
     pub fn is_normal_disk(&self) -> bool {
-        if self.disable_fast_disk || (!self.is_motor_on() || self.is_motor_off_pending()) {
+        if self.disable_fast_disk || (!self.is_motor_on() || !self.is_motor_off_pending()) {
             true
         } else {
             self.fast_disk_timer == 0

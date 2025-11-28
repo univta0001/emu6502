@@ -64,6 +64,27 @@ pub enum IODevice {
     VidHD,
 }
 
+impl From<IODevice> for &str {
+    fn from(item: IODevice) -> &'static str {
+        match item {
+            IODevice::None => "Empty",
+            IODevice::Disk => "Disk (16 sector)",
+            IODevice::Disk13 => "Disk (13 sector)",
+            IODevice::Printer => "Printer",
+            IODevice::RamFactor => "RamFactor",
+            IODevice::Mockingboard(_) => "MockingBoard",
+            #[cfg(feature = "z80")]
+            IODevice::Z80 => "Z80",
+            IODevice::HardDisk => "Hard Disk",
+            IODevice::Mouse => "Mouse",
+            #[cfg(not(target_os = "wasi"))]
+            IODevice::Uthernet2 => "Uthernet2",
+            IODevice::Saturn(_) => "Saturn",
+            IODevice::VidHD => "VidHD",
+        }
+    }
+}
+
 #[derive(Copy, Clone, Default, PartialEq)]
 #[cfg_attr(
     feature = "serde_support",

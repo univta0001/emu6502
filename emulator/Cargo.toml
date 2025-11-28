@@ -15,7 +15,7 @@ iz80 = { path = "iz80", optional = true }
 time = { version = "0.3.44", features = ["local-offset","wasm-bindgen"] }
 fastrand = "2.3.0"
 educe = { version = "0.6.0", default-features = false, features = ["Debug"], optional = true }
-pcap = { version = "2.3.0", default-features = false, optional = true }
+pcap = { version = "2.4.0", default-features = false, optional = true }
 libloading = { version = "0.9.0", default-features = false, optional = true }
 strum = { version = "0.27.2", features = ["derive"] }
 

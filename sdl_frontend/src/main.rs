@@ -2011,18 +2011,12 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
                 // Update video, audio and events at multiple of 60Hz or 50Hz
                 if normal_cpu_speed || video_time.elapsed().as_micros() >= cpu_period as u128 {
-
                     if save_screenshot {
-                        save_emulator_screenshot(_cpu);   
+                        save_emulator_screenshot(_cpu);
                         save_screenshot = false;
                     }
 
-                    update_video(
-                        _cpu,
-                        &mut canvas,
-                        &mut texture,
-                        current_full_screen,
-                    );
+                    update_video(_cpu, &mut canvas, &mut texture, current_full_screen);
                     video_time = Instant::now();
 
                     _cpu.bus.video.skip_update = false;
