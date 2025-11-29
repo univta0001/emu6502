@@ -773,7 +773,7 @@ pub struct Mockingboard {
 impl Mockingboard {
     pub fn new() -> Self {
         Mockingboard {
-            w65c22: [W65C22::new("#1"), W65C22::new("#2")],
+            w65c22: [W65C22::new("_1"), W65C22::new("_2")],
             rng: 1,
             cycles: 0,
             mb4c: false,
@@ -919,21 +919,21 @@ mod test {
 
     #[test]
     fn w65c22_t1_loaded() {
-        let mut w65c22 = W65C22::new("#1");
+        let mut w65c22 = W65C22::new("_1");
         setup(&mut w65c22);
         assert_eq!(w65c22.t1_loaded, true, "T1C T1 loaded should be true");
     }
 
     #[test]
     fn w65c22_t1_load_ifr() {
-        let mut w65c22 = W65C22::new("#1");
+        let mut w65c22 = W65C22::new("_1");
         setup(&mut w65c22);
         assert_eq!(w65c22.ifr & 0x40 == 0, true, "T1 IFR should be cleared");
     }
 
     #[test]
     fn w65c22_t1_load_value() {
-        let mut w65c22 = W65C22::new("#1");
+        let mut w65c22 = W65C22::new("_1");
         setup(&mut w65c22);
         assert_eq!(w65c22.ifr & 0x40 == 0, true, "T1 IFR should be cleared");
         for (i, &v) in [5, 4, 3, 2, 1, 0, 0xffffffff, 5, 4, 3].iter().enumerate() {
@@ -944,7 +944,7 @@ mod test {
 
     #[test]
     fn w65c22_t2_load_value() {
-        let mut w65c22 = W65C22::new("#1");
+        let mut w65c22 = W65C22::new("_1");
         setup(&mut w65c22);
         assert_eq!(w65c22.ifr & 0x20 == 0, true, "T2 IFR should be cleared");
         for (i, &v) in [5, 4, 3, 2, 1, 0, 0xffff, 0xfffe, 0xfffd, 0xfffc]
@@ -958,14 +958,14 @@ mod test {
 
     #[test]
     fn w65c22_t1_initial_load() {
-        let mut w65c22 = W65C22::new("#1");
+        let mut w65c22 = W65C22::new("_1");
         setup(&mut w65c22);
         assert_eq!(w65c22.t1c, 0x06, "T1 counter initial load should be 6");
     }
 
     #[test]
     fn w65c22_t1_countdown() {
-        let mut w65c22 = W65C22::new("#1");
+        let mut w65c22 = W65C22::new("_1");
         setup(&mut w65c22);
         for _ in 0..6 {
             w65c22.tick(0);
@@ -976,7 +976,7 @@ mod test {
 
     #[test]
     fn w65c22_t1_underflow() {
-        let mut w65c22 = W65C22::new("#1");
+        let mut w65c22 = W65C22::new("_1");
         setup(&mut w65c22);
         for _ in 0..7 {
             w65c22.tick(0);
@@ -991,7 +991,7 @@ mod test {
 
     #[test]
     fn w65c22_t1_reload() {
-        let mut w65c22 = W65C22::new("#1");
+        let mut w65c22 = W65C22::new("_1");
         setup(&mut w65c22);
         for _ in 0..8 {
             w65c22.tick(0);
@@ -1015,7 +1015,7 @@ mod test {
 
     #[test]
     fn w65c22_t1_underflow_irq() {
-        let mut w65c22 = W65C22::new("#1");
+        let mut w65c22 = W65C22::new("_1");
         let mut cycles = 10;
         w65c22.io_access(0x04, 0x00, true);
         w65c22.io_access(0x05, 0x00, true);
@@ -1048,7 +1048,7 @@ mod test {
 
     #[test]
     fn w65c22_t2_set_lower() {
-        let mut w65c22 = W65C22::new("#1");
+        let mut w65c22 = W65C22::new("_1");
         setup(&mut w65c22);
 
         w65c22.tick(0);
@@ -1092,7 +1092,7 @@ mod test {
 
     #[test]
     fn ay8910_invalidate_latch_after_reset() {
-        let mut w65c22 = W65C22::new("#1");
+        let mut w65c22 = W65C22::new("_1");
         w65c22.reset();
 
         w65c22.io_access(0x01, 0x00, true);
@@ -1121,7 +1121,7 @@ mod test {
 
     #[test]
     fn w6522_reset_orb() {
-        let mut w65c22 = W65C22::new("#1");
+        let mut w65c22 = W65C22::new("_1");
         w65c22.reset();
         assert_eq!(
             w65c22.io_access(0x00, 0x00, false),
@@ -1138,7 +1138,7 @@ mod test {
 
     #[test]
     fn ay8910_envelope() {
-        let mut w65c22 = W65C22::new("#1");
+        let mut w65c22 = W65C22::new("_1");
         w65c22.reset();
         w65c22.ay8910[0].envelope.set_period(1, 0);
         w65c22.ay8910[0].envelope.set_shape(8);
