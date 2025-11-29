@@ -2009,8 +2009,16 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 let normal_cpu_speed =
                     normal_disk_speed && _cpu.full_speed != CpuSpeed::SPEED_FASTEST;
 
+                let time_tolerance = if normal_cpu_speed {
+                    cpu_period as u128 - 500
+                } else {
+                    cpu_period as u128
+                };
+
+                let video_time_elapsed = video_time.elapsed().as_micros();
+
                 // Update video, audio and events at multiple of 60Hz or 50Hz
-                if normal_cpu_speed || video_time.elapsed().as_micros() >= cpu_period as u128 {
+                if video_time_elapsed >= time_tolerance {
                     if save_screenshot {
                         save_emulator_screenshot(_cpu);
                         save_screenshot = false;
