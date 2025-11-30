@@ -1357,7 +1357,7 @@ fn save_emulator_screenshot(cpu: &mut CPU) {
             ColorType::Rgba8.into(),
         );
         if result.is_err() {
-            eprintln!("Unable to create PNG file");
+            eprintln!("Unable to create screenshot.png");
         }
     } else {
         eprintln!("Unable to create screenshot.png");
