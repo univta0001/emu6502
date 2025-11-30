@@ -274,36 +274,39 @@ impl Bus {
             vidhd: VidHD,
         };
 
+        bus.init_memory();
+        bus
+    }
+
+    pub fn init_memory(&mut self) {
         // Memory initialization is based on the implementation of AppleWin
         // In real apple 2, the memory content when power on is pseudo-initialized
         for addr in (0x0000..0xc000).step_by(4) {
-            bus.unclocked_addr_write(addr, 0xff);
-            bus.unclocked_addr_write(addr + 1, 0xff);
+            self.unclocked_addr_write(addr, 0xff);
+            self.unclocked_addr_write(addr + 1, 0xff);
         }
 
         //let mut rng = rand::thread_rng();
         for addr in (0x0000..0xc000).step_by(512) {
             let rand_value = fastrand::u16(0..=65535);
-            bus.unclocked_addr_write(addr + 0x28, (rand_value & 0xff) as u8);
-            bus.unclocked_addr_write(addr + 0x29, ((rand_value >> 8) & 0xff) as u8);
+            self.unclocked_addr_write(addr + 0x28, (rand_value & 0xff) as u8);
+            self.unclocked_addr_write(addr + 0x29, ((rand_value >> 8) & 0xff) as u8);
             let rand_value = fastrand::u16(0..=65535);
-            bus.unclocked_addr_write(addr + 0x68, (rand_value & 0xff) as u8);
-            bus.unclocked_addr_write(addr + 0x99, ((rand_value >> 8) & 0xff) as u8);
+            self.unclocked_addr_write(addr + 0x68, (rand_value & 0xff) as u8);
+            self.unclocked_addr_write(addr + 0x99, ((rand_value >> 8) & 0xff) as u8);
         }
 
         for i in 0..8 {
-            bus.unclocked_addr_write(0x400 + (i + 1) * 0x80 - 1, 0xff);
+            self.unclocked_addr_write(0x400 + (i + 1) * 0x80 - 1, 0xff);
         }
 
         let rand_value = fastrand::u16(0..=65535);
-        bus.unclocked_addr_write(0x4e, (rand_value & 0xff) as u8);
-        bus.unclocked_addr_write(0x4f, ((rand_value >> 8) & 0xff) as u8);
-        bus.unclocked_addr_write(0x620b, 0);
-        bus.unclocked_addr_write(0xbffd, 0);
-        bus.unclocked_addr_write(0xbffe, 0);
-        bus.unclocked_addr_write(0xbfff, 0);
-
-        bus
+        self.unclocked_addr_write(0x4e, (rand_value & 0xff) as u8);
+        self.unclocked_addr_write(0x4f, ((rand_value >> 8) & 0xff) as u8);
+        self.unclocked_addr_write(0x620b, 0);
+        self.unclocked_addr_write(0xbffd, 0);
+        self.unclocked_addr_write(0xbffe, 0);
+        self.unclocked_addr_write(0xbfff, 0);
     }
 
     pub fn reset(&mut self) {
