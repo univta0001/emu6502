@@ -719,7 +719,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
                     let estimated_fps = if cpu.bus.video.is_video_50hz() {
-                        event_param.fps * 1.015
+                        event_param.fps * 1.015625
                     } else {
                         event_param.fps * 1.020484
                     };
