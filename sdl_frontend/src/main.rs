@@ -65,6 +65,9 @@ const HEIGHT: usize = 384;
 
 const DSK_PO_SIZE: u64 = 143360;
 
+const SPEED_NUMERATOR: [usize; 5] = [1, 10, 10, 10, 1];
+const SPEED_DENOMINATOR: [usize; 5] = [1, 28, 40, 80, 1];
+
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 struct EventParam<'a> {
@@ -715,10 +718,16 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
+                    let estimated_fps = if cpu.full_speed == CpuSpeed::SPEED_FASTEST {
+                        event_param.fps / event_param.estimated_mhz
+                    } else {
+                        event_param.fps * SPEED_NUMERATOR[*event_param.speed_index] as f32
+                            / SPEED_DENOMINATOR[*event_param.speed_index] as f32
+                    };
                     eprintln!(
                         "MHz: {:.3} FPS: {:.2} Cycles: {}",
                         event_param.estimated_mhz,
-                        event_param.fps,
+                        estimated_fps,
                         cpu.bus.get_cycles()
                     );
                 } else {
@@ -1441,10 +1450,10 @@ fn initialize_new_cpu(
 
     // Restore speed
     match cpu.full_speed {
-        CpuSpeed::SPEED_FASTEST => *speed_index = 1,
-        CpuSpeed::SPEED_2_8MHZ => *speed_index = 2,
-        CpuSpeed::SPEED_4MHZ => *speed_index = 3,
-        CpuSpeed::SPEED_8MHZ => *speed_index = 4,
+        CpuSpeed::SPEED_FASTEST => *speed_index = 4,
+        CpuSpeed::SPEED_2_8MHZ => *speed_index = 1,
+        CpuSpeed::SPEED_4MHZ => *speed_index = 2,
+        CpuSpeed::SPEED_8MHZ => *speed_index = 3,
         _ => *speed_index = 0,
     }
 
@@ -1954,9 +1963,6 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         CpuSpeed::SPEED_FASTEST,
     ];
 
-    let speed_numerator = [1, 10, 10, 10, 1];
-    let speed_denominator = [1, 28, 40, 80, 1];
-
     let mut disk_mode_index = 0;
 
     cpu.reset();
@@ -2099,8 +2105,8 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 let video_cpu_update = t.elapsed().as_micros();
 
                 if normal_cpu_speed {
-                    let adj_ms = cpu_period as usize * speed_numerator[speed_index]
-                        / speed_denominator[speed_index];
+                    let adj_ms = cpu_period as usize * SPEED_NUMERATOR[speed_index]
+                        / SPEED_DENOMINATOR[speed_index];
                     let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
 
                     if adj_time > 0 {
