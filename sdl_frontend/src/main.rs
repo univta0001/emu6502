@@ -73,6 +73,7 @@ struct EventParam<'a> {
     gamepads: &'a mut HashMap<u32, (u16, Gamepad)>,
     key_caps: &'a mut bool,
     estimated_mhz: f32,
+    fps: f32,
     reload_cpu: &'a mut bool,
     save_screenshot: &'a mut bool,
     display_mode: &'a [DisplayMode; 7],
@@ -715,8 +716,9 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
                     eprintln!(
-                        "MHz: {:.3} Cycles: {}",
+                        "MHz: {:.3} FPS: {:.2} Cycles: {}",
                         event_param.estimated_mhz,
+                        event_param.fps,
                         cpu.bus.get_cycles()
                     );
                 } else {
@@ -1922,6 +1924,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut video_time = Instant::now();
     let mut previous_cycles = 0;
     let mut estimated_mhz: f32 = 0.0;
+    let mut fps: f32 = 0.0;
 
     let mut reload_cpu = false;
     let mut save_screenshot = false;
@@ -2036,6 +2039,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                             gamepads: &mut gamepads,
                             key_caps: &mut key_caps,
                             estimated_mhz,
+                            fps,
                             reload_cpu: &mut reload_cpu,
                             save_screenshot: &mut save_screenshot,
                             display_mode: &display_mode,
@@ -2108,6 +2112,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 _cpu.bus.audio.clear_buffer();
                 let elapsed = t.elapsed().as_micros();
                 estimated_mhz = (dcyc as f32) / elapsed as f32;
+                fps = 1000000.0 / (elapsed as f32);
                 dcyc -= cpu_cycles;
                 t = Instant::now();
             }
