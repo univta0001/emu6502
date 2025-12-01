@@ -718,15 +718,10 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
-                    let estimated_fps = if cpu.bus.video.is_video_50hz() {
-                        event_param.fps * 1.015625
-                    } else {
-                        event_param.fps * 1.020484
-                    };
                     eprintln!(
                         "MHz: {:.3} FPS: {:.2} Cycles: {}",
                         event_param.estimated_mhz,
-                        estimated_fps,
+                        event_param.fps,
                         cpu.bus.get_cycles()
                     );
                 } else {
@@ -2117,7 +2112,11 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 _cpu.bus.audio.clear_buffer();
                 let elapsed = t.elapsed().as_micros();
                 estimated_mhz = (dcyc as f32) / elapsed as f32;
-                fps = 1000000.0 / (dcyc as f32);
+                fps = if _cpu.bus.video.is_video_50hz() {
+                    1015625.0 / (dcyc as f32)
+                } else {
+                    1020484.0 / (dcyc as f32)
+                };
                 dcyc -= cpu_cycles;
                 t = Instant::now();
             }
