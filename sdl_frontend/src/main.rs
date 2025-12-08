@@ -591,9 +591,15 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
 
         Event::KeyDown {
             keycode: Some(Keycode::F7),
+            keymod,
             ..
         } => {
-            cpu.bus.toggle_video_freq();
+            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                let color_burst = cpu.bus.video.get_text_color_burst();
+                cpu.bus.video.set_text_color_burst(!color_burst);
+            } else {
+                cpu.bus.toggle_video_freq();
+            }
         }
         Event::KeyDown {
             keycode: Some(Keycode::F6),
@@ -900,6 +906,7 @@ Function Keys:
     Ctrl-F4            Load state from YAML file
     Ctrl-F5            Disable / Enable video scanline mode
     Ctrl-F6            Disable / Enable audio filter
+    Ctrl-F7            Toggle text color burst for 60Hz display
     Ctrl-F8            Load Tape
     Ctrl-F9            Eject Tape
     Ctrl-F10           Eject Hard Disk 1

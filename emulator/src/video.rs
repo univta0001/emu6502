@@ -166,6 +166,9 @@ pub struct Video {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub disable_aux: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    pub text_color_burst: bool,
 }
 
 impl Tick for Video {
@@ -765,6 +768,7 @@ impl Video {
             skip_update: false,
             color_burst: false,
             color_burst_pixel: 0,
+            text_color_burst: false,
             mac_lc_dlgr: false,
             vidhd: false,
             shr_mode: false,
@@ -1058,6 +1062,15 @@ impl Video {
 
     pub fn set_color_burst(&mut self, flag: bool) {
         self.color_burst = flag;
+        self.invalidate_video_cache();
+    }
+
+    pub fn get_text_color_burst(&self) -> bool {
+        self.text_color_burst
+    }
+
+    pub fn set_text_color_burst(&mut self, flag: bool) {
+        self.text_color_burst = flag;
         self.invalidate_video_cache();
     }
 
@@ -1805,7 +1818,10 @@ impl Video {
         if !self.vid80_mode {
             let x1offset = x1 * 7;
             let y1offset = y1 * 8 + yindex;
-            if !(self.is_display_mode_mono() || self.video_50hz && self.mixed_mode && y1 >= 20) {
+            if !(self.is_display_mode_mono()
+                || self.mono_mode
+                || (self.video_50hz || self.text_color_burst) && self.mixed_mode && y1 >= 20)
+            {
                 let mut data = bitmap.reverse_bits() & 0x7f;
                 if !self.apple2e {
                     data >>= 1;
@@ -1829,7 +1845,10 @@ impl Video {
             let x1offset = x1 * 14 + offset;
             let y1offset = y1 * 16 + yindex * 2;
 
-            if !(self.is_display_mode_mono() || self.video_50hz && self.mixed_mode && y1 >= 20) {
+            if !(self.is_display_mode_mono()
+                || self.mono_mode
+                || (self.video_50hz || self.text_color_burst) && self.mixed_mode && y1 >= 20)
+            {
                 let data = bitmap.reverse_bits();
                 let alt_ch = self.read_aux_text_memory(x1, y1 * 8 + yindex);
                 let alt_val = if !self.altchar {
@@ -2350,7 +2369,7 @@ impl Video {
                     LORES_COLORS[color_index as usize]
                 };
 
-                self.set_pixel_count(offset, row * 2, color, 1);
+                self.set_pixel_count(offset.saturating_sub(1), row * 2, color, 1);
 
                 if value & mask > 0 {
                     color_index |= 1 << ((index + 1) % 4);
@@ -2364,7 +2383,7 @@ impl Video {
                     LORES_COLORS[color_index as usize]
                 };
 
-                self.set_pixel_count(offset + 1, row * 2, color, 1);
+                self.set_pixel_count(offset, row * 2, color, 1);
 
                 mask <<= 1;
                 offset += 2;
@@ -2609,7 +2628,7 @@ impl Video {
                         color_index &= (1 << index) ^ 0xf;
                     }
 
-                    self.set_pixel_count(offset, row * 2, DHIRES_COLORS[color_index as usize], 1);
+                    self.set_pixel_count(offset.saturating_sub(1), row * 2, DHIRES_COLORS[color_index as usize], 1);
                     mask <<= 1;
                     offset += 1;
                 }
@@ -2623,7 +2642,7 @@ impl Video {
                     } else {
                         color_index &= (1 << index) ^ 0xf;
                     }
-                    self.set_pixel_count(offset, row * 2, DHIRES_COLORS[color_index as usize], 1);
+                    self.set_pixel_count(offset.saturating_sub(1), row * 2, DHIRES_COLORS[color_index as usize], 1);
                     mask <<= 1;
                     offset += 1;
                 }
