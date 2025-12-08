@@ -953,7 +953,7 @@ impl Video {
                 if self.apple2e {
                     let val = self.cycles;
 
-                    // VBL start after line 192
+                    // VBL starts after line 192
                     if val < 192 * CYCLES_PER_ROW {
                         return 0x80;
                     } else {
@@ -1963,7 +1963,12 @@ impl Video {
                             DHIRES_COLORS[color_index as usize]
                         };
 
-                        self.set_pixel_count(x1 * 14 + xindex + offset, y1 * 2, color, 1);
+                        self.set_pixel_count(
+                            (x1 * 14 + xindex + offset).saturating_sub(1),
+                            y1 * 2,
+                            color,
+                            1,
+                        );
 
                         mask <<= 1;
                         if mask > 0xf {
@@ -2012,7 +2017,7 @@ impl Video {
                     }
 
                     let color = LORES_COLORS[color_index as usize];
-                    self.set_pixel_count(x1 * 14 + xindex, y1 * 2, color, 1);
+                    self.set_pixel_count((x1 * 14 + xindex).saturating_sub(1), y1 * 2, color, 1);
 
                     mask <<= 1;
                     if mask > 0xf {
@@ -2628,7 +2633,12 @@ impl Video {
                         color_index &= (1 << index) ^ 0xf;
                     }
 
-                    self.set_pixel_count(offset.saturating_sub(1), row * 2, DHIRES_COLORS[color_index as usize], 1);
+                    self.set_pixel_count(
+                        offset.saturating_sub(1),
+                        row * 2,
+                        DHIRES_COLORS[color_index as usize],
+                        1,
+                    );
                     mask <<= 1;
                     offset += 1;
                 }
@@ -2642,7 +2652,12 @@ impl Video {
                     } else {
                         color_index &= (1 << index) ^ 0xf;
                     }
-                    self.set_pixel_count(offset.saturating_sub(1), row * 2, DHIRES_COLORS[color_index as usize], 1);
+                    self.set_pixel_count(
+                        offset.saturating_sub(1),
+                        row * 2,
+                        DHIRES_COLORS[color_index as usize],
+                        1,
+                    );
                     mask <<= 1;
                     offset += 1;
                 }
