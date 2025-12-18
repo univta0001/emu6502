@@ -194,9 +194,9 @@ const CYCLES_PER_HBL: usize = 25;
 const CYCLES_PER_FIELD_60HZ: usize = 17030;
 const CYCLES_PER_FIELD_50HZ: usize = 20280;
 
-// Flash frequency is 60 Hz / 32 (267ms) or 50 Hz / 32 (320 ms)
-const BLINK_PERIOD_60HZ: usize = 267;
-const BLINK_PERIOD_50HZ: usize = 320;
+// Flash frequency is 16 frames per second (267ms) for Apple 2e or 15 frames for Apple 2
+const BLINK_PERIOD_16_FRAMES: usize = 267;
+const BLINK_PERIOD_15_FRAMES: usize = 250;
 
 // hires colors
 /*
@@ -1151,14 +1151,11 @@ impl Video {
 
         let elapsed = current_time_ms.saturating_sub(self.blink_time);
 
-        /*
-        let blink_period = if !self.video_50hz {
-            BLINK_PERIOD_60HZ
+        let blink_period = if !self.apple2e && !self.apple2e_enh && !self.apple2c {
+            BLINK_PERIOD_15_FRAMES
         } else {
-            BLINK_PERIOD_50HZ
+            BLINK_PERIOD_16_FRAMES
         };
-        */
-        let blink_period = BLINK_PERIOD_60HZ;
 
         if elapsed > blink_period as u64 {
             if !self.vid80_mode {
