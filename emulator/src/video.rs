@@ -1151,11 +1151,14 @@ impl Video {
 
         let elapsed = current_time_ms.saturating_sub(self.blink_time);
 
+        /*
         let blink_period = if !self.video_50hz {
             BLINK_PERIOD_60HZ
         } else {
             BLINK_PERIOD_50HZ
         };
+        */
+        let blink_period = BLINK_PERIOD_60HZ;
 
         if elapsed > blink_period as u64 {
             if !self.vid80_mode {
