@@ -1206,20 +1206,18 @@ impl Video {
         display
     }
 
-    pub fn get_barrel_distorted_frame(&self, frame: &[u8]) -> Vec<u8> {
+    pub fn get_barrel_distorted_frame(&self, frame: &[u8], distortion: f64) -> Vec<u8> {
         let mut barrel_display = vec![0xff_u8; Self::WIDTH * Self::HEIGHT * 4];
         let center_x = (Self::WIDTH / 2) as i32;
         let center_y = (Self::HEIGHT / 2) as i32;
-        let kx = 0.015;
-        let ky = 0.04;
         for y_d in 0..Self::HEIGHT {
             for x_d in 0..Self::WIDTH {
                 let x_norm = (x_d as f64 - center_x as f64) / center_x as f64;
                 let y_norm = (y_d as f64 - center_y as f64) / center_y as f64;
                 let r2 = x_norm * x_norm + y_norm * y_norm;
 
-                let x_norm_u = x_norm * (1.0 + kx * r2);
-                let y_norm_u = y_norm * (1.0 + ky * r2);
+                let x_norm_u = x_norm * (1.0 + distortion * r2);
+                let y_norm_u = y_norm * (1.0 + distortion * r2);
 
                 let x_u = x_norm_u * center_x as f64 + center_x as f64;
                 let y_u = y_norm_u * center_y as f64 + center_y as f64;
