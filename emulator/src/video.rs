@@ -1143,6 +1143,151 @@ impl Video {
         }
     }
 
+    pub fn get_vertical_blend_frame(&self, frame: &[u8], scanline: bool) -> Vec<u8> {
+        let mut display = vec![0xff_u8; Self::WIDTH * Self::HEIGHT * 4];
+
+        for y in (0..Self::HEIGHT).step_by(2) {
+            for x in 0..Self::WIDTH {
+                let base = y * 4 * Self::WIDTH + x * 4;
+                let (r, g, b) = (frame[base], frame[base + 1], frame[base + 2]);
+                let [r1, g1, b1] = if base < 4 * Self::WIDTH {
+                    COLOR_BLACK
+                } else {
+                    [
+                        frame[base - 4 * Self::WIDTH],
+                        frame[base - 4 * Self::WIDTH + 1],
+                        frame[base - 4 * Self::WIDTH + 2],
+                    ]
+                };
+                let [r2, g2, b2] = if base + 8 * Self::WIDTH >= frame.len() {
+                    COLOR_BLACK
+                } else {
+                    [
+                        frame[base + 8 * Self::WIDTH],
+                        frame[base + 8 * Self::WIDTH + 1],
+                        frame[base + 8 * Self::WIDTH + 2],
+                    ]
+                };
+
+                let [r, g, b] = if [r, g, b] == COLOR_BLACK || [r, g, b] == COLOR_WHITE {
+                    [r, g, b]
+                } else if [r2, g2, b2] != COLOR_BLACK && [r2, g2, b2] != COLOR_WHITE {
+                    [
+                        ((r as u16 + r2 as u16) / 2) as u8,
+                        ((g as u16 + g2 as u16) / 2) as u8,
+                        ((b as u16 + b2 as u16) / 2) as u8,
+                    ]
+                } else if [r1, g1, b1] != COLOR_BLACK && [r1, g1, b1] != COLOR_WHITE {
+                    [
+                        ((r as u16 + r1 as u16) / 2) as u8,
+                        ((g as u16 + g1 as u16) / 2) as u8,
+                        ((b as u16 + b1 as u16) / 2) as u8,
+                    ]
+                } else {
+                    [r, g, b]
+                };
+
+                display[base] = r;
+                display[base + 1] = g;
+                display[base + 2] = b;
+
+                if !scanline {
+                    display[base + 4 * Self::WIDTH] = r;
+                    display[base + 4 * Self::WIDTH + 1] = g;
+                    display[base + 4 * Self::WIDTH + 2] = b;
+                } else {
+                    display[base + 4 * Self::WIDTH] = r / 2;
+                    display[base + 4 * Self::WIDTH + 1] = g / 2;
+                    display[base + 4 * Self::WIDTH + 2] = b / 2;
+                }
+            }
+        }
+
+        display
+    }
+
+    pub fn get_barrel_distorted_frame(&self, frame: &[u8]) -> Vec<u8> {
+        let mut barrel_display = vec![0xff_u8; Self::WIDTH * Self::HEIGHT * 4];
+        let center_x = (Self::WIDTH / 2) as i32;
+        let center_y = (Self::HEIGHT / 2) as i32;
+        let kx = 0.015;
+        let ky = 0.04;
+        for y_d in 0..Self::HEIGHT {
+            for x_d in 0..Self::WIDTH {
+                let x_norm = (x_d as f64 - center_x as f64) / center_x as f64;
+                let y_norm = (y_d as f64 - center_y as f64) / center_y as f64;
+                let r2 = x_norm * x_norm + y_norm * y_norm;
+
+                let x_norm_u = x_norm * (1.0 + kx * r2);
+                let y_norm_u = y_norm * (1.0 + ky * r2);
+
+                let x_u = x_norm_u * center_x as f64 + center_x as f64;
+                let y_u = y_norm_u * center_y as f64 + center_y as f64;
+
+                let (x1, y1) = (x_u.floor() as i32, y_u.floor() as i32);
+                let dx = x_u - x1 as f64;
+                let dy = y_u - y1 as f64;
+
+                let base = y1 * 4 * (Self::WIDTH as i32) + x1 * 4;
+                let p11 = if x1 >= 0 && y1 >= 0 && x1 < (Self::WIDTH as i32) && y1 < (Self::HEIGHT as i32) {
+                    let base = base as usize;
+                    [frame[base], frame[base + 1], frame[base + 2]]
+                } else {
+                    COLOR_BLACK
+                };
+
+                let p12 =
+                    if x1 + 1 >= 0 && y1 >= 0 && x1 + 1 < (Self::WIDTH as i32) && y1 < (Self::HEIGHT as i32) {
+                        let base = (base + 4) as usize;
+                        [frame[base], frame[base + 1], frame[base + 2]]
+                    } else {
+                        COLOR_BLACK
+                    };
+
+                let base = base + (Self::WIDTH as i32) * 4;
+                let p21 =
+                    if x1 >= 0 && y1 + 1 >= 0 && x1 < (Self::WIDTH as i32) && y1 + 1 < (Self::HEIGHT as i32) {
+                        let base = base as usize;
+                        [frame[base], frame[base + 1], frame[base + 2]]
+                    } else {
+                        COLOR_BLACK
+                    };
+
+                let p22 = if x1 + 1 >= 0
+                    && y1 + 1 >= 0
+                    && x1 + 1 < (Self::WIDTH as i32)
+                    && y1 + 1 < (Self::HEIGHT as i32)
+                {
+                    let base = (base + 4) as usize;
+                    [frame[base], frame[base + 1], frame[base + 2]]
+                } else {
+                    COLOR_BLACK
+                };
+
+                let r = (p11[0] as f64 * (1.0 - dx) * (1.0 - dy)
+                    + p12[0] as f64 * dx * (1.0 - dy)
+                    + p21[0] as f64 * (1.0 - dx) * dy
+                    + p22[0] as f64 * dx * dy) as u8;
+
+                let g = (p11[1] as f64 * (1.0 - dx) * (1.0 - dy)
+                    + p12[1] as f64 * dx * (1.0 - dy)
+                    + p21[1] as f64 * (1.0 - dx) * dy
+                    + p22[1] as f64 * dx * dy) as u8;
+
+                let b = (p11[2] as f64 * (1.0 - dx) * (1.0 - dy)
+                    + p12[2] as f64 * dx * (1.0 - dy)
+                    + p21[2] as f64 * (1.0 - dx) * dy
+                    + p22[2] as f64 * dx * dy) as u8;
+
+                let dbase = y_d * 4 * Self::WIDTH + x_d * 4;
+                barrel_display[dbase] = r;
+                barrel_display[dbase + 1] = g;
+                barrel_display[dbase + 2] = b;
+            }
+        }
+        barrel_display
+    }
+
     fn update_blink_state(&mut self) {
         let current_time_ms = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
