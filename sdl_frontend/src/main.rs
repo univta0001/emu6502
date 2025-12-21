@@ -2197,6 +2197,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                             current_full_screen = current_full_screen_value;
                             full_screen = current_full_screen_value;
                         } else {
+                            window.restore();
                             sdl_context.mouse().show_cursor(true);
                             _cpu.bus.video.invalidate_video_cache();
                         }
