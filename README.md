@@ -43,6 +43,10 @@ Features in the emulator
 
   sudo setcap cap_net_raw,cap_net_admin=eip emu6502
 
+- Change default audio device to use Alsa in Linux
+
+  export SDL_AUDIODRIVER=alsa
+
 - `emu6502 --help` will display:
 
         emu6502 0.9.4 (1188f6f4d1ac4aff3bde371620b85e0ade0362ed)
