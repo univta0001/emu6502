@@ -25,19 +25,17 @@ use sdl3::gamepad::Button;
 use sdl3::gamepad::Gamepad;
 use sdl3::keyboard::Keycode;
 use sdl3::keyboard::Mod;
-use sdl3::pixels::Color;
-use sdl3::pixels::PixelFormat;
-use sdl3::pixels::PixelMasks;
-use sdl3::rect::Point;
 use sdl3::rect::Rect;
-use sdl3::render::BlendMode;
-use sdl3::render::Canvas;
-use sdl3::render::RenderTarget;
 use sdl3::render::Texture;
 use sdl3::video::Window;
 use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsStr;
+use strum::IntoEnumIterator;
+
+use imgui::StyleVar;
+use imgui_sdl3::ImGuiSdl3;
+use sdl3::gpu::*;
 
 #[cfg(feature = "serialization")]
 use std::fs;
@@ -70,6 +68,8 @@ const SPEED_DENOMINATOR: [usize; 5] = [1, 28, 40, 80, 1];
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+const MENUBAR_HEIGHT: u32 = 19;
+
 struct EventParam<'a> {
     video_subsystem: &'a VideoSubsystem,
     game_controller: &'a GamepadSubsystem,
@@ -86,6 +86,8 @@ struct EventParam<'a> {
     disk_mode_index: &'a mut usize,
     clipboard_text: &'a mut String,
     full_screen: &'a mut bool,
+    barrel_distortion: &'a mut bool,
+    vertical_blend: &'a mut bool,
 }
 
 fn translate_key_to_apple_key(
@@ -1073,40 +1075,6 @@ fn get_harddisk_filename(cpu: &CPU, drive: usize) -> Option<String> {
     cpu.bus.harddisk.get_disk_filename(drive)
 }
 
-fn draw_circle<T: RenderTarget>(
-    canvas: &mut Canvas<T>,
-    cx: i32,
-    cy: i32,
-    r: i32,
-) -> Result<(), Box<dyn Error + Send + Sync>> {
-    let mut x = r;
-    let mut y = 0;
-    let mut d = 1 - r;
-
-    canvas.draw_line(Point::new(cx - x, cy), Point::new(cx + x, cy))?;
-
-    while x > y {
-        y += 1;
-
-        if d <= 0 {
-            d += 2 * y + 1;
-        } else {
-            x -= 1;
-            d += 2 * y - 2 * x + 1;
-        }
-
-        if x < y {
-            break;
-        }
-
-        canvas.draw_line(Point::new(cx - x, cy + y), Point::new(cx + x, cy + y))?;
-        canvas.draw_line(Point::new(cx - x, cy - y), Point::new(cx + x, cy - y))?;
-        canvas.draw_line(Point::new(cx - y, cy + x), Point::new(cx + y, cy + x))?;
-        canvas.draw_line(Point::new(cx - y, cy - x), Point::new(cx + y, cy - x))?;
-    }
-    Ok(())
-}
-
 fn register_device(cpu: &mut CPU, device: &str, slot: usize, mboard: &mut usize, saturn: &mut u8) {
     match device {
         "none" => cpu.bus.register_device(IODevice::None, slot),
@@ -1374,33 +1342,61 @@ fn save_emulator_screenshot(cpu: &mut CPU) {
     }
 }
 
-fn update_video(
-    cpu: &mut CPU,
-    canvas: &mut Canvas<Window>,
-    texture: &mut Texture,
-    fullscreen: bool,
-) {
+fn _update_texture(cpu: &mut CPU, texture: &mut Texture) {
     let disp = &mut cpu.bus.video;
     let dirty_region = disp.get_dirty_region();
-
-    /*
-    if dirty_region.len() > 0
-    && !(dirty_region.len() == 1 && dirty_region[0].0 == 0 && dirty_region[0].1 == 23)
-    {
-        eprintln!("UI updates = {} {:?}", dirty_region.len() , dirty_region);
-    }
-    */
-
-    canvas.set_blend_mode(BlendMode::Blend);
     for region in dirty_region {
         let start = region.0 * 16;
         let end = 16 * ((region.1 - region.0) + 1);
         let rect = Rect::new(0, start as i32, WIDTH as u32, end as u32);
         let _ = texture.update(rect, &disp.frame[start * 4 * WIDTH..], WIDTH * 4);
     }
-    let _ = canvas.copy(texture, None, None);
     disp.clear_video_dirty();
+}
 
+fn update_gpu_texture(
+    cpu: &mut CPU,
+    imgui: &imgui_sdl3::ImGuiSdl3,
+    device: &Device,
+    texture_id: imgui::TextureId,
+    event: &EventParam,
+) {
+    let disp = &mut cpu.bus.video;
+    if let Some(texture) = imgui.get_texture(texture_id) {
+        let display = if *event.vertical_blend {
+            &disp.get_vertical_blend_frame(&disp.frame, disp.get_scanline())
+        } else {
+            &disp.frame
+        };
+        let display = if *event.barrel_distortion {
+            &disp.get_barrel_distorted_frame(display, 0.015)
+        } else {
+            display
+        };
+
+        let upload_command_buffer = device.acquire_command_buffer().unwrap();
+        let copy_pass = device.begin_copy_pass(&upload_command_buffer).unwrap();
+        let _ = imgui_sdl3::utils::update_texture(
+            device,
+            texture,
+            &copy_pass,
+            display,
+            (0, 0),
+            (WIDTH as u32, HEIGHT as u32),
+        );
+        device.end_copy_pass(copy_pass);
+        let _ = upload_command_buffer.submit();
+    }
+    disp.clear_video_dirty();
+}
+
+fn update_gpu_harddisk_status(
+    cpu: &mut CPU,
+    drawlist: &imgui::DrawListMut<'_>,
+    window: &Window,
+    menubar_height: f32,
+    scale: f32,
+) {
     let harddisk_on;
     let disk_is_on = {
         harddisk_on = cpu.bus.harddisk.is_busy();
@@ -1408,20 +1404,24 @@ fn update_video(
     };
 
     if disk_is_on {
-        if harddisk_on {
-            canvas.set_draw_color(Color::RGBA(0, 255, 0, 128));
+        let color: [f32; 4] = if harddisk_on {
+            [0.0, 1.0, 0.0, 0.5]
         } else {
-            canvas.set_draw_color(Color::RGBA(255, 0, 0, 128));
-        }
-
-        let width = if fullscreen {
-            canvas.viewport().width() as i32
-        } else {
-            WIDTH as i32
+            [1.0, 0.0, 0.0, 0.5]
         };
-        let _ = draw_circle(canvas, width - 4, 4, 2);
+
+        let window_size = window.size();
+        let screen = [window_size.0 as f32, window_size.1 as f32];
+
+        drawlist
+            .add_circle(
+                [screen[0] - 4.0 * scale, menubar_height + 4.0 * scale],
+                2.0 * scale,
+                color,
+            )
+            .filled(true)
+            .build();
     }
-    canvas.present();
 }
 
 #[cfg(feature = "serialization")]
@@ -1855,16 +1855,30 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
 
     // Create the SDL3 context
-    let sdl_context = sdl3::init()?;
+    let mut sdl_context = sdl3::init()?;
 
     // Create window
     let width = (scale * WIDTH as f32) as u32;
     let height = (scale * HEIGHT as f32) as u32;
     let video_subsystem = sdl_context.video()?;
-    let window = video_subsystem
-        .window("Apple ][ emulator", width, height)
+    let mut window = video_subsystem
+        .window("Apple ][ emulator", width, height + 2 * MENUBAR_HEIGHT)
         .position_centered()
+        .high_pixel_density()
+        .metal_view()
         .build()?;
+
+    let device = Device::new(ShaderFormat::SPIRV, false)?.with_window(&window)?;
+
+    // create platform and renderer
+    let mut imgui = ImGuiSdl3::new(&device, &window, |ctx| {
+        // disable creation of files on disc
+        ctx.set_ini_filename(None);
+        ctx.set_log_filename(None);
+        // setup platform and renderer, and fonts to imgui
+        ctx.fonts()
+            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+    });
 
     // Create the game controller
     let game_controller = sdl_context.gamepad()?;
@@ -1876,29 +1890,18 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     window.set_icon(apple2_icon);
     */
 
-    // Create canvas
-    //let mut canvas = window.into_canvas().present_vsync().build().unwrap();
-    let mut canvas = window.into_canvas();
-    let creator = canvas.texture_creator();
-    let abgr8888_mask = PixelMasks {
-        bpp: 32,
-        amask: 0xff000000,
-        bmask: 0x00ff0000,
-        gmask: 0x0000ff00,
-        rmask: 0x000000ff,
-    };
-    let mut texture = creator.create_texture_target::<PixelFormat>(
-        PixelFormat::from_masks(abgr8888_mask),
-        WIDTH as u32,
-        HEIGHT as u32,
-    )?;
+    let texture_info = TextureCreateInfo::new()
+        .with_type(TextureType::_2D)
+        .with_format(TextureFormat::R8g8b8a8Unorm)
+        .with_usage(TextureUsage::SAMPLER)
+        .with_width(WIDTH as u32)
+        .with_height(HEIGHT as u32)
+        .with_layer_count_or_depth(1)
+        .with_num_levels(1)
+        .with_sample_count(SampleCount::default());
 
-    canvas.clear();
-    canvas.set_scale(scale, scale)?;
-
-    texture.update(None, &cpu.bus.video.frame, WIDTH * 4)?;
-    canvas.copy(&texture, None, None)?;
-    canvas.present();
+    let gpu_texture = device.create_texture(texture_info)?;
+    let image_texture_id = imgui.insert_texture(gpu_texture);
 
     // Create audio
     let audio_subsystem = sdl_context.audio();
@@ -1927,7 +1930,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     };
 
     // Create SDL event pump
-    let mut _event_pump = sdl_context.event_pump().unwrap();
+    let mut event_pump = sdl_context.event_pump().unwrap();
     //_event_pump.enable_event(DropFile);
 
     let mut t = Instant::now();
@@ -1979,6 +1982,14 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut prev_x: i32 = 0;
     let mut prev_y: i32 = 0;
 
+    let mut menu_bar_height = 0.0;
+    let mut show_settings = false;
+    let mut prev_settings = get_slot_settings(&cpu);
+    let mut current_settings = prev_settings.clone();
+    let mut model_changed = false;
+    let mut barrel_distortion = false;
+    let mut vertical_blend = false;
+
     loop {
         if reload_cpu {
             reload_cpu = false;
@@ -2019,6 +2030,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 let normal_cpu_speed =
                     normal_disk_speed && _cpu.full_speed != CpuSpeed::SPEED_FASTEST;
 
+                // Update video, audio and events at multiple of 60Hz or 50Hz
                 let time_tolerance = if normal_cpu_speed {
                     cpu_period as u128 - 500
                 } else {
@@ -2026,21 +2038,16 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 };
 
                 let video_time_elapsed = video_time.elapsed().as_micros();
-
-                // Update video, audio and events at multiple of 60Hz or 50Hz
                 if video_time_elapsed >= time_tolerance {
+                    video_time = Instant::now();
+
                     if save_screenshot {
                         save_emulator_screenshot(_cpu);
                         save_screenshot = false;
                     }
 
-                    update_video(_cpu, &mut canvas, &mut texture, current_full_screen);
-                    video_time = Instant::now();
-
-                    _cpu.bus.video.skip_update = false;
-
-                    for event_value in _event_pump.poll_iter() {
-                        let mut event_param = EventParam {
+                    //update_texture(_cpu, &mut texture);
+                    let mut event_param = EventParam {
                             video_subsystem: &video_subsystem,
                             game_controller: &game_controller,
                             gamepads: &mut gamepads,
@@ -2056,17 +2063,108 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                             disk_mode_index: &mut disk_mode_index,
                             clipboard_text: &mut clipboard_text,
                             full_screen: &mut full_screen,
+                            barrel_distortion: &mut barrel_distortion,
+                            vertical_blend: &mut vertical_blend,
                         };
 
+                    update_gpu_texture(
+                        _cpu,
+                        &imgui,
+                        &device,
+                        image_texture_id,
+                        &event_param,
+                    );
+                    //update_video(_cpu, &mut canvas, &mut texture, current_full_screen);
+
+                    _cpu.bus.video.skip_update = false;
+
+                    for event_value in event_pump.poll_iter() {
+                        imgui.handle_event(&event_value);
                         handle_event(_cpu, event_value, &mut event_param);
+                    }
+
+                    if let Ok(mut command_buffer) = device.acquire_command_buffer() {
+                        if let Ok(swapchain) =
+                            command_buffer.wait_and_acquire_swapchain_texture(&window)
+                        {
+                            if swapchain.raw() as usize != 0 {
+                                let color_targets = [ColorTargetInfo::default()
+                                    .with_texture(&swapchain)
+                                    .with_load_op(LoadOp::LOAD)
+                                    .with_store_op(StoreOp::STORE)];
+
+                                imgui.render(
+                                    &mut sdl_context,
+                                    &device,
+                                    &window,
+                                    &event_pump,
+                                    &mut command_buffer,
+                                    &color_targets,
+                                    |ui| {
+                                        // create imgui UI here
+                                        menu_bar_height = if current_full_screen {
+                                            0.0
+                                        } else {
+                                            ui.frame_height()
+                                        };
+
+                                        update_emulator_graphics(
+                                            _cpu,
+                                            ui,
+                                            &window,
+                                            menu_bar_height,
+                                            scale,
+                                            image_texture_id,
+                                        );
+
+                                        if !current_full_screen {
+                                            prepare_main_menu(
+                                                _cpu,
+                                                ui,
+                                                &mut show_settings,
+                                                &mut model_changed,
+                                                &mut event_param,
+                                            );
+
+                                            if show_settings {
+                                                show_settings = false;
+                                                ui.open_popup("Settings##settings");
+                                            }
+
+                                            prepare_settings(
+                                                _cpu,
+                                                ui,
+                                                &mut current_settings,
+                                                &mut prev_settings,
+                                            );
+                                        }
+
+                                        if menu_bar_height > 0.0 {
+                                            prepare_statusbar(
+                                                ui,
+                                                &event_param,
+                                                width,
+                                                height,
+                                                menu_bar_height,
+                                            );
+                                        }
+
+                                        //ui.show_demo_window(&mut true);
+                                    },
+                                );
+                            }
+                            let _ = command_buffer.submit();
+                        } else {
+                            command_buffer.cancel();
+                        }
                     }
 
                     // Update keyboard akd state
                     _cpu.bus.any_key_down =
-                        _event_pump.keyboard_state().pressed_scancodes().count() > 0;
+                        event_pump.keyboard_state().pressed_scancodes().count() > 0;
 
                     // Update mouse state
-                    let mouse_state = _event_pump.mouse_state();
+                    let mouse_state = event_pump.mouse_state();
                     let x = mouse_state.x();
                     let y = mouse_state.y();
                     let buttons = [mouse_state.left(), mouse_state.right()];
@@ -2075,14 +2173,17 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     let delta_y = (y as i32).saturating_sub(prev_y);
                     prev_x = x as i32;
                     prev_y = y as i32;
-                    _cpu.bus.set_mouse_state(delta_x, delta_y, &buttons);
+
+                    if y as f32 >= menu_bar_height {
+                        _cpu.bus.set_mouse_state(delta_x, delta_y, &buttons);
+                    }
 
                     // Check the full_screen state is not change
                     if full_screen != current_full_screen {
                         let current_full_screen_value = current_full_screen;
                         current_full_screen = full_screen;
                         if current_full_screen {
-                            if let Err(e) = canvas.window_mut().set_fullscreen(true) {
+                            if let Err(e) = window.set_fullscreen(true) {
                                 eprintln!("Unable to set full_screen = {}", e);
                                 current_full_screen = current_full_screen_value;
                                 full_screen = current_full_screen_value;
@@ -2090,7 +2191,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                                 sdl_context.mouse().show_cursor(false);
                                 _cpu.bus.video.invalidate_video_cache();
                             }
-                        } else if let Err(e) = canvas.window_mut().set_fullscreen(false) {
+                        } else if let Err(e) = window.set_fullscreen(false) {
                             eprintln!("Unable to restore from full_screen = {}", e);
                             current_full_screen = current_full_screen_value;
                             full_screen = current_full_screen_value;
@@ -2108,6 +2209,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 if normal_cpu_speed {
                     let adj_ms = cpu_period as usize * SPEED_NUMERATOR[speed_index]
                         / SPEED_DENOMINATOR[speed_index];
+
                     let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
 
                     if adj_time > 0 {
@@ -2119,6 +2221,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 _cpu.bus.audio.clear_buffer();
                 let elapsed = t.elapsed().as_micros();
                 estimated_mhz = (dcyc as f32) / elapsed as f32;
+
                 fps = if _cpu.bus.video.is_video_50hz() {
                     1015625.0 / (dcyc as f32)
                 } else {
@@ -2131,6 +2234,14 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
         if !reload_cpu {
             break;
+        } else if model_changed {
+            model_changed = false;
+            cpu.reset();
+            cpu.bus.init_memory();
+            cpu.bus.set_apple2c(false);
+            cpu.bus.video.set_apple2c(false);
+            cpu.bus.set_iwm(false);
+            cpu.setup_emulator();
         } else {
             #[cfg(feature = "serialization")]
             {
@@ -2167,6 +2278,659 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     */
 
     Ok(())
+}
+
+fn update_emulator_graphics(
+    cpu: &mut CPU,
+    ui: &imgui::Ui,
+    window: &Window,
+    menu_bar_height: f32,
+    scale: f32,
+    image_texture_id: imgui::TextureId,
+) {
+    let bg_draw_list = ui.get_background_draw_list();
+    let window_size = window.size();
+    let mut screen = [window_size.0, window_size.1];
+
+    if menu_bar_height > 0.0 {
+        screen[1] -= menu_bar_height as u32;
+    }
+
+    {
+        bg_draw_list
+            .add_image(
+                image_texture_id,
+                [0.0, menu_bar_height],
+                [screen[0] as f32, screen[1] as f32],
+            )
+            .build();
+    }
+
+    update_gpu_harddisk_status(cpu, &bg_draw_list, window, menu_bar_height, scale);
+}
+
+fn prepare_main_menu(
+    cpu: &mut CPU,
+    ui: &imgui::Ui,
+    show_settings: &mut bool,
+    model_changed: &mut bool,
+    event: &mut EventParam,
+) {
+    ui.main_menu_bar(|| {
+        // System menu
+        prepare_system_menu(cpu, ui, event, show_settings, model_changed);
+
+        // Speed menu
+        prepare_speed_menu(cpu, ui, event);
+
+        // Video menu
+        prepare_video_menu(cpu, ui, event);
+
+        // Audio menu
+        prepare_audio_menu(cpu, ui);
+
+        // Input menu
+        prepare_input_menu(cpu, ui, event);
+    });
+}
+
+fn prepare_system_menu(
+    cpu: &mut CPU,
+    ui: &imgui::Ui,
+    event: &mut EventParam,
+    show_settings: &mut bool,
+    model_changed: &mut bool,
+) {
+    ui.menu("System", || {
+        prepare_menu_for_model(cpu, ui, model_changed, event);
+
+        if ui.menu_item("Slot Settings...") {
+            *show_settings = true;
+        }
+
+        prepare_menu_for_disk(cpu, ui);
+
+        ui.separator();
+
+        prepare_menu_for_state_management(cpu, ui, event);
+
+        ui.separator();
+        // Add an "Exit" menu item
+        let exit_key = if std::env::consts::OS == "macos" {
+            "Option-F4"
+        } else {
+            "Alt-F4"
+        };
+        if ui.menu_item_config("Exit").shortcut(exit_key).build() {
+            cpu.halt_cpu();
+        }
+    });
+}
+
+fn prepare_speed_menu_item(
+    cpu: &mut CPU,
+    ui: &imgui::Ui,
+    event: &mut EventParam,
+    label: &str,
+    shortcut: &str,
+    index: usize,
+) {
+    let speed_index = *event.speed_index;
+    build_toggle_menu_item(ui, label, shortcut, speed_index == index, |_| {
+        *event.speed_index = index;
+        cpu.set_speed(event.speed_mode[*event.speed_index]);
+    });
+}
+
+fn prepare_speed_menu(cpu: &mut CPU, ui: &imgui::Ui, event: &mut EventParam) {
+    ui.menu("Speed", || {
+        prepare_speed_menu_item(cpu, ui, event, "1.0 MHz", "F9, Shift-F9", 0);
+        prepare_speed_menu_item(cpu, ui, event, "2.8 MHz", "F9, Shift-F9", 1);
+        prepare_speed_menu_item(cpu, ui, event, "4.0 MHz", "F9, Shift-F9", 2);
+        prepare_speed_menu_item(cpu, ui, event, "8.0 MHz", "F9, Shift-F9", 3);
+        prepare_speed_menu_item(cpu, ui, event, "Fastest MHz", "F9, Shirt-F9", 4);
+    })
+}
+
+fn prepare_toggle_video_menu_item(
+    cpu: &mut CPU,
+    ui: &imgui::Ui,
+    event: &mut EventParam,
+    label: &str,
+    shortcut: &str,
+    index: usize,
+) {
+    let disp_index = *event.display_index;
+    build_toggle_menu_item(ui, label, shortcut, disp_index == index, |_| {
+        *event.display_index = index;
+        cpu.bus
+            .video
+            .set_display_mode(event.display_mode[*event.display_index]);
+    });
+}
+
+fn prepare_video_menu(cpu: &mut CPU, ui: &imgui::Ui, event: &mut EventParam) {
+    ui.menu("Video", || {
+        prepare_toggle_video_menu_item(
+            cpu,
+            ui,
+            event,
+            "Idealized Composite (Default)",
+            "F6, Shift-F6",
+            0,
+        );
+        prepare_toggle_video_menu_item(cpu, ui, event, "NTSC Composite", "F6, Shift-F6", 1);
+        prepare_toggle_video_menu_item(cpu, ui, event, "RGB Monitor", "F6, Shift-F6", 2);
+        prepare_toggle_video_menu_item(cpu, ui, event, "Monochrome", "F6, Shift-F6", 3);
+        prepare_toggle_video_menu_item(cpu, ui, event, "Monochrome (NTSC)", "F6, Shift-F6", 4);
+        prepare_toggle_video_menu_item(cpu, ui, event, "Monochrome (Green)", "F6, Shift-F6", 5);
+        prepare_toggle_video_menu_item(cpu, ui, event, "Monochrome (Amber)", "F6, Shift-F6", 6);
+
+        ui.separator();
+
+        build_toggle_menu_item(
+            ui,
+            "50 Hz Refresh Rate",
+            "F7",
+            cpu.bus.video.is_video_50hz(),
+            |state| {
+                cpu.bus.video.set_video_50hz(state);
+            },
+        );
+
+        build_toggle_menu_item(
+            ui,
+            "Scan Line",
+            "Ctrl-F5",
+            cpu.bus.video.get_scanline(),
+            |state| {
+                cpu.bus.video.set_scanline(state);
+            },
+        );
+
+        build_toggle_menu_item(
+            ui,
+            "Toggle Text Color Burst",
+            "Ctrl-F7",
+            cpu.bus.video.get_text_color_burst(),
+            |state| {
+                cpu.bus.video.set_text_color_burst(state);
+            },
+        );
+
+        build_toggle_menu_item(
+            ui,
+            "Enable Barrel Distortion",
+            "",
+            *event.barrel_distortion,
+            |state| {
+                *event.barrel_distortion = state;
+            },
+        );
+
+        build_toggle_menu_item(
+            ui,
+            "Enable Vertical Blend",
+            "",
+            *event.vertical_blend,
+            |state| {
+                *event.vertical_blend = state;
+            },
+        );
+    })
+}
+
+fn prepare_audio_menu(cpu: &mut CPU, ui: &imgui::Ui) {
+    ui.menu("Audio", || {
+        let audio_filter = cpu.bus.audio.get_filter_enabled();
+        build_toggle_menu_item(ui, "Audio Filter", "Ctrl-F6", audio_filter, |new_state| {
+            cpu.bus.audio.set_filter_enabled(new_state);
+        });
+
+        let disk_sound = cpu.bus.disk.get_disk_sound_enabled();
+        build_toggle_menu_item(ui, "Disk Sound", "", disk_sound, |new_state| {
+            cpu.bus.disk.set_disk_sound_enable(new_state);
+        });
+    })
+}
+
+fn build_toggle_menu_item<F>(
+    ui: &imgui::Ui,
+    label: &str,
+    shortcut: &str,
+    is_active: bool,
+    on_toggle: F,
+) where
+    F: FnOnce(bool),
+{
+    if ui
+        .menu_item_config(label)
+        .shortcut(shortcut)
+        .selected(is_active)
+        .build()
+    {
+        // If the item was clicked, call the closure with the toggled state.
+        on_toggle(!is_active);
+    }
+}
+
+fn prepare_menu_for_model(
+    cpu: &mut CPU,
+    ui: &imgui::Ui,
+    model_changed: &mut bool,
+    event: &mut EventParam,
+) {
+    let apple2_rom: Vec<u8> = include_bytes!("../../resource/Apple2.rom").to_vec();
+    let apple2p_rom: Vec<u8> = include_bytes!("../../resource/Apple2_Plus.rom").to_vec();
+    //let apple2e_rom: Vec<u8> = std::fs::read("Apple2e.rom").unwrap();
+    let apple2e_rom: Vec<u8> = include_bytes!("../../resource/Apple2e.rom").to_vec();
+    //let apple2ee_rom: Vec<u8> = std::fs::read("Apple2e_Enhanced.rom").unwrap();
+    let apple2ee_rom: Vec<u8> = include_bytes!("../../resource/Apple2e_Enhanced.rom").to_vec();
+    let apple2c_rom: Vec<u8> = include_bytes!("../../resource/Apple2c_RomFF.rom").to_vec();
+    let apple2c0_rom: Vec<u8> = include_bytes!("../../resource/Apple2c_Rom00.rom").to_vec();
+    let apple2c3_rom: Vec<u8> = include_bytes!("../../resource/Apple2c_Rom03.rom").to_vec();
+    let apple2c4_rom: Vec<u8> = include_bytes!("../../resource/Apple2c_Rom04.rom").to_vec();
+    let apple2cp_rom: Vec<u8> = include_bytes!("../../resource/Apple2c_plus.rom").to_vec();
+
+    ui.menu("Model", || {
+        let rom_value = cpu.bus.mem.mem_read(0xfbb3);
+        build_toggle_menu_item(ui, "Apple ][", "", rom_value == 0x38, |_| {
+            initialize_apple_system(cpu, &apple2_rom, 0xd000, false);
+            *model_changed = true;
+            *event.reload_cpu = true;
+            cpu.halt_cpu();
+        });
+
+        build_toggle_menu_item(ui, "Apple ][ Plus", "", rom_value == 0xea, |_| {
+            initialize_apple_system(cpu, &apple2p_rom, 0xd000, false);
+            *model_changed = true;
+            *event.reload_cpu = true;
+            cpu.halt_cpu();
+        });
+
+        build_toggle_menu_item(
+            ui,
+            "Apple //e",
+            "",
+            !cpu.is_apple2c() && cpu.is_apple2e() && !cpu.is_apple2e_enh(),
+            |_| {
+                initialize_apple_system(cpu, &apple2e_rom, 0xc000, false);
+                *model_changed = true;
+                *event.reload_cpu = true;
+                cpu.halt_cpu();
+            },
+        );
+
+        build_toggle_menu_item(
+            ui,
+            "Apple //e (Enhanced)",
+            "",
+            !cpu.is_apple2c() && cpu.is_apple2e_enh(),
+            |_| {
+                initialize_apple_system(cpu, &apple2ee_rom, 0xc000, false);
+                *model_changed = true;
+                *event.reload_cpu = true;
+                cpu.halt_cpu();
+            },
+        );
+
+        let rom_value = cpu.bus.mem.mem_read(0xfbbf);
+        build_toggle_menu_item(
+            ui,
+            "Apple //c Rom FF",
+            "",
+            cpu.is_apple2c() && rom_value == 0xff,
+            |_| {
+                initialize_apple_system(cpu, &apple2c_rom, 0xc000, false);
+                *model_changed = true;
+                *event.reload_cpu = true;
+                cpu.halt_cpu();
+            },
+        );
+
+        build_toggle_menu_item(
+            ui,
+            "Apple //c Rom 00",
+            "",
+            cpu.is_apple2c() && rom_value == 0x00,
+            |_| {
+                initialize_apple_system(cpu, &apple2c0_rom, 0xc000, true);
+                *model_changed = true;
+                *event.reload_cpu = true;
+                cpu.halt_cpu();
+            },
+        );
+
+        build_toggle_menu_item(
+            ui,
+            "Apple //c Rom 03",
+            "",
+            cpu.is_apple2c() && rom_value == 0x03,
+            |_| {
+                initialize_apple_system(cpu, &apple2c3_rom, 0xc000, true);
+                *model_changed = true;
+                *event.reload_cpu = true;
+                cpu.halt_cpu();
+            },
+        );
+
+        build_toggle_menu_item(
+            ui,
+            "Apple //c Rom 04",
+            "",
+            cpu.is_apple2c() && rom_value == 0x04,
+            |_| {
+                initialize_apple_system(cpu, &apple2c4_rom, 0xc000, true);
+                *model_changed = true;
+                *event.reload_cpu = true;
+                cpu.halt_cpu();
+            },
+        );
+
+        build_toggle_menu_item(
+            ui,
+            "Apple //c Platinum",
+            "",
+            cpu.is_apple2c() && rom_value == 0x05,
+            |_| {
+                initialize_apple_system(cpu, &apple2cp_rom, 0xc000, true);
+                *model_changed = true;
+                *event.reload_cpu = true;
+                cpu.halt_cpu();
+            },
+        );
+    });
+}
+
+fn prepare_input_menu(cpu: &mut CPU, ui: &imgui::Ui, event: &mut EventParam) {
+    ui.menu("Input", || {
+        if ui
+            .menu_item_config("Paste from Clipboard")
+            .shortcut("Shift-Insert")
+            .build()
+        {
+            let clipboard = event.video_subsystem.clipboard();
+            if let Ok(text) = clipboard.clipboard_text() {
+                *event.clipboard_text = text.replace('\n', "");
+            }
+        }
+
+        ui.separator();
+
+        let fast_disk = !cpu.bus.disk.get_disable_fast_disk();
+        build_toggle_menu_item(ui, "Fast Disk", "F5", fast_disk, |new_state| {
+            cpu.bus.disk.set_disable_fast_disk(!new_state);
+        });
+
+        ui.separator();
+
+        build_toggle_menu_item(ui, "Joystick", "F4", cpu.bus.joystick_flag, |new_state| {
+            cpu.bus.set_joystick(new_state);
+        });
+
+        build_toggle_menu_item(
+            ui,
+            "Joystick Jitter",
+            "F8",
+            cpu.bus.joystick_jitter,
+            |new_state| {
+                cpu.bus.joystick_jitter = new_state;
+            },
+        );
+
+        ui.separator();
+        if ui.menu_item_config("Load Tape").shortcut("Ctrl-F8").build() {
+            load_tape(cpu);
+        }
+
+        if ui
+            .menu_item_config("Eject Tape")
+            .shortcut("Ctrl-F9")
+            .build()
+        {
+            cpu.bus.audio.eject_tape();
+        }
+    })
+}
+
+fn prepare_menu_for_disk(cpu: &mut CPU, ui: &imgui::Ui) {
+    ui.menu("Disk Drive 1", || {
+        if ui.menu_item_config("Open").shortcut("F1").build() {
+            open_disk_dialog(cpu, 0);
+        }
+        if ui.menu_item_config("Eject").shortcut("Ctrl-F1").build() {
+            eject_disk(cpu, 0);
+        }
+    });
+
+    ui.menu("Disk Drive 2", || {
+        if ui.menu_item_config("Open").shortcut("F2").build() {
+            open_disk_dialog(cpu, 1);
+        }
+        if ui.menu_item_config("Eject").shortcut("Ctrl-F2").build() {
+            eject_disk(cpu, 1);
+        }
+    });
+
+    ui.menu("Hard Drive 1", || {
+        if ui.menu_item_config("Open").shortcut("F10").build() {
+            open_harddisk_dialog(cpu, 0);
+        }
+        if ui.menu_item_config("Eject").shortcut("Ctrl-F10").build() {
+            eject_harddisk(cpu, 0);
+        }
+    });
+
+    ui.menu("Hard Drive 2", || {
+        if ui.menu_item_config("Open").shortcut("F11").build() {
+            open_harddisk_dialog(cpu, 1);
+        }
+        if ui.menu_item_config("Eject").shortcut("Ctrl-F11").build() {
+            eject_harddisk(cpu, 1);
+        }
+    });
+}
+
+fn prepare_menu_for_state_management(cpu: &mut CPU, ui: &imgui::Ui, event: &mut EventParam) {
+    if ui
+        .menu_item_config("Load State")
+        .shortcut("Ctrl-F4")
+        .build()
+    {
+        *event.reload_cpu = true;
+        cpu.halt_cpu();
+    }
+    if ui
+        .menu_item_config("Save State")
+        .shortcut("Ctrl-F3")
+        .build()
+    {
+        save_serialized_image(cpu);
+    }
+}
+
+fn get_slot_settings(cpu: &CPU) -> Vec<usize> {
+    let mut selected = vec![0; 8];
+
+    let mut mockingboard_id = 0;
+    let mut saturn_id = 0;
+
+    let iodevice_items: Vec<_> = IODevice::iter().collect();
+
+    for (i, &item) in iodevice_items.iter().enumerate() {
+        match item {
+            IODevice::Mockingboard(_) => {
+                mockingboard_id = i;
+            }
+            IODevice::Saturn(_) => {
+                saturn_id = i;
+            }
+            _ => {}
+        };
+    }
+
+    for (i, item) in selected.iter_mut().enumerate().take(8).skip(1) {
+        let slot_value = cpu.bus.io_slot[i];
+        *item = 0;
+        for (io_index, &io_item) in iodevice_items.iter().enumerate() {
+            if slot_value == io_item {
+                *item = io_index;
+            }
+            match slot_value {
+                IODevice::Mockingboard(_) => *item = mockingboard_id,
+                IODevice::Saturn(_) => *item = saturn_id,
+                _ => {}
+            }
+        }
+    }
+
+    selected
+}
+
+fn update_settings(cpu: &mut CPU, settings: &[usize]) -> bool {
+    let mut mockingboard_count = 0;
+    let mut hard_disk_count = 0;
+    let mut disk_drive_count = 0;
+    let mut saturn_count = 0;
+
+    let iodevice_items: Vec<_> = IODevice::iter().collect();
+
+    // Check for disk, hard disk, mockingboard validity
+    // Only two mockingboards allowed, one disk drive and one hard disk
+    for &device_index in &settings[1..8] {
+        let device = iodevice_items[device_index];
+        match device {
+            IODevice::Mockingboard(_) => {
+                if mockingboard_count >= 2 {
+                    return false;
+                }
+                mockingboard_count += 1;
+            }
+
+            IODevice::Disk | IODevice::Disk13 => {
+                if disk_drive_count >= 1 {
+                    return false;
+                }
+                disk_drive_count += 1;
+            }
+
+            IODevice::HardDisk => {
+                if hard_disk_count >= 1 {
+                    return false;
+                }
+                hard_disk_count += 1;
+            }
+
+            _ => {}
+        }
+    }
+
+    mockingboard_count = 0;
+
+    for i in 1..8 {
+        let slot_value = iodevice_items[settings[i]];
+        cpu.bus.io_slot[i] = slot_value;
+        if let IODevice::Mockingboard(_) = slot_value {
+            cpu.bus.io_slot[i] = IODevice::Mockingboard(mockingboard_count);
+            mockingboard_count += 1
+        }
+        if let IODevice::Saturn(_) = slot_value {
+            cpu.bus.io_slot[i] = IODevice::Saturn(saturn_count);
+            saturn_count += 1
+        }
+        cpu.bus.register_device(cpu.bus.io_slot[i], i);
+    }
+
+    true
+}
+
+fn prepare_settings(
+    cpu: &mut CPU,
+    ui: &imgui::Ui,
+    selected: &mut Vec<usize>,
+    prev_selected: &mut Vec<usize>,
+) {
+    let _ = ui
+        .modal_popup_config("Settings##settings")
+        .flags(imgui::WindowFlags::NO_RESIZE | imgui::WindowFlags::NO_SAVED_SETTINGS)
+        .build(|| {
+            let items: Vec<&str> = IODevice::iter().map(|item| item.into()).collect();
+            for (i, item) in selected.iter_mut().enumerate().skip(1) {
+                ui.align_text_to_frame_padding();
+                ui.text(format!("Slot {}:", i));
+                ui.same_line();
+                ui.set_next_item_width(200.0);
+                ui.combo_simple_string(format!("##{i}"), item, &items);
+            }
+
+            let content_region_max_x = ui.content_region_avail()[0];
+            let indentation = content_region_max_x * 0.5;
+
+            // Set the cursor position before drawing the button
+            ui.set_cursor_pos([
+                indentation - ui.current_font_size() * 2.0,
+                ui.cursor_pos()[1],
+            ]);
+
+            if ui.is_key_pressed(imgui::Key::Escape) {
+                *selected = prev_selected.clone();
+                ui.close_current_popup();
+            }
+
+            if ui.button("Ok") {
+                if update_settings(cpu, selected) {
+                    *prev_selected = selected.clone();
+                }
+                ui.close_current_popup();
+            }
+
+            ui.same_line();
+
+            if ui.button("Cancel") {
+                *selected = prev_selected.clone();
+                ui.close_current_popup();
+            }
+        });
+}
+
+fn prepare_statusbar(
+    ui: &imgui::Ui,
+    event: &EventParam,
+    width: u32,
+    height: u32,
+    menu_bar_height: f32,
+) {
+    const PADDING_X: f32 = 13.0;
+    const PADDING_Y: f32 = 2.0;
+    let style_token = ui.push_style_var(StyleVar::WindowMinSize([width as f32, menu_bar_height]));
+    let pad_token = ui.push_style_var(StyleVar::WindowPadding([PADDING_X, PADDING_Y]));
+    ui.window("##StatusBar")
+        .position(
+            [0.0, height as f32 + menu_bar_height],
+            imgui::Condition::Always,
+        ) // Position at bottom
+        .flags(
+            imgui::WindowFlags::NO_DECORATION
+                | imgui::WindowFlags::NO_MOVE
+                | imgui::WindowFlags::NO_RESIZE
+                | imgui::WindowFlags::NO_SAVED_SETTINGS
+                | imgui::WindowFlags::NO_BRING_TO_FRONT_ON_FOCUS
+                | imgui::WindowFlags::NO_NAV_FOCUS,
+        )
+        .build(|| {
+            // Render your status bar content here
+            ui.text(format!(
+                "emu6502 v{} - ImGui {}",
+                VERSION,
+                imgui::dear_imgui_version()
+            ));
+            ui.same_line();
+            ui.text(format!("FPS: {:.2}", event.fps));
+            ui.same_line();
+            ui.text(format!("MHz: {:.3}", event.estimated_mhz));
+        });
+    pad_token.pop();
+    style_token.pop();
 }
 
 fn initialize_apple_system(cpu: &mut CPU, rom_image: &[u8], offset: u16, extended_rom: bool) {
