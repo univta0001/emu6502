@@ -2140,11 +2140,12 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                                         }
 
                                         if menu_bar_height > 0.0 {
+                                            let window_size = window.size();
                                             prepare_statusbar(
                                                 ui,
                                                 &event_param,
-                                                width,
-                                                height,
+                                                window_size.0,
+                                                window_size.1,
                                                 menu_bar_height,
                                             );
                                         }
@@ -2906,7 +2907,7 @@ fn prepare_statusbar(
     let pad_token = ui.push_style_var(StyleVar::WindowPadding([PADDING_X, PADDING_Y]));
     ui.window("##StatusBar")
         .position(
-            [0.0, height as f32 + menu_bar_height],
+            [0.0, height as f32 - menu_bar_height],
             imgui::Condition::Always,
         ) // Position at bottom
         .flags(
