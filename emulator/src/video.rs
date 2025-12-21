@@ -1215,6 +1215,13 @@ impl Video {
             [frame[base], frame[base + 1], frame[base + 2]]
         }
 
+        fn interpolate_color(dx: f64, dy: f64, x11: u8, x12: u8, x21: u8, x22: u8) -> u8 {
+            (x11 as f64 * (1.0 - dx) * (1.0 - dy)
+                + x12 as f64 * dx * (1.0 - dy)
+                + x21 as f64 * (1.0 - dx) * dy
+                + x22 as f64 * dx * dy) as u8
+        }
+
         let mut barrel_display = vec![0xff_u8; Self::WIDTH * Self::HEIGHT * 4];
         let width = Self::WIDTH;
         let height = Self::HEIGHT;
@@ -1242,20 +1249,9 @@ impl Video {
                 let p21 = get_color(frame, width, height, x1 as usize, y2 as usize);
                 let p22 = get_color(frame, width, height, x2 as usize, y2 as usize);
 
-                let r = (p11[0] as f64 * (1.0 - dx) * (1.0 - dy)
-                    + p12[0] as f64 * dx * (1.0 - dy)
-                    + p21[0] as f64 * (1.0 - dx) * dy
-                    + p22[0] as f64 * dx * dy) as u8;
-
-                let g = (p11[1] as f64 * (1.0 - dx) * (1.0 - dy)
-                    + p12[1] as f64 * dx * (1.0 - dy)
-                    + p21[1] as f64 * (1.0 - dx) * dy
-                    + p22[1] as f64 * dx * dy) as u8;
-
-                let b = (p11[2] as f64 * (1.0 - dx) * (1.0 - dy)
-                    + p12[2] as f64 * dx * (1.0 - dy)
-                    + p21[2] as f64 * (1.0 - dx) * dy
-                    + p22[2] as f64 * dx * dy) as u8;
+                let r = interpolate_color(dx, dy, p11[0], p12[0], p21[0], p22[0]);
+                let g = interpolate_color(dx, dy, p11[1], p12[1], p21[1], p22[1]);
+                let b = interpolate_color(dx, dy, p11[2], p12[2], p21[2], p22[2]);
 
                 let dbase = y_d * 4 * Self::WIDTH + x_d * 4;
                 barrel_display[dbase] = r;
