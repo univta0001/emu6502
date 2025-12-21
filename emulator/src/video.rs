@@ -1171,20 +1171,11 @@ impl Video {
 
                 let [r, g, b] = if [r, g, b] == COLOR_BLACK || [r, g, b] == COLOR_WHITE {
                     [r, g, b]
-                } else if [r2, g2, b2] != COLOR_BLACK && [r2, g2, b2] != COLOR_WHITE {
-                    [
-                        ((r as u16 + r2 as u16) / 2) as u8,
-                        ((g as u16 + g2 as u16) / 2) as u8,
-                        ((b as u16 + b2 as u16) / 2) as u8,
-                    ]
-                } else if [r1, g1, b1] != COLOR_BLACK && [r1, g1, b1] != COLOR_WHITE {
-                    [
-                        ((r as u16 + r1 as u16) / 2) as u8,
-                        ((g as u16 + g1 as u16) / 2) as u8,
-                        ((b as u16 + b1 as u16) / 2) as u8,
-                    ]
                 } else {
-                    [r, g, b]
+                    [ r / 2 + r1 / 4 + r2 / 4,
+                      g / 2 + g1 / 4 + g2 / 4,
+                      b / 2 + b1 / 4 + b2 / 4
+                    ]
                 };
 
                 display[base] = r;
