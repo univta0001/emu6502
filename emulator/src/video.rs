@@ -1207,11 +1207,21 @@ impl Video {
     }
 
     pub fn get_barrel_distorted_frame(&self, frame: &[u8], distortion: f64) -> Vec<u8> {
+        fn get_color(frame: &[u8], width: usize, height: usize, x: usize, y: usize) -> Rgb {
+            if x >= width || y >= height {
+                return COLOR_BLACK;
+            }
+            let base = y * 4 * width + x * 4;
+            [frame[base], frame[base + 1], frame[base + 2]]
+        }
+
         let mut barrel_display = vec![0xff_u8; Self::WIDTH * Self::HEIGHT * 4];
-        let center_x = (Self::WIDTH / 2) as i32;
-        let center_y = (Self::HEIGHT / 2) as i32;
-        for y_d in 0..Self::HEIGHT {
-            for x_d in 0..Self::WIDTH {
+        let width = Self::WIDTH;
+        let height = Self::HEIGHT;
+        let center_x = (width / 2) as i32;
+        let center_y = (height / 2) as i32;
+        for y_d in 0..height {
+            for x_d in 0..width {
                 let x_norm = (x_d as f64 - center_x as f64) / center_x as f64;
                 let y_norm = (y_d as f64 - center_y as f64) / center_y as f64;
                 let r2 = x_norm * x_norm + y_norm * y_norm;
@@ -1223,44 +1233,14 @@ impl Video {
                 let y_u = y_norm_u * center_y as f64 + center_y as f64;
 
                 let (x1, y1) = (x_u.floor() as i32, y_u.floor() as i32);
+                let (x2, y2) = (x1 + 1, y1 + 1);
                 let dx = x_u - x1 as f64;
                 let dy = y_u - y1 as f64;
 
-                let base = y1 * 4 * (Self::WIDTH as i32) + x1 * 4;
-                let p11 = if x1 >= 0 && y1 >= 0 && x1 < (Self::WIDTH as i32) && y1 < (Self::HEIGHT as i32) {
-                    let base = base as usize;
-                    [frame[base], frame[base + 1], frame[base + 2]]
-                } else {
-                    COLOR_BLACK
-                };
-
-                let p12 =
-                    if x1 + 1 >= 0 && y1 >= 0 && x1 + 1 < (Self::WIDTH as i32) && y1 < (Self::HEIGHT as i32) {
-                        let base = (base + 4) as usize;
-                        [frame[base], frame[base + 1], frame[base + 2]]
-                    } else {
-                        COLOR_BLACK
-                    };
-
-                let base = base + (Self::WIDTH as i32) * 4;
-                let p21 =
-                    if x1 >= 0 && y1 + 1 >= 0 && x1 < (Self::WIDTH as i32) && y1 + 1 < (Self::HEIGHT as i32) {
-                        let base = base as usize;
-                        [frame[base], frame[base + 1], frame[base + 2]]
-                    } else {
-                        COLOR_BLACK
-                    };
-
-                let p22 = if x1 + 1 >= 0
-                    && y1 + 1 >= 0
-                    && x1 + 1 < (Self::WIDTH as i32)
-                    && y1 + 1 < (Self::HEIGHT as i32)
-                {
-                    let base = (base + 4) as usize;
-                    [frame[base], frame[base + 1], frame[base + 2]]
-                } else {
-                    COLOR_BLACK
-                };
+                let p11 = get_color(frame, width, height, x1 as usize, y1 as usize);
+                let p12 = get_color(frame, width, height, x2 as usize, y1 as usize);
+                let p21 = get_color(frame, width, height, x1 as usize, y2 as usize);
+                let p22 = get_color(frame, width, height, x2 as usize, y2 as usize);
 
                 let r = (p11[0] as f64 * (1.0 - dx) * (1.0 - dy)
                     + p12[0] as f64 * dx * (1.0 - dy)
