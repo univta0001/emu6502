@@ -45,7 +45,7 @@ Features in the emulator
 
 - `emu6502 --help` will display:
 
-        emu6502 0.9.4 (819552ea06e237162f76833663cf32027d4556b1)
+        emu6502 0.9.4 (1188f6f4d1ac4aff3bde371620b85e0ade0362ed)
 
         USAGE:
             emu6502 [FLAGS] [disk 1] [disk 2]
@@ -104,6 +104,10 @@ Features in the emulator
                                       robocom1000, robocom1500
             --interface name   Set the interface name for Uthernet2
                                Default is None. For e.g. eth0
+            --vidhd            Enable VidHD at slot 3
+            --aux aux_type     Auxiliary Slot type.
+                               Supported values (ext80, std80, rw3, none)
+            --exact_write      Enable exact track writing (No write to neighbor tracks)
 
         ARGS:
             [disk 1]           Disk 1 file (woz, dsk, do, po file). File can be in gz format
