@@ -1,0 +1,17 @@
+[graph]
+all-features = true
+
+[advisories]
+unmaintained = "workspace"
+ignore = []
+
+# [bans]
+# multiple-versions = "deny"
+# wildcards = 'deny'
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+
+[licenses]
+allow = ["Apache-2.0", "MIT", "Zlib"]
