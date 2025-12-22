@@ -2498,7 +2498,7 @@ impl Video {
                     LORES_COLORS[color_index as usize]
                 };
 
-                self.set_pixel_count(offset, row * 2, color, 1);
+                self.set_pixel_count(offset, row * 2, color, 2);
 
                 mask <<= 1;
                 offset += 2;
