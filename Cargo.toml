@@ -22,5 +22,5 @@ lto = "fat"
 opt-level = 3
 codegen-units = 1
 panic = "abort"
-debug = true
+debug = false
 strip = true
