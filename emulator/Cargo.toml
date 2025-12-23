@@ -8,7 +8,7 @@ edition = "2024"
 [dependencies]
 bitflags = "2.10.0"
 flate2 = { version = "1.1.5", features = ["zlib-rs"], optional = true }
-zip = { version = "6.0.0", default-features = false, features = ["bzip2", "deflate", "deflate64", "lzma", "time", "zstd"], optional = true }
+zip = { version = "7.0.0", default-features = false, features = ["bzip2", "deflate", "deflate64", "lzma", "time", "zstd"], optional = true }
 web-time = { version = "1.1.0", optional = true }
 serde = { version = "1.0.228", features = ["derive"],  optional = true }
 iz80 = { path = "iz80", optional = true }
@@ -23,9 +23,9 @@ strum = { version = "0.27.2", features = ["derive"] }
 regex = "1.12.2"
 criterion = { version = "0.8.1", features = ['html_reports'] }
 crossbeam-utils = "0.8.21"
-serde_json = "1.0.145"
+serde_json = "1.0.146"
 crossbeam-epoch = "0.9.18"
-ryu = "1.0.20"
+ryu = "1.0.21"
 autocfg = "1.5.0"
 crossbeam-channel = "0.5.15"
 num_cpus = "1.17.0"

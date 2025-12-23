@@ -1172,9 +1172,10 @@ impl Video {
                 let [r, g, b] = if [r, g, b] == COLOR_BLACK || [r, g, b] == COLOR_WHITE {
                     [r, g, b]
                 } else {
-                    [ r / 2 + r1 / 4 + r2 / 4,
-                      g / 2 + g1 / 4 + g2 / 4,
-                      b / 2 + b1 / 4 + b2 / 4
+                    [
+                        r / 2 + r1 / 4 + r2 / 4,
+                        g / 2 + g1 / 4 + g2 / 4,
+                        b / 2 + b1 / 4 + b2 / 4,
                     ]
                 };
 

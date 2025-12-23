@@ -70,6 +70,12 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const MENUBAR_HEIGHT: u32 = 19;
 
+enum OpenFileDialog {
+    None,
+    Disk(u8),
+    HardDisk(u8),
+}
+
 struct EventParam<'a> {
     video_subsystem: &'a VideoSubsystem,
     game_controller: &'a GamepadSubsystem,
@@ -88,6 +94,7 @@ struct EventParam<'a> {
     full_screen: &'a mut bool,
     barrel_distortion: &'a mut bool,
     vertical_blend: &'a mut bool,
+    file_dialog: &'a mut OpenFileDialog,
 }
 
 fn translate_key_to_apple_key(
@@ -1989,6 +1996,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut model_changed = false;
     let mut barrel_distortion = false;
     let mut vertical_blend = false;
+    let mut file_dialog = OpenFileDialog::None;
 
     loop {
         if reload_cpu {
@@ -2048,32 +2056,27 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
                     //update_texture(_cpu, &mut texture);
                     let mut event_param = EventParam {
-                            video_subsystem: &video_subsystem,
-                            game_controller: &game_controller,
-                            gamepads: &mut gamepads,
-                            key_caps: &mut key_caps,
-                            estimated_mhz,
-                            fps,
-                            reload_cpu: &mut reload_cpu,
-                            save_screenshot: &mut save_screenshot,
-                            display_mode: &display_mode,
-                            display_index: &mut display_index,
-                            speed_mode: &speed_mode,
-                            speed_index: &mut speed_index,
-                            disk_mode_index: &mut disk_mode_index,
-                            clipboard_text: &mut clipboard_text,
-                            full_screen: &mut full_screen,
-                            barrel_distortion: &mut barrel_distortion,
-                            vertical_blend: &mut vertical_blend,
-                        };
+                        video_subsystem: &video_subsystem,
+                        game_controller: &game_controller,
+                        gamepads: &mut gamepads,
+                        key_caps: &mut key_caps,
+                        estimated_mhz,
+                        fps,
+                        reload_cpu: &mut reload_cpu,
+                        save_screenshot: &mut save_screenshot,
+                        display_mode: &display_mode,
+                        display_index: &mut display_index,
+                        speed_mode: &speed_mode,
+                        speed_index: &mut speed_index,
+                        disk_mode_index: &mut disk_mode_index,
+                        clipboard_text: &mut clipboard_text,
+                        full_screen: &mut full_screen,
+                        barrel_distortion: &mut barrel_distortion,
+                        vertical_blend: &mut vertical_blend,
+                        file_dialog: &mut file_dialog,
+                    };
 
-                    update_gpu_texture(
-                        _cpu,
-                        &imgui,
-                        &device,
-                        image_texture_id,
-                        &event_param,
-                    );
+                    update_gpu_texture(_cpu, &imgui, &device, image_texture_id, &event_param);
                     //update_video(_cpu, &mut canvas, &mut texture, current_full_screen);
 
                     _cpu.bus.video.skip_update = false;
@@ -2101,6 +2104,23 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                                     &mut command_buffer,
                                     &color_targets,
                                     |ui| {
+                                        // Check for open file dialog events
+                                        if !ui.is_any_item_hovered() {
+                                            match *event_param.file_dialog {
+                                                OpenFileDialog::Disk(disk) => {
+                                                    *event_param.file_dialog = OpenFileDialog::None;
+                                                    open_disk_dialog(_cpu, disk.into())
+                                                }
+
+                                                OpenFileDialog::HardDisk(disk) => {
+                                                    *event_param.file_dialog = OpenFileDialog::None;
+                                                    open_harddisk_dialog(_cpu, disk.into())
+                                                }
+
+                                                OpenFileDialog::None => {}
+                                            }
+                                        }
+
                                         // create imgui UI here
                                         menu_bar_height = if current_full_screen {
                                             0.0
@@ -2350,7 +2370,7 @@ fn prepare_system_menu(
             *show_settings = true;
         }
 
-        prepare_menu_for_disk(cpu, ui);
+        prepare_menu_for_disk(cpu, ui, event);
 
         ui.separator();
 
@@ -2695,10 +2715,10 @@ fn prepare_input_menu(cpu: &mut CPU, ui: &imgui::Ui, event: &mut EventParam) {
     })
 }
 
-fn prepare_menu_for_disk(cpu: &mut CPU, ui: &imgui::Ui) {
+fn prepare_menu_for_disk(cpu: &mut CPU, ui: &imgui::Ui, event: &mut EventParam) {
     ui.menu("Disk Drive 1", || {
         if ui.menu_item_config("Open").shortcut("F1").build() {
-            open_disk_dialog(cpu, 0);
+            *event.file_dialog = OpenFileDialog::Disk(0);
         }
         if ui.menu_item_config("Eject").shortcut("Ctrl-F1").build() {
             eject_disk(cpu, 0);
@@ -2707,7 +2727,7 @@ fn prepare_menu_for_disk(cpu: &mut CPU, ui: &imgui::Ui) {
 
     ui.menu("Disk Drive 2", || {
         if ui.menu_item_config("Open").shortcut("F2").build() {
-            open_disk_dialog(cpu, 1);
+            *event.file_dialog = OpenFileDialog::Disk(1);
         }
         if ui.menu_item_config("Eject").shortcut("Ctrl-F2").build() {
             eject_disk(cpu, 1);
@@ -2716,7 +2736,7 @@ fn prepare_menu_for_disk(cpu: &mut CPU, ui: &imgui::Ui) {
 
     ui.menu("Hard Drive 1", || {
         if ui.menu_item_config("Open").shortcut("F10").build() {
-            open_harddisk_dialog(cpu, 0);
+            *event.file_dialog = OpenFileDialog::HardDisk(0);
         }
         if ui.menu_item_config("Eject").shortcut("Ctrl-F10").build() {
             eject_harddisk(cpu, 0);
@@ -2725,7 +2745,7 @@ fn prepare_menu_for_disk(cpu: &mut CPU, ui: &imgui::Ui) {
 
     ui.menu("Hard Drive 2", || {
         if ui.menu_item_config("Open").shortcut("F11").build() {
-            open_harddisk_dialog(cpu, 1);
+            *event.file_dialog = OpenFileDialog::HardDisk(1);
         }
         if ui.menu_item_config("Eject").shortcut("Ctrl-F11").build() {
             eject_harddisk(cpu, 1);
