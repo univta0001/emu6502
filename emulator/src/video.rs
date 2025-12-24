@@ -150,9 +150,6 @@ pub struct Video {
     pub color_burst: bool,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
-    color_burst_pixel: u16,
-
-    #[cfg_attr(feature = "serde_support", serde(default))]
     pub mac_lc_dlgr: bool,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
@@ -767,7 +764,6 @@ impl Video {
             scanline: false,
             skip_update: false,
             color_burst: false,
-            color_burst_pixel: 0,
             text_color_burst: false,
             mac_lc_dlgr: false,
             vidhd: false,
@@ -868,12 +864,10 @@ impl Video {
 
     fn update_color_burst(&mut self) {
         if self.graphics_mode {
-            self.color_burst_pixel = 280;
+            self.color_burst = true
         } else {
-            self.color_burst_pixel = self.color_burst_pixel.saturating_sub(1);
+            self.color_burst = false
         }
-
-        self.color_burst = self.color_burst_pixel > 2;
     }
 
     pub fn update_shadow_memory(&mut self, aux_memory: bool, addr: u16, value: u8) {
