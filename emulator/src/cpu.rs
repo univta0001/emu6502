@@ -1680,8 +1680,6 @@ impl CPU {
     }
 
     fn sre(&mut self, addr: u16) {
-        self.lsr(addr);
-        self.eor(addr);
         let mut data = self.addr_read(addr);
         self.status.set(CpuFlags::CARRY, data & 1 == 1);
         self.tick();
@@ -2618,14 +2616,25 @@ impl CPU {
 
                 /* BIT zeropage,X */
                 0x34 => {
-                    let addr = self.get_zeropage_x_addr();
-                    self.bit(addr);
+                    if self.m65c02 {
+                        let addr = self.get_zeropage_x_addr();
+                        self.bit(addr);
+                    } else {
+                        self.increment_pc();
+                        self.last_tick();
+                    }
                 }
 
                 /* BIT absolute,X */
                 0x3c => {
-                    let addr = self.get_absolute_x_addr(opcode);
-                    self.bit(addr);
+                    if self.m65c02 {
+                        let addr = self.get_absolute_x_addr(opcode);
+                        self.bit(addr);
+                    } else {
+                        self.increment_pc();
+                        self.increment_pc();
+                        self.last_tick();
+                    }
                 }
 
                 /* STA absolute */
@@ -3126,19 +3135,43 @@ impl CPU {
                 }
 
                 /* TRB */
-                0x14 | 0x1c => {
+                0x14 => {
                     if self.m65c02 {
                         self.trb(opcode);
                     } else {
+                        self.increment_pc();
+                        self.last_tick();
+                    }
+                }
+
+                /* TRB */
+                0x1c => {
+                    if self.m65c02 {
+                        self.trb(opcode);
+                    } else {
+                        self.increment_pc();
+                        self.increment_pc();
                         self.last_tick();
                     }
                 }
 
                 /* TSB */
-                0x04 | 0x0c => {
+                0x04 => {
                     if self.m65c02 {
                         self.tsb(opcode);
                     } else {
+                        self.increment_pc();
+                        self.last_tick();
+                    }
+                }
+
+                /* TSB */
+                0x0c => {
+                    if self.m65c02 {
+                        self.tsb(opcode);
+                    } else {
+                        self.increment_pc();
+                        self.increment_pc();
                         self.last_tick();
                     }
                 }
@@ -3226,6 +3259,7 @@ impl CPU {
                         let addr = self.get_zeropage_addr();
                         self.stz(addr);
                     } else {
+                        self.increment_pc();
                         self.last_tick();
                     }
                 }
@@ -3272,6 +3306,8 @@ impl CPU {
                         let ptr = address.wrapping_add(self.register_x as u16);
                         self.program_counter = self.last_tick_addr_read_u16(ptr);
                     } else {
+                        self.increment_pc();
+                        self.increment_pc();
                         self.last_tick();
                     }
                 }
