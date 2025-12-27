@@ -766,12 +766,18 @@ impl CPU {
     pub fn get_cb_indirect_x_addr(&mut self, prog_addr: u16) -> u16 {
         let base = self.bus.unclocked_addr_read(prog_addr.wrapping_add(1));
         let ptr = base.wrapping_add(self.register_x);
-        self.bus.unclocked_addr_read_u16(ptr as u16)
+
+        let lo = self.bus.unclocked_addr_read(ptr as u16);
+        let hi = self.bus.unclocked_addr_read((ptr.wrapping_add(1)) as u16);
+
+        hi as u16 * 256 + lo as u16
     }
 
     pub fn get_cb_indirect_y_addr(&mut self, prog_addr: u16) -> u16 {
         let base = self.bus.unclocked_addr_read(prog_addr.wrapping_add(1));
-        let deref_base = self.bus.unclocked_addr_read_u16(base as u16);
+        let lo = self.bus.unclocked_addr_read(base as u16);
+        let hi = self.bus.unclocked_addr_read((base.wrapping_add(1)) as u16);
+        let deref_base = hi as u16 * 256 + lo as u16;
         deref_base.wrapping_add(self.register_y as u16)
     }
 
