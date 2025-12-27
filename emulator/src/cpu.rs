@@ -1629,12 +1629,18 @@ impl CPU {
     }
 
     fn dcp(&mut self, addr: u16) {
-        self.dec(addr);
+        let mut data = self.addr_read(addr);
+        data = data.wrapping_sub(1);
+        self.addr_write(addr, data);
+        self.update_zero_and_negative_flags(data);
         self.compare(addr, self.register_a);
     }
 
     fn isc(&mut self, addr: u16) {
-        self.inc(addr);
+        let mut data = self.addr_read(addr);
+        data = data.wrapping_add(1);
+        self.addr_write(addr, data);
+        self.update_zero_and_negative_flags(data);
         let data = self.bus.unclocked_addr_read(addr);
         self.add_to_register_a(data.wrapping_neg().wrapping_sub(1), true);
         self.last_tick();
@@ -1663,7 +1669,13 @@ impl CPU {
     }
 
     fn rra(&mut self, addr: u16) {
-        self.ror(addr);
+        let mut data = self.addr_read(addr);
+        let old_carry = self.status.contains(CpuFlags::CARRY) as u8;
+        self.status.set(CpuFlags::CARRY, data & 1 == 1);
+        data >>= 1;
+        data |= old_carry << 7;
+        self.addr_write(addr, data);
+        self.update_zero_and_negative_flags(data);
         let data = self.bus.unclocked_addr_read(addr);
         self.add_to_register_a(data, false);
         self.last_tick();
@@ -2621,6 +2633,8 @@ impl CPU {
                         self.bit(addr);
                     } else {
                         self.increment_pc();
+                        self.tick();
+                        self.tick();
                         self.last_tick();
                     }
                 }
@@ -2631,8 +2645,7 @@ impl CPU {
                         let addr = self.get_absolute_x_addr(opcode);
                         self.bit(addr);
                     } else {
-                        self.increment_pc();
-                        self.increment_pc();
+                        let _ = self.get_absolute_x_addr(opcode);
                         self.last_tick();
                     }
                 }
@@ -3140,6 +3153,8 @@ impl CPU {
                         self.trb(opcode);
                     } else {
                         self.increment_pc();
+                        self.tick();
+                        self.tick();
                         self.last_tick();
                     }
                 }
@@ -3149,8 +3164,7 @@ impl CPU {
                     if self.m65c02 {
                         self.trb(opcode);
                     } else {
-                        self.increment_pc();
-                        self.increment_pc();
+                        let _ = self.get_absolute_x_addr(opcode);
                         self.last_tick();
                     }
                 }
@@ -3161,6 +3175,7 @@ impl CPU {
                         self.tsb(opcode);
                     } else {
                         self.increment_pc();
+                        self.tick();
                         self.last_tick();
                     }
                 }
@@ -3172,6 +3187,8 @@ impl CPU {
                     } else {
                         self.increment_pc();
                         self.increment_pc();
+                        self.tick();
+                        self.tick();
                         self.last_tick();
                     }
                 }
@@ -3179,12 +3196,17 @@ impl CPU {
                 /* NOP read */
                 0x82 | 0xc2 | 0xe2 | 0x44 | 0x54 | 0xd4 | 0xf4 | 0x5c | 0xdc | 0xfc => {
                     if opcode.code == 0x5c {
-                        let addr = self.get_operand_address(opcode, self.program_counter);
-                        self.addr_read(addr);
-                        self.tick();
-                        self.tick();
-                        self.tick();
-                        self.last_tick();
+                        if self.m65c02 {
+                            let addr = self.get_operand_address(opcode, self.program_counter);
+                            self.addr_read(addr);
+                            self.tick();
+                            self.tick();
+                            self.tick();
+                            self.last_tick();
+                        } else {
+                            let addr = self.get_operand_address(opcode, self.program_counter);
+                            self.last_tick_addr_read(addr);
+                        }
                     } else {
                         self.nop_read(opcode)
                     }
@@ -3260,6 +3282,7 @@ impl CPU {
                         self.stz(addr);
                     } else {
                         self.increment_pc();
+                        self.tick();
                         self.last_tick();
                     }
                 }
@@ -3271,6 +3294,8 @@ impl CPU {
                         self.stz(addr);
                     } else {
                         self.increment_pc();
+                        self.tick();
+                        self.tick();
                         self.last_tick();
                     }
                 }
@@ -3306,8 +3331,7 @@ impl CPU {
                         let ptr = address.wrapping_add(self.register_x as u16);
                         self.program_counter = self.last_tick_addr_read_u16(ptr);
                     } else {
-                        self.increment_pc();
-                        self.increment_pc();
+                        let _ = self.get_absolute_x_addr(opcode);
                         self.last_tick();
                     }
                 }
@@ -3666,8 +3690,11 @@ mod test {
             cycles[i] = OPCODES[i].cycles;
         }
 
-        // Opcode 0xdb has 7 cycles
-        cycles[0xdb] = 7;
+        // Opcode 0xdb has 6 cycles
+        cycles[0xdb] = 6;
+
+        // Opcode 0x5c has 4 cycles
+        cycles[0x5c] = 4;
 
         let bus = Bus::default();
         let mut cpu = CPU::new(bus);
