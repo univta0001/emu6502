@@ -863,11 +863,7 @@ impl Video {
     }
 
     fn update_color_burst(&mut self) {
-        if self.graphics_mode {
-            self.color_burst = true
-        } else {
-            self.color_burst = false
-        }
+        self.color_burst = self.graphics_mode;
     }
 
     pub fn update_shadow_memory(&mut self, aux_memory: bool, addr: u16, value: u8) {

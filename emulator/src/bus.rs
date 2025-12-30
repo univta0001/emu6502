@@ -372,9 +372,12 @@ impl Bus {
             self.audio.tick();
         }
 
-        if !self.disable_disk {
-            self.disk.tick();
+        if !self.disable_disk && self.harddisk.is_busy() {
             self.harddisk.tick();
+        }
+
+        if !self.disable_disk && self.disk.is_motor_on() {
+            self.disk.tick();
         }
     }
 
