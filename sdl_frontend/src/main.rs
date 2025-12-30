@@ -74,6 +74,7 @@ enum OpenFileDialog {
     None,
     Disk(u8),
     HardDisk(u8),
+    Tape,
 }
 
 struct EventParam<'a> {
@@ -2117,6 +2118,11 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                                                     open_harddisk_dialog(_cpu, disk.into())
                                                 }
 
+                                                OpenFileDialog::Tape => {
+                                                    *event_param.file_dialog = OpenFileDialog::None;
+                                                    load_tape(_cpu)
+                                                }
+
                                                 OpenFileDialog::None => {}
                                             }
                                         }
@@ -2707,7 +2713,7 @@ fn prepare_input_menu(cpu: &mut CPU, ui: &imgui::Ui, event: &mut EventParam) {
 
         ui.separator();
         if ui.menu_item_config("Load Tape").shortcut("Ctrl-F8").build() {
-            load_tape(cpu);
+            *event_param.file_dialog = OpenFileDialog::Tape;
         }
 
         if ui
