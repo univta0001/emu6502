@@ -31,11 +31,11 @@ windows-sys = { version="0.61.2", features = ['Win32_System_LibraryLoader'] }
 
 [target.'cfg(any(target_os="windows", target_os="linux"))'.dependencies]
 #sdl2 = { version = "0.38.0", features = ['bundled', 'static-link'] }
-sdl3 = { version = "0.16.2", features = ['build-from-source-static', 'static-link'] }
+sdl3 = { version = "0.16.4", features = ['build-from-source-static', 'static-link'] }
 
 [target.'cfg(not(any(target_os="windows", target_os="linux")))'.dependencies]
 #sdl2 = "0.38.0"
-sdl3 = "0.16.2"
+sdl3 = "0.16.4"
 
 #[target.x86_64-pc-windows-msvc.dependencies]
 #winapi = "0.3.9"

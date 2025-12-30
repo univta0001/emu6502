@@ -2504,6 +2504,11 @@ fn prepare_video_menu(cpu: &mut CPU, ui: &imgui::Ui, event: &mut EventParam) {
 
 fn prepare_audio_menu(cpu: &mut CPU, ui: &imgui::Ui) {
     ui.menu("Audio", || {
+        let enable_audio = cpu.bus.disable_audio;
+        build_toggle_menu_item(ui, "Enable Audio", "", !enable_audio, |new_state| {
+            cpu.bus.disable_audio = !new_state;
+        });
+
         let audio_filter = cpu.bus.audio.get_filter_enabled();
         build_toggle_menu_item(ui, "Audio Filter", "Ctrl-F6", audio_filter, |new_state| {
             cpu.bus.audio.set_filter_enabled(new_state);
