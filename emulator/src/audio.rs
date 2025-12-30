@@ -865,11 +865,7 @@ impl Tick for Audio {
                 .saturating_add(disk_sound as HigherChannel)
                 / tone_count as HigherChannel;
 
-            // Left audio
-            self.data.sample.push(left_phase as Channel);
-
-            // Right audio
-            self.data.sample.push(right_phase as Channel);
+            self.data.sample.extend(&[left_phase as Channel, right_phase as Channel]);
         }
     }
 }
