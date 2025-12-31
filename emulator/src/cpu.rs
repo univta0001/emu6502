@@ -1853,6 +1853,8 @@ impl CPU {
             self.bus.mem.intcxrom = true;
             if self.bus.mem_read(0xfbbf) != 0xff {
                 self.bus.set_iwm(true);
+            } else {
+                self.bus.set_iwm(false);
             }
         }
 
