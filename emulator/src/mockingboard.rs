@@ -431,10 +431,6 @@ impl W65C22 {
     }
 
     fn tick(&mut self, cycles: usize) {
-        if !self.enabled {
-            return;
-        }
-
         self.t1c = self.t1c.wrapping_sub(1);
 
         if self.t1c == 0xffffffff {
@@ -782,8 +778,10 @@ impl Mockingboard {
 
     pub fn tick(&mut self) {
         self.cycles += 1;
-        self.w65c22[0].tick(self.cycles);
-        self.w65c22[1].tick(self.cycles);
+        if self.w65c22[0].enabled || self.w65c22[1].enabled {
+            self.w65c22[0].tick(self.cycles);
+            self.w65c22[1].tick(self.cycles);
+        }
     }
 
     pub fn reset(&mut self) {

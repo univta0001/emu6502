@@ -2713,7 +2713,7 @@ fn prepare_input_menu(cpu: &mut CPU, ui: &imgui::Ui, event: &mut EventParam) {
 
         ui.separator();
         if ui.menu_item_config("Load Tape").shortcut("Ctrl-F8").build() {
-            *event_param.file_dialog = OpenFileDialog::Tape;
+            *event.file_dialog = OpenFileDialog::Tape;
         }
 
         if ui
