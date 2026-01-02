@@ -860,8 +860,7 @@ impl Tick for Audio {
                     1,
                     self.update_phase(&mut phase, channel) + (beep > 0) as usize,
                 );
-                let phase = phase
-                    .saturating_add(disk_sound as HigherChannel);
+                let phase = phase.saturating_add(disk_sound as HigherChannel);
 
                 let phase = if tone_count > 1 {
                     phase / tone_count as HigherChannel

@@ -2064,12 +2064,7 @@ impl Video {
                             DHIRES_COLORS[color_index as usize]
                         };
 
-                        self.set_pixel_count(
-                            (x1 * 14 + xindex + offset).saturating_sub(1),
-                            y1 * 2,
-                            color,
-                            1,
-                        );
+                        self.set_pixel_count(x1 * 14 + xindex + offset, y1 * 2, color, 1);
 
                         mask <<= 1;
                         if mask > 0xf {
@@ -2118,7 +2113,7 @@ impl Video {
                     }
 
                     let color = LORES_COLORS[color_index as usize];
-                    self.set_pixel_count((x1 * 14 + xindex).saturating_sub(1), y1 * 2, color, 1);
+                    self.set_pixel_count(x1 * 14 + xindex, y1 * 2, color, 1);
 
                     mask <<= 1;
                     if mask > 0xf {
@@ -2475,7 +2470,7 @@ impl Video {
                     LORES_COLORS[color_index as usize]
                 };
 
-                self.set_pixel_count(offset.saturating_sub(1), row * 2, color, 1);
+                self.set_pixel_count(offset, row * 2, color, 1);
 
                 if value & mask > 0 {
                     color_index |= 1 << ((index + 1) % 4);
@@ -2489,7 +2484,7 @@ impl Video {
                     LORES_COLORS[color_index as usize]
                 };
 
-                self.set_pixel_count(offset, row * 2, color, 2);
+                self.set_pixel_count(offset + 1, row * 2, color, 1);
 
                 mask <<= 1;
                 offset += 2;
@@ -2734,12 +2729,7 @@ impl Video {
                         color_index &= (1 << index) ^ 0xf;
                     }
 
-                    self.set_pixel_count(
-                        offset.saturating_sub(1),
-                        row * 2,
-                        DHIRES_COLORS[color_index as usize],
-                        1,
-                    );
+                    self.set_pixel_count(offset, row * 2, DHIRES_COLORS[color_index as usize], 1);
                     mask <<= 1;
                     offset += 1;
                 }
@@ -2753,12 +2743,7 @@ impl Video {
                     } else {
                         color_index &= (1 << index) ^ 0xf;
                     }
-                    self.set_pixel_count(
-                        offset.saturating_sub(1),
-                        row * 2,
-                        DHIRES_COLORS[color_index as usize],
-                        1,
-                    );
+                    self.set_pixel_count(offset, row * 2, DHIRES_COLORS[color_index as usize], 1);
                     mask <<= 1;
                     offset += 1;
                 }
