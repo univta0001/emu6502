@@ -769,9 +769,12 @@ impl Tick for Audio {
     fn tick(&mut self) {
         self.cycles += 1;
         self.fcycles += 1.0;
-        self.mboard.iter_mut().for_each(|mb| mb.tick());
 
-        let mut beep = if self.filter_enabled {
+        for mb in self.mboard.iter_mut() {
+            mb.tick();
+        }
+
+        let beep = if self.filter_enabled {
             if self.dc_filter > 0 {
                 let response = self.audio_filter.filter_response(self.data.phase);
                 self.dc_filter((response * 32767.0) as Channel)
@@ -812,8 +815,7 @@ impl Tick for Audio {
                     self.tape.record = false;
                     self.tape.active = 0;
                     self.tape.level = false;
-                }
-                if self.tape.active != 0 {
+                } else {
                     if self.tape.record {
                         self.tape.data.push(self.tape.level as u8 * 255);
                     }
@@ -824,11 +826,15 @@ impl Tick for Audio {
                 }
             }
 
-            if !self.filter_enabled {
+            let beep = if !self.filter_enabled {
                 // Calculate average beep level
-                beep = (self.level / self.fcycles.floor()) as Channel;
+                let count = self.fcycles as u32;
+                let avg = (self.level / count as f32) as Channel;
                 self.level = 0.0;
-            }
+                avg
+            } else {
+                beep
+            };
 
             self.fcycles -= self.fcycles_per_sample;
             //self.fcycles -= 21.0;
@@ -852,8 +858,12 @@ impl Tick for Audio {
             );
             let left_phase = left_phase
                 .saturating_add(beep as HigherChannel)
-                .saturating_add(disk_sound as HigherChannel)
-                / tone_count as HigherChannel;
+                .saturating_add(disk_sound as HigherChannel);
+            let left_phase = if tone_count > 1 {
+                left_phase / tone_count as HigherChannel
+            } else {
+                left_phase
+            };
 
             // Update right channel
             let tone_count = std::cmp::max(
@@ -862,10 +872,16 @@ impl Tick for Audio {
             );
             let right_phase = right_phase
                 .saturating_add(beep as HigherChannel)
-                .saturating_add(disk_sound as HigherChannel)
-                / tone_count as HigherChannel;
+                .saturating_add(disk_sound as HigherChannel);
 
-            self.data.sample.extend(&[left_phase as Channel, right_phase as Channel]);
+            let right_phase = if tone_count > 1 {
+                right_phase / tone_count as HigherChannel
+            } else {
+                right_phase
+            };
+
+            self.data.sample.push(left_phase as Channel);
+            self.data.sample.push(right_phase as Channel);
         }
     }
 }

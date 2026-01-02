@@ -346,7 +346,8 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
 
         Event::ControllerDeviceAdded { which, .. } => {
             // Which refers to joystick device index
-            if let Ok(controller) = event_param.game_controller.open(which)
+            let joy_id = sdl3::joystick::JoystickId { 0: which };
+            if let Ok(controller) = event_param.game_controller.open(joy_id)
                 && let Some(player_index) = controller.player_index()
             {
                 event_param
@@ -2510,8 +2511,8 @@ fn prepare_video_menu(cpu: &mut CPU, ui: &imgui::Ui, event: &mut EventParam) {
 
 fn prepare_audio_menu(cpu: &mut CPU, ui: &imgui::Ui) {
     ui.menu("Audio", || {
-        let enable_audio = cpu.bus.disable_audio;
-        build_toggle_menu_item(ui, "Enable Audio", "", !enable_audio, |new_state| {
+        let enable_audio = !cpu.bus.disable_audio;
+        build_toggle_menu_item(ui, "Enable Audio", "", enable_audio, |new_state| {
             cpu.bus.disable_audio = !new_state;
         });
 
