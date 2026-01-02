@@ -786,7 +786,10 @@ impl Tick for Audio {
             if value > 0 {
                 self.level += value as f32;
             }
-            value
+
+            // For, Low pass averaging, the return value is not used.
+            // It only relies on the self.level
+            0
         };
 
         /*
@@ -848,40 +851,26 @@ impl Tick for Audio {
             // Add the disk sound
             let disk_sound = self.data.disk_sound;
 
-            let mut left_phase: HigherChannel = 0;
-            let mut right_phase: HigherChannel = 0;
+            // Channel mixing for left and right
+            for channel in 0..2 {
+                let mut phase: HigherChannel = beep as HigherChannel;
 
-            // Update left channel
-            let tone_count = std::cmp::max(
-                1,
-                self.update_phase(&mut left_phase, 0) + (beep > 0) as usize,
-            );
-            let left_phase = left_phase
-                .saturating_add(beep as HigherChannel)
-                .saturating_add(disk_sound as HigherChannel);
-            let left_phase = if tone_count > 1 {
-                left_phase / tone_count as HigherChannel
-            } else {
-                left_phase
-            };
+                // Update left channel
+                let tone_count = std::cmp::max(
+                    1,
+                    self.update_phase(&mut phase, channel) + (beep > 0) as usize,
+                );
+                let phase = phase
+                    .saturating_add(disk_sound as HigherChannel);
 
-            // Update right channel
-            let tone_count = std::cmp::max(
-                1,
-                self.update_phase(&mut right_phase, 1) + (beep > 0) as usize,
-            );
-            let right_phase = right_phase
-                .saturating_add(beep as HigherChannel)
-                .saturating_add(disk_sound as HigherChannel);
+                let phase = if tone_count > 1 {
+                    phase / tone_count as HigherChannel
+                } else {
+                    phase
+                };
 
-            let right_phase = if tone_count > 1 {
-                right_phase / tone_count as HigherChannel
-            } else {
-                right_phase
-            };
-
-            self.data.sample.push(left_phase as Channel);
-            self.data.sample.push(right_phase as Channel);
+                self.data.sample.push(phase as Channel);
+            }
         }
     }
 }
