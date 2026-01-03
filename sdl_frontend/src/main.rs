@@ -1833,6 +1833,10 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut scale = 2.0;
 
     if let Some(scale_value) = pargs.opt_value_from_str::<_, f32>("--scale")? {
+        if scale_value < 1.0 || scale_value > 4.0 {
+            eprintln!("Scale value is from 1.0 to 4.0");
+            return Ok(());
+        }
         scale = scale_value;
     }
 
