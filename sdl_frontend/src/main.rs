@@ -33,7 +33,7 @@ use std::error::Error;
 use std::ffi::OsStr;
 use strum::IntoEnumIterator;
 
-use imgui::StyleVar;
+use imgui::{SliderFlags, StyleVar};
 use imgui_sdl3::ImGuiSdl3;
 use sdl3::gpu::*;
 
@@ -1887,6 +1887,8 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         .metal_view()
         .build()?;
 
+    video_subsystem.text_input().start(&window);
+
     let device = Device::new(ShaderFormat::SPIRV, false)?.with_window(&window)?;
 
     // create platform and renderer
@@ -2452,7 +2454,9 @@ fn prepare_video_menu(cpu: &mut CPU, ui: &imgui::Ui, scale: &mut f32, event: &mu
         ui.text("Window scale");
         ui.same_line();
         let width = ui.push_item_width(-1.0);
-        ui.slider("##Scale", 1.0, 4.0, scale);
+        ui.slider_config("##Scale", 1.0, 4.0)
+          .flags(SliderFlags::ALWAYS_CLAMP)
+          .build(scale);
         width.end();
         ui.separator();
         prepare_toggle_video_menu_item(
