@@ -1993,6 +1993,8 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut vertical_blend = false;
     let mut file_dialog = OpenFileDialog::None;
 
+    let mut prev_scale = scale;
+
     loop {
         if reload_cpu {
             reload_cpu = false;
@@ -2082,6 +2084,13 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         handle_event(_cpu, event_value, &mut event_param);
                     }
 
+                    if prev_scale != scale {
+                        prev_scale = scale;
+                        let width = (scale * WIDTH as f32) as u32;
+                        let height = (scale * HEIGHT as f32) as u32;
+                        let _ = window.set_size(width, height);
+                    }
+
                     if let Ok(mut command_buffer) = device.acquire_command_buffer() {
                         if let Ok(swapchain) =
                             command_buffer.wait_and_acquire_swapchain_texture(&window)
@@ -2144,6 +2153,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                                                 ui,
                                                 &mut show_settings,
                                                 &mut model_changed,
+                                                &mut scale,
                                                 &mut event_param,
                                             );
 
@@ -2337,6 +2347,7 @@ fn prepare_main_menu(
     ui: &imgui::Ui,
     show_settings: &mut bool,
     model_changed: &mut bool,
+    scale: &mut f32,
     event: &mut EventParam,
 ) {
     ui.main_menu_bar(|| {
@@ -2347,7 +2358,7 @@ fn prepare_main_menu(
         prepare_speed_menu(cpu, ui, event);
 
         // Video menu
-        prepare_video_menu(cpu, ui, event);
+        prepare_video_menu(cpu, ui, scale, event);
 
         // Audio menu
         prepare_audio_menu(cpu, ui);
@@ -2432,8 +2443,14 @@ fn prepare_toggle_video_menu_item(
     });
 }
 
-fn prepare_video_menu(cpu: &mut CPU, ui: &imgui::Ui, event: &mut EventParam) {
+fn prepare_video_menu(cpu: &mut CPU, ui: &imgui::Ui, scale: &mut f32, event: &mut EventParam) {
     ui.menu("Video", || {
+        ui.text("Window scale");
+        ui.same_line();
+        let width = ui.push_item_width(-1.0);
+        ui.slider("##Scale", 1.0, 4.0, scale);
+        width.end();
+        ui.separator();
         prepare_toggle_video_menu_item(
             cpu,
             ui,
