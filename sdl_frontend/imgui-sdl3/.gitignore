@@ -1,8 +1,0 @@
-/target
-**/*.rs.bk
-.cargo/config
-.cargo/config.toml
-/.idea
-/.vscode
-/benches/target
-/result
