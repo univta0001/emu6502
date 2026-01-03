@@ -1365,38 +1365,44 @@ fn _update_texture(cpu: &mut CPU, texture: &mut Texture) {
 
 fn update_gpu_texture(
     cpu: &mut CPU,
-    imgui: &imgui_sdl3::ImGuiSdl3,
+    imgui: &mut imgui_sdl3::ImGuiSdl3,
     device: &Device,
-    texture_id: imgui::TextureId,
     event: &EventParam,
-) {
+) -> imgui::TextureId {
     let disp = &mut cpu.bus.video;
-    if let Some(texture) = imgui.get_texture(texture_id) {
-        let display = if *event.vertical_blend {
-            &disp.get_vertical_blend_frame(&disp.frame, disp.get_scanline())
-        } else {
-            &disp.frame
-        };
-        let display = if *event.barrel_distortion {
-            &disp.get_barrel_distorted_frame(display, 0.015)
-        } else {
-            display
-        };
+    let display = if *event.vertical_blend {
+        &disp.get_vertical_blend_frame(&disp.frame, disp.get_scanline())
+    } else {
+        &disp.frame
+    };
+    let display = if *event.barrel_distortion {
+        &disp.get_barrel_distorted_frame(display, 0.015)
+    } else {
+        display
+    };
 
-        let upload_command_buffer = device.acquire_command_buffer().unwrap();
-        let copy_pass = device.begin_copy_pass(&upload_command_buffer).unwrap();
-        let _ = imgui_sdl3::utils::update_texture(
-            device,
-            texture,
-            &copy_pass,
-            display,
-            (0, 0),
-            (WIDTH as u32, HEIGHT as u32),
-        );
-        device.end_copy_pass(copy_pass);
-        let _ = upload_command_buffer.submit();
-    }
+    let upload_command_buffer = device.acquire_command_buffer().unwrap();
+    let copy_pass = device.begin_copy_pass(&upload_command_buffer).unwrap();
+    let texture =
+        imgui_sdl3::utils::create_texture(device, &copy_pass, display, WIDTH as u32, HEIGHT as u32)
+            .unwrap();
+    device.end_copy_pass(copy_pass);
+    let _ = upload_command_buffer.submit();
+    let sampler = device
+        .create_sampler(
+            SamplerCreateInfo::new()
+                .with_min_filter(Filter::Linear)
+                .with_mag_filter(Filter::Linear)
+                .with_mipmap_mode(SamplerMipmapMode::Linear)
+                .with_address_mode_u(SamplerAddressMode::ClampToEdge)
+                .with_address_mode_v(SamplerAddressMode::ClampToEdge)
+                .with_address_mode_w(SamplerAddressMode::ClampToEdge),
+        )
+        .unwrap();
+
+    let image_texture_id = imgui.push_texture(texture, sampler);
     disp.clear_video_dirty();
+    image_texture_id
 }
 
 fn update_gpu_harddisk_status(
@@ -1899,19 +1905,6 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     window.set_icon(apple2_icon);
     */
 
-    let texture_info = TextureCreateInfo::new()
-        .with_type(TextureType::_2D)
-        .with_format(TextureFormat::R8g8b8a8Unorm)
-        .with_usage(TextureUsage::SAMPLER)
-        .with_width(WIDTH as u32)
-        .with_height(HEIGHT as u32)
-        .with_layer_count_or_depth(1)
-        .with_num_levels(1)
-        .with_sample_count(SampleCount::default());
-
-    let gpu_texture = device.create_texture(texture_info)?;
-    let image_texture_id = imgui.insert_texture(gpu_texture);
-
     // Create audio
     let audio_subsystem = sdl_context.audio();
     let desired_spec = AudioSpec {
@@ -2078,7 +2071,8 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         file_dialog: &mut file_dialog,
                     };
 
-                    update_gpu_texture(_cpu, &imgui, &device, image_texture_id, &event_param);
+                    let image_texture_id =
+                        update_gpu_texture(_cpu, &mut imgui, &device, &event_param);
                     //update_video(_cpu, &mut canvas, &mut texture, current_full_screen);
 
                     _cpu.bus.video.skip_update = false;
