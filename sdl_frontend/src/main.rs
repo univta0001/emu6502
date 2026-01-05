@@ -2455,8 +2455,8 @@ fn prepare_video_menu(cpu: &mut CPU, ui: &imgui::Ui, scale: &mut f32, event: &mu
         ui.same_line();
         let width = ui.push_item_width(-1.0);
         ui.slider_config("##Scale", 1.0, 4.0)
-          .flags(SliderFlags::ALWAYS_CLAMP)
-          .build(scale);
+            .flags(SliderFlags::ALWAYS_CLAMP)
+            .build(scale);
         width.end();
         ui.separator();
         prepare_toggle_video_menu_item(
