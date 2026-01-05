@@ -1624,10 +1624,16 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut apple2p = false;
     if let Some(model) = pargs.opt_value_from_str::<_, String>(["-m", "--model"])? {
         match &model[..] {
-            "apple2" => initialize_apple_system(&mut cpu, &apple2_rom, 0xd000, false),
+            "apple2" => {
+                initialize_apple_system(&mut cpu, &apple2_rom, 0xd000, false);
+                cpu.bus.mem.slotc3rom = true;
+                cpu.bus.mem.intcxrom = false;
+            }
             "apple2p" => {
                 apple2p = true;
-                initialize_apple_system(&mut cpu, &apple2p_rom, 0xd000, false)
+                initialize_apple_system(&mut cpu, &apple2p_rom, 0xd000, false);
+                cpu.bus.mem.slotc3rom = true;
+                cpu.bus.mem.intcxrom = false;
             }
             "apple2e" => initialize_apple_system(&mut cpu, &apple2e_rom, 0xc000, false),
             "apple2ee" => initialize_apple_system(&mut cpu, &apple2ee_rom, 0xc000, false),
@@ -2589,6 +2595,8 @@ fn prepare_menu_for_model(
         let rom_value = cpu.bus.mem.mem_read(0xfbb3);
         build_toggle_menu_item(ui, "Apple ][", "", rom_value == 0x38, |_| {
             initialize_apple_system(cpu, &apple2_rom, 0xd000, false);
+            cpu.bus.mem.slotc3rom = true;
+            cpu.bus.mem.intcxrom = false;
             *model_changed = true;
             *event.reload_cpu = true;
             cpu.halt_cpu();
@@ -2596,6 +2604,8 @@ fn prepare_menu_for_model(
 
         build_toggle_menu_item(ui, "Apple ][ Plus", "", rom_value == 0xea, |_| {
             initialize_apple_system(cpu, &apple2p_rom, 0xd000, false);
+            cpu.bus.mem.slotc3rom = true;
+            cpu.bus.mem.intcxrom = false;
             *model_changed = true;
             *event.reload_cpu = true;
             cpu.halt_cpu();
