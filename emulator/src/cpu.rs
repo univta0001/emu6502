@@ -991,7 +991,7 @@ impl CPU {
 
     pub fn load(&mut self, program: &[u8], offset: u16) {
         // Initialize 0xc800 to 0xcfff to zero
-        for i in 0xc800..=0xcfff {
+        for i in 0xc000..=0xcfff {
             self.bus.mem.cpu_memory[i] = 0;
             self.bus.mem.alt_cpu_memory[i] = 0;
         }
