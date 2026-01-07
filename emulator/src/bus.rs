@@ -1376,20 +1376,8 @@ impl Mem for Bus {
                     let _write = self.io_access(addr, data, true);
                 }
 
-                0xc100..=0xc7ff => {
+                0xc100..=0xcffe => {
                     self.iodevice_rom_access(addr, data, true);
-                }
-
-                0xc800..=0xcffe => {
-                    /*
-                    eprintln!(
-                        "UNIMP WRITE to addr 0x{:04x} with value 0x{:02x}",
-                        addr, data
-                    );
-                    */
-                    if self.mem.a2cp && self.mem.rom_bank {
-                        self.iodevice_rom_access(addr, data, true);
-                    }
                 }
 
                 0xcfff => {
