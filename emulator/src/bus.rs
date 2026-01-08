@@ -358,7 +358,7 @@ impl Bus {
 
         if !self.disable_video {
             if self.io_slot[3] == IODevice::Videoterm && self.annunciator[0] {
-                if self.cycles.is_multiple_of(100_000) {
+                if self.cycles.is_multiple_of(17_030) {
                     self.videoterm.refresh(&mut self.video);
                 }
             } else {
