@@ -18,6 +18,8 @@ use crate::network::Uthernet2;
 
 use crate::vidhd::VidHD;
 
+use crate::videoterm::Videoterm;
+
 use strum::EnumIter;
 
 //use rand::Rng;
@@ -62,6 +64,7 @@ pub enum IODevice {
     Uthernet2,
     Saturn(u8),
     VidHD,
+    Videoterm,
 }
 
 impl From<IODevice> for &str {
@@ -81,6 +84,7 @@ impl From<IODevice> for &str {
             IODevice::Uthernet2 => "Uthernet2",
             IODevice::Saturn(_) => "Saturn",
             IODevice::VidHD => "VidHD",
+            IODevice::Videoterm => "Videx Videoterm",
         }
     }
 }
@@ -174,6 +178,9 @@ pub struct Bus {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub vidhd: VidHD,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    pub videoterm: Videoterm,
 }
 
 pub trait Mem {
@@ -268,6 +275,7 @@ impl Bus {
             z80_cirtech: false,
             dongle: Dongle::None,
             vidhd: VidHD,
+            videoterm: Videoterm::default(),
         };
 
         bus.init_memory();
@@ -349,7 +357,13 @@ impl Bus {
         self.cycles += 1;
 
         if !self.disable_video {
-            self.video.tick();
+            if self.io_slot[3] == IODevice::Videoterm && self.annunciator[0] {
+                if self.cycles.is_multiple_of(100_000) {
+                    self.videoterm.refresh(&mut self.video);
+                }
+            } else {
+                self.video.tick();
+            }
         }
 
         if !self.disable_audio {
@@ -503,6 +517,7 @@ impl Bus {
         let return_value: Option<&mut dyn Card> = match slot_value {
             IODevice::Printer => Some(&mut self.parallel),
             IODevice::RamFactor => Some(&mut self.ramfactor),
+            IODevice::Videoterm => Some(&mut self.videoterm),
             IODevice::Mouse => Some(&mut self.mouse),
             IODevice::Disk => Some(&mut self.disk),
             IODevice::Disk13 => {
@@ -548,6 +563,7 @@ impl Bus {
                 let slot_value = self.io_slot[slot];
                 return match slot_value {
                     IODevice::RamFactor => self.ramfactor.rom_access(addr, value, write_flag),
+                    IODevice::Videoterm => self.videoterm.rom_access(addr, value, write_flag),
                     _ => floating_value,
                 };
             }
@@ -568,10 +584,12 @@ impl Bus {
                 if self.extended_rom == 0 {
                     self.extended_rom = slot as u8;
                 }
+
                 let return_value: Option<&mut dyn Card> = match slot_value {
                     IODevice::Printer => Some(&mut self.parallel),
                     IODevice::RamFactor => Some(&mut self.ramfactor),
                     IODevice::VidHD => Some(&mut self.vidhd),
+                    IODevice::Videoterm => Some(&mut self.videoterm),
                     IODevice::Mouse => Some(&mut self.mouse),
                     IODevice::Disk => Some(&mut self.disk),
                     IODevice::Disk13 => {

@@ -687,8 +687,8 @@ const CHAR_APPLE2E_ROM: [u8; 4096] = [
 ];
 
 impl Video {
-    const WIDTH: usize = 560;
-    const HEIGHT: usize = 384;
+    pub const WIDTH: usize = 560;
+    pub const HEIGHT: usize = 384;
 
     pub fn new() -> Self {
         let mut frame = vec![0xff; Video::WIDTH * Video::HEIGHT * 4];
@@ -1266,7 +1266,7 @@ impl Video {
         }
     }
 
-    fn get_mono_color(&self) -> Rgb {
+    pub fn get_mono_color(&self) -> Rgb {
         if self.display_mode == DisplayMode::MONO_GREEN {
             COLOR_GREEN
         } else if self.display_mode == DisplayMode::MONO_AMBER {

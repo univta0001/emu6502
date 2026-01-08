@@ -867,7 +867,7 @@ FLAGS:
                               diskii,diskii13,saturn,vidhd
     --s3 device        Device slot 3
                        Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
-                              diskii,diskii13,saturn,vidhd
+                              diskii,diskii13,saturn,vidhd,videoterm
     --s4 device        Device slot 4
                        Value: none,harddisk,mboard,z80,mouse,parallel,ramfactor,
                               diskii,diskii13,saturn,vidhd
@@ -897,6 +897,7 @@ FLAGS:
     --list_interfaces  List all the network interfaces
     --interface name   Set the interface name for Uthernet2
                        Default is None. For e.g. eth0
+    --videoterm        Enable Videx Videoterm at slot 3
     --vidhd            Enable VidHD at slot 3
     --aux aux_type     Auxiliary Slot type. 
                        Supported values (ext80, std80, rw3, none)
@@ -1102,6 +1103,7 @@ fn register_device(cpu: &mut CPU, device: &str, slot: usize, mboard: &mut usize,
         #[cfg(feature = "z80")]
         "z80" => cpu.bus.register_device(IODevice::Z80, slot),
         "vidhd" => cpu.bus.register_device(IODevice::VidHD, slot),
+        "videoterm" => cpu.bus.register_device(IODevice::Videoterm, slot),
         "diskii" => cpu.bus.register_device(IODevice::Disk, slot),
         "diskii13" => cpu.bus.register_device(IODevice::Disk13, slot),
         "saturn" => {
@@ -1707,6 +1709,10 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     if pargs.contains("--vidhd") {
         register_device(&mut cpu, "vidhd", 3, &mut slot_mboard, &mut slot_saturn);
+    }
+
+    if pargs.contains("--videoterm") {
+        register_device(&mut cpu, "videoterm", 3, &mut slot_mboard, &mut slot_saturn);
     }
 
     if let Some(device) = pargs.opt_value_from_str::<_, String>("--s1")? {
@@ -2452,6 +2458,7 @@ fn prepare_toggle_video_menu_item(
         cpu.bus
             .video
             .set_display_mode(event.display_mode[*event.display_index]);
+        cpu.bus.videoterm.invalidate_video();
     });
 }
 
