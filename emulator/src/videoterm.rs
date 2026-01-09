@@ -369,7 +369,7 @@ impl Videoterm {
             self.blink_time = current_time_ms;
         }
 
-        let offset = if cursor_mode != CursorMode::Fixed && self.blink {
+        let offset = if cursor_mode == CursorMode::Fixed || self.blink {
             0x80
         } else {
             0x0
