@@ -513,6 +513,10 @@ impl Bus {
         let slot_value = self.io_slot[slot];
         //eprintln!("IOAccess - {:04x} {} {}",addr,slot,io_addr);
 
+        if self.extended_rom == 0 {
+            self.extended_rom = slot as u8;
+        }
+
         let mut saturn;
         let return_value: Option<&mut dyn Card> = match slot_value {
             IODevice::Printer => Some(&mut self.parallel),
