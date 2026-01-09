@@ -301,8 +301,16 @@ impl Videoterm {
             }
         }
 
-        // Rescale 640 x 432 to 560 x 384
+        for j in 0..8 {
+            let y_screen = (y + j) * 2;
+            for i in 0..7 {
+                let color = char_pixels[j * 8 + i];
+                video.set_pixel_2(x + i, y_screen, color);
+            }
+        }
 
+        /*
+        // Rescale 640 x 432 to 560 x 384
         // Bilinear Interpolation (Scale 8x9 -> 7x8)
         // Interpolates horizontally then vertically
         for j in 0..8 {
@@ -347,6 +355,7 @@ impl Videoterm {
                 video.set_pixel_2(x + i, y_screen, [r as u8, g as u8, b as u8]);
             }
         }
+        */
     }
 
     fn draw_cursor(&mut self, video: &mut Video) {
