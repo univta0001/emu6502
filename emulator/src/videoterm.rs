@@ -230,7 +230,6 @@ pub struct Videoterm {
     vram: Vec<u8>,
     blink: bool,
     blink_time: u64,
-    cursor_pos: u16,
     dirty_lines: Vec<bool>,
 }
 
@@ -376,11 +375,6 @@ impl Videoterm {
         };
 
         if cursor_mode != CursorMode::None {
-            if self.cursor_pos != cursor_pos {
-                let prev_value = self.vram[(self.cursor_pos & 0x7ff) as usize];
-                self.draw_char(video, self.cursor_pos, prev_value);
-                self.cursor_pos = cursor_pos
-            }
             let value = ((self.vram[(cursor_pos & 0x7ff) as usize] as u16 + offset) & 0xff) as u8;
             self.draw_char(video, cursor_pos, value);
         }
@@ -421,7 +415,6 @@ impl Default for Videoterm {
                 .unwrap_or(std::time::Duration::ZERO)
                 .as_millis()) as u64,
             dirty_lines: vec![false; 24],
-            cursor_pos: 0,
         }
     }
 }
@@ -476,11 +469,15 @@ impl Card for Videoterm {
             0x81 => {
                 if write_flag {
                     if self.register < self.mc6485_regs.len() as u8 {
+                        let old_start_pos = self.get_start_pos() as i32;
                         self.mc6485_regs[self.register as usize] = value;
 
                         if self.register == STARTPOS_HI as u8 || self.register == STARTPOS_LO as u8
                         {
-                            self.invalidate_video();
+                            let diff = self.get_start_pos() as i32 - old_start_pos;
+                            if diff != 0 {
+                                self.invalidate_video();
+                            }
                         }
                     }
                 } else if self.register < self.mc6485_regs.len() as u8 {
