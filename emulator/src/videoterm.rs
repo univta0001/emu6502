@@ -267,57 +267,84 @@ impl Videoterm {
     fn draw_char(&mut self, video: &mut Video, addr: u16, value: u8) {
         let start_pos = self.get_start_pos();
         let start_addr = (0x800 + addr - start_pos) & 0x7ff;
-        let row = (start_addr / 80) & 0xff;
-        let col = start_addr % 80;
-        let x = (col * 7) as usize;
-        let y = (row * 8) as usize;
-        let c = ((value as u16) << 4) as usize;
-        let inverse = c >= 0x800;
+        let row = (start_addr / 80) as usize;
+        let col = (start_addr % 80) as usize;
+        let x = col * 7;
+        let y = row * 8;
 
-        if row < 24 {
-            let mut char_matrix = Vec::new();
-            for j in 0..9 {
-                let cdata = if inverse {
-                    VIDEO_ROM[(c + j) % 0x800] ^ 0xff
+        if row >= 24 {
+            return;
+        }
+
+        let rom_index = ((value as u16) << 4) as usize;
+        let inverse = rom_index >= 0x800;
+        let color_on = video.get_mono_color();
+        let color_off = crate::video::COLOR_BLACK;
+
+        let mut char_pixels = [[0u8; 3]; 9 * 8];
+        for j in 0..9 {
+            let cdata = if inverse {
+                VIDEO_ROM[(rom_index + j) % 0x800] ^ 0xff
+            } else {
+                VIDEO_ROM[rom_index + j]
+            };
+            let row_offset = j * 8;
+            let mut mask = 0x80;
+            for i in 0..8 {
+                let pixel = if cdata & mask != 0 {
+                    color_on
                 } else {
-                    VIDEO_ROM[c + j]
+                    color_off
                 };
-                let mut mask = 0x80;
-                for _ in 0..8 {
-                    let color = if (cdata & mask) > 0 {
-                        video.get_mono_color()
-                    } else {
-                        crate::video::COLOR_BLACK
-                    };
-
-                    char_matrix.push(color);
-                    mask >>= 1;
-                }
+                char_pixels[row_offset + i] = pixel;
+                mask >>= 1;
             }
+        }
 
-            // Rescale 640 x 432 to 560 x 384
-            for j in 0..8 {
-                for i in 0..7 {
-                    let prev_color = char_matrix[i + j * 8];
-                    let curr_color = char_matrix[(i + 1) + j * 8];
-                    let i = i as u16;
-                    let j = j as u16;
-                    let r = ((prev_color[0] as u16 * (7 - i) + i * curr_color[0] as u16) / 8) as u8;
-                    let g = ((prev_color[1] as u16 * (7 - i) + i * curr_color[1] as u16) / 8) as u8;
-                    let b = ((prev_color[2] as u16 * (7 - i) + i * curr_color[2] as u16) / 8) as u8;
-                    let lower = [r, g, b];
-                    let prev_color = char_matrix[i as usize + (j as usize + 1) * 8];
-                    let curr_color = char_matrix[(i as usize + 1) + (j as usize + 1) * 8];
-                    let r = ((prev_color[0] as u16 * (7 - i) + i * curr_color[0] as u16) / 8) as u8;
-                    let g = ((prev_color[1] as u16 * (7 - i) + i * curr_color[1] as u16) / 8) as u8;
-                    let b = ((prev_color[2] as u16 * (7 - i) + i * curr_color[2] as u16) / 8) as u8;
-                    let upper = [r, g, b];
-                    let r = ((lower[0] as u16 * (8 - j) + j * upper[0] as u16) / 8) as u8;
-                    let g = ((lower[1] as u16 * (8 - j) + j * upper[1] as u16) / 8) as u8;
-                    let b = ((lower[2] as u16 * (8 - j) + j * upper[2] as u16) / 8) as u8;
-                    let color = [r, g, b];
-                    video.set_pixel_2(x + i as usize, (y + j as usize) * 2 , color);
-                }
+        // Rescale 640 x 432 to 560 x 384
+
+        // Bilinear Interpolation (Scale 8x9 -> 7x8)
+        // Interpolates horizontally then vertically
+        for j in 0..8 {
+            let y_screen = (y + j) * 2;
+
+            // Source row indices
+            let r0_idx = j * 8;
+            let r1_idx = (j + 1) * 8;
+
+            // Vertical weights: top row vs bottom row
+            let w_top = 8 - j;
+            let w_btm = j;
+
+            for i in 0..7 {
+                // Horizontal weights: left pixel vs right pixel
+                let w_left = 7 - i;
+                let w_right = i;
+
+                // Fetch the 4 surrounding pixels from the source grid
+                let p_tl = char_pixels[r0_idx + i]; // Top-Left
+                let p_tr = char_pixels[r0_idx + i + 1]; // Top-Right
+                let p_bl = char_pixels[r1_idx + i]; // Bottom-Left
+                let p_br = char_pixels[r1_idx + i + 1]; // Bottom-Right
+
+                // Interpolate Top Edge
+                let r = (p_tl[0] as u16 * w_left as u16 + p_tr[0] as u16 * w_right as u16) / 8;
+                let g = (p_tl[1] as u16 * w_left as u16 + p_tr[1] as u16 * w_right as u16) / 8;
+                let b = (p_tl[2] as u16 * w_left as u16 + p_tr[2] as u16 * w_right as u16) / 8;
+                let col_top = [r as u8, g as u8, b as u8];
+
+                // Interpolate Bottom Edge
+                let r = (p_bl[0] as u16 * w_left as u16 + p_br[0] as u16 * w_right as u16) / 8;
+                let g = (p_bl[1] as u16 * w_left as u16 + p_br[1] as u16 * w_right as u16) / 8;
+                let b = (p_bl[2] as u16 * w_left as u16 + p_br[2] as u16 * w_right as u16) / 8;
+                let col_btm = [r as u8, g as u8, b as u8];
+
+                // Interpolate Vertically (Top to Bottom)
+                let r = (col_top[0] as u16 * w_top as u16 + col_btm[0] as u16 * w_btm as u16) / 8;
+                let g = (col_top[1] as u16 * w_top as u16 + col_btm[1] as u16 * w_btm as u16) / 8;
+                let b = (col_top[2] as u16 * w_top as u16 + col_btm[2] as u16 * w_btm as u16) / 8;
+
+                video.set_pixel_2(x + i, y_screen, [r as u8, g as u8, b as u8]);
             }
         }
     }
