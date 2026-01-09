@@ -469,13 +469,12 @@ impl Card for Videoterm {
             0x81 => {
                 if write_flag {
                     if self.register < self.mc6485_regs.len() as u8 {
-                        let old_start_pos = self.get_start_pos() as i32;
+                        let old_start_pos = self.get_start_pos();
                         self.mc6485_regs[self.register as usize] = value;
 
                         if self.register == STARTPOS_HI as u8 || self.register == STARTPOS_LO as u8
                         {
-                            let diff = self.get_start_pos() as i32 - old_start_pos;
-                            if diff != 0 {
+                            if self.get_start_pos() != old_start_pos {
                                 self.invalidate_video();
                             }
                         }
