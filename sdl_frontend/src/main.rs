@@ -2507,6 +2507,7 @@ fn prepare_video_menu(cpu: &mut CPU, ui: &imgui::Ui, scale: &mut f32, event: &mu
             cpu.bus.video.get_scanline(),
             |state| {
                 cpu.bus.video.set_scanline(state);
+                cpu.bus.videoterm.invalidate_video();
             },
         );
 

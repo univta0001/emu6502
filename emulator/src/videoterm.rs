@@ -301,14 +301,28 @@ impl Videoterm {
             }
         }
 
-        for j in 0..8 {
-            let y_screen = (y + j) * 2;
+        let mut dy = 0;
+        for j in 0..9 {
+            if j == 5 {
+                continue
+            }
+            let y_screen = (y + dy) * 2;
+            dy += 1;
             for i in 0..7 {
-                let color = char_pixels[j * 8 + i];
+                let color = if j == 4 {
+                    let prev_color = char_pixels[j * 8 + i];
+                    let next_color = char_pixels[(j + 1) * 8 + i];
+                    let r = ((prev_color[0] as u16 + next_color[0] as u16) / 2) as u8;
+                    let g = ((prev_color[1] as u16 + next_color[1] as u16) / 2) as u8;
+                    let b = ((prev_color[2] as u16 + next_color[2] as u16) / 2) as u8;
+                    [r, g, b]
+                } else {
+                    char_pixels[j * 8 + i]
+                };
                 video.set_pixel_2(x + i, y_screen, color);
             }
         }
-
+        
         /*
         // Rescale 640 x 432 to 560 x 384
         // Bilinear Interpolation (Scale 8x9 -> 7x8)
