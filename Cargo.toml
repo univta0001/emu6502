@@ -8,7 +8,7 @@ members = [
 resolver = "3"
 
 [workspace.package]
-version = "0.9.5"
+version = "0.9.6"
 license = "MIT"
 
 [profile.test]

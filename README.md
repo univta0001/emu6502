@@ -49,7 +49,7 @@ Features in the emulator
 
 - `emu6502 --help` will display:
 
-        emu6502 0.9.4 (99f83d0cf5ad4e65cb3edb8e4f1b9fdfe9b0b31d)
+        emu6502 0.9.6 (45dd7a33af79bceb100e1cc8e4bdde0c3bd2da94)
 
         USAGE:
             emu6502 [FLAGS] [disk 1] [disk 2]
@@ -108,6 +108,7 @@ Features in the emulator
                                       robocom1000, robocom1500
             --interface name   Set the interface name for Uthernet2
                                Default is None. For e.g. eth0
+            --videoterm        Enable Videx Videoterm at slot 3
             --vidhd            Enable VidHD at slot 3
             --aux aux_type     Auxiliary Slot type.
                                Supported values (ext80, std80, rw3, none)
