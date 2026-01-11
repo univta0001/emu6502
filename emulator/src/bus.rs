@@ -356,14 +356,8 @@ impl Bus {
     pub fn tick(&mut self) {
         self.cycles += 1;
 
-        if !self.disable_video {
-            if self.annunciator[0] && self.io_slot[3] == IODevice::Videoterm {
-                if self.cycles.is_multiple_of(17_030) {
-                    self.videoterm.refresh(&mut self.video);
-                }
-            } else {
-                self.video.tick();
-            }
+        if !self.disable_video && !self.is_80_column_enabled() {
+            self.video.tick();
         }
 
         if !self.disable_audio {
@@ -430,6 +424,10 @@ impl Bus {
 
     pub fn set_iwm(&mut self, flag: bool) {
         self.disk.set_iwm(flag);
+    }
+
+    pub fn is_80_column_enabled(&self) -> bool {
+        self.annunciator[0] && self.io_slot[3] == IODevice::Videoterm
     }
 
     pub fn is_normal_speed(&self) -> bool {

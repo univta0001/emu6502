@@ -1371,6 +1371,11 @@ fn update_gpu_texture(
     device: &Device,
     event: &EventParam,
 ) -> imgui::TextureId {
+    // Check if 80 column enabled, if enabled, refresh the video
+    if cpu.bus.is_80_column_enabled() {
+        cpu.bus.videoterm.refresh(&mut cpu.bus.video);
+    }
+
     let disp = &mut cpu.bus.video;
     let display = if *event.vertical_blend {
         &disp.get_vertical_blend_frame(&disp.frame, disp.get_scanline())

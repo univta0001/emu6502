@@ -304,7 +304,7 @@ impl Videoterm {
         let mut dy = 0;
         for j in 0..9 {
             if j == 5 {
-                continue
+                continue;
             }
             let y_screen = (y + dy) * 2;
             dy += 1;
@@ -322,7 +322,7 @@ impl Videoterm {
                 video.set_pixel_2(x + i, y_screen, color);
             }
         }
-        
+
         /*
         // Rescale 640 x 432 to 560 x 384
         // Bilinear Interpolation (Scale 8x9 -> 7x8)
