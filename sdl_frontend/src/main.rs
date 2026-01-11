@@ -1568,7 +1568,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     //cpu.load(apple2_rom, 0xd000);
     //cpu.load(apple2e_rom, 0xc000);
-    cpu.load(&apple2ee_rom, 0xc000);
+    //cpu.load(&apple2ee_rom, 0xc000);
     //cpu.load(_function_test, 0x0);
     //cpu.program_counter = 0x0400;
     //cpu.self_test = true;
@@ -1657,6 +1657,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 return Ok(());
             }
         }
+    } else {
+        initialize_apple_system(&mut cpu, &apple2ee_rom, 0xc000, false)
     }
 
     if apple2p && pargs.contains("--saturn") {
@@ -3012,6 +3014,11 @@ fn prepare_statusbar(
 
 fn initialize_apple_system(cpu: &mut CPU, rom_image: &[u8], offset: u16, extended_rom: bool) {
     if !extended_rom {
+        // Initialize 0xc000 to 0xcfff to zero
+        for i in 0xc000..=0xcfff {
+            cpu.bus.mem.cpu_memory[i] = 0;
+            cpu.bus.mem.alt_cpu_memory[i] = 0;
+        }
         cpu.load(rom_image, offset);
     } else {
         cpu.load(&rom_image[0..0x4000], 0xc000);
