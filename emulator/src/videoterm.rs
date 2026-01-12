@@ -301,75 +301,18 @@ impl Videoterm {
             }
         }
 
-        let mut dy = 0;
-        for j in 0..9 {
-            if j == 5 {
-                continue;
-            }
-            let y_screen = (y + dy) * 2;
-            dy += 1;
+        for j in 0..16 {
+            let y_screen = y * 2 + j;
             for i in 0..7 {
-                let color = if j == 4 {
-                    let prev_color = char_pixels[j * 8 + i];
-                    let next_color = char_pixels[(j + 1) * 8 + i];
-                    let r = ((prev_color[0] as u16 + next_color[0] as u16) / 2) as u8;
-                    let g = ((prev_color[1] as u16 + next_color[1] as u16) / 2) as u8;
-                    let b = ((prev_color[2] as u16 + next_color[2] as u16) / 2) as u8;
-                    [r, g, b]
+                let yy = (j + 1) * 8 / 16;
+                let color = char_pixels[i + yy * 8];
+                if video.get_scanline() && j % 2 != 0 {
+                    video.set_pixel(x + i, y_screen, [color[0] / 2, color[1] / 2, color[2] / 2]);
                 } else {
-                    char_pixels[j * 8 + i]
-                };
-                video.set_pixel_2(x + i, y_screen, color);
+                    video.set_pixel(x + i, y_screen, color);
+                }
             }
         }
-
-        /*
-        // Rescale 640 x 432 to 560 x 384
-        // Bilinear Interpolation (Scale 8x9 -> 7x8)
-        // Interpolates horizontally then vertically
-        for j in 0..8 {
-            let y_screen = (y + j) * 2;
-
-            // Source row indices
-            let r0_idx = j * 8;
-            let r1_idx = (j + 1) * 8;
-
-            // Vertical weights: top row vs bottom row
-            let w_top = 8 - j;
-            let w_btm = j;
-
-            for i in 0..7 {
-                // Horizontal weights: left pixel vs right pixel
-                let w_left = 7 - i;
-                let w_right = i;
-
-                // Fetch the 4 surrounding pixels from the source grid
-                let p_tl = char_pixels[r0_idx + i]; // Top-Left
-                let p_tr = char_pixels[r0_idx + i + 1]; // Top-Right
-                let p_bl = char_pixels[r1_idx + i]; // Bottom-Left
-                let p_br = char_pixels[r1_idx + i + 1]; // Bottom-Right
-
-                // Interpolate Top Edge
-                let r = (p_tl[0] as u16 * w_left as u16 + p_tr[0] as u16 * w_right as u16) / 8;
-                let g = (p_tl[1] as u16 * w_left as u16 + p_tr[1] as u16 * w_right as u16) / 8;
-                let b = (p_tl[2] as u16 * w_left as u16 + p_tr[2] as u16 * w_right as u16) / 8;
-                let col_top = [r as u8, g as u8, b as u8];
-
-                // Interpolate Bottom Edge
-                let r = (p_bl[0] as u16 * w_left as u16 + p_br[0] as u16 * w_right as u16) / 8;
-                let g = (p_bl[1] as u16 * w_left as u16 + p_br[1] as u16 * w_right as u16) / 8;
-                let b = (p_bl[2] as u16 * w_left as u16 + p_br[2] as u16 * w_right as u16) / 8;
-                let col_btm = [r as u8, g as u8, b as u8];
-
-                // Interpolate Vertically (Top to Bottom)
-                let r = (col_top[0] as u16 * w_top as u16 + col_btm[0] as u16 * w_btm as u16) / 8;
-                let g = (col_top[1] as u16 * w_top as u16 + col_btm[1] as u16 * w_btm as u16) / 8;
-                let b = (col_top[2] as u16 * w_top as u16 + col_btm[2] as u16 * w_btm as u16) / 8;
-
-                video.set_pixel_2(x + i, y_screen, [r as u8, g as u8, b as u8]);
-            }
-        }
-        */
     }
 
     fn draw_cursor(&mut self, video: &mut Video) {
