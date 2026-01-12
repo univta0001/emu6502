@@ -276,41 +276,31 @@ impl Videoterm {
             return;
         }
 
-        let rom_index = ((value as u16) << 4) as usize;
+        let rom_index = (value as usize) << 4;
         let inverse = rom_index >= 0x800;
         let color_on = video.get_mono_color();
         let color_off = crate::video::COLOR_BLACK;
 
-        let mut char_pixels = [[0u8; 3]; 9 * 8];
+        let mut char_rows = [0u8; 9];
         for j in 0..9 {
-            let cdata = if inverse {
-                VIDEO_ROM[(rom_index + j) % 0x800] ^ 0xff
-            } else {
-                VIDEO_ROM[rom_index + j]
-            };
-            let row_offset = j * 8;
-            let mut mask = 0x80;
-            for i in 0..8 {
-                let pixel = if cdata & mask != 0 {
-                    color_on
-                } else {
-                    color_off
-                };
-                char_pixels[row_offset + i] = pixel;
-                mask >>= 1;
-            }
+            let pixels = VIDEO_ROM[(rom_index + j) % 0x800];
+            char_rows[j] = if inverse { !pixels } else { pixels };
         }
 
+        let scanline = video.get_scanline();
         for j in 0..16 {
             let y_screen = y * 2 + j;
+            let src_row = ((j + 1) * 8 / 16).min(8);
+            let src_pixels = char_rows[src_row];
             for i in 0..7 {
-                let yy = (j + 1) * 8 / 16;
-                let color = char_pixels[i + yy * 8];
-                if video.get_scanline() && j % 2 != 0 {
-                    video.set_pixel(x + i, y_screen, [color[0] / 2, color[1] / 2, color[2] / 2]);
+                let bit_set = (src_pixels & (0x80 >> i)) != 0;
+                let base_color = if bit_set { color_on } else { color_off };
+                let final_color = if scanline && j % 2 != 0 {
+                    [base_color[0] / 2, base_color[1] / 2, base_color[2] /2]
                 } else {
-                    video.set_pixel(x + i, y_screen, color);
-                }
+                    base_color
+                };
+                video.set_pixel(x + i, y_screen, final_color);
             }
         }
     }
