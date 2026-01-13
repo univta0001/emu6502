@@ -215,7 +215,8 @@ const BLINK_PERIOD_SLOW: usize = 533;
 
 //const CURSOR_UPPER: usize = 0x0a;
 //const CURSOR_LOWER: usize = 0x0b;
-const CURSOR_MODE: usize = 0x0a;
+const CURSOR_START: usize = 0x0a;
+const CURSOR_END: usize = 0x0b;
 const STARTPOS_HI: usize = 0x0c;
 const STARTPOS_LO: usize = 0x0d;
 const CURSOR_HI: usize = 0x0e;
@@ -251,8 +252,16 @@ impl Videoterm {
         ((self.mc6485_regs[CURSOR_HI] as u16) << 8) | self.mc6485_regs[CURSOR_LO] as u16
     }
 
+    fn get_cursor_start(&self) -> u8 {
+        self.mc6485_regs[CURSOR_START] & 0x1f
+    }
+
+    fn get_cursor_end(&self) -> u8 {
+        self.mc6485_regs[CURSOR_END] & 0x1f
+    }
+
     fn get_cursor_mode(&self) -> CursorMode {
-        let cursor_mode = (self.mc6485_regs[CURSOR_MODE] >> 5) & 0x3;
+        let cursor_mode = (self.mc6485_regs[CURSOR_START] >> 5) & 0x3;
         match cursor_mode {
             0 => CursorMode::Fixed,
             1 => CursorMode::None,
@@ -264,7 +273,7 @@ impl Videoterm {
         }
     }
 
-    fn draw_char(&mut self, video: &mut Video, addr: u16, value: u8) {
+    fn draw_char(&mut self, video: &mut Video, addr: u16, value: u8, cursor: bool) {
         let start_pos = self.get_start_pos();
         let start_addr = (0x800 + addr - start_pos) & 0x7ff;
         let row = (start_addr / 80) as usize;
@@ -280,11 +289,21 @@ impl Videoterm {
         let inverse = rom_index >= 0x800;
         let color_on = video.get_mono_color();
         let color_off = crate::video::COLOR_BLACK;
+        let cursor_start = self.get_cursor_start() as usize;
+        let cursor_end = self.get_cursor_end() as usize;
 
         let mut char_rows = [0u8; 9];
         for j in 0..9 {
             let pixels = VIDEO_ROM[(rom_index + j) % 0x800];
-            char_rows[j] = if inverse { !pixels } else { pixels };
+            char_rows[j] = if inverse {
+                if !cursor || j >= cursor_start && j <= cursor_end {
+                    !pixels
+                } else {
+                    pixels
+                }
+            } else {
+                pixels
+            };
         }
 
         let scanline = video.get_scanline();
@@ -296,7 +315,7 @@ impl Videoterm {
                 let bit_set = (src_pixels & (0x80 >> i)) != 0;
                 let base_color = if bit_set { color_on } else { color_off };
                 let final_color = if scanline && j % 2 != 0 {
-                    [base_color[0] / 2, base_color[1] / 2, base_color[2] /2]
+                    [base_color[0] / 2, base_color[1] / 2, base_color[2] / 2]
                 } else {
                     base_color
                 };
@@ -334,11 +353,11 @@ impl Videoterm {
         if cursor_mode != CursorMode::None {
             if self.cursor_pos != cursor_pos {
                 let prev_value = self.vram[(self.cursor_pos & 0x7ff) as usize];
-                self.draw_char(video, self.cursor_pos, prev_value);
+                self.draw_char(video, self.cursor_pos, prev_value, false);
                 self.cursor_pos = cursor_pos
             }
             let value = ((self.vram[(cursor_pos & 0x7ff) as usize] as u16 + offset) & 0xff) as u8;
-            self.draw_char(video, cursor_pos, value);
+            self.draw_char(video, cursor_pos, value, true);
         }
     }
 
@@ -356,7 +375,7 @@ impl Videoterm {
                 let address = start_pos + (line as u16) * 80;
                 for addr in address..address + 80 {
                     let value = self.vram[addr as usize & 0x7ff];
-                    self.draw_char(video, addr, value)
+                    self.draw_char(video, addr, value, false)
                 }
             }
         }
