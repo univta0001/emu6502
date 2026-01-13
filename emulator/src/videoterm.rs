@@ -458,7 +458,7 @@ impl Card for Videoterm {
                             self.invalidate_video();
                         }
                     }
-                } else if self.register < self.mc6485_regs.len() as u8 {
+                } else if [14, 15, 17].contains(&self.register) {
                     return_value = self.mc6485_regs[self.register as usize];
                 }
             }
