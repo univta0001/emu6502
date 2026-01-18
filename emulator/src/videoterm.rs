@@ -9,7 +9,9 @@ use crate::video::Video;
     - https://glasstty.com/?p=660
 */
 
+#[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
+
 use std::time::SystemTime;
 
 const ROM: [u8; 1024] = [

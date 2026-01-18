@@ -579,6 +579,7 @@ where
     false
 }
 
+#[cfg(feature = "zip")]
 fn zip_file_index<R: Read + Seek>(archive: &mut ZipArchive<R>) -> Option<usize> {
     let mut index = 0;
     let mut files_count = 0;
@@ -914,7 +915,7 @@ fn write_disk_content_to_disk(disk: &Disk, disk_content: &[u8]) -> io::Result<()
     {
         if let Some(filename) = &disk.filename {
             let mut file = File::create(filename)?;
-            file.write_all(&newdsk)?;
+            file.write_all(disk_content)?;
         }
     }
 

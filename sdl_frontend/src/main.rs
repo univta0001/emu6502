@@ -2824,6 +2824,7 @@ fn prepare_menu_for_state_management(cpu: &mut CPU, ui: &imgui::Ui, event: &mut 
         .shortcut("Ctrl-F3")
         .build()
     {
+        #[cfg(feature = "serialization")]
         save_serialized_image(cpu);
     }
 }
