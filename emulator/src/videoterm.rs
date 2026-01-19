@@ -12,6 +12,10 @@ use crate::video::Video;
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "web_time")]
+use web_time::SystemTime;
+
+#[cfg(not(feature = "web_time"))]
 use std::time::SystemTime;
 
 const ROM: [u8; 1024] = [
