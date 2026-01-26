@@ -554,38 +554,38 @@ impl W65C22 {
         let mut return_addr: u8 = 0;
         self.enabled = true;
 
-        match addr & 0x7f {
+        match addr & 0x0f {
             // ORB
-            0x10 | 0x00 => {
+            0x00 => {
                 if write_flag {
                     //eprintln!("Write ORB {:02X} with {:02X}", addr, value);
                     self.orb = value;
                     self.ay8910_write(addr as usize / 0x80, value & 0xf);
                 } else {
                     //eprintln!("Read ORB {:02X} with {:02X}", addr, self.orb);
-                    self.ifr &= !0x18;
                     return_addr = self.orb | (self.ddrb ^ 0xff);
                 }
+                self.ifr &= !0x18;
             }
 
             // ORA
-            0x11 | 0x01 => {
+            0x01 => {
                 if write_flag {
                     //eprintln!("Write ORA {:02X} with {:02X}", addr, value);
                     self.ora = value;
                 } else {
                     //eprintln!("Read ORA {:02X} with {:02X}", addr, self.ora);
-                    self.ifr &= !0x03;
                     return_addr = if self.driving_bus {
                         self.ora
                     } else {
                         self.ora | (self.ddra ^ 0xff)
                     }
                 }
+                self.ifr &= !0x03;
             }
 
             // DDRB
-            0x12 | 0x02 => {
+            0x02 => {
                 if write_flag {
                     //eprintln!("Write DDRB {:02X} with {:02X}", addr, value);
                     self.ddrb = value;
@@ -596,7 +596,7 @@ impl W65C22 {
             }
 
             // DDRA
-            0x13 | 0x03 => {
+            0x03 => {
                 if write_flag {
                     //eprintln!("Write DDRA {:02X} with {:02X}", addr, value);
                     self.ddra = value;
@@ -607,7 +607,7 @@ impl W65C22 {
             }
 
             // T1C-L
-            0x14 | 0x04 => {
+            0x04 => {
                 if write_flag {
                     self.t1l = self.t1l & 0xff00 | value as u16;
                 } else {
@@ -620,7 +620,7 @@ impl W65C22 {
             }
 
             // T1C-H
-            0x15 | 0x05 => {
+            0x05 => {
                 if write_flag {
                     self.ifr &= !0x40;
                     if self.ifr & 0x60 == 0 {
@@ -636,7 +636,7 @@ impl W65C22 {
             }
 
             // T1L-L
-            0x16 | 0x06 => {
+            0x06 => {
                 if write_flag {
                     self.t1l = self.t1l & 0xff00 | value as u16;
                 } else {
@@ -645,7 +645,7 @@ impl W65C22 {
             }
 
             // T1L-H
-            0x17 | 0x07 => {
+            0x07 => {
                 if write_flag {
                     self.ifr &= !0x40;
                     if self.ifr & 0x60 == 0 {
@@ -658,7 +658,7 @@ impl W65C22 {
             }
 
             // T2C-L
-            0x18 | 0x08 => {
+            0x08 => {
                 if write_flag {
                     self.t2ll = value;
                 } else {
@@ -671,7 +671,7 @@ impl W65C22 {
             }
 
             // T2C-H
-            0x19 | 0x09 => {
+            0x09 => {
                 if write_flag {
                     self.t2c = ((value as u16) << 8) | self.t2ll as u16;
                     self.t2c = self.t2c.wrapping_add(1);
@@ -686,7 +686,7 @@ impl W65C22 {
             }
 
             // SR
-            0x1a | 0x0a => {
+            0x0a => {
                 if !write_flag {
                     return_addr = self.sr;
                 } else {
@@ -695,7 +695,7 @@ impl W65C22 {
             }
 
             // ACR
-            0x1b | 0x0b => {
+            0x0b => {
                 if !write_flag {
                     return_addr = self.acr;
                 } else {
@@ -704,7 +704,7 @@ impl W65C22 {
             }
 
             // PCR
-            0x1c | 0x0c => {
+            0x0c => {
                 if !write_flag {
                     return_addr = self.pcr;
                 } else {
@@ -713,7 +713,7 @@ impl W65C22 {
             }
 
             // IFR
-            0x1d | 0x0d => {
+            0x0d => {
                 if !write_flag {
                     let input_value = self.ifr & 0x7f;
 
@@ -732,7 +732,7 @@ impl W65C22 {
             }
 
             // IER
-            0x1e | 0x0e => {
+            0x0e => {
                 if !write_flag {
                     return_addr = self.ier | 0x80;
                 } else if value > 0x80 {

@@ -14,7 +14,7 @@ emu6502 = { path = "../emulator" }
 #sdl2 = "0.35.2"
 #sdl2 = { version = "0.35.2", features = ['bundled', 'static-link'] }
 #serde_yaml = { version = "0.9.34", optional = true }
-serde-saphyr = { version = "0.0.15", optional = true }
+serde-saphyr = { version = "0.0.16", optional = true }
 image = { version = "0.25.9", default-features = false, features = ['jpeg','png'] }
 spin_sleep = "1.3.3"
 #tokio = { version = "1.49.0", features = ['rt-multi-thread', 'macros'] }
@@ -42,7 +42,7 @@ sdl3 = "0.17.3"
 
 [build-dependencies]
 embed-resource = "3.0.6"
-cc = { version = "1.2.53", features = ['parallel'] }
+cc = { version = "1.2.54", features = ['parallel'] }
 
 [features]
 #default = [ ]

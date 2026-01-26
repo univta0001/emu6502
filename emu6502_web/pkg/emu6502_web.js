@@ -267,7 +267,7 @@ function __wbg_get_imports() {
                     const a = state0.a;
                     state0.a = 0;
                     try {
-                        return wasm_bindgen__convert__closures_____invoke__h1730c1f3f0190bf3(a, state0.b, arg0, arg1);
+                        return wasm_bindgen__convert__closures_____invoke__h2faaef9a8cc8da0d(a, state0.b, arg0, arg1);
                     } finally {
                         state0.a = a;
                     }
@@ -334,7 +334,7 @@ function __wbg_get_imports() {
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
             // Cast intrinsic for `Closure(Closure { dtor_idx: 33, function: Function { arguments: [Externref], shim_idx: 34, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hd9cfd4b65adb16a7, wasm_bindgen__convert__closures_____invoke__hd06f47025a3c52ab);
+            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h89c06088d5b1fefe, wasm_bindgen__convert__closures_____invoke__h9d130b5d92558b35);
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0) {
@@ -358,12 +358,12 @@ function __wbg_get_imports() {
     };
 }
 
-function wasm_bindgen__convert__closures_____invoke__hd06f47025a3c52ab(arg0, arg1, arg2) {
-    wasm.wasm_bindgen__convert__closures_____invoke__hd06f47025a3c52ab(arg0, arg1, arg2);
+function wasm_bindgen__convert__closures_____invoke__h9d130b5d92558b35(arg0, arg1, arg2) {
+    wasm.wasm_bindgen__convert__closures_____invoke__h9d130b5d92558b35(arg0, arg1, arg2);
 }
 
-function wasm_bindgen__convert__closures_____invoke__h1730c1f3f0190bf3(arg0, arg1, arg2, arg3) {
-    wasm.wasm_bindgen__convert__closures_____invoke__h1730c1f3f0190bf3(arg0, arg1, arg2, arg3);
+function wasm_bindgen__convert__closures_____invoke__h2faaef9a8cc8da0d(arg0, arg1, arg2, arg3) {
+    wasm.wasm_bindgen__convert__closures_____invoke__h2faaef9a8cc8da0d(arg0, arg1, arg2, arg3);
 }
 
 const EmulatorFinalization = (typeof FinalizationRegistry === 'undefined')

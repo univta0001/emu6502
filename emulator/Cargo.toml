@@ -8,11 +8,11 @@ edition = "2024"
 [dependencies]
 bitflags = "2.10.0"
 flate2 = { version = "1.1.8", features = ["zlib-rs"], optional = true }
-zip = { version = "7.1.0", default-features = false, features = ["bzip2", "deflate", "deflate64", "lzma", "time", "zstd"], optional = true }
+zip = { version = "7.2.0", default-features = false, features = ["bzip2", "deflate", "deflate64", "lzma", "time", "zstd"], optional = true }
 web-time = { version = "1.1.0", optional = true }
 serde = { version = "1.0.228", features = ["derive"],  optional = true }
 iz80 = { path = "iz80", optional = true }
-time = { version = "0.3.45", features = ["local-offset","wasm-bindgen"] }
+time = { version = "0.3.46", features = ["local-offset","wasm-bindgen"] }
 fastrand = "2.3.0"
 educe = { version = "0.6.0", default-features = false, features = ["Debug"], optional = true }
 pcap = { version = "2.4.0", default-features = false, optional = true }
