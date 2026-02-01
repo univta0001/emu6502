@@ -856,10 +856,7 @@ impl Tick for Audio {
                 let mut phase: HigherChannel = beep as HigherChannel;
 
                 // Update left channel
-                let tone_count = std::cmp::max(
-                    1,
-                    self.update_phase(&mut phase, channel) + (beep > 0) as usize,
-                );
+                let tone_count = std::cmp::max(1, 1 + self.update_phase(&mut phase, channel));
                 let phase = phase.saturating_add(disk_sound as HigherChannel);
 
                 let phase = if tone_count > 1 {
