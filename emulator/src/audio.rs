@@ -373,8 +373,8 @@ impl Audio {
 
                 let tone_value = mboard.get_tone_level(channel, tone) | !tone_enabled;
                 let noise_value = mboard.get_noise_level(channel) | !noise_enabled;
-                let mix = 2 * ((tone_value & noise_value) as i8) - 1;
-                *phase += volume * (mix.signum() as HigherChannel);
+                let mix = (tone_value & noise_value) as HigherChannel;
+                *phase += volume * mix;
             }
         }
         tone_count
