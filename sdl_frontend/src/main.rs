@@ -1326,9 +1326,9 @@ fn update_audio(cpu: &mut CPU, audio_stream: &Option<AudioStreamOwner>, normal_s
             &snd.get_buffer()[0..(audio_sample_size * 2) as usize]
         };
 
-        // Only buffer for 1 second of audio
-        if let Ok(available) = stream.available_bytes()
-            && available < audio_sample_size as i32 * 2 * 8
+        // Only buffer for around 128ms of audio
+        if let Ok(queued_bytes) = stream.queued_bytes()
+            && queued_bytes < audio_sample_size as i32 * 2 * 8
         {
             let _ = stream.put_data_i16(buffer);
         }
