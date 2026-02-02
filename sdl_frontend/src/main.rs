@@ -2199,6 +2199,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                                         if menu_bar_height > 0.0 {
                                             let window_size = window.size();
                                             prepare_statusbar(
+                                                _cpu,
                                                 ui,
                                                 &event_param,
                                                 window_size.0,
@@ -2974,6 +2975,7 @@ fn prepare_settings(
 }
 
 fn prepare_statusbar(
+    cpu: &CPU,
     ui: &imgui::Ui,
     event: &EventParam,
     width: u32,
@@ -3008,6 +3010,14 @@ fn prepare_statusbar(
             ui.text(format!("FPS: {:.2}", event.fps));
             ui.same_line();
             ui.text(format!("MHz: {:.3}", event.estimated_mhz));
+
+            let track_info = cpu.bus.disk.get_track_info();
+            ui.same_line();
+            ui.text(format!(
+                "T:{:02}.{:02}",
+                track_info.0 / 4,
+                track_info.0 % 4 * 25
+            ));
         });
     pad_token.pop();
     style_token.pop();
