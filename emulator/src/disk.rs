@@ -2434,7 +2434,7 @@ impl DiskDrive {
         disk.last_track = disk.track;
         let read_pulse = Self::read_flux_data(disk);
         let flux_weakbit = disk.flux_weakbit;
-        let lss_adjustment = 32isize;
+        let lss_adjustment = 24isize;
         //let lss_adjustment = (NOMINAL_USABLE_BITS_TRACK_SIZE as i64 * multiplier as i64
         //    / track_bits as i64) as isize
         //    - multiplier;

@@ -185,8 +185,7 @@ impl Tick for Video {
 const TEXT_LEN: usize = 0x400;
 const HIRES_LEN: usize = 0x2000;
 const CYCLES_PER_ROW: usize = 65;
-const CYCLES_PER_BURST_START: usize = 12;
-const CYCLES_PER_BURST_END: usize = 16;
+const CYCLES_PER_BURST: usize = 20;
 const CYCLES_PER_HBL: usize = 25;
 const CYCLES_PER_FIELD_60HZ: usize = 17030;
 const CYCLES_PER_FIELD_50HZ: usize = 20280;
@@ -801,7 +800,7 @@ impl Video {
         self.prev_video_data = video_value;
         let is_shr = self.is_shr_mode();
 
-        if (CYCLES_PER_BURST_START..CYCLES_PER_BURST_END).contains(&col) {
+        if col == CYCLES_PER_BURST {
             self.update_color_burst();
         }
 
