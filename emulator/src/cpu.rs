@@ -853,14 +853,14 @@ impl CPU {
 
     fn tick(&mut self) {
         self.bus.tick();
-        if !self.status.contains(CpuFlags::INTERRUPT_DISABLE) && self.bus.irq().is_some() {
+        if self.bus.irq().is_some() {
             self.irq_last_tick = true;
         }
     }
 
     fn last_tick(&mut self) {
         self.bus.tick();
-        if !self.status.contains(CpuFlags::INTERRUPT_DISABLE) && self.bus.irq().is_some() {
+        if self.bus.irq().is_some() {
             self.irq_last_tick = !self.irq_last_tick;
         }
     }
@@ -1311,18 +1311,9 @@ impl CPU {
     fn plp(&mut self) {
         self.tick();
         self.tick();
-        let prev_irq = self.bus.irq().is_some();
         *self.status.0.bits_mut() = self.last_tick_stack_pop();
-        let current_irq = self.bus.irq().is_some();
         self.status.remove(CpuFlags::BREAK);
         self.status.insert(CpuFlags::UNUSED);
-        if !self.status.contains(CpuFlags::INTERRUPT_DISABLE) {
-            if prev_irq {
-                self.irq_last_tick = false;
-            } else if current_irq {
-                self.irq_last_tick = true;
-            }
-        }
     }
 
     fn php(&mut self) {
@@ -2015,17 +2006,8 @@ impl CPU {
 
                 /* CLI */
                 0x58 => {
-                    let prev_irq = self.bus.irq().is_some();
                     self.last_tick();
-                    let current_irq = self.bus.irq().is_some();
                     self.status.remove(CpuFlags::INTERRUPT_DISABLE);
-                    if !self.status.contains(CpuFlags::INTERRUPT_DISABLE) {
-                        if prev_irq {
-                            self.irq_last_tick = false;
-                        } else if current_irq {
-                            self.irq_last_tick = true;
-                        }
-                    }
                 }
 
                 /* CLV */
