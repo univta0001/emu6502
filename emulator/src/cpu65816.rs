@@ -3163,7 +3163,6 @@ impl CPU {
         self.tick();
         let prev_irq = self.bus.irq().is_some();
         let value = self.last_tick_pop_byte();
-        let current_irq = self.bus.irq().is_some();
         *self.status.p.0.bits_mut() = value;
         if self.status.e {
             self.status.p.set(CpuFlags::M_FLAG, true);
@@ -3174,8 +3173,6 @@ impl CPU {
         if !self.status.p.contains(CpuFlags::INTERRUPT_DISABLE) {
             if prev_irq {
                 self.irq_last_tick = false;
-            } else if current_irq {
-                self.irq_last_tick = true;
             }
         }
     }
@@ -3276,14 +3273,9 @@ impl CPU {
     fn cli(&mut self) {
         let prev_irq = self.bus.irq().is_some();
         self.last_tick();
-        let current_irq = self.bus.irq().is_some();
         self.status.clear_interrupt_flag();
-        if !self.status.p.contains(CpuFlags::INTERRUPT_DISABLE) {
-            if prev_irq {
-                self.irq_last_tick = false;
-            } else if current_irq {
-                self.irq_last_tick = true;
-            }
+        if prev_irq {
+            self.irq_last_tick = false;
         }
     }
 
