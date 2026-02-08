@@ -3171,7 +3171,7 @@ impl CPU {
         } else if self.small_index() {
             self.register_x &= 0xff;
         }
-        if !self.status.contains(CpuFlags::INTERRUPT_DISABLE) {
+        if !self.status.p.contains(CpuFlags::INTERRUPT_DISABLE) {
             if prev_irq {
                 self.irq_last_tick = false;
             } else if current_irq {
@@ -3278,7 +3278,7 @@ impl CPU {
         self.last_tick();
         let current_irq = self.bus.irq().is_some();
         self.status.clear_interrupt_flag();
-        if !self.status.contains(CpuFlags::INTERRUPT_DISABLE) {
+        if !self.status.p.contains(CpuFlags::INTERRUPT_DISABLE) {
             if prev_irq {
                 self.irq_last_tick = false;
             } else if current_irq {
