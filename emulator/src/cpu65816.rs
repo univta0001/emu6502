@@ -720,16 +720,13 @@ impl CPU {
 
     fn tick(&mut self) {
         self.bus.tick();
-        if !self.status.p.contains(CpuFlags::INTERRUPT_DISABLE) && self.bus.irq().is_some() {
-            self.irq_last_tick = true;
-        }
     }
 
     fn last_tick(&mut self) {
-        self.bus.tick();
         if !self.status.p.contains(CpuFlags::INTERRUPT_DISABLE) && self.bus.irq().is_some() {
-            self.irq_last_tick = !self.irq_last_tick;
+            self.irq_last_tick = false;
         }
+        self.bus.tick();
     }
 
     pub fn reset(&mut self) {
@@ -1064,7 +1061,7 @@ impl CPU {
             }
         }
 
-        self.irq_last_tick = false;
+        self.irq_last_tick = true;
 
         callback(self);
 
@@ -3164,13 +3161,22 @@ impl CPU {
     fn plp(&mut self) {
         self.tick();
         self.tick();
+        let prev_irq = self.bus.irq().is_some();
         let value = self.last_tick_pop_byte();
+        let current_irq = self.bus.irq().is_some();
         *self.status.p.0.bits_mut() = value;
         if self.status.e {
             self.status.p.set(CpuFlags::M_FLAG, true);
             self.status.p.set(CpuFlags::X_FLAG, true);
         } else if self.small_index() {
             self.register_x &= 0xff;
+        }
+        if !self.status.contains(CpuFlags::INTERRUPT_DISABLE) {
+            if prev_irq {
+                self.irq_last_tick = false;
+            } else if current_irq {
+                self.irq_last_tick = true;
+            }
         }
     }
 
@@ -3268,8 +3274,17 @@ impl CPU {
     }
 
     fn cli(&mut self) {
+        let prev_irq = self.bus.irq().is_some();
         self.last_tick();
-        self.status.clear_interrupt_flag()
+        let current_irq = self.bus.irq().is_some();
+        self.status.clear_interrupt_flag();
+        if !self.status.contains(CpuFlags::INTERRUPT_DISABLE) {
+            if prev_irq {
+                self.irq_last_tick = false;
+            } else if current_irq {
+                self.irq_last_tick = true;
+            }
+        }
     }
 
     /// http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html
