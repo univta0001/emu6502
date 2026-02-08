@@ -853,16 +853,13 @@ impl CPU {
 
     fn tick(&mut self) {
         self.bus.tick();
-        if !self.status.contains(CpuFlags::INTERRUPT_DISABLE) && self.bus.irq().is_some() {
-            self.irq_last_tick = true;
-        }
     }
 
     fn last_tick(&mut self) {
-        self.bus.tick();
         if !self.status.contains(CpuFlags::INTERRUPT_DISABLE) && self.bus.irq().is_some() {
-            self.irq_last_tick = !self.irq_last_tick;
+            self.irq_last_tick = false;
         }
+        self.bus.tick();
     }
 
     //    02     03     04     07     0B     0C     0F
@@ -1910,7 +1907,7 @@ impl CPU {
             }
         }
 
-        self.irq_last_tick = false;
+        self.irq_last_tick = true;
 
         if !self.alt_cpu {
             callback(self);
