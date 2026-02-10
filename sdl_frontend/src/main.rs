@@ -2063,7 +2063,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
                 // Update video, audio and events at multiple of 60Hz or 50Hz
                 let time_tolerance = if normal_cpu_speed {
-                    cpu_period as u128 - 500
+                    cpu_period as u128 - 100
                 } else {
                     cpu_period as u128
                 };
@@ -2267,12 +2267,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 let video_cpu_update = t.elapsed().as_micros();
 
                 if normal_cpu_speed {
-                    let adj_ms = cpu_period as usize * SPEED_NUMERATOR[speed_index]
+                    let adj_ms = time_tolerance as usize * SPEED_NUMERATOR[speed_index]
                         / SPEED_DENOMINATOR[speed_index];
 
-                    let adj_time = adj_ms
-                        .saturating_sub(video_cpu_update as usize)
-                        .saturating_sub(100);
+                    let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
 
                     if adj_time > 0 {
                         spin_sleep::sleep(std::time::Duration::from_micros(adj_time as u64))
@@ -2281,8 +2279,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
                 update_audio(_cpu, &audio_stream, normal_cpu_speed);
                 _cpu.bus.audio.clear_buffer();
-                let elapsed = t.elapsed().as_micros().saturating_add(100);
-                estimated_mhz = (dcyc as f32) / elapsed as f32;
+                let elapsed = t.elapsed().as_micros();
+                let time_tolerance = (cpu_period - time_tolerance) as f32;
+                estimated_mhz = (dcyc as f32) / (elapsed as f32 + time_tolerance);
 
                 fps = if _cpu.bus.video.is_video_50hz() {
                     1015625.0 / (dcyc as f32)
