@@ -2270,7 +2270,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     let adj_ms = cpu_period as usize * SPEED_NUMERATOR[speed_index]
                         / SPEED_DENOMINATOR[speed_index];
 
-                    let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
+                    let adj_time = adj_ms
+                        .saturating_sub(video_cpu_update as usize)
+                        .saturating_sub(100);
 
                     if adj_time > 0 {
                         spin_sleep::sleep(std::time::Duration::from_micros(adj_time as u64))
@@ -2279,7 +2281,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
                 update_audio(_cpu, &audio_stream, normal_cpu_speed);
                 _cpu.bus.audio.clear_buffer();
-                let elapsed = t.elapsed().as_micros();
+                let elapsed = t.elapsed().as_micros().saturating_add(100);
                 estimated_mhz = (dcyc as f32) / elapsed as f32;
 
                 fps = if _cpu.bus.video.is_video_50hz() {
