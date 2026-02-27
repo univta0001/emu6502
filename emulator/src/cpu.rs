@@ -857,8 +857,9 @@ impl CPU {
 
     fn last_tick(&mut self) {
         if !self.status.contains(CpuFlags::INTERRUPT_DISABLE) && self.bus.irq().is_some() {
-            self.irq_last_tick = false;
+            self.irq_last_tick = false
         }
+        //self.irq_last_tick = !self.bus.irq().is_some();
         self.bus.tick();
     }
 
@@ -1308,14 +1309,12 @@ impl CPU {
     fn plp(&mut self) {
         self.tick();
         self.tick();
-        let prev_irq = self.bus.irq().is_some();
+        let irq = self.bus.irq().is_some();
         *self.status.0.bits_mut() = self.last_tick_stack_pop();
         self.status.remove(CpuFlags::BREAK);
         self.status.insert(CpuFlags::UNUSED);
-        if !self.status.contains(CpuFlags::INTERRUPT_DISABLE) {
-            if prev_irq {
-                self.irq_last_tick = false;
-            }
+        if !self.status.contains(CpuFlags::INTERRUPT_DISABLE) && irq {
+            self.irq_last_tick = false
         }
     }
 
@@ -1897,14 +1896,12 @@ impl CPU {
                     && self.bus.irq().is_some()
                     && !self.irq_last_tick
                 {
-                    // If the interrupt happens on the last cycle of the opcode, execute the opcode and
-                    // then the interrupt handling routine
+                    // If the CPU-asserted interrupt happens on the last cycle of the opcode,
+                    // execute the opcode and then the interrupt handling routine
                     self.interrupt(interrupt::IRQ);
                 }
             }
         }
-
-        self.irq_last_tick = true;
 
         if !self.alt_cpu {
             callback(self);
@@ -1913,6 +1910,7 @@ impl CPU {
             let code = self.next_byte();
             //let opcode = opcodes::CPU_OPS_CODES[code as usize];
             let opcode = &OPCODES[code as usize];
+            self.irq_last_tick = true;
 
             match code {
                 /* LDA immediate */
@@ -2009,11 +2007,11 @@ impl CPU {
 
                 /* CLI */
                 0x58 => {
-                    let prev_irq = self.bus.irq().is_some();
+                    let irq = self.bus.irq().is_some();
                     self.last_tick();
                     self.status.remove(CpuFlags::INTERRUPT_DISABLE);
-                    if prev_irq {
-                        self.irq_last_tick = false;
+                    if !self.status.contains(CpuFlags::INTERRUPT_DISABLE) && irq {
+                        self.irq_last_tick = false
                     }
                 }
 

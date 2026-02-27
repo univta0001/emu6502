@@ -686,6 +686,7 @@ impl W65C22 {
 
             // SR
             0x0a => {
+                self.ifr &= !0x04;
                 if !write_flag {
                     return_addr = self.sr;
                 } else {
@@ -790,15 +791,7 @@ impl Mockingboard {
     }
 
     pub fn poll_irq(&self) -> Option<usize> {
-        let result1 = self.w65c22[0].poll_irq();
-        let result2 = self.w65c22[1].poll_irq();
-        if result1.is_some() {
-            result1
-        } else if result2.is_some() {
-            result2
-        } else {
-            None
-        }
+        self.w65c22.iter().find_map(|item| item.poll_irq())
     }
 
     pub fn set_mb4c(&mut self, flag: bool) {
@@ -905,7 +898,7 @@ mod test {
     use crate::cpu::CPU;
 
     fn setup(w65c22: &mut W65C22) {
-        // Write to T1C-L and T1C-H
+        // Write to T1C-L and T2C-L
         w65c22.io_access(0x04, 0x05, true);
         w65c22.io_access(0x08, 0x05, true);
 
@@ -1057,7 +1050,7 @@ mod test {
         assert_eq!(
             w65c22.t2c == 0x05,
             true,
-            "T2 counter is affected by the set lower operation"
+            "T2 counter is not affected by the set lower operation"
         );
     }
 

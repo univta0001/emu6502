@@ -1,5 +1,5 @@
 use emu6502::bus::{Bus, IODevice};
-use emu6502::cpu::{CpuSpeed, CPU};
+use emu6502::cpu::{CPU, CpuSpeed};
 use emu6502::video::DisplayMode;
 use wasm_bindgen::prelude::*;
 

@@ -807,9 +807,19 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         Event::DropFile { filename, .. } => {
             let path = Path::new(&filename);
             if let Some(path_ext) = path.extension() {
+                let po_hd = if let Ok(metadata) = fs::metadata(path) {
+                    if path_ext.eq_ignore_ascii_case(OsStr::new("po")) && metadata.len() > 143360 {
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
+
                 let is_hard_disk = path_ext.eq_ignore_ascii_case(OsStr::new("2mg"))
                     || path_ext.eq_ignore_ascii_case(OsStr::new("hdv"))
-                    || path_ext.eq_ignore_ascii_case(OsStr::new("po"));
+                    || po_hd;
 
                 let result = if is_hard_disk {
                     load_harddisk(cpu, path, 0)
@@ -1997,8 +2007,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     let mut disk_mode_index = 0;
 
-    cpu.reset();
     cpu.setup_emulator();
+    cpu.reset();
 
     // Change the refresh video to the start of the VBL instead of end of the VBL
     let mut dcyc = if cpu.bus.video.is_video_50hz() {
@@ -2017,6 +2027,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut model_changed = false;
     let mut barrel_distortion = false;
     let mut vertical_blend = false;
+    let mut want_capture_keyboard = false;
     let mut file_dialog = OpenFileDialog::None;
 
     let mut prev_scale = scale;
@@ -2105,11 +2116,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
                     _cpu.bus.video.skip_update = false;
 
-                    for event_value in event_pump.poll_iter() {
-                        imgui.handle_event(&event_value);
-                        handle_event(_cpu, event_value, &mut event_param);
-                    }
-
                     if prev_scale != scale {
                         prev_scale = scale;
                         let width = (scale * WIDTH as f32) as u32;
@@ -2135,6 +2141,12 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                                     &mut command_buffer,
                                     &color_targets,
                                     |ui| {
+                                        // Check for want capture keyboard
+                                        {
+                                            let io = ui.io();
+                                            want_capture_keyboard = io.want_capture_keyboard;
+                                        }
+
                                         // Check for open file dialog events
                                         if !ui.is_any_item_hovered() {
                                             match *event_param.file_dialog {
@@ -2218,6 +2230,13 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         }
                     }
 
+                    for event_value in event_pump.poll_iter() {
+                        imgui.handle_event(&event_value);
+                        if !want_capture_keyboard {
+                            handle_event(_cpu, event_value, &mut event_param);
+                        }
+                    }
+
                     // Update keyboard akd state
                     _cpu.bus.any_key_down =
                         event_pump.keyboard_state().pressed_scancodes().count() > 0;
@@ -2297,12 +2316,12 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             break;
         } else if model_changed {
             model_changed = false;
-            cpu.reset();
             cpu.bus.init_memory();
             cpu.bus.set_apple2c(false);
             cpu.bus.video.set_apple2c(false);
             cpu.bus.set_iwm(false);
             cpu.setup_emulator();
+            cpu.reset();
         } else {
             #[cfg(feature = "serialization")]
             {
@@ -2411,6 +2430,11 @@ fn prepare_system_menu(
         }
 
         prepare_menu_for_disk(cpu, ui, event);
+
+        let noslot_clock = cpu.bus.get_noslot_clock();
+        build_toggle_menu_item(ui, "Enable NoSlot Clock", "", noslot_clock, |_| {
+            cpu.bus.set_noslot_clock(!noslot_clock);
+        });
 
         ui.separator();
 

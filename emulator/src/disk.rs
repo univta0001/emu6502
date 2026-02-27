@@ -888,10 +888,18 @@ fn write_disk_content_to_disk(disk: &Disk, disk_content: &[u8]) -> io::Result<()
                     let mut options: FileOptions<'_, ()> =
                         FileOptions::default().compression_method(CompressionMethod::Deflated);
 
-                    if let Ok(local_offset) = time::OffsetDateTime::now_local()
-                        && let Ok(modified_time) = local_offset.try_into()
-                    {
-                        options = options.last_modified_time(modified_time);
+                    if let Ok(local_offset) = time::OffsetDateTime::now_local() {
+                        let year = local_offset.year() as u16;
+                        let month = local_offset.month() as u8;
+                        let day = local_offset.day();
+                        let hour = local_offset.hour();
+                        let minute = local_offset.minute();
+                        let second = local_offset.second();
+                        if let Ok(modified_time) = zip::DateTime::from_date_and_time(
+                            year, month, day, hour, minute, second,
+                        ) {
+                            options = options.last_modified_time(modified_time);
+                        }
                     }
 
                     zip.start_file::<&str, ()>(&file_name_in_zip, options)?;
@@ -2511,11 +2519,7 @@ impl DiskDrive {
     fn get_random_disk_bit(random_one_rate: f32) -> u8 {
         let random_value = fastrand::f32();
         // The random bit 1 is generated with probability 0.3 or 30%
-        if random_value <= random_one_rate {
-            1
-        } else {
-            0
-        }
+        if random_value < random_one_rate { 1 } else { 0 }
     }
 
     pub fn set_disable_fast_disk(&mut self, state: bool) {

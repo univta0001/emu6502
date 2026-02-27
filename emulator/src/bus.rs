@@ -181,6 +181,9 @@ pub struct Bus {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub videoterm: Videoterm,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    pub disable_noslot_clock: bool,
 }
 
 pub trait Mem {
@@ -276,6 +279,7 @@ impl Bus {
             dongle: Dongle::None,
             vidhd: VidHD,
             videoterm: Videoterm::default(),
+            disable_noslot_clock: false,
         };
 
         bus.init_memory();
@@ -362,24 +366,26 @@ impl Bus {
 
         if !self.disable_audio {
             if self.audio.ready_update_disk_sound() {
-                if self.disk.is_motor_on() || self.disk.is_motor_off_pending() {
+                let sample_value = if self.disk.is_motor_on() || self.disk.is_motor_off_pending() {
                     self.disk.update_disk_sound_sample();
-                    let sample_value = self.disk.get_disk_sound_sample();
-                    self.audio.update_disk_sound(sample_value);
+                    self.disk.get_disk_sound_sample()
                 } else {
                     self.disk.reset_disk_sound_sample();
-                    self.audio.update_disk_sound(0);
-                }
+                    0
+                };
+                self.audio.update_disk_sound(sample_value);
             }
             self.audio.tick();
         }
 
-        if !self.disable_disk && self.harddisk.is_busy() {
-            self.harddisk.tick();
-        }
+        if !self.disable_disk {
+            if self.harddisk.is_busy() {
+                self.harddisk.tick();
+            }
 
-        if !self.disable_disk && self.disk.is_motor_on() {
-            self.disk.tick();
+            if self.disk.is_motor_on() {
+                self.disk.tick();
+            }
         }
     }
 
@@ -576,11 +582,13 @@ impl Bus {
                 //eprintln!("ROMAccess - {:04x} {} {}",addr,slot,ioaddr);
 
                 // Implement no slot clock
-                let clock = &mut self.noslotclock;
-                if clock.is_clock_register_enabled() {
-                    return clock.io_access(addr, 0, false);
-                } else {
-                    clock.io_access(addr, 0, false);
+                if !self.disable_noslot_clock {
+                    let clock = &mut self.noslotclock;
+                    if clock.is_clock_register_enabled() {
+                        return clock.io_access(addr, 0, false);
+                    } else {
+                        clock.io_access(addr, 0, false);
+                    }
                 }
 
                 if self.extended_rom == 0 {
@@ -657,6 +665,14 @@ impl Bus {
         self.joystick_jitter = !self.joystick_jitter;
     }
 
+    pub fn set_noslot_clock(&mut self, flag: bool) {
+        self.disable_noslot_clock = !flag;
+    }
+
+    pub fn get_noslot_clock(&self) -> bool {
+        !self.disable_noslot_clock
+    }
+
     pub fn set_joystick(&mut self, flag: bool) {
         self.joystick_flag = flag;
         self.update_joystick();
@@ -713,13 +729,11 @@ impl Bus {
     }
 
     pub fn poll_halt_status(&mut self) -> Option<()> {
-        let halt_status = self.halt_cpu;
-        if halt_status {
-            self.halt_cpu = false;
-            Some(())
-        } else {
-            None
+        if !self.halt_cpu {
+            return None;
         }
+        self.halt_cpu = false;
+        Some(())
     }
 
     pub fn irq(&mut self) -> Option<usize> {
@@ -729,11 +743,11 @@ impl Bus {
             return Some(irq_val);
         }
 
-        if !self.disable_audio {
-            self.audio.mboard.iter().find_map(|mb| mb.poll_irq())
-        } else {
-            None
+        if self.disable_audio {
+            return None;
         }
+
+        self.audio.mboard.iter().find_map(|mb| mb.poll_irq())
     }
 
     fn read_floating_bus(&self) -> u8 {
@@ -1344,10 +1358,12 @@ impl Mem for Bus {
 
                 0xc300..=0xc3ff => {
                     // Implement no slot clock
-                    if self.noslotclock.is_clock_register_enabled() {
-                        return self.noslotclock.io_access(addr, 0, false);
-                    } else {
-                        self.noslotclock.io_access(addr, 0, false);
+                    if !self.disable_noslot_clock {
+                        if self.noslotclock.is_clock_register_enabled() {
+                            return self.noslotclock.io_access(addr, 0, false);
+                        } else {
+                            self.noslotclock.io_access(addr, 0, false);
+                        }
                     }
 
                     if !self.mem.slotc3rom {
@@ -1410,7 +1426,8 @@ impl Mem for Bus {
         } else {
             self.mem.unclocked_addr_write(addr, data);
             let aux_memory = self.mem.is_aux_memory(addr, true);
-            if (0x400..0xc00).contains(&addr) || (0x2000..=0x9fff).contains(&addr) {
+            if (0x400..0xc00).contains(&addr) || (0x2000..=0x9fff).contains(&addr) ||
+                (!self.video.is_apple2e() && (0x1400..0x1c00).contains(&addr)) {
                 // Shadow it to the video ram
                 let aux_bank = self.mem.aux_bank();
                 if aux_memory && aux_bank == 0 {

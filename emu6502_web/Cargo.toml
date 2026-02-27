@@ -3,7 +3,7 @@
 [package]
 name = "emu6502_web"
 description = "Apple ][+/2e Emulator in Rust"
-version = "0.9.4"
+version = "0.9.6"
 edition = "2024"
 license = "MIT"
 
@@ -11,9 +11,9 @@ license = "MIT"
 
 [dependencies]
 emu6502 = { path = "../emulator", features=["serde_support","z80","web_time","flate","zip"] }
-wasm-bindgen = "0.2.108"
-wasm-bindgen-futures = "0.4.58"
-js-sys = "0.3.85"
+wasm-bindgen = "0.2.113"
+wasm-bindgen-futures = "0.4.63"
+js-sys = "0.3.90"
 web-time = "1.1.0"
 console_error_panic_hook = "0.1.7"
 #wee_alloc = "0.4.5"

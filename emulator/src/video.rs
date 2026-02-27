@@ -176,9 +176,7 @@ impl Tick for Video {
             self.cycles = 0;
         }
 
-        if !self.skip_update {
-            self.update_video();
-        }
+        self.update_video();
     }
 }
 
@@ -798,6 +796,11 @@ impl Video {
         let video_value = self.read_video_data(val, row);
         self.video_latch = self.prev_video_data;
         self.prev_video_data = video_value;
+
+        if self.skip_update {
+            return;
+        }
+
         let is_shr = self.is_shr_mode();
 
         if col == CYCLES_PER_BURST {
@@ -940,14 +943,7 @@ impl Video {
 
             0x19 => {
                 if self.apple2e {
-                    let val = self.cycles;
-
-                    // VBL starts after line 192
-                    if val < 192 * CYCLES_PER_ROW {
-                        return 0x80;
-                    } else {
-                        return 0;
-                    }
+                    if self.is_vbl() { return 0 } else { return 0x80 }
                 }
             }
 
@@ -1343,7 +1339,16 @@ impl Video {
                 self.read_raw_hires_memory(self.lut_hires_pal[cycle])
             }
         } else {
-            self.read_video_text_data(cycle)
+            let mixed_offset = self.cycle_field / CYCLES_PER_ROW;
+            if self.mixed_mode && !self.lores_mode && r >= 192 && r + 6 < mixed_offset {
+                if !self.video_50hz {
+                    self.read_raw_hires_memory(self.lut_hires[cycle])
+                } else {
+                    self.read_raw_hires_memory(self.lut_hires_pal[cycle])
+                }
+            } else {
+                self.read_video_text_data(cycle)
+            }
         }
     }
 
@@ -1354,10 +1359,8 @@ impl Video {
             } else {
                 self.read_raw_aux_text_memory(self.lut_text_2e_pal[cycle])
             }
-        } else if !self.video_50hz {
-            self.read_raw_aux_text_memory(self.lut_text[cycle])
         } else {
-            self.read_raw_aux_text_memory(self.lut_text_pal[cycle])
+            self.read_latch()
         }
     }
 
@@ -1536,9 +1539,7 @@ impl Video {
     }
 
     pub fn is_vbl(&self) -> bool {
-        let val = self.cycles;
-        let row = val / CYCLES_PER_ROW;
-        row >= 192
+        self.cycles >= 192 * CYCLES_PER_ROW
     }
 
     pub fn enable_video_80col(&mut self, state: bool) {
@@ -3183,8 +3184,8 @@ fn build_lut(text_mode: bool, apple2e: bool, ntsc: bool) -> Vec<usize> {
             offset &= 0x7f;
             offset = offset.wrapping_add(base2);
         }
-
-        *item = offset;
+        //let offset = video_get_scanner_address(cycle as u32, !text_mode, ntsc, false, !apple2e);
+        *item = offset as usize;
     }
     output
 }
@@ -3405,4 +3406,284 @@ fn deserialize_display_mode<'de, D: Deserializer<'de>>(
 fn deserialize_cycles<'de, D: Deserializer<'de>>(deserializer: D) -> Result<usize, D::Error> {
     let value = usize::deserialize(deserializer)? % default_cycle_field();
     Ok(value)
+}
+
+/// Calculates the video scanner memory address for Apple II emulation.
+///
+/// This function emulates the Apple II video scanner hardware to convert
+/// cycle counts into memory addresses for video output.
+///
+/// # Arguments
+/// * `n_cycles` - Current cycle count in the video frame
+/// * `b_hires` - High-resolution graphics mode flag
+/// * `b_page2` - Page 2 video memory selection flag
+/// * `b_80_store` - 80-column store mode flag (disables page flipping)
+/// * `b_video_scanner_ntsc` - NTSC display standard flag (false = PAL)
+/// * `sw_mixed` - Mixed text/hires graphics mode flag
+/// * `is_apple2` - Apple II (vs //e) hardware flag
+///
+/// # Returns
+/// 16-bit memory address for video scanning
+pub fn video_get_scanner_address(
+    n_cycles: u32,
+    b_hires: bool,
+    b_video_scanner_ntsc: bool,
+    is_apple2: bool,
+) -> u16 {
+    // Essential video timing constants
+    const H_CLOCKS: i32 = 65; // clocks per horizontal scan
+    const H_CLOCK0_STATE: i32 = 0x18; // initial H state value
+    const H_PE_CLOCK: i32 = 40; // horizontal preset enable clock
+    const H_PRESET_CLOCK: i32 = 41; // horizontal state preset clock
+    const NTSC_SCAN_LINES: i32 = 262; // NTSC total scan lines
+    const PAL_SCAN_LINES: i32 = 312; // PAL total scan lines
+    const V_LINE0_STATE: i32 = 0x100; // initial V state value
+    const V_PRESET_LINE: i32 = 256; // vertical state preset line
+
+    // Normalize cycle count to current frame
+    let scan_lines = if b_video_scanner_ntsc {
+        NTSC_SCAN_LINES
+    } else {
+        PAL_SCAN_LINES
+    };
+    let scan_cycles = scan_lines * H_CLOCKS;
+    let n_cycles = n_cycles % scan_cycles as u32;
+
+    // Calculate horizontal scanning state
+    let n_h_clock = ((n_cycles as i32 + H_PE_CLOCK) % H_CLOCKS) as i32;
+    let mut n_h_state = H_CLOCK0_STATE + n_h_clock;
+    if n_h_clock >= H_PRESET_CLOCK {
+        n_h_state -= 1; // Correct for horizontal preset
+    }
+    let h = n_h_state as u16;
+    let h_0 = (h >> 0) & 1;
+    let h_1 = (h >> 1) & 1;
+    let h_2 = (h >> 2) & 1;
+    let h_3 = (h >> 3) & 1;
+    let h_4 = (h >> 4) & 1;
+    let h_5 = (h >> 5) & 1;
+
+    // Calculate vertical scanning state
+    let n_v_line = (n_cycles as i32) / H_CLOCKS;
+    let mut n_v_state = V_LINE0_STATE + n_v_line;
+    if n_v_line >= V_PRESET_LINE {
+        n_v_state -= scan_lines; // Compensate for vertical preset
+    }
+    let v = n_v_state as u16;
+    let v_a = (v >> 0) & 1;
+    let v_b = (v >> 1) & 1;
+    let v_c = (v >> 2) & 1;
+    let v_0 = (v >> 3) & 1;
+    let v_1 = (v >> 4) & 1;
+    let v_2 = (v >> 5) & 1;
+    let v_3 = (v >> 6) & 1;
+    let v_4 = (v >> 7) & 1;
+
+    // Calculate address sum component (UTAIIe:5-9)
+    let addend0 = 0x0D;
+    let addend1 = (h_5 << 2) | (h_4 << 1) | h_3;
+    let addend2 = (v_4 << 3) | (v_3 << 2) | (v_4 << 1) | v_3;
+    let sum = (addend0 + addend1 + addend2) & 0x0F;
+
+    // Build address components
+    let mut addr_h = (h_0 << 0) | (h_1 << 1) | (h_2 << 2) | (sum << 3);
+
+    // Apple II horizontal blanking handling for text mode
+    if !b_hires && is_apple2 && h_5 == 0 && (h_4 == 0 || h_3 == 0) {
+        addr_h |= 1 << 12;
+    }
+
+    let mut addr_v = (v_0 << 7) | (v_1 << 8) | (v_2 << 9);
+
+    if b_hires {
+        addr_v |= (v_a << 10) | (v_b << 11) | (v_c << 12);
+    }
+
+    addr_v | addr_h
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn video_lut_hires_ntsc() {
+        let lut_hires_ntsc = build_lut(false, true, true);
+        let video_cycle = 17030;
+        assert_eq!(
+            lut_hires_ntsc.len(),
+            video_cycle,
+            "LUT hires for NTSC should be {}",
+            video_cycle
+        );
+        for cycle in 0..video_cycle {
+            assert_eq!(
+                video_get_scanner_address(cycle as u32, true, true, false),
+                lut_hires_ntsc[cycle] as u16,
+                "LUT hires address not matched for cycle {}",
+                cycle
+            );
+        }
+    }
+
+    #[test]
+    fn video_lut_hires_pal() {
+        let lut_hires_ntsc = build_lut(false, true, false);
+        let video_cycle = 20280;
+        assert_eq!(
+            lut_hires_ntsc.len(),
+            video_cycle,
+            "LUT hires for NTSC should be {}",
+            video_cycle
+        );
+        for cycle in 0..video_cycle {
+            assert_eq!(
+                video_get_scanner_address(cycle as u32, true, false, false),
+                lut_hires_ntsc[cycle] as u16,
+                "LUT hires address not matched for cycle {}",
+                cycle
+            );
+        }
+    }
+
+    #[test]
+    fn video_lut_text_2e_ntsc() {
+        let lut_text_2e_ntsc = build_lut(true, true, true);
+        let video_cycle = 17030;
+        assert_eq!(
+            lut_text_2e_ntsc.len(),
+            video_cycle,
+            "LUT text 2e for NTSC should be {}",
+            video_cycle
+        );
+        for cycle in 0..video_cycle {
+            assert_eq!(
+                video_get_scanner_address(cycle as u32, false, true, false),
+                lut_text_2e_ntsc[cycle] as u16,
+                "LUT text 2e address not matched for cycle {}",
+                cycle
+            );
+        }
+    }
+
+    #[test]
+    fn video_lut_text_2e_pal() {
+        let lut_text_2e_pal = build_lut(true, true, false);
+        let video_cycle = 20280;
+        assert_eq!(
+            lut_text_2e_pal.len(),
+            video_cycle,
+            "LUT text 2e for PAL should be {}",
+            video_cycle
+        );
+        for cycle in 0..video_cycle {
+            assert_eq!(
+                video_get_scanner_address(cycle as u32, false, false, false),
+                lut_text_2e_pal[cycle] as u16,
+                "LUT text 2e address not matched for cycle {}",
+                cycle
+            );
+        }
+    }
+
+    #[test]
+    fn video_lut_text_ntsc() {
+        let lut_text_ntsc = build_lut(true, false, true);
+        let video_cycle = 17030;
+        assert_eq!(
+            lut_text_ntsc.len(),
+            video_cycle,
+            "LUT text NTSC should be {}",
+            video_cycle
+        );
+        for cycle in 0..video_cycle {
+            assert_eq!(
+                video_get_scanner_address(cycle as u32, false, true, true),
+                lut_text_ntsc[cycle] as u16,
+                "LUT text address not matched for cycle {}",
+                cycle
+            );
+        }
+    }
+
+    #[test]
+    fn video_lut_text_pal() {
+        let lut_text_pal = build_lut(true, false, false);
+        let video_cycle = 20280;
+        assert_eq!(
+            lut_text_pal.len(),
+            video_cycle,
+            "LUT text PAL should be {}",
+            video_cycle
+        );
+        for cycle in 0..video_cycle {
+            assert_eq!(
+                video_get_scanner_address(cycle as u32, false, false, true),
+                lut_text_pal[cycle] as u16,
+                "LUT text address not matched for cycle {}",
+                cycle
+            );
+        }
+    }
+
+    #[test]
+    fn video_graphics_mixed() {
+        let video_cycle = 17030;
+        let mut video = Video::new();
+
+        // Enable graphics and mixed mode;
+        video.enable_graphics(true);
+        video.enable_mixed_mode(true);
+
+        // Check the cycle field is correct
+        assert_eq!(video.cycle_field, video_cycle, "Cycle field should be 17030");
+
+        // Update shadow memory
+        for addr in 0x2000..0x6000 {
+            video.update_shadow_memory(false, addr, 0x80);
+        }
+
+        for cycle in (0..video_cycle).step_by(65) {
+            let row = cycle / 65;
+            let data = video.read_video_data(cycle, row);
+
+            if row < 160 || (row >= 192 && row < (262 - 6)) {
+                assert_eq!(data > 0, true, "Video scanning should return hires data on line {row}");
+            } else {
+                assert_eq!(data == 0, true, "Video scanning should return text data on line {row}");
+            }
+        }
+    }
+
+    #[test]
+    fn video_graphics_mixed_pal() {
+        let video_cycle = 20280;
+        let mut video = Video::new();
+
+        // Set video refresh to 50Hz
+        video.set_video_50hz(true);
+
+        // Enable graphics and mixed mode;
+        video.enable_graphics(true);
+        video.enable_mixed_mode(true);
+
+        // Update shadow memory
+        for addr in 0x2000..0x6000 {
+            video.update_shadow_memory(false, addr, 0x80);
+        }
+
+        // Check the cycle field is correct
+        assert_eq!(video.cycle_field, video_cycle, "Cycle field should be 20280");
+
+        for cycle in (0..video_cycle).step_by(65) {
+            let row = cycle / 65;
+            let data = video.read_video_data(cycle, row);
+
+            if row < 160 || (row >= 192 && row < (312 - 6)) {
+                assert_eq!(data > 0, true, "Video scanning should return hires data on line {row}");
+            } else {
+                assert_eq!(data == 0, true, "Video scanning should return text data on line {row}");
+            }
+        }
+    }
 }

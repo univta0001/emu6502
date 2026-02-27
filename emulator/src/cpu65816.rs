@@ -374,7 +374,7 @@ impl Default for CPU {
     fn default() -> Self {
         let reset_status = StatusReg {
             p: CpuFlags::from_bits_truncate(0b110100),
-            e: true
+            e: true,
         };
 
         CPU {
@@ -723,9 +723,7 @@ impl CPU {
     }
 
     fn last_tick(&mut self) {
-        if !self.status.p.contains(CpuFlags::INTERRUPT_DISABLE) && self.bus.irq().is_some() {
-            self.irq_last_tick = false;
-        }
+        self.irq_last_tick = !self.bus.irq().is_some();
         self.bus.tick();
     }
 
@@ -3161,7 +3159,6 @@ impl CPU {
     fn plp(&mut self) {
         self.tick();
         self.tick();
-        let prev_irq = self.bus.irq().is_some();
         let value = self.last_tick_pop_byte();
         *self.status.p.0.bits_mut() = value;
         if self.status.e {
@@ -3169,11 +3166,6 @@ impl CPU {
             self.status.p.set(CpuFlags::X_FLAG, true);
         } else if self.small_index() {
             self.register_x &= 0xff;
-        }
-        if !self.status.p.contains(CpuFlags::INTERRUPT_DISABLE) {
-            if prev_irq {
-                self.irq_last_tick = false;
-            }
         }
     }
 
@@ -3271,12 +3263,8 @@ impl CPU {
     }
 
     fn cli(&mut self) {
-        let prev_irq = self.bus.irq().is_some();
         self.last_tick();
         self.status.clear_interrupt_flag();
-        if prev_irq {
-            self.irq_last_tick = false;
-        }
     }
 
     /// http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html

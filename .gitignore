@@ -4,6 +4,7 @@ debug/
 ref/
 lib/
 emu6502_raw/
+emu6502_web/node_modules/
 a2stream/
 
 zig-6502
