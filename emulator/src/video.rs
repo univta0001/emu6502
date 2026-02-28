@@ -166,6 +166,9 @@ pub struct Video {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub text_color_burst: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    pub lines_per_frame: usize,
 }
 
 impl Tick for Video {
@@ -187,6 +190,8 @@ const CYCLES_PER_BURST: usize = 20;
 const CYCLES_PER_HBL: usize = 25;
 const CYCLES_PER_FIELD_60HZ: usize = 17030;
 const CYCLES_PER_FIELD_50HZ: usize = 20280;
+const LINES_PER_FRAME_60HZ: usize = 262;
+const LINES_PER_FRAME_50HZ: usize = 312;
 
 // Flash frequency is 16 frames per second (267ms) for Apple 2e or 15 frames for Apple 2
 const BLINK_PERIOD_16_FRAMES: usize = 267;
@@ -712,6 +717,7 @@ impl Video {
         let chroma_bandwidth = NTSC_CHROMA_BANDWIDTH;
         let ntsc_decoder = decoder_matrix(NTSC_LUMA_BANDWIDTH, NTSC_CHROMA_BANDWIDTH);
         let cycle_field = CYCLES_PER_FIELD_60HZ;
+        let lines_per_frame = LINES_PER_FRAME_60HZ;
 
         let chroma_hgr = default_chroma_hgr();
         let chroma_dhgr = default_chroma_dhgr();
@@ -767,6 +773,7 @@ impl Video {
             shr_mode: false,
             shr_linear_mode: false,
             disable_aux: false,
+            lines_per_frame,
         }
     }
 
@@ -1337,17 +1344,14 @@ impl Video {
             } else {
                 self.read_raw_hires_memory(self.lut_hires_pal[cycle])
             }
-        } else {
-            let mixed_offset = self.cycle_field / CYCLES_PER_ROW;
-            if self.mixed_mode && !self.lores_mode && r >= 192 && r + 6 < mixed_offset {
-                if !self.video_50hz {
-                    self.read_raw_hires_memory(self.lut_hires[cycle])
-                } else {
-                    self.read_raw_hires_memory(self.lut_hires_pal[cycle])
-                }
+        } else if self.mixed_mode && !self.lores_mode && r >= 192 && r + 6 < self.lines_per_frame {
+            if !self.video_50hz {
+                self.read_raw_hires_memory(self.lut_hires[cycle])
             } else {
-                self.read_video_text_data(cycle)
+                self.read_raw_hires_memory(self.lut_hires_pal[cycle])
             }
+        } else {
+            self.read_video_text_data(cycle)
         }
     }
 
@@ -1548,9 +1552,11 @@ impl Video {
     pub fn toggle_video_freq(&mut self) {
         self.video_50hz = !self.video_50hz;
         if self.video_50hz {
-            self.cycle_field = CYCLES_PER_FIELD_50HZ
+            self.cycle_field = CYCLES_PER_FIELD_50HZ;
+            self.lines_per_frame = LINES_PER_FRAME_50HZ;
         } else {
-            self.cycle_field = CYCLES_PER_FIELD_60HZ
+            self.cycle_field = CYCLES_PER_FIELD_60HZ;
+            self.lines_per_frame = LINES_PER_FRAME_60HZ;
         }
         self.cycles %= self.cycle_field;
         self.invalidate_video_cache();
@@ -1577,9 +1583,11 @@ impl Video {
     pub fn set_video_50hz(&mut self, flag: bool) {
         self.video_50hz = flag;
         if self.video_50hz {
-            self.cycle_field = CYCLES_PER_FIELD_50HZ
+            self.cycle_field = CYCLES_PER_FIELD_50HZ;
+            self.lines_per_frame = LINES_PER_FRAME_50HZ;
         } else {
-            self.cycle_field = CYCLES_PER_FIELD_60HZ
+            self.cycle_field = CYCLES_PER_FIELD_60HZ;
+            self.lines_per_frame = LINES_PER_FRAME_60HZ;
         }
         self.cycles %= self.cycle_field;
         self.invalidate_video_cache();
