@@ -728,7 +728,7 @@ impl Video {
             video_main: vec![0u8; 0x10000],
             video_aux: vec![0u8; 0x10000],
             video_cache: vec![0x00; CYCLES_PER_FIELD_50HZ],
-            video_reparse: vec![0x00; 200],
+            video_reparse: vec![0x00; LINES_PER_FRAME_50HZ],
             video_dirty: vec![0x00; 25],
             lut_text,
             lut_text_2e,
@@ -797,6 +797,12 @@ impl Video {
             self.update_blink_state();
         }
 
+        if self.skip_update && self.video_reparse[row] == 0 {
+            self.video_latch = self.prev_video_data;
+            self.prev_video_data = (self.video_cache[cycle] & 0xff) as u8;
+            return;
+        }
+
         let is_shr = self.is_shr_mode();
 
         // Video line takes 65 clock cycles
@@ -815,6 +821,7 @@ impl Video {
         }
 
         if (!is_shr && row >= 192) || (is_shr && row >= 200) || col < CYCLES_PER_HBL {
+            self.video_cache[cycle] = video_value as u32;
             return;
         }
 
@@ -1324,60 +1331,74 @@ impl Video {
     }
 
     fn read_video_text_data(&self, cycle: usize) -> u8 {
-        if self.apple2e {
-            if !self.video_50hz {
-                self.read_raw_text_memory(self.lut_text_2e[cycle])
-            } else {
-                self.read_raw_text_memory(self.lut_text_2e_pal[cycle])
-            }
-        } else if !self.video_50hz {
-            self.read_raw_text_memory(self.lut_text[cycle])
-        } else {
-            self.read_raw_text_memory(self.lut_text_pal[cycle])
-        }
+        let lut = match (self.apple2e, self.video_50hz) {
+            (true, true) => &self.lut_text_2e_pal,
+            (true, false) => &self.lut_text_2e,
+            (false, true) => &self.lut_text_pal,
+            (false, false) => &self.lut_text,
+        };
+
+        self.read_raw_text_memory(lut[cycle])
     }
 
-    fn read_video_data(&mut self, cycle: usize, r: usize) -> u8 {
-        if self.graphics_mode && (!self.mixed_mode || r < 160) && !self.lores_mode {
-            if !self.video_50hz {
-                self.read_raw_hires_memory(self.lut_hires[cycle])
-            } else {
-                self.read_raw_hires_memory(self.lut_hires_pal[cycle])
-            }
-        } else if self.mixed_mode && !self.lores_mode && r >= 192 && r + 6 < self.lines_per_frame {
-            if !self.video_50hz {
-                self.read_raw_hires_memory(self.lut_hires[cycle])
-            } else {
-                self.read_raw_hires_memory(self.lut_hires_pal[cycle])
-            }
+    fn read_video_data(&self, cycle: usize, r: usize) -> u8 {
+        let lut = if self.video_50hz {
+            &self.lut_hires_pal
         } else {
-            self.read_video_text_data(cycle)
+            &self.lut_hires
+        };
+
+        if !self.graphics_mode || self.lores_mode {
+            return self.read_video_text_data(cycle);
         }
+
+        if self.mixed_mode {
+            // Text area in mixed mode (rows 160-191 typically)
+            if (160..192).contains(&r) {
+                return self.read_video_text_data(cycle);
+            }
+
+            // Check for valid frame bounds for the bottom section
+            if r >= 192 && r + 6 >= self.lines_per_frame {
+                return self.read_video_text_data(cycle);
+            }
+        }
+
+        self.read_raw_hires_memory(lut[cycle])
     }
 
     fn read_video_aux_text_data(&self, cycle: usize) -> u8 {
-        if self.apple2e {
-            if !self.video_50hz {
-                self.read_raw_aux_text_memory(self.lut_text_2e[cycle])
-            } else {
-                self.read_raw_aux_text_memory(self.lut_text_2e_pal[cycle])
-            }
-        } else {
-            self.read_latch()
+        if !self.apple2e {
+            return self.read_latch();
         }
+
+        let lut = if self.video_50hz {
+            &self.lut_text_2e_pal
+        } else {
+            &self.lut_text_2e
+        };
+
+        self.read_raw_aux_text_memory(lut[cycle])
     }
 
-    fn read_aux_video_data(&mut self, cycle: usize, r: usize) -> u8 {
+    fn read_aux_video_data(&self, cycle: usize, r: usize) -> u8 {
         if self.disable_aux {
             return self.video_latch;
         }
 
-        if self.graphics_mode && (!self.mixed_mode || r < 160) && !self.lores_mode {
-            if !self.video_50hz {
-                self.read_raw_aux_hires_memory(self.lut_hires[cycle])
-            } else {
-                self.read_raw_aux_hires_memory(self.lut_hires_pal[cycle])
-            }
+        const MIXED_GRAPHICS_MAX_ROW: usize = 160;
+        let lut = if self.video_50hz {
+            &self.lut_hires_pal
+        } else {
+            &self.lut_hires
+        };
+
+        let is_hires_region = self.graphics_mode
+            && !self.lores_mode
+            && (!self.mixed_mode || r < MIXED_GRAPHICS_MAX_ROW);
+
+        if is_hires_region {
+            self.read_raw_aux_hires_memory(lut[cycle])
         } else {
             self.read_video_aux_text_data(cycle)
         }
@@ -3236,7 +3257,7 @@ fn default_video_cache() -> Vec<u32> {
 
 #[cfg(feature = "serde_support")]
 fn default_video_reparse() -> Vec<u8> {
-    vec![0x00; 200]
+    vec![0x00; LINES_PER_FRAME_50HZ]
 }
 
 #[cfg(feature = "serde_support")]
