@@ -721,7 +721,7 @@ impl Video {
             display_mode: DisplayMode::DEFAULT,
             video_main: vec![0u8; 0x10000],
             video_aux: vec![0u8; 0x10000],
-            video_cache: vec![0x00; 40 * 200],
+            video_cache: vec![0x00; CYCLES_PER_FIELD_50HZ],
             video_reparse: vec![0x00; 200],
             video_dirty: vec![0x00; 25],
             lut_text,
@@ -783,25 +783,25 @@ impl Video {
     }
 
     pub fn update_video(&mut self) {
-        let val = self.cycles;
-        let (row, col) = (val / CYCLES_PER_ROW, val % CYCLES_PER_ROW);
+        let cycle = self.cycles;
+        let (row, col) = (cycle / CYCLES_PER_ROW, cycle % CYCLES_PER_ROW);
 
-        if val == 0 {
+        if cycle == 0 {
             self.update_blink_state();
         }
+
+        let is_shr = self.is_shr_mode();
 
         // Video line takes 65 clock cycles
         // 25 clock cycle of horizontal blank
         // followed by 40 clock cycles displayed line
-        let video_value = self.read_video_data(val, row);
+        let video_value = self.read_video_data(cycle, row);
         self.video_latch = self.prev_video_data;
         self.prev_video_data = video_value;
 
         if self.skip_update {
             return;
         }
-
-        let is_shr = self.is_shr_mode();
 
         if col == CYCLES_PER_BURST {
             self.update_color_burst();
@@ -811,14 +811,13 @@ impl Video {
             return;
         }
 
-        let video_aux_latch = self.read_aux_video_data(val, row);
+        let video_aux_latch = self.read_aux_video_data(cycle, row);
         let visible_col = col - CYCLES_PER_HBL;
         let video_mode = self.get_video_mode();
         let video_data = video_value as u32 | ((video_aux_latch as u32) << 8) | video_mode;
-        let video_index = visible_col + row * 40;
         let flash_status = self.get_flash_mode(video_data, video_mode);
 
-        let cache_changed = self.video_cache[video_index] != video_data;
+        let cache_changed = self.video_cache[cycle] != video_data;
         let needs_reparse = self.video_reparse[row] != 0;
 
         if cache_changed || needs_reparse || flash_status {
@@ -840,7 +839,7 @@ impl Video {
                 self.video_reparse[row] = 1;
             }
 
-            self.video_cache[video_index] = video_data;
+            self.video_cache[cycle] = video_data;
 
             if is_shr {
                 self.draw_super_hires_a2_row_col(row, visible_col);
@@ -1553,6 +1552,7 @@ impl Video {
         } else {
             self.cycle_field = CYCLES_PER_FIELD_60HZ
         }
+        self.cycles %= self.cycle_field;
         self.invalidate_video_cache();
     }
 
@@ -1581,6 +1581,7 @@ impl Video {
         } else {
             self.cycle_field = CYCLES_PER_FIELD_60HZ
         }
+        self.cycles %= self.cycle_field;
         self.invalidate_video_cache();
     }
 
@@ -3185,7 +3186,7 @@ fn build_lut(text_mode: bool, apple2e: bool, ntsc: bool) -> Vec<usize> {
             offset = offset.wrapping_add(base2);
         }
         //let offset = video_get_scanner_address(cycle as u32, !text_mode, ntsc, false, !apple2e);
-        *item = offset as usize;
+        *item = offset;
     }
     output
 }
@@ -3222,7 +3223,7 @@ fn default_lut_hires_pal() -> Vec<usize> {
 
 #[cfg(feature = "serde_support")]
 fn default_video_cache() -> Vec<u32> {
-    vec![0x00; 40 * 200]
+    vec![0x00; CYCLES_PER_FIELD_50HZ]
 }
 
 #[cfg(feature = "serde_support")]
@@ -3450,13 +3451,13 @@ pub fn video_get_scanner_address(
     let n_cycles = n_cycles % scan_cycles as u32;
 
     // Calculate horizontal scanning state
-    let n_h_clock = ((n_cycles as i32 + H_PE_CLOCK) % H_CLOCKS) as i32;
+    let n_h_clock = (n_cycles as i32 + H_PE_CLOCK) % H_CLOCKS;
     let mut n_h_state = H_CLOCK0_STATE + n_h_clock;
     if n_h_clock >= H_PRESET_CLOCK {
         n_h_state -= 1; // Correct for horizontal preset
     }
     let h = n_h_state as u16;
-    let h_0 = (h >> 0) & 1;
+    let h_0 = h & 1;
     let h_1 = (h >> 1) & 1;
     let h_2 = (h >> 2) & 1;
     let h_3 = (h >> 3) & 1;
@@ -3470,7 +3471,7 @@ pub fn video_get_scanner_address(
         n_v_state -= scan_lines; // Compensate for vertical preset
     }
     let v = n_v_state as u16;
-    let v_a = (v >> 0) & 1;
+    let v_a = v & 1;
     let v_b = (v >> 1) & 1;
     let v_c = (v >> 2) & 1;
     let v_0 = (v >> 3) & 1;
@@ -3486,7 +3487,7 @@ pub fn video_get_scanner_address(
     let sum = (addend0 + addend1 + addend2) & 0x0F;
 
     // Build address components
-    let mut addr_h = (h_0 << 0) | (h_1 << 1) | (h_2 << 2) | (sum << 3);
+    let mut addr_h = h_0 | (h_1 << 1) | (h_2 << 2) | (sum << 3);
 
     // Apple II horizontal blanking handling for text mode
     if !b_hires && is_apple2 && h_5 == 0 && (h_4 == 0 || h_3 == 0) {
@@ -3636,7 +3637,10 @@ mod test {
         video.enable_mixed_mode(true);
 
         // Check the cycle field is correct
-        assert_eq!(video.cycle_field, video_cycle, "Cycle field should be 17030");
+        assert_eq!(
+            video.cycle_field, video_cycle,
+            "Cycle field should be 17030"
+        );
 
         // Update shadow memory
         for addr in 0x2000..0x6000 {
@@ -3648,9 +3652,17 @@ mod test {
             let data = video.read_video_data(cycle, row);
 
             if row < 160 || (row >= 192 && row < (262 - 6)) {
-                assert_eq!(data > 0, true, "Video scanning should return hires data on line {row}");
+                assert_eq!(
+                    data > 0,
+                    true,
+                    "Video scanning should return hires data on line {row}"
+                );
             } else {
-                assert_eq!(data == 0, true, "Video scanning should return text data on line {row}");
+                assert_eq!(
+                    data == 0,
+                    true,
+                    "Video scanning should return text data on line {row}"
+                );
             }
         }
     }
@@ -3673,16 +3685,27 @@ mod test {
         }
 
         // Check the cycle field is correct
-        assert_eq!(video.cycle_field, video_cycle, "Cycle field should be 20280");
+        assert_eq!(
+            video.cycle_field, video_cycle,
+            "Cycle field should be 20280"
+        );
 
         for cycle in (0..video_cycle).step_by(65) {
             let row = cycle / 65;
             let data = video.read_video_data(cycle, row);
 
             if row < 160 || (row >= 192 && row < (312 - 6)) {
-                assert_eq!(data > 0, true, "Video scanning should return hires data on line {row}");
+                assert_eq!(
+                    data > 0,
+                    true,
+                    "Video scanning should return hires data on line {row}"
+                );
             } else {
-                assert_eq!(data == 0, true, "Video scanning should return text data on line {row}");
+                assert_eq!(
+                    data == 0,
+                    true,
+                    "Video scanning should return text data on line {row}"
+                );
             }
         }
     }

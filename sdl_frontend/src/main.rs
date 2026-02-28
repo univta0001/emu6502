@@ -808,11 +808,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             let path = Path::new(&filename);
             if let Some(path_ext) = path.extension() {
                 let po_hd = if let Ok(metadata) = fs::metadata(path) {
-                    if path_ext.eq_ignore_ascii_case(OsStr::new("po")) && metadata.len() > 143360 {
-                        true
-                    } else {
-                        false
-                    }
+                    path_ext.eq_ignore_ascii_case(OsStr::new("po")) && metadata.len() > 143360
                 } else {
                     false
                 };
@@ -2074,9 +2070,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
                 // Update video, audio and events at multiple of 60Hz or 50Hz
                 let time_tolerance = if normal_cpu_speed {
-                    cpu_period as u128 - 100
+                    cpu_period - 100
                 } else {
-                    cpu_period as u128
+                    cpu_period
                 };
 
                 let video_time_elapsed = video_time.elapsed().as_micros();

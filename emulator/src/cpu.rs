@@ -574,10 +574,10 @@ impl CPU {
     }
 
     fn increment_pc(&mut self) {
-        self.increment_pc_count(1);
+        self.program_counter = self.program_counter.wrapping_add(1);
     }
 
-    fn increment_pc_count(&mut self, count: usize) {
+    pub fn increment_pc_count(&mut self, count: usize) {
         self.program_counter = self.program_counter.wrapping_add(count as u16);
     }
 
@@ -589,7 +589,7 @@ impl CPU {
 
     fn next_word(&mut self) -> u16 {
         let value = self.addr_read_u16(self.program_counter);
-        self.increment_pc_count(2);
+        self.program_counter = self.program_counter.wrapping_add(2);
         value
     }
 

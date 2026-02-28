@@ -723,7 +723,7 @@ impl CPU {
     }
 
     fn last_tick(&mut self) {
-        self.irq_last_tick = !self.bus.irq().is_some();
+        self.irq_last_tick = self.bus.irq().is_none();
         self.bus.tick();
     }
 

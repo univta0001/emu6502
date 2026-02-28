@@ -1426,8 +1426,10 @@ impl Mem for Bus {
         } else {
             self.mem.unclocked_addr_write(addr, data);
             let aux_memory = self.mem.is_aux_memory(addr, true);
-            if (0x400..0xc00).contains(&addr) || (0x2000..=0x9fff).contains(&addr) ||
-                (!self.video.is_apple2e() && (0x1400..0x1c00).contains(&addr)) {
+            if (0x400..0xc00).contains(&addr)
+                || (0x2000..=0x9fff).contains(&addr)
+                || (!self.video.is_apple2e() && (0x1400..0x1c00).contains(&addr))
+            {
                 // Shadow it to the video ram
                 let aux_bank = self.mem.aux_bank();
                 if aux_memory && aux_bank == 0 {
