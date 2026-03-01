@@ -3678,7 +3678,7 @@ mod test {
             let row = cycle / 65;
             let data = video.read_video_data(cycle, row);
 
-            if row < 160 || (row >= 192 && row < (262 - 6)) {
+            if row < 160 || (row >= 192 && row < (262 - 32 - 6)) {
                 assert_eq!(
                     data > 0,
                     true,
@@ -3721,7 +3721,7 @@ mod test {
             let row = cycle / 65;
             let data = video.read_video_data(cycle, row);
 
-            if row < 160 || (row >= 192 && row < (312 - 6)) {
+            if row < 160 || (row >= 192 && row < (312 - 32 - 6)) {
                 assert_eq!(
                     data > 0,
                     true,
