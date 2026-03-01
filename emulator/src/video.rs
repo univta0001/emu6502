@@ -1332,9 +1332,9 @@ impl Video {
 
     fn read_video_text_data(&self, cycle: usize) -> u8 {
         let lut = match (self.apple2e, self.video_50hz) {
-            (true, true) => &self.lut_text_2e_pal,
-            (true, false) => &self.lut_text_2e,
-            (false, true) => &self.lut_text_pal,
+            (true, true)   => &self.lut_text_2e_pal,
+            (true, false)  => &self.lut_text_2e,
+            (false, true)  => &self.lut_text_pal,
             (false, false) => &self.lut_text,
         };
 
@@ -1359,7 +1359,9 @@ impl Video {
             }
 
             // Check for valid frame bounds for the bottom section
-            if r >= 192 && r + 6 >= self.lines_per_frame {
+            // Based on UTA2E p5-19, for NTSC line 224 onwards is text
+            // For PAL line 274 onward is text
+            if r + 38 >= self.lines_per_frame {
                 return self.read_video_text_data(cycle);
             }
         }
