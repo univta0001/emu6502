@@ -849,7 +849,7 @@ impl Video {
                         self.video_reparse[row] += 1;
                     }
                 }
-            } else if cache_changed && !needs_reparse {
+            } else if cache_changed {
                 self.video_reparse[row] = 1;
             }
 
