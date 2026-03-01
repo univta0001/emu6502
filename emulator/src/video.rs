@@ -895,14 +895,12 @@ impl Video {
 
         mem[addr as usize] = value;
 
-        if (0x0400..=0x0bff).contains(&addr) {
+        if (0x0400..0x0c00).contains(&addr) {
             // 000000cd eabab000 -> 000abcde
             let row = ((addr & 0x18) | ((addr >> 7) & 0x06) | ((addr & 0x80) >> 7)) * 8;
-            if row < 192 {
-                let start = row as usize;
-                for i in start..start + 8 {
-                    self.video_reparse[i] = 1;
-                }
+            let start = row as usize;
+            for i in start..start + 8 {
+                self.video_reparse[i] = 1;
             }
         } else if self.is_shr_mode() && (0x2000..=0x9fff).contains(&addr) {
             let row = (addr - 0x2000) as usize / 160;
@@ -915,9 +913,7 @@ impl Video {
         } else if (0x2000..=0x5fff).contains(&addr) {
             // 000fghcd eabab000 -> abcdefgh
             let row = ((addr << 1) & 0xc0) | ((addr >> 4) & 0x38) | ((addr >> 10) & 0x07);
-            if row < 192 {
-                self.video_reparse[row as usize] = 1;
-            }
+            self.video_reparse[row as usize] = 1;
         }
     }
 
@@ -1332,9 +1328,9 @@ impl Video {
 
     fn read_video_text_data(&self, cycle: usize) -> u8 {
         let lut = match (self.apple2e, self.video_50hz) {
-            (true, true)   => &self.lut_text_2e_pal,
-            (true, false)  => &self.lut_text_2e,
-            (false, true)  => &self.lut_text_pal,
+            (true, true) => &self.lut_text_2e_pal,
+            (true, false) => &self.lut_text_2e,
+            (false, true) => &self.lut_text_pal,
             (false, false) => &self.lut_text,
         };
 
