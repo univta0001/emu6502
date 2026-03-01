@@ -113,6 +113,7 @@ Features in the emulator
             --aux aux_type     Auxiliary Slot type.
                                Supported values (ext80, std80, rw3, none)
             --exact_write      Enable exact track writing (No write to neighbor tracks)
+            --noslot_clock off Disable noslot clock 
 
         ARGS:
             [disk 1]           Disk 1 file (woz, dsk, do, po file). File can be in gz format

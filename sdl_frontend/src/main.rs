@@ -908,6 +908,7 @@ FLAGS:
     --aux aux_type     Auxiliary Slot type. 
                        Supported values (ext80, std80, rw3, none)
     --exact_write      Enable exact track writing (No write to neighbor tracks)
+    --noslot_clock off Disable noslot clock 
 
 ARGS:
     [disk 1]           Disk 1 file (woz, dsk, do, po file). Can be in gz format
@@ -1815,6 +1816,12 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         && capslock == "off"
     {
         key_caps = false;
+    }
+
+    if let Some(noslot_clock) = pargs.opt_value_from_str::<_, String>("--noslot_clock")?
+        && noslot_clock == "off"
+    {
+        cpu.bus.set_noslot_clock(false);
     }
 
     if let Some(name) = pargs.opt_value_from_str::<_, String>("--interface")? {
