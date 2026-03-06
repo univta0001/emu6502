@@ -2286,6 +2286,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     _cpu.bus.video.skip_update = true;
                 }
 
+                update_audio(_cpu, &audio_stream, normal_cpu_speed);
+                _cpu.bus.audio.clear_buffer();
+
                 let video_cpu_update = t.elapsed().as_micros();
 
                 if normal_cpu_speed {
@@ -2299,8 +2302,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     }
                 }
 
-                update_audio(_cpu, &audio_stream, normal_cpu_speed);
-                _cpu.bus.audio.clear_buffer();
                 let elapsed = t.elapsed().as_micros();
                 let time_tolerance = (cpu_period - time_tolerance) as f32;
                 estimated_mhz = (dcyc as f32) / (elapsed as f32 + time_tolerance);
