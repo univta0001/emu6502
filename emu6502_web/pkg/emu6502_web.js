@@ -271,7 +271,7 @@ function __wbg_get_imports() {
                     const a = state0.a;
                     state0.a = 0;
                     try {
-                        return wasm_bindgen__convert__closures_____invoke__h00098092c21d960f(a, state0.b, arg0, arg1);
+                        return wasm_bindgen__convert__closures_____invoke__h1da822864059ccb5(a, state0.b, arg0, arg1);
                     } finally {
                         state0.a = a;
                     }
@@ -326,7 +326,7 @@ function __wbg_get_imports() {
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
             // Cast intrinsic for `Closure(Closure { dtor_idx: 33, function: Function { arguments: [Externref], shim_idx: 34, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h93dbde4ab6438234, wasm_bindgen__convert__closures_____invoke__he48735b87ca9fcd4);
+            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hbe55809a50a3988a, wasm_bindgen__convert__closures_____invoke__hd106a83b5e4f55b3);
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0) {
@@ -350,15 +350,15 @@ function __wbg_get_imports() {
     };
 }
 
-function wasm_bindgen__convert__closures_____invoke__he48735b87ca9fcd4(arg0, arg1, arg2) {
-    const ret = wasm.wasm_bindgen__convert__closures_____invoke__he48735b87ca9fcd4(arg0, arg1, arg2);
+function wasm_bindgen__convert__closures_____invoke__hd106a83b5e4f55b3(arg0, arg1, arg2) {
+    const ret = wasm.wasm_bindgen__convert__closures_____invoke__hd106a83b5e4f55b3(arg0, arg1, arg2);
     if (ret[1]) {
         throw takeFromExternrefTable0(ret[0]);
     }
 }
 
-function wasm_bindgen__convert__closures_____invoke__h00098092c21d960f(arg0, arg1, arg2, arg3) {
-    wasm.wasm_bindgen__convert__closures_____invoke__h00098092c21d960f(arg0, arg1, arg2, arg3);
+function wasm_bindgen__convert__closures_____invoke__h1da822864059ccb5(arg0, arg1, arg2, arg3) {
+    wasm.wasm_bindgen__convert__closures_____invoke__h1da822864059ccb5(arg0, arg1, arg2, arg3);
 }
 
 const EmulatorFinalization = (typeof FinalizationRegistry === 'undefined')

@@ -166,9 +166,6 @@ pub struct Video {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub text_color_burst: bool,
-
-    #[cfg_attr(feature = "serde_support", serde(default))]
-    pub lines_per_frame: usize,
 }
 
 impl Tick for Video {
@@ -190,7 +187,6 @@ const CYCLES_PER_BURST: usize = 20;
 const CYCLES_PER_HBL: usize = 25;
 const CYCLES_PER_FIELD_60HZ: usize = 17030;
 const CYCLES_PER_FIELD_50HZ: usize = 20280;
-const LINES_PER_FRAME_60HZ: usize = 262;
 const LINES_PER_FRAME_50HZ: usize = 312;
 
 // Flash frequency is 16 frames per second (267ms) for Apple 2e or 15 frames for Apple 2
@@ -717,7 +713,6 @@ impl Video {
         let chroma_bandwidth = NTSC_CHROMA_BANDWIDTH;
         let ntsc_decoder = decoder_matrix(NTSC_LUMA_BANDWIDTH, NTSC_CHROMA_BANDWIDTH);
         let cycle_field = CYCLES_PER_FIELD_60HZ;
-        let lines_per_frame = LINES_PER_FRAME_60HZ;
 
         let chroma_hgr = default_chroma_hgr();
         let chroma_dhgr = default_chroma_dhgr();
@@ -773,7 +768,6 @@ impl Video {
             shr_mode: false,
             shr_linear_mode: false,
             disable_aux: false,
-            lines_per_frame,
         }
     }
 
@@ -1356,8 +1350,12 @@ impl Video {
 
             // Check for valid frame bounds for the bottom section
             // Based on UTA2E p5-19, for NTSC line 224 onwards is text
-            // For PAL line 274 onward is text
-            if r + 38 >= self.lines_per_frame {
+            // For PAL line, (224 to 256) and 280 onwards is text
+            if self.video_50hz {
+                if (224..256).contains(&r) || r >= 280 {
+                    return self.read_video_text_data(cycle);
+                }
+            } else if r >= 224 {
                 return self.read_video_text_data(cycle);
             }
         }
@@ -1572,10 +1570,8 @@ impl Video {
         self.video_50hz = !self.video_50hz;
         if self.video_50hz {
             self.cycle_field = CYCLES_PER_FIELD_50HZ;
-            self.lines_per_frame = LINES_PER_FRAME_50HZ;
         } else {
             self.cycle_field = CYCLES_PER_FIELD_60HZ;
-            self.lines_per_frame = LINES_PER_FRAME_60HZ;
         }
         self.cycles %= self.cycle_field;
         self.invalidate_video_cache();
@@ -1603,10 +1599,8 @@ impl Video {
         self.video_50hz = flag;
         if self.video_50hz {
             self.cycle_field = CYCLES_PER_FIELD_50HZ;
-            self.lines_per_frame = LINES_PER_FRAME_50HZ;
         } else {
             self.cycle_field = CYCLES_PER_FIELD_60HZ;
-            self.lines_per_frame = LINES_PER_FRAME_60HZ;
         }
         self.cycles %= self.cycle_field;
         self.invalidate_video_cache();
@@ -3678,7 +3672,7 @@ mod test {
             let row = cycle / 65;
             let data = video.read_video_data(cycle, row);
 
-            if row < 160 || (row >= 192 && row < (262 - 32 - 6)) {
+            if row < 160 || (row >= 192 && row < 224) {
                 assert_eq!(
                     data > 0,
                     true,
@@ -3721,7 +3715,7 @@ mod test {
             let row = cycle / 65;
             let data = video.read_video_data(cycle, row);
 
-            if row < 160 || (row >= 192 && row < (312 - 32 - 6)) {
+            if row < 160 || (row >= 192 && row < 224) || (row >= 256 && row < 280) {
                 assert_eq!(
                     data > 0,
                     true,
