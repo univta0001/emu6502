@@ -1353,9 +1353,8 @@ impl Video {
             }
 
             // Check for valid frame bounds for the bottom section
-            // Based on UTA2E p5-19, for NTSC line 224 onwards is text
-            // For PAL line, (224 to 256) and 280 onwards is text
-            if ((row >> 7) & (row >> 5) & 1) != 0 {
+            // Based on UTA2E p5-19, for line 224 onwards is text
+            if row >= 160 && row < 192 || row >= 224 {
                 return self.read_video_text_data(cycle);
             }
         }
