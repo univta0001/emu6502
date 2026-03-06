@@ -1343,19 +1343,19 @@ impl Video {
         }
 
         if self.mixed_mode {
-            // Text area in mixed mode (rows 160-191 typically)
-            if (160..192).contains(&r) {
-                return self.read_video_text_data(cycle);
+            let mut row = r;
+            if r >= 256 {
+                row -= 6;
+
+                if self.video_50hz {
+                    row -= 50
+                }
             }
 
             // Check for valid frame bounds for the bottom section
             // Based on UTA2E p5-19, for NTSC line 224 onwards is text
             // For PAL line, (224 to 256) and 280 onwards is text
-            if self.video_50hz {
-                if (224..256).contains(&r) || r >= 280 {
-                    return self.read_video_text_data(cycle);
-                }
-            } else if r >= 224 {
+            if ((row >> 7) & (row >> 5) & 1) != 0 {
                 return self.read_video_text_data(cycle);
             }
         }
