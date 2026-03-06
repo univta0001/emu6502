@@ -1354,7 +1354,7 @@ impl Video {
 
             // Check for valid frame bounds for the bottom section
             // Based on UTA2E p5-19, for line 224 onwards is text
-            if row >= 160 && row < 192 || row >= 224 {
+            if row & 160 == 160 {
                 return self.read_video_text_data(cycle);
             }
         }
