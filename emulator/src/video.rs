@@ -3147,14 +3147,14 @@ impl Video {
             NTSC_SCAN_LINES
         };
 
-        let h_clock = (self.cycles + 40) % 65;
+        let h_clock = (self.cycles + 40) % CYCLES_PER_ROW;
         let mut h_state = 0x18 + h_clock;
         if h_clock >= 41 {
             h_state -= 1; // Correct for horizontal preset
         }
         let h = h_state as u16;
 
-        let v_line = self.cycles / 65;
+        let v_line = self.cycles / CYCLES_PER_ROW;
         let mut v_state = 0x100 + v_line;
         if v_line >= 0x100 {
             v_state -= scan_lines; // Compensate for vertical preset
