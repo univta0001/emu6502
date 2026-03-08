@@ -72,10 +72,14 @@ const HOME_MOUSE: u8 = 7;
 
 const KEY_INPUT: u16 = 0x200;
 
-const CLAMP_MIN_LOW: u16 = 0x478;
-const CLAMP_MAX_LOW: u16 = 0x4f8;
-const CLAMP_MIN_HIGH: u16 = 0x578;
-const CLAMP_MAX_HIGH: u16 = 0x5f8;
+const CLAMP_MIN_X_LOW: u16 = 0x478;
+const CLAMP_MIN_X_HIGH: u16 = 0x578;
+const CLAMP_MAX_X_LOW: u16 = 0x678;
+const CLAMP_MAX_X_HIGH: u16 = 0x778;
+const CLAMP_MIN_Y_LOW: u16 = 0x4f8;
+const CLAMP_MIN_Y_HIGH: u16 = 0x5f8;
+const CLAMP_MAX_Y_LOW: u16 = 0x6fd;
+const CLAMP_MAX_Y_HIGH: u16 = 0x7fd;
 
 // Apple 2c clamp values
 // $47D MinXL, $67D MaxXL
@@ -426,10 +430,10 @@ impl Mouse {
     }
 
     fn clamp_mouse(&mut self, mmu: &Mmu, value: usize) {
-        let min =
-            (mmu.mem_read(CLAMP_MIN_HIGH) as u16 * 256) as i16 + mmu.mem_read(CLAMP_MIN_LOW) as i16;
-        let max =
-            (mmu.mem_read(CLAMP_MAX_HIGH) as u16 * 256) as i16 + mmu.mem_read(CLAMP_MAX_LOW) as i16;
+        let min = (mmu.mem_read(CLAMP_MIN_X_HIGH) as u16 * 256) as i16
+            + mmu.mem_read(CLAMP_MIN_X_LOW) as i16;
+        let max = (mmu.mem_read(CLAMP_MIN_Y_HIGH) as u16 * 256) as i16
+            + mmu.mem_read(CLAMP_MIN_Y_LOW) as i16;
 
         // . MOUSE_CLAMP(Y, 0xFFEC, 0x00D3)
         // . MOUSE_CLAMP(X, 0xFFEC, 0x012B)
@@ -477,15 +481,15 @@ impl Mouse {
         self.update_mouse_status(mmu, slot);
         mmu.mem_write(STATUS + slot, 0);
 
-        mmu.mem_write(0x47d, (self.clamp_min_x % 256) as u8);
-        mmu.mem_write(0x57d, (self.clamp_min_x / 256) as u8);
-        mmu.mem_write(0x67d, (self.clamp_max_x % 256) as u8);
-        mmu.mem_write(0x77d, (self.clamp_max_x / 256) as u8);
+        mmu.mem_write(CLAMP_MIN_X_LOW + slot, (self.clamp_min_x % 256) as u8);
+        mmu.mem_write(CLAMP_MIN_X_HIGH + slot, (self.clamp_min_x / 256) as u8);
+        mmu.mem_write(CLAMP_MAX_X_LOW + slot, (self.clamp_max_x % 256) as u8);
+        mmu.mem_write(CLAMP_MAX_X_HIGH + slot, (self.clamp_max_x / 256) as u8);
 
-        mmu.mem_write(0x4fd, (self.clamp_min_y % 256) as u8);
-        mmu.mem_write(0x5fd, (self.clamp_min_y / 256) as u8);
-        mmu.mem_write(0x6fd, (self.clamp_max_y % 256) as u8);
-        mmu.mem_write(0x7fd, (self.clamp_max_y / 256) as u8);
+        mmu.mem_write(CLAMP_MIN_Y_LOW + slot, (self.clamp_min_y % 256) as u8);
+        mmu.mem_write(CLAMP_MIN_Y_HIGH + slot, (self.clamp_min_y / 256) as u8);
+        mmu.mem_write(CLAMP_MAX_Y_LOW + slot, (self.clamp_max_y % 256) as u8);
+        mmu.mem_write(CLAMP_MAX_Y_HIGH + slot, (self.clamp_max_y / 256) as u8);
 
         self.home_mouse(mmu, slot);
         self.set_mouse(mmu, slot, 0);
