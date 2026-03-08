@@ -477,15 +477,17 @@ impl Mouse {
         self.update_mouse_status(mmu, slot);
         mmu.mem_write(STATUS + slot, 0);
 
-        mmu.mem_write(0x47d, (self.clamp_min_x % 256) as u8);
-        mmu.mem_write(0x57d, (self.clamp_min_x / 256) as u8);
-        mmu.mem_write(0x67d, (self.clamp_max_x % 256) as u8);
-        mmu.mem_write(0x77d, (self.clamp_max_x / 256) as u8);
+        if mmu.a2c {
+            mmu.mem_write(0x47d, (self.clamp_min_x % 256) as u8);
+            mmu.mem_write(0x57d, (self.clamp_min_x / 256) as u8);
+            mmu.mem_write(0x67d, (self.clamp_max_x % 256) as u8);
+            mmu.mem_write(0x77d, (self.clamp_max_x / 256) as u8);
 
-        mmu.mem_write(0x4fd, (self.clamp_min_y % 256) as u8);
-        mmu.mem_write(0x5fd, (self.clamp_min_y / 256) as u8);
-        mmu.mem_write(0x6fd, (self.clamp_max_y % 256) as u8);
-        mmu.mem_write(0x7fd, (self.clamp_max_y / 256) as u8);
+            mmu.mem_write(0x4fd, (self.clamp_min_y % 256) as u8);
+            mmu.mem_write(0x5fd, (self.clamp_min_y / 256) as u8);
+            mmu.mem_write(0x6fd, (self.clamp_max_y % 256) as u8);
+            mmu.mem_write(0x7fd, (self.clamp_max_y / 256) as u8);
+        }
 
         self.home_mouse(mmu, slot);
         self.set_mouse(mmu, slot, 0);
@@ -615,6 +617,10 @@ mod test {
         let mut mouse = Mouse::new();
 
         setup_mem(&mut bus);
+
+        // Clamp screen holes only available in apple 2c
+        bus.mem.a2c = true;
+
         mouse.io_access(&mut bus.mem, &mut bus.video, 0xc0c3, INIT_MOUSE, false);
         assert_eq!(
             bus.mem.mem_read(0x47d) == 0 && bus.mem.mem_read(0x57d) == 0,

@@ -124,6 +124,7 @@ pub struct Mmu {
     pub aux_type: AuxType,
 
     pub a2cp: bool,
+    pub a2c: bool,
 
     mig: Vec<u8>,
     mig_state: usize,
@@ -169,6 +170,7 @@ impl Mmu {
             aux_type: AuxType::default(),
 
             a2cp: false,
+            a2c: false,
 
             saturn_flag: false,
             saturn_bank: 0,
@@ -193,6 +195,7 @@ impl Mmu {
         self.saturn_bank = 0;
         self.rom_bank = false;
         self.a2cp = false;
+        self.a2c = false;
         self.mig_bank = 0;
     }
 

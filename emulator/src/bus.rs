@@ -425,6 +425,8 @@ impl Bus {
             if self.mem.cpu_memory[0xfbbf] == 5 {
                 self.mem.a2cp = true
             }
+
+            self.mem.a2c = true;
         }
     }
 
