@@ -54,6 +54,8 @@ const AUDIO_SAMPLE_RATE: u32 = emu6502::audio::AUDIO_SAMPLE_RATE as u32;
 const AUDIO_SAMPLE_SIZE: u32 = AUDIO_SAMPLE_RATE / 60;
 const AUDIO_SAMPLE_SIZE_50HZ: u32 = AUDIO_SAMPLE_RATE / 50;
 
+const PADDLE_MAX_VALUE: u16 = 288;
+
 //const CPU_6502_MHZ: usize = 157500 * 1000 / 11 * 65 / 912;
 const NTSC_LUMA_BANDWIDTH: f32 = 2300000.0;
 const NTSC_CHROMA_BANDWIDTH: f32 = 600000.0;
@@ -214,6 +216,14 @@ fn translate_key_to_apple_key(
 }
 
 fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
+    if function_key_processed(cpu, &event, event_param) {
+        return;
+    }
+
+    if numpad_key_processed(cpu, &event) {
+        return;
+    }
+
     match event {
         Event::Quit { .. } => cpu.halt_cpu(),
 
@@ -227,16 +237,6 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         }
 
         Event::KeyDown {
-            keycode: Some(Keycode::ScrollLock) | Some(Keycode::F12),
-            keymod,
-            ..
-        } => {
-            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                cpu.interrupt_reset();
-            }
-        }
-
-        Event::KeyDown {
             keycode: Some(Keycode::PrintScreen),
             keymod,
             ..
@@ -244,126 +244,6 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 *event_param.save_screenshot = true;
             }
-        }
-
-        Event::KeyDown {
-            keycode: Some(Keycode::Kp1),
-            ..
-        } => {
-            cpu.bus.paddle_latch[0] = 0x0;
-            cpu.bus.paddle_latch[1] = PADDLE_MAX_VALUE;
-        }
-
-        Event::KeyUp {
-            keycode: Some(Keycode::Kp1),
-            ..
-        } => {
-            cpu.bus.reset_paddle_latch(0);
-            cpu.bus.reset_paddle_latch(1);
-        }
-
-        Event::KeyDown {
-            keycode: Some(Keycode::Kp2),
-            ..
-        } => {
-            cpu.bus.paddle_latch[1] = PADDLE_MAX_VALUE;
-        }
-
-        Event::KeyUp {
-            keycode: Some(Keycode::Kp2),
-            ..
-        } => {
-            cpu.bus.reset_paddle_latch(1);
-        }
-
-        Event::KeyDown {
-            keycode: Some(Keycode::Kp3),
-            ..
-        } => {
-            cpu.bus.paddle_latch[0] = PADDLE_MAX_VALUE;
-            cpu.bus.paddle_latch[1] = PADDLE_MAX_VALUE;
-        }
-
-        Event::KeyUp {
-            keycode: Some(Keycode::Kp3),
-            ..
-        } => {
-            cpu.bus.reset_paddle_latch(0);
-            cpu.bus.reset_paddle_latch(1);
-        }
-
-        Event::KeyDown {
-            keycode: Some(Keycode::Kp4),
-            ..
-        } => {
-            cpu.bus.paddle_latch[0] = 0x0;
-        }
-
-        Event::KeyUp {
-            keycode: Some(Keycode::Kp4),
-            ..
-        } => {
-            cpu.bus.reset_paddle_latch(0);
-        }
-
-        Event::KeyDown {
-            keycode: Some(Keycode::Kp6),
-            ..
-        } => {
-            cpu.bus.paddle_latch[0] = PADDLE_MAX_VALUE;
-        }
-
-        Event::KeyUp {
-            keycode: Some(Keycode::Kp6),
-            ..
-        } => {
-            cpu.bus.reset_paddle_latch(0);
-        }
-
-        Event::KeyDown {
-            keycode: Some(Keycode::Kp7),
-            ..
-        } => {
-            cpu.bus.paddle_latch[0] = 0x0;
-            cpu.bus.paddle_latch[1] = 0x0;
-        }
-
-        Event::KeyUp {
-            keycode: Some(Keycode::Kp7),
-            ..
-        } => {
-            cpu.bus.reset_paddle_latch(0);
-            cpu.bus.reset_paddle_latch(1);
-        }
-
-        Event::KeyDown {
-            keycode: Some(Keycode::Kp8),
-            ..
-        } => {
-            cpu.bus.paddle_latch[1] = 0x0;
-        }
-
-        Event::KeyUp {
-            keycode: Some(Keycode::Kp8),
-            ..
-        } => {
-            cpu.bus.reset_paddle_latch(1);
-        }
-
-        Event::KeyDown {
-            keycode: Some(Keycode::Kp9),
-            ..
-        } => {
-            cpu.bus.paddle_latch[0] = PADDLE_MAX_VALUE;
-            cpu.bus.paddle_latch[1] = 0;
-        }
-
-        Event::KeyUp {
-            keycode: Some(Keycode::Kp9),
-            ..
-        } => {
-            cpu.bus.reset_paddle_latch(0);
-            cpu.bus.reset_paddle_latch(1);
         }
 
         Event::KeyDown {
@@ -409,208 +289,6 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         } => {
             if cpu.is_apple2e() {
                 cpu.bus.pushbutton_latch[2] = 0x0;
-            }
-        }
-
-        Event::KeyDown {
-            keycode: Some(Keycode::F11),
-            keymod,
-            ..
-        } => {
-            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                eject_harddisk(cpu, 1);
-            } else {
-                open_harddisk_dialog(cpu, 1);
-            }
-        }
-
-        Event::KeyDown {
-            keycode: Some(Keycode::F10),
-            keymod,
-            ..
-        } => {
-            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                eject_harddisk(cpu, 0);
-            } else {
-                open_harddisk_dialog(cpu, 0);
-            }
-        }
-
-        Event::KeyDown {
-            keycode: Some(Keycode::F9),
-            keymod,
-            ..
-        } => {
-            let speed_mode = *event_param.speed_mode;
-            if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
-                *event_param.speed_index =
-                    (*event_param.speed_index + speed_mode.len() - 1) % speed_mode.len();
-            } else if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                cpu.bus.audio.eject_tape();
-            } else {
-                *event_param.speed_index = (*event_param.speed_index + 1) % speed_mode.len();
-            }
-            cpu.set_speed(speed_mode[*event_param.speed_index]);
-        }
-
-        Event::KeyDown {
-            keycode: Some(Keycode::F8),
-            keymod,
-            ..
-        } => {
-            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                load_tape(cpu);
-            } else {
-                cpu.bus.toggle_joystick_jitter();
-            }
-        }
-
-        Event::KeyDown {
-            keycode: Some(Keycode::F7),
-            keymod,
-            ..
-        } => {
-            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                let color_burst = cpu.bus.video.get_text_color_burst();
-                cpu.bus.video.set_text_color_burst(!color_burst);
-            } else {
-                cpu.bus.toggle_video_freq();
-            }
-        }
-        Event::KeyDown {
-            keycode: Some(Keycode::F6),
-            keymod,
-            ..
-        } => {
-            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                let mode = !cpu.bus.audio.get_filter_enabled();
-                cpu.bus.audio.set_filter_enabled(mode);
-            } else {
-                let display_mode = *event_param.display_mode;
-                if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
-                    *event_param.display_index =
-                        (*event_param.display_index + display_mode.len() - 1) % display_mode.len();
-                } else {
-                    *event_param.display_index =
-                        (*event_param.display_index + 1) % display_mode.len();
-                }
-                cpu.bus
-                    .video
-                    .set_display_mode(display_mode[*event_param.display_index]);
-            }
-        }
-        Event::KeyDown {
-            keycode: Some(Keycode::F5),
-            keymod,
-            ..
-        } => {
-            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                let mode = !cpu.bus.video.get_scanline();
-                cpu.bus.video.set_scanline(mode);
-            } else {
-                *event_param.disk_mode_index = (*event_param.disk_mode_index + 1) % 3;
-                match *event_param.disk_mode_index {
-                    0 => {
-                        cpu.bus.disk.set_disk_sound_enable(true);
-                        cpu.bus.disk.set_disable_fast_disk(false);
-                    }
-                    1 => {
-                        cpu.bus.disk.set_disk_sound_enable(false);
-                        cpu.bus.disk.set_disable_fast_disk(false);
-                    }
-                    2 => {
-                        cpu.bus.disk.set_disk_sound_enable(false);
-                        cpu.bus.disk.set_disable_fast_disk(true);
-                    }
-                    _ => {}
-                }
-            }
-        }
-        Event::KeyDown {
-            keycode: Some(Keycode::F4),
-            keymod,
-            ..
-        } => {
-            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
-                    dump_disk_info(cpu);
-                } else {
-                    *event_param.reload_cpu = true;
-                    cpu.halt_cpu();
-                }
-            } else {
-                cpu.bus.toggle_joystick();
-            }
-        }
-
-        Event::KeyDown {
-            keycode: Some(Keycode::F3),
-            keymod,
-            ..
-        } => {
-            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
-                    dump_track_sector_info(cpu);
-                } else {
-                    #[cfg(feature = "serialization")]
-                    save_serialized_image(cpu);
-                }
-            } else {
-                cpu.bus.disk.swap_drive();
-            }
-        }
-
-        Event::KeyDown {
-            keycode: Some(Keycode::F2),
-            keymod,
-            ..
-        } => {
-            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
-                    let mut output = String::new();
-                    let addr = adjust_disassemble_addr(&mut cpu.bus, cpu.program_counter, -10);
-                    disassemble_addr(&mut output, cpu, addr, 20);
-                    let track_info = cpu.bus.disk.get_track_info();
-                    eprintln!(
-                        "PC:{:04X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} S:{:02X} T:0x{:02x}.{:02} (0x{:02x}) S:{:02x}\n\n{}\n",
-                        cpu.program_counter,
-                        cpu.register_a,
-                        cpu.register_x,
-                        cpu.register_y,
-                        cpu.status,
-                        cpu.stack_pointer,
-                        track_info.0 / 4,
-                        track_info.0 % 4 * 25,
-                        track_info.1,
-                        track_info.2,
-                        output
-                    );
-                } else {
-                    eject_disk(cpu, 1);
-                }
-            } else {
-                open_disk_dialog(cpu, 1);
-            }
-        }
-
-        Event::KeyDown {
-            keycode: Some(Keycode::F1),
-            keymod,
-            ..
-        } => {
-            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
-                    eprintln!(
-                        "MHz: {:.3} FPS: {:.2} Cycles: {}",
-                        event_param.estimated_mhz,
-                        event_param.fps,
-                        cpu.bus.get_cycles()
-                    );
-                } else {
-                    eject_disk(cpu, 0);
-                }
-            } else {
-                open_disk_dialog(cpu, 0);
             }
         }
 
@@ -1347,6 +1025,387 @@ fn initialize_new_cpu(
     disp.invalidate_video_cache()
 }
 
+fn numpad_key_processed(cpu: &mut CPU, event: &Event) -> bool {
+    match event {
+        Event::KeyDown {
+            keycode: Some(Keycode::Kp1),
+            ..
+        } => {
+            cpu.bus.paddle_latch[0] = 0x0;
+            cpu.bus.paddle_latch[1] = PADDLE_MAX_VALUE;
+            return true;
+        }
+
+        Event::KeyUp {
+            keycode: Some(Keycode::Kp1),
+            ..
+        } => {
+            cpu.bus.reset_paddle_latch(0);
+            cpu.bus.reset_paddle_latch(1);
+            return true;
+        }
+
+        Event::KeyDown {
+            keycode: Some(Keycode::Kp2),
+            ..
+        } => {
+            cpu.bus.paddle_latch[1] = PADDLE_MAX_VALUE;
+            return true;
+        }
+
+        Event::KeyUp {
+            keycode: Some(Keycode::Kp2),
+            ..
+        } => {
+            cpu.bus.reset_paddle_latch(1);
+            return true;
+        }
+
+        Event::KeyDown {
+            keycode: Some(Keycode::Kp3),
+            ..
+        } => {
+            cpu.bus.paddle_latch[0] = PADDLE_MAX_VALUE;
+            cpu.bus.paddle_latch[1] = PADDLE_MAX_VALUE;
+            return true;
+        }
+
+        Event::KeyUp {
+            keycode: Some(Keycode::Kp3),
+            ..
+        } => {
+            cpu.bus.reset_paddle_latch(0);
+            cpu.bus.reset_paddle_latch(1);
+            return true;
+        }
+
+        Event::KeyDown {
+            keycode: Some(Keycode::Kp4),
+            ..
+        } => {
+            cpu.bus.paddle_latch[0] = 0x0;
+            return true;
+        }
+
+        Event::KeyUp {
+            keycode: Some(Keycode::Kp4),
+            ..
+        } => {
+            cpu.bus.reset_paddle_latch(0);
+            return true;
+        }
+
+        Event::KeyDown {
+            keycode: Some(Keycode::Kp6),
+            ..
+        } => {
+            cpu.bus.paddle_latch[0] = PADDLE_MAX_VALUE;
+            return true;
+        }
+
+        Event::KeyUp {
+            keycode: Some(Keycode::Kp6),
+            ..
+        } => {
+            cpu.bus.reset_paddle_latch(0);
+            return true;
+        }
+
+        Event::KeyDown {
+            keycode: Some(Keycode::Kp7),
+            ..
+        } => {
+            cpu.bus.paddle_latch[0] = 0x0;
+            cpu.bus.paddle_latch[1] = 0x0;
+            return true;
+        }
+
+        Event::KeyUp {
+            keycode: Some(Keycode::Kp7),
+            ..
+        } => {
+            cpu.bus.reset_paddle_latch(0);
+            cpu.bus.reset_paddle_latch(1);
+            return true;
+        }
+
+        Event::KeyDown {
+            keycode: Some(Keycode::Kp8),
+            ..
+        } => {
+            cpu.bus.paddle_latch[1] = 0x0;
+            return true;
+        }
+
+        Event::KeyUp {
+            keycode: Some(Keycode::Kp8),
+            ..
+        } => {
+            cpu.bus.reset_paddle_latch(1);
+            return true;
+        }
+
+        Event::KeyDown {
+            keycode: Some(Keycode::Kp9),
+            ..
+        } => {
+            cpu.bus.paddle_latch[0] = PADDLE_MAX_VALUE;
+            cpu.bus.paddle_latch[1] = 0;
+            return true;
+        }
+
+        Event::KeyUp {
+            keycode: Some(Keycode::Kp9),
+            ..
+        } => {
+            cpu.bus.reset_paddle_latch(0);
+            cpu.bus.reset_paddle_latch(1);
+            return true;
+        }
+
+        _ => {}
+    }
+    false
+}
+
+fn function_key_processed(cpu: &mut CPU, event: &Event, event_param: &mut EventParam) -> bool {
+    match event {
+        Event::KeyDown {
+            keycode: Some(Keycode::F1),
+            keymod,
+            ..
+        } => {
+            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
+                    eprintln!(
+                        "MHz: {:.3} FPS: {:.2} Cycles: {}",
+                        event_param.estimated_mhz,
+                        event_param.fps,
+                        cpu.bus.get_cycles()
+                    );
+                } else {
+                    eject_disk(cpu, 0);
+                }
+                return true;
+            } else {
+                open_disk_dialog(cpu, 0);
+                return true;
+            }
+        }
+
+        Event::KeyDown {
+            keycode: Some(Keycode::F2),
+            keymod,
+            ..
+        } => {
+            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
+                    let mut output = String::new();
+                    let addr = adjust_disassemble_addr(&mut cpu.bus, cpu.program_counter, -10);
+                    disassemble_addr(&mut output, cpu, addr, 20);
+                    let track_info = cpu.bus.disk.get_track_info();
+                    eprintln!(
+                        "PC:{:04X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} S:{:02X} T:0x{:02x}.{:02} (0x{:02x}) S:{:02x}\n\n{}\n",
+                        cpu.program_counter,
+                        cpu.register_a,
+                        cpu.register_x,
+                        cpu.register_y,
+                        cpu.status,
+                        cpu.stack_pointer,
+                        track_info.0 / 4,
+                        track_info.0 % 4 * 25,
+                        track_info.1,
+                        track_info.2,
+                        output
+                    );
+                } else {
+                    eject_disk(cpu, 1);
+                }
+                return true;
+            } else {
+                open_disk_dialog(cpu, 1);
+                return true;
+            }
+        }
+
+        Event::KeyDown {
+            keycode: Some(Keycode::F3),
+            keymod,
+            ..
+        } => {
+            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
+                    dump_track_sector_info(cpu);
+                } else {
+                    #[cfg(feature = "serialization")]
+                    save_serialized_image(cpu);
+                }
+                return true;
+            } else {
+                cpu.bus.disk.swap_drive();
+                return true;
+            }
+        }
+        Event::KeyDown {
+            keycode: Some(Keycode::F4),
+            keymod,
+            ..
+        } => {
+            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
+                    dump_disk_info(cpu);
+                } else {
+                    *event_param.reload_cpu = true;
+                    cpu.halt_cpu();
+                }
+                return true;
+            } else {
+                cpu.bus.toggle_joystick();
+                return true;
+            }
+        }
+        Event::KeyDown {
+            keycode: Some(Keycode::F5),
+            keymod,
+            ..
+        } => {
+            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                let mode = !cpu.bus.video.get_scanline();
+                cpu.bus.video.set_scanline(mode);
+                return true;
+            } else {
+                *event_param.disk_mode_index = (*event_param.disk_mode_index + 1) % 3;
+                match *event_param.disk_mode_index {
+                    0 => {
+                        cpu.bus.disk.set_disk_sound_enable(true);
+                        cpu.bus.disk.set_disable_fast_disk(false);
+                    }
+                    1 => {
+                        cpu.bus.disk.set_disk_sound_enable(false);
+                        cpu.bus.disk.set_disable_fast_disk(false);
+                    }
+                    2 => {
+                        cpu.bus.disk.set_disk_sound_enable(false);
+                        cpu.bus.disk.set_disable_fast_disk(true);
+                    }
+                    _ => {}
+                }
+                return true;
+            }
+        }
+
+        Event::KeyDown {
+            keycode: Some(Keycode::F6),
+            keymod,
+            ..
+        } => {
+            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                let mode = !cpu.bus.audio.get_filter_enabled();
+                cpu.bus.audio.set_filter_enabled(mode);
+                return true;
+            } else {
+                let display_mode = *event_param.display_mode;
+                if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
+                    *event_param.display_index =
+                        (*event_param.display_index + display_mode.len() - 1) % display_mode.len();
+                } else {
+                    *event_param.display_index =
+                        (*event_param.display_index + 1) % display_mode.len();
+                }
+                cpu.bus
+                    .video
+                    .set_display_mode(display_mode[*event_param.display_index]);
+                return true;
+            }
+        }
+        Event::KeyDown {
+            keycode: Some(Keycode::F7),
+            keymod,
+            ..
+        } => {
+            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                let color_burst = cpu.bus.video.get_text_color_burst();
+                cpu.bus.video.set_text_color_burst(!color_burst);
+            } else {
+                cpu.bus.toggle_video_freq();
+            }
+            return true;
+        }
+        Event::KeyDown {
+            keycode: Some(Keycode::F8),
+            keymod,
+            ..
+        } => {
+            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                load_tape(cpu);
+            } else {
+                cpu.bus.toggle_joystick_jitter();
+            }
+            return true;
+        }
+
+        Event::KeyDown {
+            keycode: Some(Keycode::F9),
+            keymod,
+            ..
+        } => {
+            let speed_mode = *event_param.speed_mode;
+            if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
+                *event_param.speed_index =
+                    (*event_param.speed_index + speed_mode.len() - 1) % speed_mode.len();
+            } else if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                cpu.bus.audio.eject_tape();
+            } else {
+                *event_param.speed_index = (*event_param.speed_index + 1) % speed_mode.len();
+            }
+            cpu.set_speed(speed_mode[*event_param.speed_index]);
+            return true;
+        }
+
+        Event::KeyDown {
+            keycode: Some(Keycode::F10),
+            keymod,
+            ..
+        } => {
+            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                eject_harddisk(cpu, 0);
+            } else {
+                open_harddisk_dialog(cpu, 0);
+            }
+            return true;
+        }
+
+        Event::KeyDown {
+            keycode: Some(Keycode::F11),
+            keymod,
+            ..
+        } => {
+            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                eject_harddisk(cpu, 1);
+            } else {
+                open_harddisk_dialog(cpu, 1);
+            }
+            return true;
+        }
+
+        Event::KeyDown {
+            keycode: Some(Keycode::ScrollLock) | Some(Keycode::F12),
+            keymod,
+            ..
+        } => {
+            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                cpu.interrupt_reset();
+                return true;
+            }
+            return true;
+        }
+
+        _ => {}
+    }
+
+    false
+}
+
 fn handle_file_drop(cpu: &mut CPU, filename: &str) {
     let path = Path::new(filename);
     if let Some(path_ext) = path.extension() {
@@ -1373,8 +1432,6 @@ fn handle_file_drop(cpu: &mut CPU, filename: &str) {
 }
 
 fn handle_gamepad_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
-    const PADDLE_MAX_VALUE: u16 = 288;
-
     match event {
         Event::ControllerAxisMotion {
             which, axis, value, ..
