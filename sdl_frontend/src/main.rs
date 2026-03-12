@@ -214,151 +214,16 @@ fn translate_key_to_apple_key(
 }
 
 fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
-    const PADDLE_MAX_VALUE: u16 = 288;
-
     match event {
         Event::Quit { .. } => cpu.halt_cpu(),
 
-        Event::ControllerAxisMotion {
-            which, axis, value, ..
-        } => {
-            if let Some(entry) = event_param.gamepads.get(&which) {
-                let joystick_id = entry.0;
-                // Axis motion is an absolute value in the range
-                // [-32768, 32767]. Let's simulate a very rough dead
-                // zone to ignore spurious events.
-                if joystick_id < 2 {
-                    match axis {
-                        Axis::LeftX | Axis::RightX => {
-                            if value == 128 {
-                                cpu.bus.reset_paddle_latch(2 * joystick_id as usize);
-                            } else {
-                                let u = entry.1.axis(axis) as f32 / 32768.0;
-                                let v = if axis == Axis::LeftX {
-                                    entry.1.axis(Axis::LeftY) as f32 / 32768.0
-                                } else {
-                                    entry.1.axis(Axis::RightY) as f32 / 32768.0
-                                };
-
-                                // Squaring a circle algorithm
-                                let mut x = u;
-                                if u * v != 0.0 {
-                                    let ratio = (v * v) / (u * u);
-                                    let c = f32::min(ratio, 1.0 / ratio);
-                                    let coeff = f32::sqrt(1.0 + c);
-                                    x *= coeff;
-                                }
-                                x = x.clamp(-1.0, 1.0);
-                                let x = (x * 32768.0) as i32;
-                                let mut pvalue = ((x + 32768) / 257) as u16;
-                                if pvalue >= 255 {
-                                    pvalue = PADDLE_MAX_VALUE;
-                                }
-                                cpu.bus.paddle_latch[2 * joystick_id as usize] = pvalue
-                            }
-                        }
-                        Axis::LeftY | Axis::RightY => {
-                            if value == 128 {
-                                cpu.bus.reset_paddle_latch(2 * joystick_id as usize + 1);
-                            } else {
-                                let v = entry.1.axis(axis) as f32 / 32768.0;
-                                let u = if axis == Axis::LeftY {
-                                    entry.1.axis(Axis::LeftX) as f32 / 32768.0
-                                } else {
-                                    entry.1.axis(Axis::RightX) as f32 / 32768.0
-                                };
-
-                                // Squaring a circle algorithm
-                                let mut y = v;
-                                if u * v != 0.0 {
-                                    let ratio = (v * v) / (u * u);
-                                    let c = f32::min(ratio, 1.0 / ratio);
-                                    let coeff = f32::sqrt(1.0 + c);
-                                    y *= coeff;
-                                }
-
-                                y = y.clamp(-1.0, 1.0);
-                                let y = (y * 32768.0) as i32;
-                                let mut pvalue = ((y + 32768) / 257) as u16;
-                                if pvalue >= 255 {
-                                    pvalue = PADDLE_MAX_VALUE;
-                                }
-                                cpu.bus.paddle_latch[2 * joystick_id as usize + 1] = pvalue
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-            }
-        }
-
-        Event::ControllerButtonDown { which, button, .. } => {
-            if let Some(entry) = event_param.gamepads.get(&which) {
-                let joystick_id = entry.0;
-                if joystick_id < 2 {
-                    match button {
-                        Button::South => {
-                            cpu.bus.pushbutton_latch[2 * joystick_id as usize] = 0x80;
-                        }
-                        Button::East => {
-                            cpu.bus.pushbutton_latch[2 * joystick_id as usize + 1] = 0x80;
-                        }
-                        Button::DPadUp => {
-                            cpu.bus.paddle_latch[2 * joystick_id as usize + 1] = 0x0;
-                        }
-                        Button::DPadDown => {
-                            cpu.bus.paddle_latch[2 * joystick_id as usize + 1] = PADDLE_MAX_VALUE;
-                        }
-                        Button::DPadLeft => {
-                            cpu.bus.paddle_latch[2 * joystick_id as usize] = 0x0;
-                        }
-                        Button::DPadRight => {
-                            cpu.bus.paddle_latch[2 * joystick_id as usize] = PADDLE_MAX_VALUE;
-                        }
-                        _ => {}
-                    }
-                }
-            }
-        }
-
-        Event::ControllerButtonUp { which, button, .. } => {
-            if let Some(entry) = event_param.gamepads.get(&which) {
-                let joystick_id = entry.0;
-                if joystick_id < 2 {
-                    match button {
-                        Button::South => {
-                            cpu.bus.pushbutton_latch[2 * joystick_id as usize] = 0x00;
-                        }
-                        Button::East => {
-                            cpu.bus.pushbutton_latch[2 * joystick_id as usize + 1] = 0x00;
-                        }
-                        Button::DPadUp | Button::DPadDown => {
-                            cpu.bus.reset_paddle_latch(2 * joystick_id as usize + 1);
-                        }
-                        Button::DPadLeft | Button::DPadRight => {
-                            cpu.bus.reset_paddle_latch(2 * joystick_id as usize);
-                        }
-                        _ => {}
-                    }
-                }
-            }
-        }
-
-        Event::ControllerDeviceAdded { which, .. } => {
-            // Which refers to joystick device index
-            let joy_id = sdl3::joystick::JoystickId { 0: which };
-            if let Ok(controller) = event_param.game_controller.open(joy_id)
-                && let Some(player_index) = controller.player_index()
-            {
-                event_param
-                    .gamepads
-                    .insert(which, (player_index, controller));
-            }
-        }
-
-        Event::ControllerDeviceRemoved { which, .. } => {
-            // Which refers to instance id
-            event_param.gamepads.remove(&which);
+        // Gamepad
+        Event::ControllerAxisMotion { .. }
+        | Event::ControllerButtonDown { .. }
+        | Event::ControllerButtonUp { .. }
+        | Event::ControllerDeviceAdded { .. }
+        | Event::ControllerDeviceRemoved { .. } => {
+            handle_gamepad_event(cpu, event, event_param);
         }
 
         Event::KeyDown {
@@ -804,30 +669,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             }
         }
 
-        Event::DropFile { filename, .. } => {
-            let path = Path::new(&filename);
-            if let Some(path_ext) = path.extension() {
-                let po_hd = if let Ok(metadata) = fs::metadata(path) {
-                    path_ext.eq_ignore_ascii_case(OsStr::new("po")) && metadata.len() > 143360
-                } else {
-                    false
-                };
-
-                let is_hard_disk = path_ext.eq_ignore_ascii_case(OsStr::new("2mg"))
-                    || path_ext.eq_ignore_ascii_case(OsStr::new("hdv"))
-                    || po_hd;
-
-                let result = if is_hard_disk {
-                    load_harddisk(cpu, path, 0)
-                } else {
-                    load_disk(cpu, path, 0)
-                };
-
-                if let Err(e) = result {
-                    eprintln!("Unable to load disk {filename} : {e}");
-                }
-            }
-        }
+        Event::DropFile { filename, .. } => handle_file_drop(cpu, &filename),
 
         _ => { /* do nothing */ }
     }
@@ -1505,6 +1347,181 @@ fn initialize_new_cpu(
     disp.invalidate_video_cache()
 }
 
+fn handle_file_drop(cpu: &mut CPU, filename: &str) {
+    let path = Path::new(filename);
+    if let Some(path_ext) = path.extension() {
+        let po_hd = if let Ok(metadata) = fs::metadata(path) {
+            path_ext.eq_ignore_ascii_case(OsStr::new("po")) && metadata.len() > DSK_PO_SIZE
+        } else {
+            false
+        };
+
+        let is_hard_disk = path_ext.eq_ignore_ascii_case(OsStr::new("2mg"))
+            || path_ext.eq_ignore_ascii_case(OsStr::new("hdv"))
+            || po_hd;
+
+        let result = if is_hard_disk {
+            load_harddisk(cpu, path, 0)
+        } else {
+            load_disk(cpu, path, 0)
+        };
+
+        if let Err(e) = result {
+            eprintln!("Unable to load disk {filename} : {e}");
+        }
+    }
+}
+
+fn handle_gamepad_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
+    const PADDLE_MAX_VALUE: u16 = 288;
+
+    match event {
+        Event::ControllerAxisMotion {
+            which, axis, value, ..
+        } => {
+            if let Some(entry) = event_param.gamepads.get(&which) {
+                let joystick_id = entry.0;
+                // Axis motion is an absolute value in the range
+                // [-32768, 32767]. Let's simulate a very rough dead
+                // zone to ignore spurious events.
+                if joystick_id < 2 {
+                    match axis {
+                        Axis::LeftX | Axis::RightX => {
+                            if value == 128 {
+                                cpu.bus.reset_paddle_latch(2 * joystick_id as usize);
+                            } else {
+                                let u = entry.1.axis(axis) as f32 / 32768.0;
+                                let v = if axis == Axis::LeftX {
+                                    entry.1.axis(Axis::LeftY) as f32 / 32768.0
+                                } else {
+                                    entry.1.axis(Axis::RightY) as f32 / 32768.0
+                                };
+
+                                // Squaring a circle algorithm
+                                let mut x = u;
+                                if u * v != 0.0 {
+                                    let ratio = (v * v) / (u * u);
+                                    let c = f32::min(ratio, 1.0 / ratio);
+                                    let coeff = f32::sqrt(1.0 + c);
+                                    x *= coeff;
+                                }
+                                x = x.clamp(-1.0, 1.0);
+                                let x = (x * 32768.0) as i32;
+                                let mut pvalue = ((x + 32768) / 257) as u16;
+                                if pvalue >= 255 {
+                                    pvalue = PADDLE_MAX_VALUE;
+                                }
+                                cpu.bus.paddle_latch[2 * joystick_id as usize] = pvalue
+                            }
+                        }
+                        Axis::LeftY | Axis::RightY => {
+                            if value == 128 {
+                                cpu.bus.reset_paddle_latch(2 * joystick_id as usize + 1);
+                            } else {
+                                let v = entry.1.axis(axis) as f32 / 32768.0;
+                                let u = if axis == Axis::LeftY {
+                                    entry.1.axis(Axis::LeftX) as f32 / 32768.0
+                                } else {
+                                    entry.1.axis(Axis::RightX) as f32 / 32768.0
+                                };
+
+                                // Squaring a circle algorithm
+                                let mut y = v;
+                                if u * v != 0.0 {
+                                    let ratio = (v * v) / (u * u);
+                                    let c = f32::min(ratio, 1.0 / ratio);
+                                    let coeff = f32::sqrt(1.0 + c);
+                                    y *= coeff;
+                                }
+
+                                y = y.clamp(-1.0, 1.0);
+                                let y = (y * 32768.0) as i32;
+                                let mut pvalue = ((y + 32768) / 257) as u16;
+                                if pvalue >= 255 {
+                                    pvalue = PADDLE_MAX_VALUE;
+                                }
+                                cpu.bus.paddle_latch[2 * joystick_id as usize + 1] = pvalue
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        Event::ControllerButtonDown { which, button, .. } => {
+            if let Some(entry) = event_param.gamepads.get(&which) {
+                let joystick_id = entry.0;
+                if joystick_id < 2 {
+                    match button {
+                        Button::South => {
+                            cpu.bus.pushbutton_latch[2 * joystick_id as usize] = 0x80;
+                        }
+                        Button::East => {
+                            cpu.bus.pushbutton_latch[2 * joystick_id as usize + 1] = 0x80;
+                        }
+                        Button::DPadUp => {
+                            cpu.bus.paddle_latch[2 * joystick_id as usize + 1] = 0x0;
+                        }
+                        Button::DPadDown => {
+                            cpu.bus.paddle_latch[2 * joystick_id as usize + 1] = PADDLE_MAX_VALUE;
+                        }
+                        Button::DPadLeft => {
+                            cpu.bus.paddle_latch[2 * joystick_id as usize] = 0x0;
+                        }
+                        Button::DPadRight => {
+                            cpu.bus.paddle_latch[2 * joystick_id as usize] = PADDLE_MAX_VALUE;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        Event::ControllerButtonUp { which, button, .. } => {
+            if let Some(entry) = event_param.gamepads.get(&which) {
+                let joystick_id = entry.0;
+                if joystick_id < 2 {
+                    match button {
+                        Button::South => {
+                            cpu.bus.pushbutton_latch[2 * joystick_id as usize] = 0x00;
+                        }
+                        Button::East => {
+                            cpu.bus.pushbutton_latch[2 * joystick_id as usize + 1] = 0x00;
+                        }
+                        Button::DPadUp | Button::DPadDown => {
+                            cpu.bus.reset_paddle_latch(2 * joystick_id as usize + 1);
+                        }
+                        Button::DPadLeft | Button::DPadRight => {
+                            cpu.bus.reset_paddle_latch(2 * joystick_id as usize);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        Event::ControllerDeviceAdded { which, .. } => {
+            // Which refers to joystick device index
+            let joy_id = sdl3::joystick::JoystickId { 0: which };
+            if let Ok(controller) = event_param.game_controller.open(joy_id)
+                && let Some(player_index) = controller.player_index()
+            {
+                event_param
+                    .gamepads
+                    .insert(which, (player_index, controller));
+            }
+        }
+
+        Event::ControllerDeviceRemoved { which, .. } => {
+            // Which refers to instance id
+            event_param.gamepads.remove(&which);
+        }
+
+        _ => {}
+    }
+}
+
 //#[tokio::main]
 //async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
@@ -1913,6 +1930,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let width = (scale * WIDTH as f32) as u32;
     let height = (scale * HEIGHT as f32) as u32;
     let video_subsystem = sdl_context.video()?;
+
     let mut window = video_subsystem
         .window("Apple ][ emulator", width, height + 2 * MENUBAR_HEIGHT)
         .position_centered()
