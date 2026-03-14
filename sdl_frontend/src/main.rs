@@ -1168,6 +1168,19 @@ fn numpad_key_processed(cpu: &mut CPU, event: &Event) -> bool {
     false
 }
 
+/// Handles pasting text into the emulator keyboard latch.
+fn process_clipboard(cpu: &mut CPU, clipboard_text: &mut String) {
+    if clipboard_text.is_empty() {
+        return;
+    }
+    
+    let latch = cpu.bus.get_keyboard_latch();
+    if latch < 0x80 && let Some(ch) = clipboard_text.chars().next() {
+        cpu.bus.set_keyboard_latch((ch as u8) + 0x80);
+        clipboard_text.remove(0);
+    }
+}
+
 fn function_key_processed(cpu: &mut CPU, event: &Event, event_param: &mut EventParam) -> bool {
     match event {
         Event::KeyDown {
@@ -2128,17 +2141,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             let mut cpu_period = 16_688;
 
             // Handle clipboard text if any
-            if !clipboard_text.is_empty() {
-                let latch = _cpu.bus.get_keyboard_latch();
-
-                // Only put into keyboard latch when it is ready
-                if latch < 0x80
-                    && let Some(ch) = clipboard_text.chars().next()
-                {
-                    _cpu.bus.set_keyboard_latch((ch as u8) + 0x80);
-                    clipboard_text.remove(0);
-                }
-            }
+            process_clipboard(_cpu, &mut clipboard_text);
 
             if _cpu.bus.video.is_video_50hz() {
                 cpu_cycles = CPU_CYCLES_PER_FRAME_50HZ;
