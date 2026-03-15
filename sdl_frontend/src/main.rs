@@ -1173,9 +1173,11 @@ fn process_clipboard(cpu: &mut CPU, clipboard_text: &mut String) {
     if clipboard_text.is_empty() {
         return;
     }
-    
+
     let latch = cpu.bus.get_keyboard_latch();
-    if latch < 0x80 && let Some(ch) = clipboard_text.chars().next() {
+    if latch < 0x80
+        && let Some(ch) = clipboard_text.chars().next()
+    {
         cpu.bus.set_keyboard_latch((ch as u8) + 0x80);
         clipboard_text.remove(0);
     }

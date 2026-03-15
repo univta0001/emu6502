@@ -596,7 +596,7 @@ impl Mmu {
         self.saturn_bank = value
     }
 
-    pub fn io_access(&mut self, addr: u16, _value: u8, write_flag: bool) -> u8 {
+    pub fn io_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
         let io_addr = addr & 0xf;
         let write_mode = (io_addr & 0x01) > 0;
         let bank_on_mode = (io_addr & 0x02) > 0;
@@ -643,7 +643,7 @@ impl Mmu {
             }
         }
 
-        0
+        value
     }
 }
 
