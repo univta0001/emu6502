@@ -1422,26 +1422,29 @@ fn function_key_processed(cpu: &mut CPU, event: &Event, event_param: &mut EventP
 }
 
 fn handle_file_drop(cpu: &mut CPU, filename: &str) {
-    let path = Path::new(filename);
-    if let Some(path_ext) = path.extension() {
-        let po_hd = if let Ok(metadata) = fs::metadata(path) {
-            path_ext.eq_ignore_ascii_case(OsStr::new("po")) && metadata.len() > DSK_PO_SIZE
-        } else {
-            false
-        };
+    #[cfg(feature = "serialization")]
+    {
+        let path = Path::new(filename);
+        if let Some(path_ext) = path.extension() {
+            let po_hd = if let Ok(metadata) = fs::metadata(path) {
+                path_ext.eq_ignore_ascii_case(OsStr::new("po")) && metadata.len() > DSK_PO_SIZE
+            } else {
+                false
+            };
 
-        let is_hard_disk = path_ext.eq_ignore_ascii_case(OsStr::new("2mg"))
-            || path_ext.eq_ignore_ascii_case(OsStr::new("hdv"))
-            || po_hd;
+            let is_hard_disk = path_ext.eq_ignore_ascii_case(OsStr::new("2mg"))
+                || path_ext.eq_ignore_ascii_case(OsStr::new("hdv"))
+                || po_hd;
 
-        let result = if is_hard_disk {
-            load_harddisk(cpu, path, 0)
-        } else {
-            load_disk(cpu, path, 0)
-        };
+            let result = if is_hard_disk {
+                load_harddisk(cpu, path, 0)
+            } else {
+                load_disk(cpu, path, 0)
+            };
 
-        if let Err(e) = result {
-            eprintln!("Unable to load disk {filename} : {e}");
+            if let Err(e) = result {
+                eprintln!("Unable to load disk {filename} : {e}");
+            }
         }
     }
 }
@@ -2558,7 +2561,7 @@ fn prepare_speed_menu(cpu: &mut CPU, ui: &imgui::Ui, event: &mut EventParam) {
         prepare_speed_menu_item(cpu, ui, event, "2.8 MHz", "F9, Shift-F9", 1);
         prepare_speed_menu_item(cpu, ui, event, "4.0 MHz", "F9, Shift-F9", 2);
         prepare_speed_menu_item(cpu, ui, event, "8.0 MHz", "F9, Shift-F9", 3);
-        prepare_speed_menu_item(cpu, ui, event, "Fastest MHz", "F9, Shirt-F9", 4);
+        prepare_speed_menu_item(cpu, ui, event, "Fastest MHz", "F9, Shift-F9", 4);
     })
 }
 

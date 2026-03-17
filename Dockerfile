@@ -7,7 +7,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y cmake build-essential libatk1.0-dev libgtk-3-dev libgdk-pixbuf-2.0-dev libpango1.0-0 libcairo2-dev libwayland-dev libpulse-dev
 
 # Copy only the dependencies
-COPY Cargo.toml Cargo.lock .
+COPY Cargo.toml Cargo.lock ./
 
 # Copy the emulator
 COPY emulator emulator/.
@@ -42,6 +42,10 @@ RUN apt-get update \
 # Copy only the compiled binary from the builder stage to this image
 COPY --from=builder /app/target/release/emu6502 /bin/emu6502
 COPY sample.dsk /sample.dsk
+
+# Create non-root user
+RUN useradd --create-home --shell /bin/false appuser
+USER appuser
 
 # Specify the command to run when the container starts
 CMD ["/bin/emu6502","/sample.dsk"]

@@ -342,7 +342,7 @@ impl Bus {
         }
 
         // Disable Auxiliary Slot for Apple 2 before Apple 2e
-        if !self.mem_read(0xfbb3) == 0x06 {
+        if self.mem_read(0xfbb3) != 0x06 {
             self.mem.aux_type = AuxType::Empty;
             self.video.disable_aux = true;
         }

@@ -1620,13 +1620,13 @@ impl Video {
     }
 
     pub fn get_pixel(&self, x: usize, y: usize) -> Rgb {
-        assert!(self.frame.len() >= y * 4 * Video::WIDTH + x * 4 + 2);
+        assert!(self.frame.len() >= y * 4 * Video::WIDTH + x * 4 + 3);
         let base = y * 4 * Video::WIDTH + x * 4;
-        [self.frame[base], self.frame[base + 1], self.frame[base + 2]]
+        [self.frame[base], self.frame[base + 1], self.frame[base + 3]]
     }
 
     pub fn set_pixel(&mut self, x: usize, y: usize, rgb: Rgb) {
-        assert!(self.frame.len() >= y * 4 * Video::WIDTH + x * 4 + 2);
+        assert!(self.frame.len() >= y * 4 * Video::WIDTH + x * 4 + 3);
         let base = y * 4 * Video::WIDTH + x * 4;
         let [r, g, b] = rgb;
         self.frame[base] = r;
@@ -1635,7 +1635,7 @@ impl Video {
     }
 
     pub fn set_pixel_2(&mut self, x: usize, y: usize, rgb: Rgb) {
-        assert!(self.frame.len() >= (y + 1) * 4 * Video::WIDTH + x * 4 + 2);
+        assert!(self.frame.len() >= (y + 1) * 4 * Video::WIDTH + x * 4 + 3);
         let base = y * 4 * Video::WIDTH + x * 4;
         let offset = 4 * Video::WIDTH;
         let [r, g, b] = rgb;
@@ -3461,7 +3461,10 @@ fn deserialize_display_mode<'de, D: Deserializer<'de>>(
 
 #[cfg(feature = "serde_support")]
 fn deserialize_cycles<'de, D: Deserializer<'de>>(deserializer: D) -> Result<usize, D::Error> {
-    let value = usize::deserialize(deserializer)? % default_cycle_field();
+    let mut value = usize::deserialize(deserializer)?;
+    if value != CYCLES_PER_FIELD_60HZ  && value != CYCLES_PER_FIELD_50HZ {
+        value = default_cycle_field();
+    }
     Ok(value)
 }
 
