@@ -46,6 +46,16 @@ use std::time::Instant;
 //use sdl2::surface::Surface;
 //use sdl2::image::LoadSurface;
 
+static APPLE2_ROM: &[u8] = include_bytes!("../../resource/Apple2.rom");
+static APPLE2P_ROM: &[u8] = include_bytes!("../../resource/Apple2_Plus.rom");
+static APPLE2E_ROM: &[u8] = include_bytes!("../../resource/Apple2e.rom");
+static APPLE2EE_ROM: &[u8] = include_bytes!("../../resource/Apple2e_Enhanced.rom");
+static APPLE2C_ROM: &[u8] = include_bytes!("../../resource/Apple2c_RomFF.rom");
+static APPLE2C0_ROM: &[u8] = include_bytes!("../../resource/Apple2c_Rom00.rom");
+static APPLE2C3_ROM: &[u8] = include_bytes!("../../resource/Apple2c_Rom03.rom");
+static APPLE2C4_ROM: &[u8] = include_bytes!("../../resource/Apple2c_Rom04.rom");
+static APPLE2CP_ROM: &[u8] = include_bytes!("../../resource/Apple2c_plus.rom");
+
 const CPU_CYCLES_PER_FRAME_60HZ: usize = 17030;
 const CPU_CYCLES_PER_FRAME_50HZ: usize = 20280;
 
@@ -1636,17 +1646,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     //let _function_test: Vec<u8> = std::fs::read("6502_functional_test.bin").unwrap();
     //let _function_test: Vec<u8> = std::fs::read("65C02_extended_opcodes_test.bin").unwrap();
     //let apple2_rom: Vec<u8> = std::fs::read("Apple2_Plus.rom").unwrap();
-    let apple2_rom: Vec<u8> = include_bytes!("../../resource/Apple2.rom").to_vec();
-    let apple2p_rom: Vec<u8> = include_bytes!("../../resource/Apple2_Plus.rom").to_vec();
-    //let apple2e_rom: Vec<u8> = std::fs::read("Apple2e.rom").unwrap();
-    let apple2e_rom: Vec<u8> = include_bytes!("../../resource/Apple2e.rom").to_vec();
-    //let apple2ee_rom: Vec<u8> = std::fs::read("Apple2e_Enhanced.rom").unwrap();
-    let apple2ee_rom: Vec<u8> = include_bytes!("../../resource/Apple2e_Enhanced.rom").to_vec();
-    let apple2c_rom: Vec<u8> = include_bytes!("../../resource/Apple2c_RomFF.rom").to_vec();
-    let apple2c0_rom: Vec<u8> = include_bytes!("../../resource/Apple2c_Rom00.rom").to_vec();
-    let apple2c3_rom: Vec<u8> = include_bytes!("../../resource/Apple2c_Rom03.rom").to_vec();
-    let apple2c4_rom: Vec<u8> = include_bytes!("../../resource/Apple2c_Rom04.rom").to_vec();
-    let apple2cp_rom: Vec<u8> = include_bytes!("../../resource/Apple2c_plus.rom").to_vec();
 
     // Create bus
     let bus = Bus::default();
@@ -1733,23 +1732,23 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     if let Some(model) = pargs.opt_value_from_str::<_, String>(["-m", "--model"])? {
         match &model[..] {
             "apple2" => {
-                initialize_apple_system(&mut cpu, &apple2_rom, 0xd000, false);
+                initialize_apple_system(&mut cpu, APPLE2_ROM, 0xd000, false);
                 cpu.bus.mem.slotc3rom = true;
                 cpu.bus.mem.intcxrom = false;
             }
             "apple2p" => {
                 apple2p = true;
-                initialize_apple_system(&mut cpu, &apple2p_rom, 0xd000, false);
+                initialize_apple_system(&mut cpu, APPLE2P_ROM, 0xd000, false);
                 cpu.bus.mem.slotc3rom = true;
                 cpu.bus.mem.intcxrom = false;
             }
-            "apple2e" => initialize_apple_system(&mut cpu, &apple2e_rom, 0xc000, false),
-            "apple2ee" => initialize_apple_system(&mut cpu, &apple2ee_rom, 0xc000, false),
-            "apple2c" => initialize_apple_system(&mut cpu, &apple2c_rom, 0xc000, false),
-            "apple2c0" => initialize_apple_system(&mut cpu, &apple2c0_rom, 0xc000, true),
-            "apple2c3" => initialize_apple_system(&mut cpu, &apple2c3_rom, 0xc000, true),
-            "apple2c4" => initialize_apple_system(&mut cpu, &apple2c4_rom, 0xc000, true),
-            "apple2cp" => initialize_apple_system(&mut cpu, &apple2cp_rom, 0xc000, true),
+            "apple2e" => initialize_apple_system(&mut cpu, APPLE2E_ROM, 0xc000, false),
+            "apple2ee" => initialize_apple_system(&mut cpu, APPLE2EE_ROM, 0xc000, false),
+            "apple2c" => initialize_apple_system(&mut cpu, APPLE2C_ROM, 0xc000, false),
+            "apple2c0" => initialize_apple_system(&mut cpu, APPLE2C0_ROM, 0xc000, true),
+            "apple2c3" => initialize_apple_system(&mut cpu, APPLE2C3_ROM, 0xc000, true),
+            "apple2c4" => initialize_apple_system(&mut cpu, APPLE2C4_ROM, 0xc000, true),
+            "apple2cp" => initialize_apple_system(&mut cpu, APPLE2CP_ROM, 0xc000, true),
             _ => {
                 eprintln!(
                     "Model supported: apple2, apple2p, apple2e, apple2ee, apple2c, apple2c0, apple2c3, apple2c4, apple2cp"
@@ -1758,7 +1757,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             }
         }
     } else {
-        initialize_apple_system(&mut cpu, &apple2ee_rom, 0xc000, false)
+        initialize_apple_system(&mut cpu, APPLE2EE_ROM, 0xc000, false)
     }
 
     if apple2p && pargs.contains("--saturn") {
@@ -2051,8 +2050,12 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             let audio_device = audio.default_playback_device();
             let audio_status = audio_device.open_device_stream(Some(&desired_spec));
             if let Ok(stream) = audio_status {
-                stream.resume().expect("Unable to resume playback");
-                Some(stream)
+                if stream.resume().is_ok() {
+                    Some(stream)
+                } else {
+                    eprintln!("Unable to resume audio playback");
+                    None
+                }
             } else {
                 eprintln!("Unable to get audio stream: {:?}", audio_status.err());
                 None
@@ -2709,22 +2712,10 @@ fn prepare_menu_for_model(
     model_changed: &mut bool,
     event: &mut EventParam,
 ) {
-    let apple2_rom: Vec<u8> = include_bytes!("../../resource/Apple2.rom").to_vec();
-    let apple2p_rom: Vec<u8> = include_bytes!("../../resource/Apple2_Plus.rom").to_vec();
-    //let apple2e_rom: Vec<u8> = std::fs::read("Apple2e.rom").unwrap();
-    let apple2e_rom: Vec<u8> = include_bytes!("../../resource/Apple2e.rom").to_vec();
-    //let apple2ee_rom: Vec<u8> = std::fs::read("Apple2e_Enhanced.rom").unwrap();
-    let apple2ee_rom: Vec<u8> = include_bytes!("../../resource/Apple2e_Enhanced.rom").to_vec();
-    let apple2c_rom: Vec<u8> = include_bytes!("../../resource/Apple2c_RomFF.rom").to_vec();
-    let apple2c0_rom: Vec<u8> = include_bytes!("../../resource/Apple2c_Rom00.rom").to_vec();
-    let apple2c3_rom: Vec<u8> = include_bytes!("../../resource/Apple2c_Rom03.rom").to_vec();
-    let apple2c4_rom: Vec<u8> = include_bytes!("../../resource/Apple2c_Rom04.rom").to_vec();
-    let apple2cp_rom: Vec<u8> = include_bytes!("../../resource/Apple2c_plus.rom").to_vec();
-
     ui.menu("Model", || {
         let rom_value = cpu.bus.mem.mem_read(0xfbb3);
         build_toggle_menu_item(ui, "Apple ][", "", rom_value == 0x38, |_| {
-            initialize_apple_system(cpu, &apple2_rom, 0xd000, false);
+            initialize_apple_system(cpu, APPLE2_ROM, 0xd000, false);
             cpu.bus.mem.slotc3rom = true;
             cpu.bus.mem.intcxrom = false;
             *model_changed = true;
@@ -2733,7 +2724,7 @@ fn prepare_menu_for_model(
         });
 
         build_toggle_menu_item(ui, "Apple ][ Plus", "", rom_value == 0xea, |_| {
-            initialize_apple_system(cpu, &apple2p_rom, 0xd000, false);
+            initialize_apple_system(cpu, APPLE2P_ROM, 0xd000, false);
             cpu.bus.mem.slotc3rom = true;
             cpu.bus.mem.intcxrom = false;
             *model_changed = true;
@@ -2747,7 +2738,7 @@ fn prepare_menu_for_model(
             "",
             !cpu.is_apple2c() && cpu.is_apple2e() && !cpu.is_apple2e_enh(),
             |_| {
-                initialize_apple_system(cpu, &apple2e_rom, 0xc000, false);
+                initialize_apple_system(cpu, APPLE2E_ROM, 0xc000, false);
                 *model_changed = true;
                 *event.reload_cpu = true;
                 cpu.halt_cpu();
@@ -2760,7 +2751,7 @@ fn prepare_menu_for_model(
             "",
             !cpu.is_apple2c() && cpu.is_apple2e_enh(),
             |_| {
-                initialize_apple_system(cpu, &apple2ee_rom, 0xc000, false);
+                initialize_apple_system(cpu, APPLE2EE_ROM, 0xc000, false);
                 *model_changed = true;
                 *event.reload_cpu = true;
                 cpu.halt_cpu();
@@ -2774,7 +2765,7 @@ fn prepare_menu_for_model(
             "",
             cpu.is_apple2c() && rom_value == 0xff,
             |_| {
-                initialize_apple_system(cpu, &apple2c_rom, 0xc000, false);
+                initialize_apple_system(cpu, APPLE2C_ROM, 0xc000, false);
                 *model_changed = true;
                 *event.reload_cpu = true;
                 cpu.halt_cpu();
@@ -2787,7 +2778,7 @@ fn prepare_menu_for_model(
             "",
             cpu.is_apple2c() && rom_value == 0x00,
             |_| {
-                initialize_apple_system(cpu, &apple2c0_rom, 0xc000, true);
+                initialize_apple_system(cpu, APPLE2C0_ROM, 0xc000, true);
                 *model_changed = true;
                 *event.reload_cpu = true;
                 cpu.halt_cpu();
@@ -2800,7 +2791,7 @@ fn prepare_menu_for_model(
             "",
             cpu.is_apple2c() && rom_value == 0x03,
             |_| {
-                initialize_apple_system(cpu, &apple2c3_rom, 0xc000, true);
+                initialize_apple_system(cpu, APPLE2C3_ROM, 0xc000, true);
                 *model_changed = true;
                 *event.reload_cpu = true;
                 cpu.halt_cpu();
@@ -2813,7 +2804,7 @@ fn prepare_menu_for_model(
             "",
             cpu.is_apple2c() && rom_value == 0x04,
             |_| {
-                initialize_apple_system(cpu, &apple2c4_rom, 0xc000, true);
+                initialize_apple_system(cpu, APPLE2C4_ROM, 0xc000, true);
                 *model_changed = true;
                 *event.reload_cpu = true;
                 cpu.halt_cpu();
@@ -2826,7 +2817,7 @@ fn prepare_menu_for_model(
             "",
             cpu.is_apple2c() && rom_value == 0x05,
             |_| {
-                initialize_apple_system(cpu, &apple2cp_rom, 0xc000, true);
+                initialize_apple_system(cpu, APPLE2CP_ROM, 0xc000, true);
                 *model_changed = true;
                 *event.reload_cpu = true;
                 cpu.halt_cpu();

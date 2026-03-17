@@ -251,7 +251,7 @@ pub const OPCODES: [OpCode; 256] = [
     OpCode::new(0xa4, "LDY", 2, 3, AddressingMode::ZeroPage, false),
     OpCode::new(0xa5, "LDA", 2, 3, AddressingMode::ZeroPage, false),
     OpCode::new(0xa6, "LDX", 2, 3, AddressingMode::ZeroPage, false),
-    OpCode::new(0xa7, "SMB3", 2, 5, AddressingMode::ZeroPage, true),
+    OpCode::new(0xa7, "SMB2", 2, 5, AddressingMode::ZeroPage, true),
     OpCode::new(0xa8, "TAY", 1, 2, AddressingMode::NoneAddressing, false),
     OpCode::new(0xa9, "LDA", 2, 2, AddressingMode::Immediate, false),
     OpCode::new(0xaa, "TAX", 1, 2, AddressingMode::NoneAddressing, false),
@@ -267,7 +267,7 @@ pub const OPCODES: [OpCode; 256] = [
     OpCode::new(0xb4, "LDY", 2, 4, AddressingMode::ZeroPage_X, false),
     OpCode::new(0xb5, "LDA", 2, 4, AddressingMode::ZeroPage_X, false),
     OpCode::new(0xb6, "LDX", 2, 4, AddressingMode::ZeroPage_Y, false),
-    OpCode::new(0xb7, "SMB4", 2, 5, AddressingMode::ZeroPage, true),
+    OpCode::new(0xb7, "SMB3", 2, 5, AddressingMode::ZeroPage, true),
     OpCode::new(0xb8, "CLV", 1, 2, AddressingMode::NoneAddressing, false),
     OpCode::new(0xb9, "LDA", 3, 4, AddressingMode::Absolute_Y, false),
     OpCode::new(0xba, "TSX", 1, 2, AddressingMode::NoneAddressing, false),
@@ -1752,7 +1752,7 @@ impl CPU {
             if carry {
                 result |= 0x80;
             }
-            self.status.set(CpuFlags::ZERO, result != 0);
+            self.status.set(CpuFlags::ZERO, result == 0);
             if ((result ^ self.register_a) & 0x40) != 0 {
                 self.status.set(CpuFlags::OVERFLOW, true);
             }
@@ -1774,7 +1774,7 @@ impl CPU {
             if carry {
                 self.register_a |= 0x80;
             }
-            self.status.set(CpuFlags::ZERO, self.register_a != 0);
+            self.status.set(CpuFlags::ZERO, self.register_a == 0);
             if self.register_a & 0x40 != 0 {
                 self.status.set(CpuFlags::CARRY, true);
                 self.status.set(CpuFlags::OVERFLOW, true);
@@ -3637,6 +3637,11 @@ impl CpuStats {
         op.code == 0x91
     }
 
+    fn next_byte(&self, cpu: &CPU) -> u8 {
+        let pc = cpu.program_counter.wrapping_add(1);
+        cpu.bus.mem_read(pc)
+    }
+
     fn next_word(&self, cpu: &CPU) -> u16 {
         let pc = cpu.program_counter.wrapping_add(1);
         let lo = cpu.bus.mem_read(pc);
@@ -3666,7 +3671,10 @@ impl CpuStats {
                 self.absolute_y_cross_page += 1;
             }
         } else if opcode.mode == AddressingMode::Indirect_Y && !self.indirect_y_force_tick(opcode) {
-            let base = self.next_word(cpu);
+            let zp = self.next_byte(cpu);
+            let lo = cpu.bus.mem_read(zp as u16);
+            let hi = cpu.bus.mem_read(zp.wrapping_add(1) as u16);
+            let base = u16::from_le_bytes([lo, hi]);
             let addr = base.wrapping_add(cpu.register_y as u16);
             let page_crossed = self.page_cross(base, addr);
             if page_crossed {
