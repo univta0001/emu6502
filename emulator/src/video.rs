@@ -117,17 +117,40 @@ pub struct Video {
     )]
     cycles: usize,
 
+    #[cfg_attr(feature = "serde_support", serde(default))]
     graphics_mode: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
     mixed_mode: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
     lores_mode: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
     vid80_mode: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
     video_page2: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
     dhires_mode: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
     altchar: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
     blink: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
     blink_time: u64,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
     video_latch: u8,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
     prev_video_data: u8,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
     apple2e: bool,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
@@ -136,8 +159,13 @@ pub struct Video {
     #[cfg_attr(feature = "serde_support", serde(default))]
     apple2c: bool,
 
+    #[cfg_attr(feature = "serde_support", serde(default))]
     video_50hz: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
     mono_mode: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
     rgb_mode: u8,
 
     #[cfg_attr(feature = "serde_support", serde(default))]

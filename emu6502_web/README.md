@@ -1,8 +1,8 @@
-# Apple //e / ][+ emulator in Rust
+# Apple II, Apple II+, Apple IIe and Apple IIc emulator in Rust
 
 ## What is this?
 
-These are Apple \]\[ and Apple //c, //e emulators written entirely in Rust, SDL and HTML5.
+These are Apple II, Apple II+, Apple IIe and Apple IIc emulators written entirely in Rust, SDL and HTML5.
 
 ![Screenshot of emu6502](emu6502_screenshot.png "Screenshot of emu6502")
 

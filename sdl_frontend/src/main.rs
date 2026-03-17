@@ -717,7 +717,9 @@ fn save_serialized_image(cpu: &CPU) {
 fn load_serialized_image() -> Result<CPU, String> {
     #[cfg(not(feature = "serde_support"))]
     {
-        return Err(format!("Load serialized image called when serde feature not enabled"));
+        return Err(format!(
+            "Load serialized image called when serde feature not enabled"
+        ));
     }
 
     let result = FileDialog::new()
@@ -1429,29 +1431,26 @@ fn function_key_processed(cpu: &mut CPU, event: &Event, event_param: &mut EventP
 }
 
 fn handle_file_drop(cpu: &mut CPU, filename: &str) {
-    #[cfg(feature = "serialization")]
-    {
-        let path = Path::new(filename);
-        if let Some(path_ext) = path.extension() {
-            let po_hd = if let Ok(metadata) = fs::metadata(path) {
-                path_ext.eq_ignore_ascii_case(OsStr::new("po")) && metadata.len() > DSK_PO_SIZE
-            } else {
-                false
-            };
+    let path = Path::new(filename);
+    if let Some(path_ext) = path.extension() {
+        let po_hd = if let Ok(metadata) = fs::metadata(path) {
+            path_ext.eq_ignore_ascii_case(OsStr::new("po")) && metadata.len() > DSK_PO_SIZE
+        } else {
+            false
+        };
 
-            let is_hard_disk = path_ext.eq_ignore_ascii_case(OsStr::new("2mg"))
-                || path_ext.eq_ignore_ascii_case(OsStr::new("hdv"))
-                || po_hd;
+        let is_hard_disk = path_ext.eq_ignore_ascii_case(OsStr::new("2mg"))
+            || path_ext.eq_ignore_ascii_case(OsStr::new("hdv"))
+            || po_hd;
 
-            let result = if is_hard_disk {
-                load_harddisk(cpu, path, 0)
-            } else {
-                load_disk(cpu, path, 0)
-            };
+        let result = if is_hard_disk {
+            load_harddisk(cpu, path, 0)
+        } else {
+            load_disk(cpu, path, 0)
+        };
 
-            if let Err(e) = result {
-                eprintln!("Unable to load disk {filename} : {e}");
-            }
+        if let Err(e) = result {
+            eprintln!("Unable to load disk {filename} : {e}");
         }
     }
 }
@@ -2212,7 +2211,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     if prev_scale != scale {
                         prev_scale = scale;
                         let width = (scale * WIDTH as f32) as u32;
-                        let height = (scale * HEIGHT as f32) as u32;
+                        let height = (scale * HEIGHT as f32) as u32 + 2 * MENUBAR_HEIGHT;
                         let _ = window.set_size(width, height);
                     }
 
@@ -3025,6 +3024,13 @@ fn update_settings(cpu: &mut CPU, settings: &[usize]) -> bool {
         }
     }
 
+    // Update mockingboard audio buffers
+    let audio = &mut cpu.bus.audio;
+    audio.mboard.clear();
+    for _ in 0..mockingboard_count {
+        audio.mboard.push(Mockingboard::new());
+    }
+
     mockingboard_count = 0;
 
     for i in 1..8 {
@@ -3036,6 +3042,7 @@ fn update_settings(cpu: &mut CPU, settings: &[usize]) -> bool {
         }
         if let IODevice::Saturn(_) = slot_value {
             cpu.bus.io_slot[i] = IODevice::Saturn(saturn_count);
+            cpu.bus.mem.init_saturn_memory(saturn_count as usize + 1);
             saturn_count += 1
         }
         cpu.bus.register_device(cpu.bus.io_slot[i], i);
