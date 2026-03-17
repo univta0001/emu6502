@@ -513,7 +513,7 @@ mod test {
     #[test]
     fn format_beq_jmp_access() {
         let mut bus = Bus::default();
-        
+
         bus.mem_write(0x1000, 0xa9);
         bus.mem_write(0x1001, 0x01);
         bus.mem_write(0x1002, 0xf0);

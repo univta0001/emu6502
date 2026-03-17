@@ -1722,7 +1722,7 @@ impl Video {
             if e2 >= dy {
                 err += dy;
                 x += sx;
-            } 
+            }
 
             if e2 <= dx {
                 err += dx;
@@ -1750,7 +1750,7 @@ impl Video {
             if e2 >= dy {
                 err += dy;
                 x += sx;
-            } 
+            }
 
             if e2 <= dx {
                 err += dx;

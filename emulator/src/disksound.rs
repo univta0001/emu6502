@@ -204,7 +204,7 @@ impl DiskSound {
                     _ => {}
                 }
                 self.spin_pos = 0;
-                return
+                return;
             }
 
             let sample = [sample_bytes[self.spin_pos], sample_bytes[self.spin_pos + 1]];
@@ -231,7 +231,7 @@ impl DiskSound {
             // Ensure we have at least 2 bytes available
             if self.seek_pos + 1 >= sample_length {
                 self.seek_pos = 0;
-                return
+                return;
             }
 
             let sample = [sample_bytes[seek_pos], sample_bytes[seek_pos + 1]];
@@ -246,7 +246,7 @@ impl DiskSound {
             if self.step_pos >= sample_length {
                 self.step_sample = SoundType::Quiet;
                 self.step_pos = 0;
-                return
+                return;
             }
 
             let sample = [sample_bytes[self.step_pos], sample_bytes[self.step_pos + 1]];
