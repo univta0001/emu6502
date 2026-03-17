@@ -1220,7 +1220,7 @@ impl Video {
                 let y_u = y_norm_u * center_y as f64 + center_y as f64;
 
                 let x1 = x_u.floor() as i32;
-                ley y1 =, y_u.floor() as i32;
+                let y1 = y_u.floor() as i32;
 
                 if x1 < 0 || y1 < 0 || x1 + 1 >= width as i32 || y1 + 1 >= height as i32 {
                     let dbase = y_d * 4 * Self::WIDTH + x_d * 4;
