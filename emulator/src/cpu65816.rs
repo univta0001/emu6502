@@ -2696,7 +2696,7 @@ impl CPU {
     fn get_stack_relative_addr(&mut self) -> (u8, u16) {
         self.tick();
         let offset = self.fetch_byte() as u16;
-        (self.dbr, self.stack_pointer.wrapping_add(offset))
+        (0, self.stack_pointer.wrapping_add(offset))
     }
 
     fn get_indirect_stack_relative_y_addr(&mut self) -> (u8, u16) {

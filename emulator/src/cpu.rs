@@ -988,11 +988,19 @@ impl CPU {
     }
 
     pub fn load(&mut self, program: &[u8], offset: u16) {
+        let mem_size = self.bus.mem.cpu_memory.len();
+        if offset as usize + program.len() > mem_size {
+            eprintln!("Warning: Program load truncated at memory bounday");
+        }
         for (i, &item) in program.iter().enumerate() {
+            let addr = offset as usize + i;
+            if addr >= mem_size {
+                break;
+            }
             if !self.bus.mem.rom_bank {
-                self.bus.mem.cpu_memory[offset as usize + i] = item;
+                self.bus.mem.cpu_memory[addr] = item;
             } else {
-                self.bus.mem.alt_cpu_memory[offset as usize + i] = item;
+                self.bus.mem.alt_cpu_memory[addr] = item;
             }
         }
     }
@@ -1640,16 +1648,17 @@ impl CPU {
         let mut data = self.addr_read(addr);
         data = data.wrapping_sub(1);
         self.addr_write(addr, data);
-        self.update_zero_and_negative_flags(data);
-        self.compare(addr, self.register_a);
+
+        // Compare A with decremented value (don't re-read memory)
+        self.status.set(CpuFlags::CARRY, data <= self.register_a);
+        self.update_zero_and_negative_flags(self.register_a.wrapping_sub(data));
+        self.last_tick();
     }
 
     fn isc(&mut self, addr: u16) {
         let mut data = self.addr_read(addr);
         data = data.wrapping_add(1);
         self.addr_write(addr, data);
-        self.update_zero_and_negative_flags(data);
-        let data = self.bus.unclocked_addr_read(addr);
         self.add_to_register_a(data.wrapping_neg().wrapping_sub(1), true);
         self.last_tick();
     }
@@ -3471,7 +3480,12 @@ fn hex_to_u8(c: u8) -> std::io::Result<u8> {
 #[cfg(feature = "z80")]
 #[cfg(feature = "serde_support")]
 fn hex_get16(map: &BTreeMap<String, String>, key: &str) -> std::io::Result<u16> {
-    let value = &map[key];
+    let value = map.get(key).ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("Missing key: {}", key),
+        )
+    })?;
 
     if value.len() != 4 {
         return Err(std::io::Error::new(
