@@ -735,7 +735,7 @@ impl W65C22 {
             0x0e => {
                 if !write_flag {
                     return_addr = self.ier | 0x80;
-                } else if value > 0x80 {
+                } else if value & 0x80 != 0 {
                     self.ier |= value & 0x7f;
                 } else {
                     self.ier &= value ^ 0x7f;
