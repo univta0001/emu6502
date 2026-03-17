@@ -8,7 +8,7 @@
     <link rel="stylesheet" type="text/css" href="style.css" media="screen" />
 </head>
 <body>
-    <div class= "flex flex-col justify-center items-center my-4">
+    <div class="flex flex-col justify-center items-center my-4">
         <div class="relative">
             <div id="emulator" class="emu6502" oncontextmenu="return false;">
                 <canvas width="1120" height="768"></canvas>
@@ -39,7 +39,7 @@
         <input type="checkbox" id="capslock" name="capslock"> Capslock
         <input type="checkbox" id="diskSound" name="diskSound"> Disk Sound
         &nbsp;&nbsp;
-        <span id = "speed"> </span>
+        <span id="speed"> </span>
     </div>
     </center>
 
@@ -623,6 +623,16 @@
             // Audio Context
             window.AudioContext = window.AudioContext || window.webkitAudioContext;
             const ctx_audio = new AudioContext();
+
+            // Resume AudioContext on user interaction
+            const resumeAudio() = () => {
+                if (ctx_audio.state === 'suspended') {
+                    ctx_audio.resume();
+                }
+            };
+
+            document.addEventListener('click', resumeAudio, { once: true });
+            document.addEventListener('keydown', resumeAudio, { once: true });
 
             const gamepad_button_pressed = (b) => {
                 if (typeof b === "object") {

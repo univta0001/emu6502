@@ -340,7 +340,7 @@ impl HardDisk {
         if !disk.loaded {
             return 0;
         }
-        (((disk.data_len / HD_BLOCK_SIZE) & 0xff00) >> 16) as u8
+        (((disk.data_len / HD_BLOCK_SIZE) & 0xff0000) >> 16) as u8
     }
 
     fn smartport_id_string(
@@ -519,7 +519,7 @@ impl HardDisk {
 
         //eprintln!("Reading ${:04x} ${:04x} ${:04x}", block_offset, start, end);
 
-        if block_offset < disk.offset + disk.data_len {
+        if block_offset + HD_BLOCK_SIZE <= disk.data_len {
             let mut buf = [0u8; HD_BLOCK_SIZE];
             buf[..].copy_from_slice(&disk.raw_data[start..end]);
             for (i, data) in buf.iter().enumerate() {
@@ -555,7 +555,7 @@ impl HardDisk {
         let start = block_offset + disk.offset;
         let end = block_offset + disk.offset + HD_BLOCK_SIZE;
 
-        if block_offset >= disk.offset + disk.data_len {
+        if block_offset + HD_BLOCK_SIZE > disk.data_len {
             disk.error = DeviceStatus::DeviceIoError as u8;
             return;
         }

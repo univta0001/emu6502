@@ -144,9 +144,9 @@ pub fn convert_yuv_to_rgb(yuv: Yuv) -> Rgb {
     let u = yuv[1];
     let v = yuv[2];
 
-    let r = ((y + 0.00000 * u + 1.13983 * v) * 255.0) as u8;
-    let g = ((y - 0.39465 * u - 0.58060 * v) * 255.0) as u8;
-    let b = ((y + 2.03211 * u + 0.00000 * v) * 255.0) as u8;
+    let r = ((y + 0.00000 * u + 1.13983 * v) * 255.0).clamp(0.0, 255.0) as u8;
+    let g = ((y - 0.39465 * u - 0.58060 * v) * 255.0).clamp(0.0, 255.0) as u8;
+    let b = ((y + 2.03211 * u + 0.00000 * v) * 255.0).clamp(0.0, 255.0) as u8;
 
     [r, g, b]
 }

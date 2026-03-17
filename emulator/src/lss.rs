@@ -15,7 +15,7 @@ fn main() {
     for s in 0 .. 0x10 {
         let seq = s << 4;
         for adr in 0 .. 0x10 {
-            lssrom[seq|adr] = (seq+0x18 as usize) as u8; 
+            lssrom[seq|adr] = seq.wrapping_add(0x18);
             if adr & 0xc == 4 {
                 lssrom[seq|adr] = 0x0a;
             }

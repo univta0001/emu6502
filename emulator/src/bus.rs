@@ -1094,9 +1094,8 @@ impl Bus {
 
                         Dongle::CodeWriter(state) => {
                             if (((addr >> 1) & 3) == 3 && old_value) || self.annunciator[3] {
-                                let state = 0x6b;
-                                self.dongle = Dongle::CodeWriter(state);
-                                self.pushbutton_latch[2] = (state & 1) << 7;
+                                self.dongle = Dongle::CodeWriter(0x6b);
+                                self.pushbutton_latch[2] = (0x6b & 1) << 7;
                             } else if old_value && !self.annunciator[2] {
                                 let bit = ((state >> 1) ^ state) & 1;
                                 let state = (state >> 1) | (bit << 6);

@@ -3328,7 +3328,11 @@ fn default_video_dirty() -> Vec<u8> {
 
 #[cfg(feature = "serde_support")]
 fn default_frame() -> Vec<u8> {
-    vec![0xff; Video::WIDTH * Video::HEIGHT * 4]
+    let mut frame = vec![0x00; Video*WIDTH * Video::HEIGHT * 4];
+    for i in (3..frame.len()).step_by(4) {
+        frame[i] = 0xff;
+    }
+    frame
 }
 
 fn default_ntsc_decoder() -> Vec<Yuv> {
