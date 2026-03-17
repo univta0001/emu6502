@@ -1224,6 +1224,8 @@ impl Video {
                 let dx = x_u - x1 as f64;
                 let dy = y_u - y1 as f64;
 
+                assert!(x1 >= 0 &&  y1 >= 0 && x2 >= 0 && y2 >= 0);
+
                 let p11 = get_color(frame, width, height, x1 as usize, y1 as usize);
                 let p12 = get_color(frame, width, height, x2 as usize, y1 as usize);
                 let p21 = get_color(frame, width, height, x1 as usize, y2 as usize);
@@ -1633,6 +1635,7 @@ impl Video {
     }
 
     pub fn set_pixel_2(&mut self, x: usize, y: usize, rgb: Rgb) {
+        assert!(self.frame.len() >= (y + 1) * 4 * Video::WIDTH + x * 4 + 2);
         let base = y * 4 * Video::WIDTH + x * 4;
         let offset = 4 * Video::WIDTH;
         let [r, g, b] = rgb;
@@ -3470,10 +3473,7 @@ fn deserialize_cycles<'de, D: Deserializer<'de>>(deserializer: D) -> Result<usiz
 /// # Arguments
 /// * `n_cycles` - Current cycle count in the video frame
 /// * `b_hires` - High-resolution graphics mode flag
-/// * `b_page2` - Page 2 video memory selection flag
-/// * `b_80_store` - 80-column store mode flag (disables page flipping)
 /// * `b_video_scanner_ntsc` - NTSC display standard flag (false = PAL)
-/// * `sw_mixed` - Mixed text/hires graphics mode flag
 /// * `is_apple2` - Apple II (vs //e) hardware flag
 ///
 /// # Returns
@@ -3582,18 +3582,18 @@ mod test {
 
     #[test]
     fn video_lut_hires_pal() {
-        let lut_hires_ntsc = build_lut(false, true, false);
+        let lut_hires_pal = build_lut(false, true, false);
         let video_cycle = 20280;
         assert_eq!(
-            lut_hires_ntsc.len(),
+            lut_hires_pal.len(),
             video_cycle,
-            "LUT hires for NTSC should be {}",
+            "LUT hires for PAL should be {}",
             video_cycle
         );
         for cycle in 0..video_cycle {
             assert_eq!(
                 video_get_scanner_address(cycle as u32, true, false, false),
-                lut_hires_ntsc[cycle] as u16,
+                lut_hires_pal[cycle] as u16,
                 "LUT hires address not matched for cycle {}",
                 cycle
             );
