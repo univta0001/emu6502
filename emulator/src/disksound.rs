@@ -185,9 +185,11 @@ impl DiskSound {
         if self.spin_sample != SoundType::Quiet {
             let sample_bytes = self.sample(&self.spin_sample);
             let sample_length = sample_bytes.len();
+            let sample = [sample_bytes[self.spin_pos], sample_bytes[self.spin_pos + 1]];
+            self.sample_value = self.sample_value.wrapping_add(i16::from_le_bytes(sample));
+            self.spin_pos += 2;
 
-            // Ensure we have at least 2 bytes available
-            if self.spin_pos + 1 >= sample_length {
+            if self.spin_pos >= sample_length {
                 match self.spin_sample {
                     SoundType::SpinStartEmpty => self.spin_sample = SoundType::SpinEmpty,
                     SoundType::SpinStartLoaded => self.spin_sample = SoundType::SpinLoaded,
@@ -204,12 +206,7 @@ impl DiskSound {
                     _ => {}
                 }
                 self.spin_pos = 0;
-                return;
             }
-
-            let sample = [sample_bytes[self.spin_pos], sample_bytes[self.spin_pos + 1]];
-            self.sample_value = self.sample_value.wrapping_add(i16::from_le_bytes(sample));
-            self.spin_pos += 2;
         }
 
         if self.seek_timeout == 1 {
@@ -227,31 +224,24 @@ impl DiskSound {
             let sample_bytes = self.sample(&self.seek_sample);
             let sample_length = sample_bytes.len();
             let seek_pos = self.seek_pos / 128 - (self.seek_pos / 128) % 2;
-
-            // Ensure we have at least 2 bytes available
-            if self.seek_pos + 1 >= sample_length {
-                self.seek_pos = 0;
-                return;
-            }
-
             let sample = [sample_bytes[seek_pos], sample_bytes[seek_pos + 1]];
             self.sample_value = self.sample_value.wrapping_add(i16::from_le_bytes(sample));
             self.seek_pos += self.seek_pitch * 2;
+            if self.seek_pos / 128 >= sample_length {
+                self.seek_pos = 0;
+            }
         } else if self.step_sample != SoundType::Quiet {
             // Update the stepper sound state
             let sample_bytes = self.sample(&self.step_sample);
             let sample_length = sample_bytes.len();
-
-            // Ensure we have at least 2 bytes available
-            if self.step_pos >= sample_length {
-                self.step_sample = SoundType::Quiet;
-                self.step_pos = 0;
-                return;
-            }
-
             let sample = [sample_bytes[self.step_pos], sample_bytes[self.step_pos + 1]];
             self.sample_value = self.sample_value.wrapping_add(i16::from_le_bytes(sample));
             self.step_pos += 2;
+            if self.step_pos >= sample_length {
+                self.step_sample = SoundType::Quiet;
+                self.step_pos = 0;
+            }
         }
     }
 }
+
