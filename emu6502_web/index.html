@@ -128,6 +128,10 @@
             const handle_window_location = async () => {
                 let location = window.location.hash.substring(1);
 
+                if (!location) {
+                    return;
+                }
+
                 try {
                     const response = await fetch(location);
                     if (!response.ok) {
@@ -251,7 +255,7 @@
                 "Digit5" : 53, "Digit6" : 54, "Digit7" : 55, "Digit8" : 56, "Digit9" : 57,
                 "Digit0" : 48, "Minus" : 173, "Equal" : 61, "Backspace" : 8, "Insert" : 45,
                 "Home" : 36, "PageUp" : 33, "NumLock" : 144, "NumpadDivide" : 111,
-                "NumpadMultiply" : 106, "NumpadSubtract" : 109, "Tab" : 9, "KeyQ" : 81,
+                "NumpadMultiply" : 106, "NumpadSubtract" : 109, "Tab" : 9,
                 "BracketLeft": 219, "BracketRight": 221, "Backslash": 220, "Delete": 127,
                 "End": 35, "PageDown": 34, "Numpad7": 103, "Numpad8": 104, "Numpad9": 105,
                 "NumpadAdd": 107, "CapsLock" : 20, "ShiftLeft" : 16,  "Enter": 13,
