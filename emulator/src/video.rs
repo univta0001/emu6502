@@ -1852,6 +1852,10 @@ impl Video {
     }
 
     pub fn draw_box_raw_a2(&mut self, x: usize, y: usize, w: usize, h: usize, alpha: u8) {
+        if w < 2 || h < 2 {
+            return;
+        }
+
         // Draw top edge
         for i in 0..w - 1 {
             self.draw_char_raw_a2(x + i, y, b'_', alpha, false, COLOR_WHITE);
@@ -3502,7 +3506,7 @@ fn deserialize_display_mode<'de, D: Deserializer<'de>>(
 #[cfg(feature = "serde_support")]
 fn deserialize_cycles<'de, D: Deserializer<'de>>(deserializer: D) -> Result<usize, D::Error> {
     let value = usize::deserialize(deserializer)?;
-    Ok(value)
+    Ok(value % CYCLES_PER_FIELD_50HZ)
 }
 
 /// Calculates the video scanner memory address for Apple II emulation.
