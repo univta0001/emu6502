@@ -408,7 +408,7 @@ pub fn dump_trace(output: &mut String, cpu: &mut CPU, addr: u16, status: bool) {
                     dump_absolute_y_addr(output, address, mem_addr, stored_value)
                 }
                 AddressingMode::ZeroPage_Relative => {
-                    let lo = address & 0x0f;
+                    let lo = address & 0xff;
                     let hi = (address & 0xff00) >> 8;
 
                     let address: u16 =

@@ -685,34 +685,41 @@ fn replace_quoted_hex_values(string: &str) -> String {
 #[cfg(feature = "serialization")]
 fn save_serialized_image(cpu: &CPU) {
     #[cfg(feature = "serde_support")]
-    let output = serde_saphyr::to_string(&cpu).unwrap();
-    let output = output.replace("\"\"", "''").replace(['"', '\''], "");
+    {
+        let output = serde_saphyr::to_string(&cpu).unwrap();
+        let output = output.replace("\"\"", "''").replace(['"', '\''], "");
 
-    /*
-    #[cfg(feature = "regex")]
-    let re = regex::Regex::new(r"'([0-9A-F]{4,6})'").unwrap();
-    #[cfg(feature = "regex")]
-    let yaml_output = re
-        .replace_all(&yaml_output, |caps: &regex::Captures| (caps[1]).to_string())
-        .to_string();
-    */
+        /*
+        #[cfg(feature = "regex")]
+        let re = regex::Regex::new(r"'([0-9A-F]{4,6})'").unwrap();
+        #[cfg(feature = "regex")]
+        let yaml_output = re
+            .replace_all(&yaml_output, |caps: &regex::Captures| (caps[1]).to_string())
+            .to_string();
+        */
 
-    let output = replace_quoted_hex_values(&output);
+        let output = replace_quoted_hex_values(&output);
 
-    let result = FileDialog::new()
-        .add_filter("Save state", &["yaml"])
-        .save_file();
+        let result = FileDialog::new()
+            .add_filter("Save state", &["yaml"])
+            .save_file();
 
-    if let Some(file_path) = result {
-        let write_result = fs::write(&file_path, output);
-        if let Err(e) = write_result {
-            eprintln!("Unable to write to file {} : {}", file_path.display(), e);
+        if let Some(file_path) = result {
+            let write_result = fs::write(&file_path, output);
+            if let Err(e) = write_result {
+                eprintln!("Unable to write to file {} : {}", file_path.display(), e);
+            }
         }
     }
 }
 
 #[cfg(feature = "serialization")]
 fn load_serialized_image() -> Result<CPU, String> {
+    #[cfg(not(feature = "serde_support"))]
+    {
+        return Err(format!("Load serialized image called when serde feature not enabled"));
+    }
+
     let result = FileDialog::new()
         .add_filter("Load state", &["yaml"])
         .pick_file();
@@ -726,7 +733,6 @@ fn load_serialized_image() -> Result<CPU, String> {
         return Err(format!("Unable to restore the image : {result:?}"));
     };
 
-    #[cfg(feature = "serde_support")]
     let deserialized_result = serde_saphyr::from_str::<CPU>(&input);
     let Ok(mut new_cpu) = deserialized_result else {
         return Err(format!(
@@ -1179,7 +1185,8 @@ fn process_clipboard(cpu: &mut CPU, clipboard_text: &mut String) {
         && let Some(ch) = clipboard_text.chars().next()
     {
         cpu.bus.set_keyboard_latch((ch as u8) + 0x80);
-        clipboard_text.remove(0);
+        let char_len = ch.len_utf8();
+        clipboard_text.drain(..char_len);
     }
 }
 

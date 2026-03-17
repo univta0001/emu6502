@@ -693,7 +693,7 @@ impl Video {
 
         for y in 0..Video::HEIGHT {
             for x in 0..Video::WIDTH {
-                // B,G,R,A
+                // R,G,B,A
                 frame[x * 4 + y * Video::WIDTH * 4] = 0x00;
                 frame[x * 4 + 1 + y * Video::WIDTH * 4] = 0x00;
                 frame[x * 4 + 2 + y * Video::WIDTH * 4] = 0x00;
@@ -1219,12 +1219,20 @@ impl Video {
                 let x_u = x_norm_u * center_x as f64 + center_x as f64;
                 let y_u = y_norm_u * center_y as f64 + center_y as f64;
 
-                let (x1, y1) = (x_u.floor() as i32, y_u.floor() as i32);
+                let x1 = x_u.floor() as i32;
+                ley y1 =, y_u.floor() as i32;
+
+                if x1 < 0 || y1 < 0 || x1 + 1 >= width as i32 || y1 + 1 >= height as i32 {
+                    let dbase = y_d * 4 * Self::WIDTH + x_d * 4;
+                    barrel_display[dbase] = 0;
+                    barrel_display[dbase + 1] = 0;
+                    barrel_display[dbase + 2] = 0;
+                    continue;
+                }
+
                 let (x2, y2) = (x1 + 1, y1 + 1);
                 let dx = x_u - x1 as f64;
                 let dy = y_u - y1 as f64;
-
-                assert!(x1 >= 0 &&  y1 >= 0 && x2 >= 0 && y2 >= 0);
 
                 let p11 = get_color(frame, width, height, x1 as usize, y1 as usize);
                 let p12 = get_color(frame, width, height, x2 as usize, y1 as usize);
@@ -1622,7 +1630,7 @@ impl Video {
     pub fn get_pixel(&self, x: usize, y: usize) -> Rgb {
         assert!(self.frame.len() >= y * 4 * Video::WIDTH + x * 4 + 3);
         let base = y * 4 * Video::WIDTH + x * 4;
-        [self.frame[base], self.frame[base + 1], self.frame[base + 3]]
+        [self.frame[base], self.frame[base + 1], self.frame[base + 2]]
     }
 
     pub fn set_pixel(&mut self, x: usize, y: usize, rgb: Rgb) {
@@ -3461,10 +3469,7 @@ fn deserialize_display_mode<'de, D: Deserializer<'de>>(
 
 #[cfg(feature = "serde_support")]
 fn deserialize_cycles<'de, D: Deserializer<'de>>(deserializer: D) -> Result<usize, D::Error> {
-    let mut value = usize::deserialize(deserializer)?;
-    if value != CYCLES_PER_FIELD_60HZ  && value != CYCLES_PER_FIELD_50HZ {
-        value = default_cycle_field();
-    }
+    let value = usize::deserialize(deserializer)?;
     Ok(value)
 }
 
