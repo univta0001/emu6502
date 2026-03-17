@@ -1722,7 +1722,9 @@ impl Video {
             if e2 >= dy {
                 err += dy;
                 x += sx;
-            } else if e2 <= dx {
+            } 
+
+            if e2 <= dx {
                 err += dx;
                 y += sy;
             }
@@ -1748,7 +1750,9 @@ impl Video {
             if e2 >= dy {
                 err += dy;
                 x += sx;
-            } else if e2 <= dx {
+            } 
+
+            if e2 <= dx {
                 err += dx;
                 y += sy;
             }
@@ -3430,6 +3434,7 @@ fn serialize_display_mode<S: Serializer>(
         DisplayMode::RGB => 3,
         DisplayMode::MONO_GREEN => 4,
         DisplayMode::MONO_AMBER => 5,
+        DisplayMode::MONO_NTSC => 6,
         _ => 0,
     };
     usize::serialize(&value, serializer)
@@ -3445,6 +3450,7 @@ fn deserialize_display_mode<'de, D: Deserializer<'de>>(
         3 => DisplayMode::RGB,
         4 => DisplayMode::MONO_GREEN,
         5 => DisplayMode::MONO_AMBER,
+        6 => DisplayMode::MONO_NTSC,
         _ => DisplayMode::DEFAULT,
     };
     Ok(value)

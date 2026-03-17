@@ -208,7 +208,7 @@ pub fn from_hex_12k<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8
     let result = from_hex(deserializer);
     if let Ok(ref value) = result
         && value.len() != 0x3000
-        && value.len() % 0x3000 * 8 != 0
+        && value.len() % 0x20000 != 0
     {
         return Err(Error::invalid_value(
             Unexpected::Seq,

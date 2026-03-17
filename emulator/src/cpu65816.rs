@@ -3421,13 +3421,9 @@ impl CPU {
         let data = if self.small_accumulator() {
             self.last_tick_addr_bank_read(addr.0, addr.1) as u16
         } else {
-            self.addr_bank_read_u16(addr.0, addr.1)
+            self.last_tick_addr_bank_read_u16(addr.0, addr.1)
         };
         self.sbc_to_accumulator(data);
-
-        if !self.small_accumulator() {
-            self.last_tick();
-        }
     }
 
     fn and(&mut self, addr: (u8, u16)) {
@@ -3793,7 +3789,7 @@ impl CPU {
         self.last_tick();
         if self.small_index() {
             let result = self.register_y as u8 as u16;
-            self.register_x = self.register_y & 0xff00 | self.register_y as u8 as u16;
+            self.register_x = self.register_x & 0xff00 | self.register_y as u8 as u16;
             self.update_zero_and_negative_flags(result, false);
         } else {
             self.register_x = self.register_y;

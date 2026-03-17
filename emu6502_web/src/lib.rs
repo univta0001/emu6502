@@ -67,7 +67,7 @@ impl Emulator {
                     }
                 }
             } else if lname.ends_with(".nib.gz") || lname.ends_with(".nib") {
-                if name.ends_with(".gz") {
+                if lname.ends_with(".gz") {
                     let result = drv.load_nib_gz_array_to_woz(&dsk, false);
                     if result.is_err() {
                         return false;

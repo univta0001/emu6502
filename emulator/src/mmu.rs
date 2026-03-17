@@ -326,7 +326,8 @@ impl Mmu {
 
             0xe00..=0xe1f => {
                 if write_flag {
-                    self.mig[self.mig_bank + (map_addr & 0x1f)] = value;
+                    let index = (self.mig_bank + (map_addr & 0x1f)) & 0x7ff;
+                    self.mig[index] = value;
                 } else {
                     ret_value = self.mig[self.mig_bank + (map_addr & 0x1f)];
                 }
@@ -334,10 +335,12 @@ impl Mmu {
 
             0xe20..=0xe3f => {
                 if write_flag {
-                    self.mig[self.mig_bank + (map_addr & 0x1f)] = value;
+                    let index = (self.mig_bank + (map_addr & 0x1f)) & 0x7ff;
+                    self.mig[index] = value;
                     self.mig_bank = (self.mig_bank + 0x20) & 0x7ff;
                 } else {
-                    ret_value = self.mig[self.mig_bank + (map_addr & 0x1f)];
+                    let index = (self.mig_bank + (map_addr & 0x1f)) & 0x7ff;
+                    ret_value = self.mig[index];
                     self.mig_bank = (self.mig_bank + 0x20) & 0x7ff;
                 }
             }
@@ -371,22 +374,38 @@ impl Mmu {
 
     pub fn mem_bank1_read(&self, addr: u16) -> u8 {
         let offset = self.saturn_bank as usize * 0x3000 + 0x3000 * 8 * self.saturn_slot as usize;
-        self.bank1_memory[offset + addr as usize]
+        let index = offset + addr as usize;
+        if index < self.bank1_memory.len() {
+            self.bank1_memory[index]
+        } else {
+            0
+        }
     }
 
     pub fn mem_bank1_write(&mut self, addr: u16, data: u8) {
         let offset = self.saturn_bank as usize * 0x3000 + 0x3000 * 8 * self.saturn_slot as usize;
-        self.bank1_memory[offset + addr as usize] = data;
+        let index = offset + addr as usize;
+        if index < self.bank1_memory.len() {
+            self.bank1_memory[index] = data;
+        }
     }
 
     pub fn mem_bank2_read(&self, addr: u16) -> u8 {
         let offset = self.saturn_bank as usize * 0x3000 + 0x3000 * 8 * self.saturn_slot as usize;
-        self.bank2_memory[offset + addr as usize]
+        let index = offset + addr as usize;
+        if index < self.bank2_memory.len() {
+            self.bank2_memory[index]
+        } else {
+            0
+        }
     }
 
     pub fn mem_bank2_write(&mut self, addr: u16, data: u8) {
         let offset = self.saturn_bank as usize * 0x3000 + 0x3000 * 8 * self.saturn_slot as usize;
-        self.bank2_memory[offset + addr as usize] = data
+        let index = offset + addr as usize;
+        if index < self.bank2_memory.len() {
+            self.bank2_memory[index] = data
+        }
     }
 
     pub fn mem_aux_read(&self, addr: u16) -> u8 {

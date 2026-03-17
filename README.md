@@ -2,7 +2,7 @@
 
 ## What is this?
 
-This is Apple \]\[ and Apple //e emulator written entirely in Rust, SDL and HTML5.
+This is an Apple \]\[ and Apple //e emulator written entirely in Rust, SDL and HTML5.
 
 Features in the emulator
 
@@ -10,7 +10,7 @@ Features in the emulator
 - Passed Klaus Dormann 6502, 65c02 and decimal tests
 - Passed Tom Harte Processor Test for 6502 (valid opcodes) and 65c02
 - Disk II interface for floppy disk drives
-- File Format supported (dsk, po, nib, woz version 1 and version 2.x including Flux image, hdv, 2mg)
+- File formats supported (dsk, po, nib, woz version 1 and version 2.x including Flux image, hdv, 2mg)
 - Language Card for Apple ][+
 - Mockingboard support at Slot 4 and Slot 5
 - Parallel printer card
@@ -140,7 +140,7 @@ Features in the emulator
             F2                 Load Disk 2 file
             F3                 Swap Disk 1 and Disk 2
             F4                 Disable / Enable Joystick
-            F5                 Disable / Enable Fask Disk emulation
+            F5                 Disable / Enable Fast Disk emulation
             F6 / Shift-F6      Toggle Display Mode (Default, NTSC, RGB, Mono)
             F7                 Disable / Enable 50/60 Hz video
             F8                 Disable / Enable Joystick jitter

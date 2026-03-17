@@ -1632,7 +1632,7 @@ impl DiskDrive {
 
         if dsk.len() < DSK_IMAGE_SIZE {
             // Pad disk image to DSK_IMAGE_SIZE
-            for _ in 0..dsk.len() {
+            for _ in dsk.len()..DSK_IMAGE_SIZE {
                 dsk.push(0)
             }
         }

@@ -170,7 +170,7 @@ impl NoSlotClock {
             utc
         };
 
-        let centisecond = now.nanosecond() / 1_000_000;
+        let centisecond = now.nanosecond() / 10_000_000;
         self.clock_register
             .write_nibble((centisecond % 10) as usize);
         self.clock_register
