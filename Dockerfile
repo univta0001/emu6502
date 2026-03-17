@@ -41,10 +41,13 @@ RUN apt-get update \
 
 # Copy only the compiled binary from the builder stage to this image
 COPY --from=builder /app/target/release/emu6502 /bin/emu6502
-COPY sample.dsk /sample.dsk
 
 # Create non-root user
 RUN useradd --create-home --shell /bin/false appuser
+
+# Copy sample disk with correct ownership
+COPY --chown=appuser:appuser sample.dsk /sample.dsk
+
 USER appuser
 
 # Specify the command to run when the container starts

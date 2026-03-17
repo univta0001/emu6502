@@ -19,7 +19,7 @@ const SEEK_2MS: &[u8] = include_bytes!("../../resource/disk/525_seek_2ms.wav");
 const SEEK_6MS: &[u8] = include_bytes!("../../resource/disk/525_seek_6ms.wav");
 const SEEK_12MS: &[u8] = include_bytes!("../../resource/disk/525_seek_12ms.wav");
 const SEEK_20MS: &[u8] = include_bytes!("../../resource/disk/525_seek_20ms.wav");
-const QUIET: &[u8] = &[0];
+const QUIET: &[u8] = &[0, 0];
 
 #[derive(Debug, Default, PartialEq)]
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
