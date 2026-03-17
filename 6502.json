@@ -1471,7 +1471,7 @@
     },
     {
         "name": "TSX",
-        "description": "Transfer Index X to Stack Pointer",
+        "description": "Transfer Stack Pointer to X",
         "flags": {
             "zero": 8,
             "negative": 8
