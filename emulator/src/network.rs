@@ -567,9 +567,7 @@ impl Uthernet2 {
                 match udp.recv_from(&mut buffer) {
                     Ok((size, sock_addr)) => {
                         //u2_debug!("Read bytes received from peer = 0x{size:02X}");
-                        if size == 0 {
-                            self.clear_socket(i);
-                        } else {
+                        if size > 0 {
                             let ip = sock_addr.ip();
                             let port = sock_addr.port();
 
@@ -1140,11 +1138,13 @@ impl Uthernet2 {
         match TcpStream::connect_timeout(&sock_addr, Duration::from_micros(rtr * 100)) {
             Ok(stream) => {
                 u2_debug!("Connect Socket on #{i} to {sock_addr:?} - OK");
-                stream
-                    .set_nonblocking(true)
-                    .expect("Cannot set non-blocking stream");
-                self.socket[i].set_socket_handle(Proto::Tcp(stream));
-                self.set_socket_status(i, W5100_SN_SR_SOCK_ESTABLISHED);
+                if stream.set_nonblocking(true).is_ok() {
+                    self.socket[i].set_socket_handle(Proto::Tcp(stream));
+                    self.set_socket_status(i, W5100_SN_SR_SOCK_ESTABLISHED);
+                } else {
+                    u2_debug!("Connect Socket on #{i} - Failed to set non-blocking");
+                    self.clear_socket(i);
+                }
             }
             _ => {
                 u2_debug!("Connect Socket on #{i} to {sock_addr:?} FAILED");
@@ -1189,11 +1189,13 @@ impl Uthernet2 {
         match TcpListener::bind(&listen_string) {
             Ok(listener) => {
                 u2_debug!("Listen Socket on #{i} to {listen_string} - OK");
-                listener
-                    .set_nonblocking(true)
-                    .expect("Cannot set non-blocking listener");
-                self.socket[i].set_socket_handle(Proto::TcpListener(listener));
-                self.set_socket_status(i, W5100_SN_SR_SOCK_LISTEN);
+                if listener.set_nonblocking(true).is_ok() {
+                    self.socket[i].set_socket_handle(Proto::TcpListener(listener));
+                    self.set_socket_status(i, W5100_SN_SR_SOCK_LISTEN);
+                } else {
+                    u2_debug!("Listen Socket on #{i} - Failed to set socket to non-blocking");
+                    self.clear_socket(i);
+                }
             }
             _ => {
                 u2_debug!("Listen Socket on #{i} to {listen_string} FAILED");
@@ -1236,6 +1238,12 @@ impl Uthernet2 {
         let socket = &mut self.socket[i];
 
         let size = socket.transmit_size;
+
+        if size == 0 {
+            u2_debug!("Send Data on #{i} - transmit_size is 0, skipping");
+            return;
+        }
+
         let mask = size - 1;
         let sn_tx_rr = (u16::from_be_bytes([
             self.mem[base_addr + W5100_SN_TX_RD0],
@@ -1336,6 +1344,12 @@ impl Uthernet2 {
         let base_addr = self.get_base_socket_addr(i);
         let socket = &mut self.socket[i];
         let size = socket.receive_size;
+
+        if size == 0 {
+            u2_debug!("Update rsr on #{i} - receive_size is 0, skipping");
+            return;
+        }
+
         let mask = size - 1;
 
         let sn_rx_rd = (u16::from_be_bytes([

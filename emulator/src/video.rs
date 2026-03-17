@@ -113,7 +113,7 @@ pub struct Video {
 
     #[cfg_attr(
         feature = "serde_support",
-        serde(deserialize_with = "deserialize_cycles")
+        serde(deserialize_with = "deserialize_cycles", default)
     )]
     cycles: usize,
 
