@@ -625,7 +625,7 @@
             const ctx_audio = new AudioContext();
 
             // Resume AudioContext on user interaction
-            const resumeAudio() = () => {
+            const resumeAudio = () => {
                 if (ctx_audio.state === 'suspended') {
                     ctx_audio.resume();
                 }
