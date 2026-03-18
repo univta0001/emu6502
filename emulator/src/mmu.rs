@@ -1,6 +1,7 @@
 use crate::bus::{Card, ROM_END, ROM_START};
 use crate::disk::DiskDrive;
 use crate::video::Video;
+use strum::EnumIter;
 
 #[cfg(feature = "serde_support")]
 use crate::marshal::{as_hex, as_opt_hex, from_hex_12k, from_hex_64k, from_hex_opt};
@@ -8,14 +9,25 @@ use crate::marshal::{as_hex, as_opt_hex, from_hex_12k, from_hex_64k, from_hex_op
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-#[derive(Default, Debug, Copy, Clone, PartialEq)]
+#[derive(Default, Debug, Copy, Clone, PartialEq, EnumIter)]
 #[allow(non_camel_case_types)]
 pub enum AuxType {
+    Empty,
     #[default]
     Ext80,
     Std80,
     RW3,
-    Empty,
+}
+
+impl From<AuxType> for &str {
+    fn from(item: AuxType) -> &'static str {
+        match item {
+            AuxType::Empty => "Empty",
+            AuxType::Ext80 => "Extended 80 Column",
+            AuxType::Std80 => "Standard 80 Column",
+            AuxType::RW3 => "RamWorks III",
+        }
+    }
 }
 
 #[cfg(feature = "serde_support")]
@@ -122,7 +134,6 @@ pub struct Mmu {
         )
     )]
     pub aux_type: AuxType,
-
     pub a2cp: bool,
     pub a2c: bool,
 
