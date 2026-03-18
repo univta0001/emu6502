@@ -1950,8 +1950,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             cpu.bus.mem.aux_type = aux_type
         }
 
-        if cpu.bus.mem.aux_type == AuxType::Empty {
+        if cpu.bus.mem.aux_type == AuxType::Empty || cpu.bus.mem.aux_type == AuxType::RW3 {
             cpu.bus.video.disable_aux = true;
+        } else {
+            cpu.bus.video.disable_aux = false;
         }
     }
 
