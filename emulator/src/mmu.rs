@@ -231,6 +231,10 @@ impl Mmu {
         }
     }
 
+    pub fn get_saturn_flag(&self) -> bool {
+        self.saturn_flag
+    }
+
     pub fn set_saturn_slot(&mut self, value: u8) {
         self.saturn_slot = value
     }

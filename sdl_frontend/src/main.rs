@@ -2937,7 +2937,7 @@ fn prepare_menu_for_state_management(cpu: &mut CPU, ui: &imgui::Ui, event: &mut 
 }
 
 fn get_slot_settings(cpu: &CPU) -> Vec<usize> {
-    let mut selected = vec![0; 8];
+    let mut selected = vec![0; 9];
 
     let mut mockingboard_id = 0;
     let mut saturn_id = 0;
@@ -2956,6 +2956,12 @@ fn get_slot_settings(cpu: &CPU) -> Vec<usize> {
         };
     }
 
+    // If it is not apple 2e and above, include slot 0
+    if !cpu.is_apple2e() {
+        let saturn_flag = cpu.bus.mem.get_saturn_flag() as usize;
+        selected[0] = saturn_flag;
+    }
+
     for (i, item) in selected.iter_mut().enumerate().take(8).skip(1) {
         let slot_value = cpu.bus.io_slot[i];
         *item = 0;
@@ -2971,6 +2977,13 @@ fn get_slot_settings(cpu: &CPU) -> Vec<usize> {
         }
     }
 
+    if cpu.is_apple2e() {
+        let auxtype_items: Vec<_> = AuxType::iter().collect();
+        let auxtype = &cpu.bus.mem.aux_type;
+        let index = auxtype_items.iter().position(|i| i == auxtype).unwrap_or(0);
+        selected[8] = index;
+    }
+
     selected
 }
 
@@ -2981,6 +2994,12 @@ fn update_settings(cpu: &mut CPU, settings: &[usize]) -> bool {
     let mut saturn_count = 0;
 
     let iodevice_items: Vec<_> = IODevice::iter().collect();
+
+    // If it is not apple 2e and above, include slot 0
+    if !cpu.is_apple2e() {
+        let saturn_flag = settings[0] != 0;
+        cpu.bus.mem.set_saturn_memory(saturn_flag);
+    }
 
     // Check for disk, hard disk, mockingboard validity
     // Only two mockingboards allowed, one disk drive and one hard disk
@@ -3036,6 +3055,17 @@ fn update_settings(cpu: &mut CPU, settings: &[usize]) -> bool {
         cpu.bus.register_device(cpu.bus.io_slot[i], i);
     }
 
+    if cpu.is_apple2e() {
+        let auxtype_items: Vec<_> = AuxType::iter().collect();
+        let auxtype = auxtype_items[settings[8]];
+        cpu.bus.mem.aux_type = auxtype;
+        if cpu.bus.mem.aux_type == AuxType::Empty || cpu.bus.mem.aux_type == AuxType::RW3 {
+            cpu.bus.video.disable_aux = true;
+        } else {
+            cpu.bus.video.disable_aux = false;
+        }
+    }
+
     true
 }
 
@@ -3049,13 +3079,33 @@ fn prepare_settings(
         .modal_popup_config("Settings##settings")
         .flags(imgui::WindowFlags::NO_RESIZE | imgui::WindowFlags::NO_SAVED_SETTINGS)
         .build(|| {
-            let items: Vec<&str> = IODevice::iter().map(|item| item.into()).collect();
-            for (i, item) in selected.iter_mut().enumerate().skip(1) {
+            if !cpu.is_apple2e() {
+                let item = &mut selected[0];
+                let items = ["Language Card", "Saturn"];
                 ui.align_text_to_frame_padding();
-                ui.text(format!("Slot {}:", i));
+                ui.text(format!("Slot {:3}:", 0));
                 ui.same_line();
                 ui.set_next_item_width(200.0);
-                ui.combo_simple_string(format!("##{i}"), item, &items);
+                ui.combo_simple_string(format!("##slot_0"), item, &items);
+            }
+
+            let items: Vec<&str> = IODevice::iter().map(|item| item.into()).collect();
+            for (i, item) in selected.iter_mut().enumerate().skip(1).take(7) {
+                ui.align_text_to_frame_padding();
+                ui.text(format!("Slot {i:3}:"));
+                ui.same_line();
+                ui.set_next_item_width(200.0);
+                ui.combo_simple_string(format!("##slot_{i}"), item, &items);
+            }
+
+            if cpu.is_apple2e() {
+                let items: Vec<&str> = AuxType::iter().map(|item| item.into()).collect();
+                let item = &mut selected[8];
+                ui.align_text_to_frame_padding();
+                ui.text("Slot Aux:");
+                ui.same_line();
+                ui.set_next_item_width(200.0);
+                ui.combo_simple_string(format!("##aux_type"), item, &items);
             }
 
             let content_region_max_x = ui.content_region_avail()[0];
