@@ -57,10 +57,8 @@ impl Card for ParallelCard {
         let io_addr = ((addr & 0x00ff) - ((slot as u16) << 4)) as u8;
         match io_addr {
             // Load output
-            0x80 => {
-                if write_flag {
-                    eprint!("{}", (value & 0x7f) as char);
-                }
+            0x80 if write_flag => {
+                eprint!("{}", (value & 0x7f) as char);
             }
 
             // Send a strobe

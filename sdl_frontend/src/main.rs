@@ -249,10 +249,8 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             keycode: Some(Keycode::PrintScreen),
             keymod,
             ..
-        } => {
-            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                *event_param.save_screenshot = true;
-            }
+        } if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) => {
+            *event_param.save_screenshot = true
         }
 
         Event::KeyDown {
@@ -286,45 +284,33 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         Event::KeyUp {
             keycode: Some(Keycode::LShift),
             ..
-        } => {
-            if cpu.is_apple2e() {
-                cpu.bus.pushbutton_latch[2] = 0x0;
-            }
-        }
+        } if cpu.is_apple2e() => cpu.bus.pushbutton_latch[2] = 0x0,
 
         Event::KeyUp {
             keycode: Some(Keycode::RShift),
             ..
-        } => {
-            if cpu.is_apple2e() {
-                cpu.bus.pushbutton_latch[2] = 0x0;
-            }
-        }
+        } if cpu.is_apple2e() => cpu.bus.pushbutton_latch[2] = 0x0,
 
         Event::KeyDown {
             keycode: Some(Keycode::Insert),
             keymod,
             ..
-        } => {
-            if (keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD))
-                && event_param.clipboard_text.is_empty()
-            {
-                let clipboard = event_param.video_subsystem.clipboard();
-                if let Ok(text) = clipboard.clipboard_text() {
-                    *event_param.clipboard_text = text.replace('\n', "");
-                }
+        } if (keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD))
+            && event_param.clipboard_text.is_empty() =>
+        {
+            let clipboard = event_param.video_subsystem.clipboard();
+            if let Ok(text) = clipboard.clipboard_text() {
+                *event_param.clipboard_text = text.replace('\n', "");
             }
         }
 
         Event::MouseButtonDown {
             mouse_btn: sdl3::mouse::MouseButton::Middle,
             ..
-        } => {
-            if event_param.clipboard_text.is_empty() {
-                let clipboard = event_param.video_subsystem.clipboard();
-                if let Ok(text) = clipboard.clipboard_text() {
-                    *event_param.clipboard_text = text.replace('\n', "");
-                }
+        } if event_param.clipboard_text.is_empty() => {
+            let clipboard = event_param.video_subsystem.clipboard();
+            if let Ok(text) = clipboard.clipboard_text() {
+                *event_param.clipboard_text = text.replace('\n', "");
             }
         }
 
@@ -1950,7 +1936,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             cpu.bus.mem.aux_type = aux_type
         }
 
-        cpu.bus.video.disable_aux = cpu.bus.mem.aux_type == AuxType::Empty || cpu.bus.mem.aux_type == AuxType::RW3;
+        cpu.bus.video.disable_aux =
+            cpu.bus.mem.aux_type == AuxType::Empty || cpu.bus.mem.aux_type == AuxType::RW3;
     }
 
     let mut scale = 2.0;
@@ -3055,7 +3042,8 @@ fn update_settings(cpu: &mut CPU, settings: &[usize]) -> bool {
         let auxtype_items: Vec<_> = AuxType::iter().collect();
         let auxtype = auxtype_items[settings[8]];
         cpu.bus.mem.aux_type = auxtype;
-        cpu.bus.video.disable_aux = cpu.bus.mem.aux_type == AuxType::Empty || cpu.bus.mem.aux_type == AuxType::RW3;
+        cpu.bus.video.disable_aux =
+            cpu.bus.mem.aux_type == AuxType::Empty || cpu.bus.mem.aux_type == AuxType::RW3;
     }
 
     true

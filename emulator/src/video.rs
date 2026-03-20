@@ -939,79 +939,54 @@ impl Video {
         }
     }
 
-    pub fn io_access(&mut self, addr: u16, _value: u8, write_flag: bool) -> u8 {
-        let mut value = 0;
+    pub fn io_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
+        let mut value = value;
         let io_addr = (addr & 0xff) as u8;
         match io_addr {
-            0x0c => {
-                if self.apple2e && write_flag {
-                    self.vid80_mode = false;
-                    self.update_video();
+            0x0c if self.apple2e && write_flag => {
+                self.vid80_mode = false;
+                self.update_video();
+            }
+            0x0d if self.apple2e && write_flag => {
+                self.vid80_mode = true;
+                self.update_video();
+            }
+            0x0e if self.apple2e && write_flag => {
+                self.altchar = false;
+                for item in &mut self.video_dirty {
+                    *item = 1;
                 }
             }
-            0x0d => {
-                if self.apple2e && write_flag {
-                    self.vid80_mode = true;
-                    self.update_video();
-                }
-            }
-            0x0e => {
-                if self.apple2e && write_flag {
-                    self.altchar = false;
-                    for item in &mut self.video_dirty {
-                        *item = 1;
-                    }
-                }
-            }
-            0x0f => {
-                if (self.apple2e_enh || self.apple2c) && write_flag {
-                    self.altchar = true;
-                    for item in &mut self.video_dirty {
-                        *item = 1;
-                    }
+            0x0f if (self.apple2e_enh || self.apple2c) && write_flag => {
+                self.altchar = true;
+                for item in &mut self.video_dirty {
+                    *item = 1;
                 }
             }
 
-            0x19 => {
-                if self.apple2e {
-                    if self.is_vbl() { return 0 } else { return 0x80 }
+            0x19 if self.apple2e => {
+                if self.is_vbl() {
+                    return value & 0x7f;
+                } else {
+                    return 0x80 | (value & 0x7f);
                 }
             }
 
-            0x1a => {
-                if !self.graphics_mode {
-                    return 0x80;
-                }
-            }
-            0x1b => {
-                if self.mixed_mode {
-                    return 0x80;
-                }
-            }
-            0x1c => {
-                if self.video_page2 {
-                    return 0x80;
-                }
-            }
-            0x1d => {
-                if !self.lores_mode {
-                    return 0x80;
-                }
-            }
-            0x1e => {
-                if self.altchar {
-                    return 0x80;
-                }
-            }
-            0x1f => {
-                if self.vid80_mode {
-                    return 0x80;
-                }
-            }
+            0x1a if !self.graphics_mode => return 0x80 | (value & 0x7f),
+
+            0x1b if self.mixed_mode => return 0x80 | (value & 0x7f),
+
+            0x1c if self.video_page2 => return 0x80 | (value & 0x7f),
+
+            0x1d if !self.lores_mode => return 0x80 | (value & 0x7f),
+
+            0x1e if self.altchar => return 0x80 | (value & 0x7f),
+
+            0x1f if self.vid80_mode => return 0x80 | (value & 0x7f),
 
             0x21 => {
                 if write_flag {
-                    self.mono_mode = _value & 0x80 > 0;
+                    self.mono_mode = value & 0x80 > 0;
                 } else if self.mono_mode {
                     value |= 0x80;
                 }
@@ -1019,11 +994,11 @@ impl Video {
 
             0x29 => {
                 if write_flag {
-                    self.mono_mode = _value & 0x20 > 0;
+                    self.mono_mode = value & 0x20 > 0;
 
                     if self.vidhd {
-                        self.shr_mode = _value & 0x80 > 0;
-                        self.shr_linear_mode = _value & 0x40 > 0;
+                        self.shr_mode = value & 0x80 > 0;
+                        self.shr_linear_mode = value & 0x40 > 0;
                     } else {
                         self.shr_mode = false;
                         self.shr_linear_mode = false;
@@ -1039,7 +1014,7 @@ impl Video {
 
             _ => {}
         }
-        value
+        value & 0x7f
     }
 
     pub fn set_apple2e(&mut self, flag: bool) {
@@ -1900,12 +1875,10 @@ impl Video {
         altflag: bool,
         color: Rgb,
     ) {
-        let mut x = x1;
-        for ch in str.chars() {
+        for (x, ch) in (x1..).zip(str.chars()) {
             if x < 80 {
                 self.draw_char_raw_a2(x, y1, ch as u8, alpha, altflag, color);
             }
-            x += 1;
         }
     }
 
@@ -2463,10 +2436,8 @@ impl Video {
     pub fn draw_string_a2(&mut self, x1: usize, y1: usize, s: &str) {
         debug_assert!(x1 + s.len() < 40);
         debug_assert!(y1 < 24);
-        let mut x = x1;
-        for ch in s.chars() {
+        for (x, ch) in (x1..).zip(s.chars()) {
             self.draw_char_a2(x, y1, ch as u8);
-            x += 1;
         }
     }
 

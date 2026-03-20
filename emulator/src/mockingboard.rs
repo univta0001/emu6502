@@ -510,22 +510,16 @@ impl W65C22 {
             self.driving_bus = false;
         } else if self.state == AY_INACTIVE {
             match value & 0x07 {
-                AY_READ_DATA => {
-                    if self.latch_addr_valid {
-                        self.driving_bus = true;
-                        self.ora = self.ay8910[device].read_register() & (self.ddra ^ 0xff)
-                    }
+                AY_READ_DATA if self.latch_addr_valid => {
+                    self.driving_bus = true;
+                    self.ora = self.ay8910[device].read_register() & (self.ddra ^ 0xff)
                 }
-                AY_WRITE_DATA => {
-                    if self.latch_addr_valid {
-                        self.ay8910[device].write_register(self.ora)
-                    }
+                AY_WRITE_DATA if self.latch_addr_valid => {
+                    self.ay8910[device].write_register(self.ora)
                 }
-                AY_SET_PSG_REG => {
-                    if self.ora <= 0x0f {
-                        self.latch_addr_valid = true;
-                        self.ay8910[device].set_register(self.ora & 0xf);
-                    }
+                AY_SET_PSG_REG if self.ora <= 0x0f => {
+                    self.latch_addr_valid = true;
+                    self.ay8910[device].set_register(self.ora & 0xf);
                 }
                 _ => {}
             }

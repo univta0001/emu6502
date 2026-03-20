@@ -360,17 +360,9 @@ impl Mmu {
                 }
             }
 
-            0xe40..=0xe5f => {
-                if write_flag {
-                    self.mig_change_state(drive, self.mig_state | 1)
-                }
-            }
+            0xe40..=0xe5f if write_flag => self.mig_change_state(drive, self.mig_state | 1),
 
-            0xe60..=0xe7f => {
-                if write_flag {
-                    self.mig_change_state(drive, self.mig_state & !1)
-                }
-            }
+            0xe60..=0xe7f if write_flag => self.mig_change_state(drive, self.mig_state & !1),
 
             0xea0 => self.mig_bank = 0,
 
