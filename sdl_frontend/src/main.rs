@@ -1950,11 +1950,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             cpu.bus.mem.aux_type = aux_type
         }
 
-        if cpu.bus.mem.aux_type == AuxType::Empty || cpu.bus.mem.aux_type == AuxType::RW3 {
-            cpu.bus.video.disable_aux = true;
-        } else {
-            cpu.bus.video.disable_aux = false;
-        }
+        cpu.bus.video.disable_aux = cpu.bus.mem.aux_type == AuxType::Empty || cpu.bus.mem.aux_type == AuxType::RW3;
     }
 
     let mut scale = 2.0;
@@ -3059,11 +3055,7 @@ fn update_settings(cpu: &mut CPU, settings: &[usize]) -> bool {
         let auxtype_items: Vec<_> = AuxType::iter().collect();
         let auxtype = auxtype_items[settings[8]];
         cpu.bus.mem.aux_type = auxtype;
-        if cpu.bus.mem.aux_type == AuxType::Empty || cpu.bus.mem.aux_type == AuxType::RW3 {
-            cpu.bus.video.disable_aux = true;
-        } else {
-            cpu.bus.video.disable_aux = false;
-        }
+        cpu.bus.video.disable_aux = cpu.bus.mem.aux_type == AuxType::Empty || cpu.bus.mem.aux_type == AuxType::RW3;
     }
 
     true
@@ -3086,7 +3078,7 @@ fn prepare_settings(
                 ui.text(format!("Slot {:3}:", 0));
                 ui.same_line();
                 ui.set_next_item_width(200.0);
-                ui.combo_simple_string(format!("##slot_0"), item, &items);
+                ui.combo_simple_string("##slot_0", item, &items);
             }
 
             let items: Vec<&str> = IODevice::iter().map(|item| item.into()).collect();
@@ -3105,7 +3097,7 @@ fn prepare_settings(
                 ui.text("Slot Aux:");
                 ui.same_line();
                 ui.set_next_item_width(200.0);
-                ui.combo_simple_string(format!("##aux_type"), item, &items);
+                ui.combo_simple_string("##aux_type", item, &items);
             }
 
             let content_region_max_x = ui.content_region_avail()[0];
