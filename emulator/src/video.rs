@@ -994,11 +994,11 @@ impl Video {
 
             0x29 => {
                 if write_flag {
-                    self.mono_mode = value & 0x20 > 0;
+                    self.mono_mode = _value & 0x20 > 0;
 
                     if self.vidhd {
-                        self.shr_mode = value & 0x80 > 0;
-                        self.shr_linear_mode = value & 0x40 > 0;
+                        self.shr_mode = _value & 0x80 > 0;
+                        self.shr_linear_mode = _value & 0x40 > 0;
                     } else {
                         self.shr_mode = false;
                         self.shr_linear_mode = false;
