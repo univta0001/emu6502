@@ -940,7 +940,7 @@ impl Video {
     }
 
     pub fn io_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
-        let mut value = value;
+        let mut value = 0;
         let io_addr = (addr & 0xff) as u8;
         match io_addr {
             0x0c if self.apple2e && write_flag => {
@@ -966,23 +966,23 @@ impl Video {
 
             0x19 if self.apple2e => {
                 if self.is_vbl() {
-                    return value & 0x7f;
+                    return 0;
                 } else {
-                    return 0x80 | (value & 0x7f);
+                    return 0x80;
                 }
             }
 
-            0x1a if !self.graphics_mode => return 0x80 | (value & 0x7f),
+            0x1a if !self.graphics_mode => return 0x80,
 
-            0x1b if self.mixed_mode => return 0x80 | (value & 0x7f),
+            0x1b if self.mixed_mode => return 0x80,
 
-            0x1c if self.video_page2 => return 0x80 | (value & 0x7f),
+            0x1c if self.video_page2 => return 0x80,
 
-            0x1d if !self.lores_mode => return 0x80 | (value & 0x7f),
+            0x1d if !self.lores_mode => return 0x80,
 
-            0x1e if self.altchar => return 0x80 | (value & 0x7f),
+            0x1e if self.altchar => return 0x80,
 
-            0x1f if self.vid80_mode => return 0x80 | (value & 0x7f),
+            0x1f if self.vid80_mode => return 0x80,
 
             0x21 => {
                 if write_flag {
@@ -1014,7 +1014,7 @@ impl Video {
 
             _ => {}
         }
-        value & 0x7f
+        value
     }
 
     pub fn set_apple2e(&mut self, flag: bool) {
