@@ -1960,7 +1960,7 @@ impl Video {
         if !self.vid80_mode {
             let x1offset = x1 * 7;
             let y1offset = y1 * 8 + yindex;
-            if !(self.is_display_mode_mono()
+            if !(self.display_mode == DisplayMode::RGB || self.is_display_mode_mono()
                 || self.mono_mode
                 || (self.video_50hz || self.text_color_burst) && self.mixed_mode && y1 >= 20)
             {
@@ -1987,7 +1987,7 @@ impl Video {
             let x1offset = x1 * 14 + offset;
             let y1offset = y1 * 16 + yindex * 2;
 
-            if !(self.is_display_mode_mono()
+            if !(self.display_mode == DisplayMode::RGB || self.is_display_mode_mono()
                 || self.mono_mode
                 || (self.video_50hz || self.text_color_burst) && self.mixed_mode && y1 >= 20)
             {
@@ -2504,7 +2504,11 @@ impl Video {
                 }
 
                 let mut color = if dhires_mode {
-                    DHIRES_COLORS[color_index as usize]
+                    if !mixed_mode {
+                        DHIRES_COLORS[color_index as usize]
+                    } else {
+                        LORES_COLORS[color_index as usize]
+                    }
                 } else {
                     LORES_COLORS[color_index as usize]
                 };
@@ -2518,7 +2522,11 @@ impl Video {
                 }
 
                 color = if dhires_mode {
-                    DHIRES_COLORS[color_index as usize]
+                    if !mixed_mode {
+                        DHIRES_COLORS[color_index as usize]
+                    } else {
+                        LORES_COLORS[color_index as usize]
+                    }
                 } else {
                     LORES_COLORS[color_index as usize]
                 };
@@ -2569,11 +2577,10 @@ impl Video {
     fn draw_raw_hires_ntsc_a2_row_col(&mut self, row: usize, col: usize, value: u8) {
         if row < 192 && col < 40 {
             let mixed_mode = self.mixed_mode && row >= 160;
-            let an3 = self.display_mode != DisplayMode::RGB && self.dhires_mode && !self.vid80_mode;
             let mut luma = [0u8; 14 + 2 * NTSC_PIXEL_NEIGHBOR + 1];
             // Populate col-1 luma
             let prev_value = if col > 0 {
-                if !an3 && (mixed_mode || self.color_burst && !self.graphics_mode) {
+                if !self.vid80_mode && (mixed_mode || self.color_burst && !self.graphics_mode) {
                     if value & 0x1 > 0 { 0x7f } else { 0 }
                 } else {
                     self.read_hires_memory(col - 1, row)
@@ -2627,7 +2634,7 @@ impl Video {
 
             // Populate col+1 luma
             let next_value = if col < 39 {
-                if !an3 && (mixed_mode || self.color_burst && !self.graphics_mode) {
+                if !self.vid80_mode && (mixed_mode || self.color_burst && !self.graphics_mode) {
                     if value & 0x1 > 0 { 0x7f } else { 0 }
                 } else {
                     self.read_hires_memory(col + 1, row)
@@ -2660,8 +2667,12 @@ impl Video {
             for i in 0..14 {
                 let pos = (x + i) % 4;
                 let luma_u32 = luma_to_u32(&luma, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR);
-                let mut color = if an3 {
-                    self.chroma_dhgr[pos][luma_u32 as usize]
+                let mut color = if self.dhires_mode {
+                    if !mixed_mode {
+                        self.chroma_dhgr[pos][luma_u32 as usize]
+                    } else {
+                        self.chroma_hgr[pos][luma_u32 as usize]
+                    }
                 } else {
                     self.chroma_hgr[pos][luma_u32 as usize]
                 };
