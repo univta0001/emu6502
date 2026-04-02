@@ -2164,7 +2164,7 @@ impl Video {
                             color_index &= 0x3;
                         }
                     } else {
-                        if value & 1 > 0 {
+                        if value & 8 > 0 {
                             color_index |= 0x3;
                         } else {
                             color_index &= 0xc;
