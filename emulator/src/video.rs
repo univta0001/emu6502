@@ -2657,7 +2657,7 @@ impl Video {
                 }
 
                 let mut color = if dhires_mode {
-                    if !mixed_mode {
+                    if self.vid80_mode {
                         DHIRES_COLORS[color_index as usize]
                     } else {
                         LORES_COLORS[color_index as usize]
@@ -2675,7 +2675,7 @@ impl Video {
                 }
 
                 color = if dhires_mode {
-                    if !mixed_mode {
+                    if self.vid80_mode {
                         DHIRES_COLORS[color_index as usize]
                     } else {
                         LORES_COLORS[color_index as usize]
@@ -2821,7 +2821,7 @@ impl Video {
                 let pos = (x + i) % 4;
                 let luma_u32 = luma_to_u32(&luma, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR);
                 let mut color = if self.dhires_mode {
-                    if !mixed_mode {
+                    if self.vid80_mode {
                         self.chroma_dhgr[pos][luma_u32 as usize]
                     } else {
                         self.chroma_hgr[pos][luma_u32 as usize]
