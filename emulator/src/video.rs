@@ -211,7 +211,8 @@ impl Tick for Video {
 const TEXT_LEN: usize = 0x400;
 const HIRES_LEN: usize = 0x2000;
 const CYCLES_PER_ROW: usize = 65;
-const CYCLES_PER_BURST: usize = 20;
+const CYCLES_PER_BURST_START: usize = 16;
+const CYCLES_PER_BURST_END: usize = 20;
 const CYCLES_PER_HBL: usize = 25;
 const CYCLES_PER_FIELD_60HZ: usize = 17030;
 const CYCLES_PER_FIELD_50HZ: usize = 20280;
@@ -838,7 +839,7 @@ impl Video {
             return;
         }
 
-        if col == CYCLES_PER_BURST {
+        if (CYCLES_PER_BURST_START..CYCLES_PER_BURST_END).contains(&col) {
             self.update_color_burst();
         }
 
