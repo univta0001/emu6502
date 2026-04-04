@@ -100,7 +100,7 @@ Features in the emulator
             --chroma bandwidth NTSC Chroma B/W (Valid value: 0-7159090, Default: 600000)
             --capslock off     Turns off default capslock
             --mac_lc_dlgr      Turns on Mac LC DLGR emulation
-            --scale ratio      Scale the graphics by ratio (Default is 2.0)
+            --scale ratio      Scale the graphics by ratio (Default is 1.5)
             --z80_cirtech      Enable Z80 Cirtech address translation
             --saturn           Enable Saturn memory (Only available in Apple 2+)
             --dongle model     Enable dongle

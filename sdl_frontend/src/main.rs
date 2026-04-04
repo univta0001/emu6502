@@ -1940,7 +1940,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             cpu.bus.mem.aux_type == AuxType::Empty || cpu.bus.mem.aux_type == AuxType::RW3;
     }
 
-    let mut scale = 2.0;
+    let mut scale = 1.5;
 
     if let Some(scale_value) = pargs.opt_value_from_str::<_, f32>("--scale")? {
         if !(1.0..=4.0).contains(&scale_value) {
