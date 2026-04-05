@@ -957,12 +957,14 @@ impl Video {
                 for item in &mut self.video_dirty {
                     *item = 1;
                 }
+                self.update_video();
             }
             0x0f if (self.apple2e_enh || self.apple2c) && write_flag => {
                 self.altchar = true;
                 for item in &mut self.video_dirty {
                     *item = 1;
                 }
+                self.update_video();
             }
 
             0x19 if self.apple2e => {
