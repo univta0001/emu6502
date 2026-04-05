@@ -851,7 +851,8 @@ impl Video {
         let video_aux_latch = self.read_aux_video_data(cycle, row);
         let visible_col = col - CYCLES_PER_HBL;
         let video_mode = self.get_video_mode();
-        let video_data = video_value as u32 | ((video_aux_latch as u32) << 8) | video_mode;
+        let video_data =
+            video_value as u32 | ((video_aux_latch as u32) << 8) | ((video_mode as u32) << 16);
         let flash_status = self.get_flash_mode(video_data, video_mode);
 
         let cache_changed = self.video_cache[cycle] != video_data;
@@ -1290,8 +1291,8 @@ impl Video {
         }
     }
 
-    fn get_video_mode(&self) -> u32 {
-        let mut mode: u32 = 0;
+    fn get_video_mode(&self) -> u8 {
+        let mut mode: u8 = 0;
 
         if !self.graphics_mode {
             mode |= 0x1;
@@ -1321,11 +1322,11 @@ impl Video {
             mode |= 0x80;
         }
 
-        mode << 16
+        mode
     }
 
-    fn get_flash_mode(&self, video_data: u32, video_mode: u32) -> bool {
-        let mode = video_mode >> 16;
+    fn get_flash_mode(&self, video_data: u32, video_mode: u8) -> bool {
+        let mode = video_mode;
 
         // Flash mode is not available in 80 col
         if mode & 0x10 != 0 {
@@ -2081,6 +2082,10 @@ impl Video {
                 if is_ntsc {
                     self.draw_dlores_ntsc_a2_y(x1, y1, ch, offset, aux);
                 } else {
+                    if x1 == 39 {
+                        self.set_pixel_count(560, y1 * 2, COLOR_BLACK, 7);
+                    }
+
                     let mut color_index = if !aux {
                         let prev_ch = self.read_aux_text_memory(x1, y1);
                         let val = if yindex < 4 {
@@ -2123,6 +2128,10 @@ impl Video {
                     }
                 }
             } else {
+                if x1 == 39 {
+                    self.set_pixel_count(560, y1 * 2, COLOR_BLACK, 7);
+                }
+
                 let mono_color = self.get_mono_color();
 
                 for xindex in 0..7 {
@@ -2475,6 +2484,10 @@ impl Video {
         let mut mask = 0x1;
         let mut luma = [0u8; 7 + 2 * NTSC_PIXEL_NEIGHBOR + 1];
         let yindex = y1 % 8;
+
+        if x1 == 39 {
+            self.set_pixel_count(560, y1 * 2, COLOR_BLACK, 7);
+        }
 
         // Prepare luma for col - 1
         let prev_value = if !aux {
