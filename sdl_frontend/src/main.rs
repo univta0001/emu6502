@@ -4,7 +4,7 @@ use emu6502::bus::Bus;
 use emu6502::bus::Dongle;
 use emu6502::bus::IODevice;
 use emu6502::mmu::AuxType;
-use emu6502::video::DisplayMode;
+use emu6502::video::{DisplayMode, Video};
 //use emu6502::bus::Mem;
 //use emu6502::trace::trace;
 use emu6502::cpu::{CPU, CpuSpeed, CpuStats};
@@ -68,9 +68,6 @@ const PADDLE_MAX_VALUE: u16 = 288;
 //const CPU_6502_MHZ: usize = 157500 * 1000 / 11 * 65 / 912;
 const NTSC_LUMA_BANDWIDTH: f32 = 2300000.0;
 const NTSC_CHROMA_BANDWIDTH: f32 = 600000.0;
-
-const WIDTH: usize = 560;
-const HEIGHT: usize = 384;
 
 const DSK_PO_SIZE: u64 = 143360;
 
@@ -409,7 +406,7 @@ FLAGS:
     --chroma bandwidth NTSC Chroma B/W (Valid value: 0-7159090, Default: 600000)
     --capslock off     Turns off default capslock
     --mac_lc_dlgr      Turns on Mac LC DLGR emulation
-    --scale ratio      Scale the graphics by ratio (Default is 2.0)
+    --scale ratio      Scale the graphics by ratio (Default is 1.5)
     --z80_cirtech      Enable Z80 Cirtech address translation
     --saturn           Enable Saturn memory (Only available in Apple 2+)
     --dongle model     Enable dongle
@@ -867,8 +864,8 @@ fn save_emulator_screenshot(cpu: &mut CPU) {
         let encoder = PngEncoder::new(output);
         let result = encoder.write_image(
             &disp.frame,
-            WIDTH as u32,
-            HEIGHT as u32,
+            Video::WIDTH as u32,
+            Video::HEIGHT as u32,
             ColorType::Rgba8.into(),
         );
         if result.is_err() {
@@ -885,8 +882,12 @@ fn _update_texture(cpu: &mut CPU, texture: &mut Texture) {
     for region in dirty_region {
         let start = region.0 * 16;
         let end = 16 * ((region.1 - region.0) + 1);
-        let rect = Rect::new(0, start as i32, WIDTH as u32, end as u32);
-        let _ = texture.update(rect, &disp.frame[start * 4 * WIDTH..], WIDTH * 4);
+        let rect = Rect::new(0, start as i32, Video::WIDTH as u32, end as u32);
+        let _ = texture.update(
+            rect,
+            &disp.frame[start * 4 * Video::WIDTH..],
+            Video::WIDTH * 4,
+        );
     }
     disp.clear_video_dirty();
 }
@@ -916,9 +917,14 @@ fn update_gpu_texture(
 
     let upload_command_buffer = device.acquire_command_buffer().unwrap();
     let copy_pass = device.begin_copy_pass(&upload_command_buffer).unwrap();
-    let texture =
-        imgui_sdl3::utils::create_texture(device, &copy_pass, display, WIDTH as u32, HEIGHT as u32)
-            .unwrap();
+    let texture = imgui_sdl3::utils::create_texture(
+        device,
+        &copy_pass,
+        display,
+        Video::WIDTH as u32,
+        Video::HEIGHT as u32,
+    )
+    .unwrap();
     device.end_copy_pass(copy_pass);
     let _ = upload_command_buffer.submit();
     let sampler = device
@@ -1987,8 +1993,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut sdl_context = sdl3::init()?;
 
     // Create window
-    let width = (scale * WIDTH as f32) as u32;
-    let height = (scale * HEIGHT as f32) as u32;
+    let width = (scale * Video::WIDTH as f32) as u32;
+    let height = (scale * Video::HEIGHT as f32) as u32;
     let video_subsystem = sdl_context.video()?;
 
     let mut window = video_subsystem
@@ -2193,8 +2199,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
                     if prev_scale != scale {
                         prev_scale = scale;
-                        let width = (scale * WIDTH as f32) as u32;
-                        let height = (scale * HEIGHT as f32) as u32 + 2 * MENUBAR_HEIGHT;
+                        let width = (scale * Video::WIDTH as f32) as u32;
+                        let height = (scale * Video::HEIGHT as f32) as u32 + 2 * MENUBAR_HEIGHT;
                         let _ = window.set_size(width, height);
                     }
 

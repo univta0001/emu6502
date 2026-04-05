@@ -714,7 +714,7 @@ const CHAR_APPLE2E_ROM: [u8; 4096] = [
 ];
 
 impl Video {
-    pub const WIDTH: usize = 560;
+    pub const WIDTH: usize = 567;
     pub const HEIGHT: usize = 384;
 
     pub fn new() -> Self {
@@ -1977,13 +1977,17 @@ impl Video {
                 }
                 self.draw_raw_hires_a2_row_col(y1offset, x1, data);
             } else {
+                if x1offset == 0 {
+                    self.set_pixel_count(0, 2 * y1offset, COLOR_BLACK, 7);
+                }
+
                 for xindex in x1offset..x1offset + 7 {
                     let color = if bitmap & shift == 0 {
                         back_color
                     } else {
                         fore_color
                     };
-                    self.set_a2_pixel(xindex, y1offset, color);
+                    self.set_pixel_count(2 * xindex + 7, 2 * y1offset, color, 2);
                     shift >>= 1;
                 }
             }
@@ -2047,13 +2051,13 @@ impl Video {
 
         for yindex in 0..4 {
             for xindex in 0..7 {
-                self.set_a2_pixel(x1 * 7 + xindex, y1 * 8 + yindex, low_pixel_color);
+                self.set_a2_pixel(7 + x1 * 7 + xindex, y1 * 8 + yindex, low_pixel_color);
             }
         }
 
         for yindex in 4..8 {
             for xindex in 0..7 {
-                self.set_a2_pixel(x1 * 7 + xindex, y1 * 8 + yindex, high_pixel_color);
+                self.set_a2_pixel(7 + x1 * 7 + xindex, y1 * 8 + yindex, high_pixel_color);
             }
         }
     }
@@ -2190,7 +2194,7 @@ impl Video {
                     }
 
                     let color = LORES_COLORS[color_index as usize];
-                    self.set_pixel_count(x1 * 14 + xindex, y1 * 2, color, step_size);
+                    self.set_pixel_count(7 + x1 * 14 + xindex, y1 * 2, color, step_size);
 
                     mask <<= 1;
                     if mask > 0xf {
@@ -2205,9 +2209,9 @@ impl Video {
 
             for xindex in (0..14).step_by(step_size) {
                 if value & mask != 0 {
-                    self.set_pixel_count(x1 * 14 + xindex, y1 * 2, mono_color, step_size);
+                    self.set_pixel_count(7 + x1 * 14 + xindex, y1 * 2, mono_color, step_size);
                 } else {
-                    self.set_pixel_count(x1 * 14 + xindex, y1 * 2, COLOR_BLACK, step_size);
+                    self.set_pixel_count(7 + x1 * 14 + xindex, y1 * 2, COLOR_BLACK, step_size);
                 }
                 mask <<= 1;
                 if mask > 0xf {
@@ -2222,6 +2226,10 @@ impl Video {
         let mut mask = 0x1;
         let mut luma = [0u8; 14 + 2 * NTSC_PIXEL_NEIGHBOR + 1];
         let yindex = y1 % 8;
+
+        if x1 == 0 {
+            self.set_pixel_count(0, y1 * 2, COLOR_BLACK, 7);
+        }
 
         // Prepare luma for col - 1
         let prev_value = if x1 > 0 {
@@ -2311,6 +2319,10 @@ impl Video {
             }
         }
 
+        if x1 == 0 {
+            self.set_pixel_count(0, y1 * 2, COLOR_BLACK, 7);
+        }
+
         let x = x1 * 14;
         for i in 0..14 {
             let pos = (x + i) % 4;
@@ -2325,7 +2337,7 @@ impl Video {
             }
 
             //let color = chroma_ntsc_color(&luma, x + i, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR, false, &self.ntsc_decoder);
-            self.set_pixel_count(x + i, y1 * 2, color, 1);
+            self.set_pixel_count(7 + x + i, y1 * 2, color, 1);
         }
     }
 
@@ -2334,6 +2346,10 @@ impl Video {
         let mut mask = 0x1;
         let mut luma = [0u8; 14 + 2 * NTSC_PIXEL_NEIGHBOR + 1];
         let yindex = y1 % 8;
+
+        if x1 == 0 {
+            self.set_pixel_count(0, y1 * 2, COLOR_BLACK, 7);
+        }
 
         // Prepare luma for col - 1
         let prev_value = if x1 > 0 {
@@ -2443,7 +2459,7 @@ impl Video {
             }
 
             //let color = chroma_ntsc_color(&luma, x + i, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR, false, &self.ntsc_decoder);
-            self.set_pixel_count(x + i, y1 * 2, color, 1);
+            self.set_pixel_count(7 + x + i, y1 * 2, color, 1);
         }
     }
 
@@ -2651,6 +2667,10 @@ impl Video {
             let mut offset = x;
             let hbs = (value & 0x80 > 0) as usize;
 
+            if offset == 0 {
+                self.set_pixel_count(0, row * 2, COLOR_BLACK, 7);
+            }
+
             while mask != 0x80 {
                 let index = (offset + hbs) % 4;
                 if value & mask > 0 {
@@ -2669,7 +2689,7 @@ impl Video {
                     LORES_COLORS[color_index as usize]
                 };
 
-                self.set_pixel_count(offset, row * 2, color, 1);
+                self.set_pixel_count(7 + offset, row * 2, color, 1);
 
                 if value & mask > 0 {
                     color_index |= 1 << ((index + 1) % 4);
@@ -2687,7 +2707,7 @@ impl Video {
                     LORES_COLORS[color_index as usize]
                 };
 
-                self.set_pixel_count(offset + 1, row * 2, color, 1);
+                self.set_pixel_count(7 + offset + 1, row * 2, color, 1);
 
                 mask <<= 1;
                 offset += 2;
@@ -2718,11 +2738,15 @@ impl Video {
                 }
             }
 
+            if hbs + x == 0 {
+                self.set_pixel_count(0, 2 * row, COLOR_BLACK, 7);
+            }
+
             while mask != 0x80 {
                 if value & mask > 0 {
-                    self.set_pixel_count(hbs + x + 2 * offset, 2 * row, mono_color, 2);
+                    self.set_pixel_count(7 + hbs + x + 2 * offset, 2 * row, mono_color, 2);
                 } else {
-                    self.set_pixel_count(hbs + x + 2 * offset, 2 * row, COLOR_BLACK, 2);
+                    self.set_pixel_count(7 + hbs + x + 2 * offset, 2 * row, COLOR_BLACK, 2);
                 }
                 mask <<= 1;
                 offset += 1;
@@ -2732,6 +2756,10 @@ impl Video {
 
     fn draw_raw_hires_ntsc_a2_row_col(&mut self, row: usize, col: usize, value: u8) {
         if row < 192 && col < 40 {
+            if col == 0 {
+                self.set_pixel_count(0, 2 * row, COLOR_BLACK, 7);
+            }
+
             let mixed_mode = self.mixed_mode && row >= 160;
             let mut luma = [0u8; 14 + 2 * NTSC_PIXEL_NEIGHBOR + 1];
             // Populate col-1 luma
@@ -2840,7 +2868,7 @@ impl Video {
                     color = [gray, gray, gray];
                 }
                 //let color = chroma_ntsc_color(&luma, x + i, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR, an3, &self.ntsc_decoder);
-                self.set_pixel_count(x + i, 2 * row, color, 1);
+                self.set_pixel_count(7 + x + i, 2 * row, color, 1);
             }
         }
     }
@@ -2862,11 +2890,15 @@ impl Video {
             let bg_color = LORES_COLORS[(aux_value & 0xf) as usize];
             let fg_color = LORES_COLORS[((aux_value >> 4) & 0xf) as usize];
 
+            if x == 0 {
+                self.set_pixel_count(0, 2 * row, COLOR_BLACK, 7);
+            }
+
             while mask != 0x80 {
                 if value & mask > 0 {
-                    self.set_pixel_count(x + 2 * offset, 2 * row, fg_color, 2);
+                    self.set_pixel_count(7 + x + 2 * offset, 2 * row, fg_color, 2);
                 } else {
-                    self.set_pixel_count(x + 2 * offset, 2 * row, bg_color, 2);
+                    self.set_pixel_count(7 + x + 2 * offset, 2 * row, bg_color, 2);
                 }
                 mask <<= 1;
                 offset += 1;
@@ -2879,22 +2911,35 @@ impl Video {
             || self.mono_mode
             || self.is_display_mode_mono()
         {
+            if col == 39 {
+                self.set_pixel_count(560, row * 2, COLOR_BLACK, 7);
+            }
             self.draw_raw_dhires_mono_a2_row_col(row, col, value, aux_value);
             return;
         }
 
         if self.display_mode == DisplayMode::RGB && self.rgb_mode == 0x1 {
+            if col == 39 {
+                self.set_pixel_count(560, row * 2, COLOR_BLACK, 7);
+            }
             self.draw_raw_dhires_160x192_row_col(row, col, value, aux_value);
             return;
         }
 
         if self.display_mode == DisplayMode::NTSC || self.display_mode == DisplayMode::MONO_NTSC {
+            if col == 39 {
+                self.set_pixel_count(560, row * 2, COLOR_BLACK, 7);
+            }
             self.draw_raw_dhires_ntsc_a2_row_col(row, col, value, aux_value);
             return;
         }
 
         if row < 192 && col < 40 {
             let x = col * 14;
+
+            if col == 39 {
+                self.set_pixel_count(560, row * 2, COLOR_BLACK, 7);
+            }
 
             // Mixed mode
             if self.display_mode == DisplayMode::RGB && self.rgb_mode == 2 {
@@ -3249,6 +3294,10 @@ impl Video {
 
     /* Implemented super hires mode (320, 640, fill-mode, linearized) */
     fn draw_super_hires_a2_row_col(&mut self, row: usize, visible_col: usize) {
+        if visible_col == 39 {
+            self.set_pixel_count(560, row * 192 / 100, COLOR_BLACK, 7);
+        }
+
         for i in 0..4 {
             let x = visible_col * 4 + i;
             let value = self.get_super_hires_value(row, x);

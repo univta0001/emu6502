@@ -738,7 +738,7 @@
 
             const update_ui = () => {
                 let arr = emu6502.frame_buffer();
-                let imageData = new ImageData(arr, 560);
+                let imageData = new ImageData(arr, 567);
                 createImageBitmap(imageData).then(renderer =>
                     ctx_2d.drawImage(renderer,0,0, canvas_width, canvas_height)
                 );
