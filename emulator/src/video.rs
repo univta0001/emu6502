@@ -2819,6 +2819,11 @@ impl Video {
             let mut offset = 0;
             let mut mask = 0x1;
             let mono_color = self.get_mono_color();
+            let hires_offset = if self.display_mode == DisplayMode::RGB {
+                0
+            } else {
+                7
+            };
 
             if hbs > 0 {
                 let bit = if col > 0 {
@@ -2829,25 +2834,19 @@ impl Video {
                 };
 
                 if bit != 0 {
-                    self.set_pixel_count(x, 2 * row, mono_color, 1);
+                    self.set_pixel_count(hires_offset + x, 2 * row, mono_color, 1);
                 } else {
-                    self.set_pixel_count(x, 2 * row, COLOR_BLACK, 1);
+                    self.set_pixel_count(hires_offset + x, 2 * row, COLOR_BLACK, 1);
                 }
             }
 
-            if self.display_mode != DisplayMode::RGB && hbs + x == 0 {
+            if self.display_mode != DisplayMode::RGB && col == 0 {
                 self.set_pixel_count(0, 2 * row, COLOR_BLACK, 7);
             }
 
-            if self.display_mode == DisplayMode::RGB && hbs + x == 39 {
+            if self.display_mode == DisplayMode::RGB && col == 39 {
                 self.set_pixel_count(560, 2 * row, COLOR_BLACK, 7);
             }
-
-            let hires_offset = if self.display_mode == DisplayMode::RGB {
-                0
-            } else {
-                7
-            };
 
             while mask != 0x80 {
                 if value & mask > 0 {
