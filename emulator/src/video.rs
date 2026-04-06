@@ -2754,11 +2754,11 @@ impl Video {
             let mut offset = x;
             let hbs = (value & 0x80 > 0) as usize;
 
-            if self.display_mode != DisplayMode::RGB && offset == 0 {
+            if self.display_mode != DisplayMode::RGB && col == 0 {
                 self.set_pixel_count(0, row * 2, COLOR_BLACK, 7);
             }
 
-            if self.display_mode == DisplayMode::RGB && offset == 39 {
+            if self.display_mode == DisplayMode::RGB && col == 39 {
                 self.set_pixel_count(560, row * 2, COLOR_BLACK, 7);
             }
 
@@ -2843,7 +2843,11 @@ impl Video {
                 self.set_pixel_count(560, 2 * row, COLOR_BLACK, 7);
             }
 
-            let hires_offset = if self.display_mode == DisplayMode::RGB { 0 } else { 7 };
+            let hires_offset = if self.display_mode == DisplayMode::RGB {
+                0
+            } else {
+                7
+            };
 
             while mask != 0x80 {
                 if value & mask > 0 {
