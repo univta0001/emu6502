@@ -1974,7 +1974,8 @@ impl Video {
             if !(self.display_mode == DisplayMode::RGB
                 || self.is_display_mode_mono()
                 || self.mono_mode
-                || (self.video_50hz || self.text_color_burst) && self.mixed_mode && y1 >= 20)
+                || self.text_color_burst
+                || self.video_50hz && self.mixed_mode && y1 >= 20)
             {
                 let mut data = bitmap.reverse_bits() & 0x7f;
                 if !self.apple2e {
@@ -2016,7 +2017,8 @@ impl Video {
             if !(self.display_mode == DisplayMode::RGB
                 || self.is_display_mode_mono()
                 || self.mono_mode
-                || (self.video_50hz || self.text_color_burst) && self.mixed_mode && y1 >= 20)
+                || self.text_color_burst
+                || self.video_50hz && self.mixed_mode && y1 >= 20)
             {
                 let data = bitmap.reverse_bits();
                 let alt_ch = self.read_aux_text_memory(x1, y1 * 8 + yindex);
