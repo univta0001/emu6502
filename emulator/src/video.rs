@@ -1479,24 +1479,16 @@ impl Video {
     }
 
     fn read_raw_hires_memory(&self, addr: usize) -> u8 {
-        if self.video_page2 {
-            if !self._80storeon {
-                self.video_main[(addr as u16 + 0x4000) as usize]
-            } else {
-                self.video_main[(addr as u16 + 0x2000) as usize]
-            }
+        if !self._80storeon && self.video_page2 {
+            self.video_main[(addr as u16 + 0x4000) as usize]
         } else {
             self.video_main[(addr as u16 + 0x2000) as usize]
         }
     }
 
     fn read_raw_aux_hires_memory(&self, addr: usize) -> u8 {
-        if self.video_page2 {
-            if !self._80storeon {
-                self.video_aux[(addr as u16 + 0x4000) as usize]
-            } else {
-                self.video_aux[(addr as u16 + 0x2000) as usize]
-            }
+        if !self._80storeon && self.video_page2 {
+            self.video_aux[(addr as u16 + 0x4000) as usize]
         } else {
             self.video_aux[(addr as u16 + 0x2000) as usize]
         }
