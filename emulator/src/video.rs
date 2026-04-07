@@ -1439,29 +1439,21 @@ impl Video {
     }
 
     fn read_raw_text_memory(&self, addr: usize) -> u8 {
-        if self.video_page2 {
-            if !self._80storeon {
-                self.video_main[(addr as u16 + 0x800) as usize]
-            } else {
-                self.video_main[(addr as u16 + 0x400) as usize]
-            }
+        if !self._80storeon && self.video_page2 {
+            self.video_main[(addr as u16 + 0x800) as usize]
         } else {
             self.video_main[(addr as u16 + 0x400) as usize]
         }
     }
 
     fn read_raw_aux_text_memory(&self, addr: usize) -> u8 {
-        if self.video_page2 {
-            if !self._80storeon {
-                self.video_aux[(addr as u16 + 0x800) as usize]
-            } else {
-                self.video_aux[(addr as u16 + 0x400) as usize]
-            }
+        if !self._80storeon && self.video_page2 {
+            self.video_aux[(addr as u16 + 0x800) as usize]
         } else {
             self.video_aux[(addr as u16 + 0x400) as usize]
         }
     }
-
+    
     fn hires_address(&mut self, row: usize) -> usize {
         /*
         // 000fghcd eabab000 -> abcdefgh
