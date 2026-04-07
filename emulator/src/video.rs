@@ -961,9 +961,9 @@ impl Video {
                         let video_data = if self.is_graphics() {
                             self.read_hires_memory(col - 26, row)
                         } else {
-                            CHAR_APPLE2E_ROM
-                                [self.read_text_memory(col - 26, row) as usize * 8 + row % 8]
-                                .reverse_bits()
+                            let prev_ch = self.read_text_memory(col - 26, row);
+                            let prev_value = self.get_normalized_char(prev_ch);
+                            CHAR_APPLE2E_ROM[prev_value as usize * 8 + row % 8].reverse_bits()
                         };
                         self.draw_raw_dhires_a2_row_col(row, col - 25, 0, video_data, false);
                         //self.set_pixel_count((col - 25) * 14, 2 * row, COLOR_BLACK, 7);
@@ -1949,8 +1949,8 @@ impl Video {
         (flash, back_color, fore_color)
     }
 
-    fn draw_char_a2_y(&mut self, x1: usize, y1: usize, ch: u8, yindex: usize, offset: usize) {
-        let val = if !self.altchar {
+    fn get_normalized_char(&self, ch: u8) -> u8 {
+        if !self.altchar {
             if (0x40..0x80).contains(&ch) {
                 ch - 0x40
             } else {
@@ -1958,8 +1958,11 @@ impl Video {
             }
         } else {
             ch
-        };
+        }
+    }
 
+    fn draw_char_a2_y(&mut self, x1: usize, y1: usize, ch: u8, yindex: usize, offset: usize) {
+        let val = self.get_normalized_char(ch);
         let bitmap = self.get_font_bitmap(val, yindex);
         let (flash, mut back_color, mut fore_color) = self.get_font_flash_mono_color(ch);
 
@@ -2028,15 +2031,7 @@ impl Video {
             {
                 let data = bitmap.reverse_bits();
                 let alt_ch = self.read_aux_text_memory(x1, y1 * 8 + yindex);
-                let alt_val = if !self.altchar {
-                    if (0x40..0x80).contains(&alt_ch) {
-                        alt_ch - 0x40
-                    } else {
-                        alt_ch
-                    }
-                } else {
-                    alt_ch
-                };
+                let alt_val = self.get_normalized_char(alt_ch);
                 let alt_data = self.get_font_bitmap(alt_val, yindex).reverse_bits();
                 self.draw_raw_dhires_a2_row_col(y1 * 8 + yindex, x1, data, alt_data, true);
             } else {
@@ -3379,14 +3374,16 @@ impl Video {
             // Handle luma for col - 1
             let prev_value = if col > 0 {
                 if mixed_mode {
-                    CHAR_APPLE2E_ROM[self.read_text_memory(col - 1, row) as usize * 8 + row % 8]
-                        .reverse_bits()
+                    let prev_ch = self.read_text_memory(col - 1, row);
+                    let prev_value = self.get_normalized_char(prev_ch);
+                    CHAR_APPLE2E_ROM[prev_value as usize * 8 + row % 8].reverse_bits()
                 } else {
                     if self.is_graphics() {
                         self.read_hires_memory(col - 1, row)
                     } else {
-                        CHAR_APPLE2E_ROM[self.read_text_memory(col - 1, row) as usize * 8 + row % 8]
-                            .reverse_bits()
+                        let prev_ch = self.read_text_memory(col - 1, row);
+                        let prev_value = self.get_normalized_char(prev_ch);
+                        CHAR_APPLE2E_ROM[prev_value as usize * 8 + row % 8].reverse_bits()
                     }
                 }
             } else {
@@ -3424,8 +3421,9 @@ impl Video {
             // Handle luma for col+1
             let next_value = if col < 39 {
                 if mixed_mode {
-                    CHAR_APPLE2E_ROM[self.read_aux_text_memory(col + 1, row) as usize * 8 + row % 8]
-                        .reverse_bits()
+                    let next_ch = self.read_aux_text_memory(col + 1, row);
+                    let next_value = self.get_normalized_char(next_ch);
+                    CHAR_APPLE2E_ROM[next_value as usize * 8 + row % 8].reverse_bits()
                 } else {
                     self.read_aux_hires_memory(col + 1, row)
                 }
