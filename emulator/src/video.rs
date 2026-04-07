@@ -3384,7 +3384,7 @@ impl Video {
             } else {
                 0
             };
-            let mut mask = 1 << (7 - NTSC_PIXEL_NEIGHBOR);
+            let mut mask = 1;
             while mask != 0x80 {
                 if prev_value & mask > 0 {
                     luma[offset] = 1;
