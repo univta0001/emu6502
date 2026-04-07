@@ -1341,14 +1341,13 @@ impl Bus {
 
 impl Mem for Bus {
     fn addr_read(&mut self, addr: u16) -> u8 {
-        let value = self.unclocked_addr_read(addr);
         self.tick();
-        value
+        self.unclocked_addr_read(addr)
     }
 
     fn addr_write(&mut self, addr: u16, data: u8) {
+        self.tick();
         self.unclocked_addr_write(addr, data);
-        self.tick()
     }
 
     fn unclocked_addr_read(&mut self, addr: u16) -> u8 {
