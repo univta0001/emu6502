@@ -1447,7 +1447,11 @@ impl Video {
     }
 
     fn read_raw_aux_text_memory(&self, addr: usize) -> u8 {
-        self.video_aux[(addr as u16 + 0x400) as usize]
+        if !self._80storeon && self.video_page2 {
+            self.video_aux[(addr as u16 + 0x800) as usize]
+        } else {
+            self.video_aux[(addr as u16 + 0x400) as usize]
+        }
     }
     
     fn hires_address(&mut self, row: usize) -> usize {
@@ -1483,7 +1487,11 @@ impl Video {
     }
 
     fn read_raw_aux_hires_memory(&self, addr: usize) -> u8 {
-        self.video_aux[(addr as u16 + 0x2000) as usize]
+        if !self._80storeon && self.video_page2 {
+            self.video_aux[(addr as u16 + 0x4000) as usize]
+        } else {
+            self.video_aux[(addr as u16 + 0x2000) as usize]
+        }
     }
 
     pub fn read_latch(&self) -> u8 {
