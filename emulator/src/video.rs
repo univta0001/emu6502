@@ -3060,7 +3060,15 @@ impl Video {
                         ((val & 0x3) << 2) | (val >> 2)
                     }
                 } else {
-                    let val = (self.read_hires_memory(col - 1, row) >> 3) & 0xf;
+                    let val = if self.is_graphics() {
+                        (self.read_hires_memory(col - 1, row) >> 3) & 0xf
+                    } else {
+                        (CHAR_APPLE2E_ROM
+                            [self.read_text_memory(col - 1, row) as usize * 8 + row % 8]
+                            .reverse_bits()
+                            >> 3)
+                            & 0xf
+                    };
                     if col.is_multiple_of(2) {
                         val
                     } else {
@@ -3318,7 +3326,12 @@ impl Video {
                     CHAR_APPLE2E_ROM[self.read_text_memory(col - 1, row) as usize * 8 + row % 8]
                         .reverse_bits()
                 } else {
-                    self.read_hires_memory(col - 1, row)
+                    if self.is_graphics() {
+                        self.read_hires_memory(col - 1, row)
+                    } else {
+                        CHAR_APPLE2E_ROM[self.read_text_memory(col - 1, row) as usize * 8 + row % 8]
+                            .reverse_bits()
+                    }
                 }
             } else {
                 0
