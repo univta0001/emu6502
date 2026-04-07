@@ -1914,22 +1914,11 @@ impl Video {
         }
     }
 
-    fn draw_char_a2_y(&mut self, x1: usize, y1: usize, ch: u8, yindex: usize, offset: usize) {
-        let val = if !self.altchar {
-            if (0x40..0x80).contains(&ch) {
-                ch - 0x40
-            } else {
-                ch
-            }
-        } else {
-            ch
-        };
-
-        let bitmap = self.get_font_bitmap(val, yindex);
+    fn get_font_flash_mono_color(&self, ch: u8) -> (bool, Rgb, Rgb) {
         let flash = ch & 0xc0 == 0x40 && self.blink && !self.vid80_mode && !self.altchar;
         let normal = ch & 0x80 > 0;
-        let mut back_color;
-        let mut fore_color;
+        let back_color;
+        let fore_color;
 
         let mono_color = self.get_mono_color();
 
@@ -1956,6 +1945,23 @@ impl Video {
             back_color = COLOR_BLACK;
             fore_color = mono_color;
         }
+
+        (flash, back_color, fore_color)
+    }
+
+    fn draw_char_a2_y(&mut self, x1: usize, y1: usize, ch: u8, yindex: usize, offset: usize) {
+        let val = if !self.altchar {
+            if (0x40..0x80).contains(&ch) {
+                ch - 0x40
+            } else {
+                ch
+            }
+        } else {
+            ch
+        };
+
+        let bitmap = self.get_font_bitmap(val, yindex);
+        let (flash, mut back_color, mut fore_color) = self.get_font_flash_mono_color(ch);
 
         if self.display_mode == DisplayMode::RGB && self.dhires_mode && !self.vid80_mode {
             let aux_value = self.read_aux_text_memory(x1, y1 * 8);
@@ -3458,10 +3464,6 @@ impl Video {
 
     /* Implemented super hires mode (320, 640, fill-mode, linearized) */
     fn draw_super_hires_a2_row_col(&mut self, row: usize, visible_col: usize) {
-        if visible_col == 39 {
-            self.set_pixel_count(560, row * 192 / 100, COLOR_BLACK, 7);
-        }
-
         for i in 0..4 {
             let x = visible_col * 4 + i;
             let value = self.get_super_hires_value(row, x);
@@ -3477,7 +3479,7 @@ impl Video {
                         pal_index,
                         (value >> (4 * (1 - i))) & 0xf,
                         fill_mode,
-                        index * 7 / 8,
+                        index * 71 / 80,
                         row,
                     );
                     self.set_pixel_count(index * 71 / 80, row * 192 / 100, color, 1);
