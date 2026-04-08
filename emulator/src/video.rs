@@ -2329,7 +2329,7 @@ impl Video {
         }
 
         let mut count = 14 - NTSC_PIXEL_NEIGHBOR;
-        while offset != NTSC_PIXEL_NEIGHBOR {
+        while offset < NTSC_PIXEL_NEIGHBOR {
             if count == 0 {
                 if prev_value & mask != 0 {
                     luma[offset] = 1;
@@ -2385,7 +2385,7 @@ impl Video {
             mask <<= 2;
         }
         count = 0;
-        while count != NTSC_PIXEL_NEIGHBOR {
+        while count < NTSC_PIXEL_NEIGHBOR {
             if next_value & mask != 0 {
                 luma[offset] = 1;
             } else {
@@ -2462,7 +2462,7 @@ impl Video {
         }
 
         let mut count = 7 - NTSC_PIXEL_NEIGHBOR;
-        while offset >= NTSC_PIXEL_NEIGHBOR {
+        while offset < NTSC_PIXEL_NEIGHBOR {
             if count == 0 {
                 if prev_value & mask != 0 {
                     luma[offset] = 1;
@@ -2522,7 +2522,7 @@ impl Video {
             mask <<= 2;
         }
         count = 0;
-        while count >= NTSC_PIXEL_NEIGHBOR {
+        while count < NTSC_PIXEL_NEIGHBOR {
             if next_value & mask != 0 {
                 luma[offset] = 1;
                 luma[offset + 1] = 1;
@@ -2604,7 +2604,7 @@ impl Video {
         };
 
         let mut count = 7 - NTSC_PIXEL_NEIGHBOR;
-        while ptr != NTSC_PIXEL_NEIGHBOR {
+        while ptr < NTSC_PIXEL_NEIGHBOR {
             if count == 0 {
                 if prev_value & mask != 0 {
                     luma[ptr] = 1;
@@ -2671,7 +2671,7 @@ impl Video {
         };
 
         count = 0;
-        while count != NTSC_PIXEL_NEIGHBOR {
+        while count < NTSC_PIXEL_NEIGHBOR {
             if next_value & mask != 0 {
                 luma[ptr] = 1;
             } else {
@@ -2966,7 +2966,7 @@ impl Video {
                     luma[2 * offset] = 0
                 }
             }
-            while mask != (1 << (NTSC_PIXEL_NEIGHBOR / 2)) {
+            while mask < (1 << (NTSC_PIXEL_NEIGHBOR / 2)) {
                 if next_value & mask > 0 {
                     luma[hbs + 2 * offset] = 1;
                     luma[hbs + 2 * offset + 1] = 1;
@@ -3419,7 +3419,7 @@ impl Video {
                 0
             };
             let mut mask = 0x1;
-            while mask != (1 << NTSC_PIXEL_NEIGHBOR) {
+            while mask < (1 << NTSC_PIXEL_NEIGHBOR) {
                 if next_value & mask > 0 {
                     luma[offset] = 1;
                 } else {
