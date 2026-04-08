@@ -1462,7 +1462,7 @@ impl Video {
         }
     }
 
-    fn read_text_memory(&mut self, col: usize, row: usize) -> u8 {
+    pub fn read_text_memory(&mut self, col: usize, row: usize) -> u8 {
         let line = row / 8;
 
         // 000000cd eabab000 -> 000abcde
@@ -1984,7 +1984,7 @@ impl Video {
         }
     }
 
-    fn draw_char_a2_y(&mut self, x1: usize, y1: usize, ch: u8, yindex: usize, offset: usize) {
+    pub fn draw_char_a2_y(&mut self, x1: usize, y1: usize, ch: u8, yindex: usize, offset: usize) {
         let val = self.get_normalized_char(ch);
         let bitmap = self.get_font_bitmap(val, yindex);
         let (flash, mut back_color, mut fore_color) = self.get_font_flash_mono_color(ch);

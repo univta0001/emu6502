@@ -806,6 +806,19 @@ impl Bus {
                 if write_flag {
                     self.mem._80storeon = false;
                     self.video._80storeon = false;
+
+                    if !self.video.is_graphics() {
+                        let row = self.cycles / 65;
+                        let col = self.cycles % 65;
+
+                        if row < 192 && col >= 26 {
+                            let prev_ch = self.video.read_text_memory(col - 26, row);
+                            self.video
+                                .draw_char_a2_y(col - 26, row / 8, prev_ch, row % 8, 7);
+                        }
+
+                        self.video.update_video();
+                    }
                 }
                 self.get_keyboard_latch()
             }
@@ -814,6 +827,19 @@ impl Bus {
                 if write_flag {
                     self.mem._80storeon = true;
                     self.video._80storeon = true;
+
+                    if !self.video.is_graphics() {
+                        let row = self.cycles / 65;
+                        let col = self.cycles % 65;
+
+                        if row < 192 && col >= 26 {
+                            let prev_ch = self.video.read_text_memory(col - 26, row);
+                            self.video
+                                .draw_char_a2_y(col - 26, row / 8, prev_ch, row % 8, 7);
+                        }
+
+                        self.video.update_video();
+                    }
                 }
                 self.get_keyboard_latch()
             }
