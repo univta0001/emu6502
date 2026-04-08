@@ -941,16 +941,12 @@ impl Video {
         }
     }
 
-    pub fn update_previous_column_graphics(&mut self, vid80_mode: bool) {
+    pub fn update_previous_column_graphics(&mut self) {
         if !self.is_graphics() {
             let row = self.cycles / 65;
             let col = self.cycles % 65;
 
             if row < 192 && col >= 26 {
-                if vid80_mode {
-                    let prev_aux_ch = self.read_aux_text_memory(col - 26, row);
-                    self.draw_char_a2_y(col - 26, row / 8, prev_aux_ch, row % 8, 0);
-                }
                 let prev_ch = self.read_text_memory(col - 26, row);
                 self.draw_char_a2_y(col - 26, row / 8, prev_ch, row % 8, 7);
             }
@@ -965,7 +961,7 @@ impl Video {
                 let prev_mode = self.vid80_mode;
                 self.vid80_mode = false;
                 if prev_mode {
-                    self.update_previous_column_graphics(false);
+                    self.update_previous_column_graphics();
                 }
                 self.update_video();
             }
@@ -973,7 +969,7 @@ impl Video {
                 let prev_mode = self.vid80_mode;
                 self.vid80_mode = true;
                 if !prev_mode {
-                    self.update_previous_column_graphics(true);
+                    self.update_previous_column_graphics();
                 }
                 self.update_video();
             }
@@ -984,7 +980,7 @@ impl Video {
                     *item = 1;
                 }
                 if prev_mode {
-                    self.update_previous_column_graphics(false);
+                    self.update_previous_column_graphics();
                 }
                 self.update_video();
             }
@@ -995,7 +991,7 @@ impl Video {
                     *item = 1;
                 }
                 if !prev_mode {
-                    self.update_previous_column_graphics(false);
+                    self.update_previous_column_graphics();
                 }
                 self.update_video();
             }
