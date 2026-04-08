@@ -888,13 +888,7 @@ impl Video {
                 self.draw_char_a2_y(visible_col, row / 8, video_value, row % 8, 7);
             } else if !self.lores_mode {
                 if self.vid80_mode && self.dhires_mode {
-                    self.draw_raw_dhires_a2_row_col(
-                        row,
-                        visible_col,
-                        video_value,
-                        video_aux_latch,
-                        true,
-                    );
+                    self.draw_raw_dhires_a2_row_col(row, visible_col, video_value, video_aux_latch);
                 } else {
                     self.draw_raw_hires_a2_row_col(row, visible_col, video_value);
                 }
@@ -952,27 +946,38 @@ impl Video {
         let io_addr = (addr & 0xff) as u8;
         match io_addr {
             0x0c if self.apple2e && write_flag => {
-                if self.vid80_mode && self.display_mode != DisplayMode::RGB {
-                    let row = self.cycles / 65;
-                    let col = self.cycles % 65;
+                if self.vid80_mode {
+                    self.vid80_mode = false;
 
-                    if row < 192 && col >= 26 {
-                        //let video_data = (self.read_text_memory(col - 1, row);
-                        let video_data = if self.is_graphics() {
-                            self.read_hires_memory(col - 26, row)
-                        } else {
+                    if !self.is_graphics() {
+                        let row = self.cycles / 65;
+                        let col = self.cycles % 65;
+
+                        if row < 192 && col >= 26 {
                             let prev_ch = self.read_text_memory(col - 26, row);
-                            let prev_value = self.get_normalized_char(prev_ch);
-                            CHAR_APPLE2E_ROM[prev_value as usize * 8 + row % 8].reverse_bits()
-                        };
-                        self.draw_raw_dhires_a2_row_col(row, col - 25, 0, video_data, false);
-                        //self.set_pixel_count((col - 25) * 14, 2 * row, COLOR_BLACK, 7);
+                            self.draw_char_a2_y(col - 26, row / 8, prev_ch, row % 8, 7);
+                        }
                     }
                 }
                 self.vid80_mode = false;
                 self.update_video();
             }
             0x0d if self.apple2e && write_flag => {
+                if !self.vid80_mode {
+                    self.vid80_mode = true;
+
+                    if !self.is_graphics() {
+                        let row = self.cycles / 65;
+                        let col = self.cycles % 65;
+
+                        if row < 192 && col >= 26 {
+                            let prev_aux_ch = self.read_aux_text_memory(col - 26, row);
+                            let prev_ch = self.read_text_memory(col - 26, row);
+                            self.draw_char_a2_y(col - 26, row / 8, prev_aux_ch, row % 8, 0);
+                            self.draw_char_a2_y(col - 26, row / 8, prev_ch, row % 8, 7);
+                        }
+                    }
+                }
                 self.vid80_mode = true;
                 self.update_video();
             }
@@ -981,12 +986,30 @@ impl Video {
                 for item in &mut self.video_dirty {
                     *item = 1;
                 }
+                if !self.is_graphics() {
+                    let row = self.cycles / 65;
+                    let col = self.cycles % 65;
+
+                    if row < 192 && col >= 26 {
+                        let prev_ch = self.read_text_memory(col - 26, row);
+                        self.draw_char_a2_y(col - 26, row / 8, prev_ch, row % 8, 7);
+                    }
+                }
                 self.update_video();
             }
             0x0f if (self.apple2e_enh || self.apple2c) && write_flag => {
                 self.altchar = true;
                 for item in &mut self.video_dirty {
                     *item = 1;
+                }
+                if !self.is_graphics() {
+                    let row = self.cycles / 65;
+                    let col = self.cycles % 65;
+
+                    if row < 192 && col >= 26 {
+                        let prev_ch = self.read_text_memory(col - 26, row);
+                        self.draw_char_a2_y(col - 26, row / 8, prev_ch, row % 8, 7);
+                    }
                 }
                 self.update_video();
             }
@@ -2033,7 +2056,7 @@ impl Video {
                 let alt_ch = self.read_aux_text_memory(x1, y1 * 8 + yindex);
                 let alt_val = self.get_normalized_char(alt_ch);
                 let alt_data = self.get_font_bitmap(alt_val, yindex).reverse_bits();
-                self.draw_raw_dhires_a2_row_col(y1 * 8 + yindex, x1, data, alt_data, true);
+                self.draw_raw_dhires_a2_row_col(y1 * 8 + yindex, x1, data, alt_data);
             } else {
                 for xindex in x1offset..x1offset + 7 {
                     let color = if bitmap & shift == 0 {
@@ -3032,14 +3055,7 @@ impl Video {
         }
     }
 
-    fn draw_raw_dhires_a2_row_col(
-        &mut self,
-        row: usize,
-        col: usize,
-        value: u8,
-        aux_value: u8,
-        full_width: bool,
-    ) {
+    fn draw_raw_dhires_a2_row_col(&mut self, row: usize, col: usize, value: u8, aux_value: u8) {
         if self.display_mode == DisplayMode::RGB && self.rgb_mode == 0x3
             || self.mono_mode
             || self.is_display_mode_mono()
@@ -3047,7 +3063,7 @@ impl Video {
             if col == 39 {
                 self.set_pixel_count(560, row * 2, COLOR_BLACK, 7);
             }
-            self.draw_raw_dhires_mono_a2_row_col(row, col, value, aux_value, full_width);
+            self.draw_raw_dhires_mono_a2_row_col(row, col, value, aux_value);
             return;
         }
 
@@ -3063,7 +3079,7 @@ impl Video {
             if col == 39 {
                 self.set_pixel_count(560, row * 2, COLOR_BLACK, 7);
             }
-            self.draw_raw_dhires_ntsc_a2_row_col(row, col, value, aux_value, full_width);
+            self.draw_raw_dhires_ntsc_a2_row_col(row, col, value, aux_value);
             return;
         }
 
@@ -3128,23 +3144,16 @@ impl Video {
 
                 // Draw the Main
                 mask = 0x1;
-                if full_width {
-                    while mask != 0x80 {
-                        let index = offset % 4;
-                        if value & mask > 0 {
-                            color_index |= 1 << index;
-                        } else {
-                            color_index &= (1 << index) ^ 0xf;
-                        }
-                        self.set_pixel_count(
-                            offset,
-                            row * 2,
-                            DHIRES_COLORS[color_index as usize],
-                            1,
-                        );
-                        mask <<= 1;
-                        offset += 1;
+                while mask != 0x80 {
+                    let index = offset % 4;
+                    if value & mask > 0 {
+                        color_index |= 1 << index;
+                    } else {
+                        color_index &= (1 << index) ^ 0xf;
                     }
+                    self.set_pixel_count(offset, row * 2, DHIRES_COLORS[color_index as usize], 1);
+                    mask <<= 1;
+                    offset += 1;
                 }
             }
         }
@@ -3285,7 +3294,6 @@ impl Video {
         col: usize,
         value: u8,
         aux_value: u8,
-        full_width: bool,
     ) {
         if row < 192 && col < 40 {
             let x = col * 14;
@@ -3306,16 +3314,14 @@ impl Video {
             }
 
             mask = 1;
-            if full_width {
-                while mask != 0x80 {
-                    if value & mask > 0 {
-                        self.set_pixel_count(x + offset, row * 2, mono_color, 1);
-                    } else {
-                        self.set_pixel_count(x + offset, row * 2, COLOR_BLACK, 1);
-                    }
-                    mask <<= 1;
-                    offset += 1;
+            while mask != 0x80 {
+                if value & mask > 0 {
+                    self.set_pixel_count(x + offset, row * 2, mono_color, 1);
+                } else {
+                    self.set_pixel_count(x + offset, row * 2, COLOR_BLACK, 1);
                 }
+                mask <<= 1;
+                offset += 1;
             }
         }
     }
@@ -3364,7 +3370,6 @@ impl Video {
         col: usize,
         value: u8,
         aux_value: u8,
-        full_width: bool,
     ) {
         if row < 192 && col < 40 {
             let mut luma = [0u8; 14 + 2 * NTSC_PIXEL_NEIGHBOR + 1];
@@ -3442,8 +3447,7 @@ impl Video {
             }
 
             let x = col * 14;
-            let width = if full_width { 14 } else { 7 };
-            for i in 0..width {
+            for i in 0..14 {
                 let pos = (x + i) % 4;
                 let luma_u32 = luma_to_u32(&luma, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR);
                 let mut color = self.chroma_dhgr[pos][luma_u32 as usize];
