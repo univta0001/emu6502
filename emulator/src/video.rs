@@ -941,75 +941,61 @@ impl Video {
         }
     }
 
+    pub fn update_previous_column_graphics(&mut self, vid80_mode: bool) {
+        if !self.is_graphics() {
+            let row = self.cycles / 65;
+            let col = self.cycles % 65;
+
+            if row < 192 && col >= 26 {
+                if vid80_mode {
+                    let prev_aux_ch = self.read_aux_text_memory(col - 26, row);
+                    self.draw_char_a2_y(col - 26, row / 8, prev_aux_ch, row % 8, 0);
+                }
+                let prev_ch = self.read_text_memory(col - 26, row);
+                self.draw_char_a2_y(col - 26, row / 8, prev_ch, row % 8, 7);
+            }
+        }
+    }
+
     pub fn io_access(&mut self, addr: u16, _value: u8, write_flag: bool) -> u8 {
         let mut value = 0;
         let io_addr = (addr & 0xff) as u8;
         match io_addr {
             0x0c if self.apple2e && write_flag => {
-                if self.vid80_mode {
-                    self.vid80_mode = false;
-
-                    if !self.is_graphics() {
-                        let row = self.cycles / 65;
-                        let col = self.cycles % 65;
-
-                        if row < 192 && col >= 26 {
-                            let prev_ch = self.read_text_memory(col - 26, row);
-                            self.draw_char_a2_y(col - 26, row / 8, prev_ch, row % 8, 7);
-                        }
-                    }
-                }
+                let prev_mode = self.vid80_mode;
                 self.vid80_mode = false;
+                if prev_mode {
+                    self.update_previous_column_graphics(false);
+                }
                 self.update_video();
             }
             0x0d if self.apple2e && write_flag => {
-                if !self.vid80_mode {
-                    self.vid80_mode = true;
-
-                    if !self.is_graphics() {
-                        let row = self.cycles / 65;
-                        let col = self.cycles % 65;
-
-                        if row < 192 && col >= 26 {
-                            let prev_aux_ch = self.read_aux_text_memory(col - 26, row);
-                            let prev_ch = self.read_text_memory(col - 26, row);
-                            self.draw_char_a2_y(col - 26, row / 8, prev_aux_ch, row % 8, 0);
-                            self.draw_char_a2_y(col - 26, row / 8, prev_ch, row % 8, 7);
-                        }
-                    }
-                }
+                let prev_mode = self.vid80_mode;
                 self.vid80_mode = true;
+                if !prev_mode {
+                    self.update_previous_column_graphics(true);
+                }
                 self.update_video();
             }
             0x0e if self.apple2e && write_flag => {
+                let prev_mode = self.altchar;
                 self.altchar = false;
                 for item in &mut self.video_dirty {
                     *item = 1;
                 }
-                if !self.is_graphics() {
-                    let row = self.cycles / 65;
-                    let col = self.cycles % 65;
-
-                    if row < 192 && col >= 26 {
-                        let prev_ch = self.read_text_memory(col - 26, row);
-                        self.draw_char_a2_y(col - 26, row / 8, prev_ch, row % 8, 7);
-                    }
+                if prev_mode {
+                    self.update_previous_column_graphics(false);
                 }
                 self.update_video();
             }
             0x0f if (self.apple2e_enh || self.apple2c) && write_flag => {
+                let prev_mode = self.altchar;
                 self.altchar = true;
                 for item in &mut self.video_dirty {
                     *item = 1;
                 }
-                if !self.is_graphics() {
-                    let row = self.cycles / 65;
-                    let col = self.cycles % 65;
-
-                    if row < 192 && col >= 26 {
-                        let prev_ch = self.read_text_memory(col - 26, row);
-                        self.draw_char_a2_y(col - 26, row / 8, prev_ch, row % 8, 7);
-                    }
+                if !prev_mode {
+                    self.update_previous_column_graphics(false);
                 }
                 self.update_video();
             }
@@ -1462,7 +1448,7 @@ impl Video {
         }
     }
 
-    pub fn read_text_memory(&mut self, col: usize, row: usize) -> u8 {
+    fn read_text_memory(&mut self, col: usize, row: usize) -> u8 {
         let line = row / 8;
 
         // 000000cd eabab000 -> 000abcde
@@ -1984,7 +1970,7 @@ impl Video {
         }
     }
 
-    pub fn draw_char_a2_y(&mut self, x1: usize, y1: usize, ch: u8, yindex: usize, offset: usize) {
+    fn draw_char_a2_y(&mut self, x1: usize, y1: usize, ch: u8, yindex: usize, offset: usize) {
         let val = self.get_normalized_char(ch);
         let bitmap = self.get_font_bitmap(val, yindex);
         let (flash, mut back_color, mut fore_color) = self.get_font_flash_mono_color(ch);
