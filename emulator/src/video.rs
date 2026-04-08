@@ -3376,7 +3376,7 @@ impl Video {
             } else {
                 0
             };
-            let mut mask = 2;
+            let mut mask = 1;
             while mask != 0x80 {
                 if prev_value & mask > 0 {
                     luma[offset] = 1;
@@ -3432,7 +3432,7 @@ impl Video {
             for i in 0..14 {
                 let pos = (x + i) % 4;
                 let luma_u32 = luma_to_u32(&luma, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR);
-                let mut color = self.chroma_dhgr[pos][luma_u32 as usize];
+                let mut color = self.chroma_hgr[pos][luma_u32 as usize];
 
                 if self.display_mode == DisplayMode::MONO_NTSC {
                     let gray =
