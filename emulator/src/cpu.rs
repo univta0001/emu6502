@@ -559,7 +559,7 @@ impl CPU {
             self_test: false,
             bench_test: false,
             full_speed: Default::default(),
-            irq_last_tick: false,
+            irq_last_tick: true,
             #[cfg(feature = "z80")]
             z80cpu: default_z80cpu(),
         }
@@ -856,10 +856,8 @@ impl CPU {
     }
 
     fn last_tick(&mut self) {
-        if !self.status.contains(CpuFlags::INTERRUPT_DISABLE) && self.bus.irq().is_some() {
-            self.irq_last_tick = false
-        }
-        //self.irq_last_tick = !self.bus.irq().is_some();
+        self.irq_last_tick =
+            self.status.contains(CpuFlags::INTERRUPT_DISABLE) || self.bus.irq().is_none();
         self.bus.tick();
     }
 
@@ -1012,6 +1010,7 @@ impl CPU {
         self.stack_pointer = STACK_RESET;
         self.status = CpuFlags::from_bits_truncate(0b00100100);
         self.alt_cpu = false;
+        self.irq_last_tick = true;
 
         self.bus.reset();
 
@@ -1317,13 +1316,9 @@ impl CPU {
     fn plp(&mut self) {
         self.tick();
         self.tick();
-        let irq = self.bus.irq().is_some();
         *self.status.0.bits_mut() = self.last_tick_stack_pop();
         self.status.remove(CpuFlags::BREAK);
         self.status.insert(CpuFlags::UNUSED);
-        if !self.status.contains(CpuFlags::INTERRUPT_DISABLE) && irq {
-            self.irq_last_tick = false
-        }
     }
 
     fn php(&mut self) {
@@ -1901,12 +1896,10 @@ impl CPU {
                 self.interrupt(interrupt::NMI);
             }
             _ => {
-                if !self.status.contains(CpuFlags::INTERRUPT_DISABLE)
-                    && self.bus.irq().is_some()
-                    && !self.irq_last_tick
-                {
+                if !self.irq_last_tick {
+                    // IRQ level is check on the penultimate cycle of the instruction.
                     // If the CPU-asserted interrupt happens on the last cycle of the opcode,
-                    // execute the opcode and then the interrupt handling routine
+                    // execute the opcode and then the interrupt handling routine if I flag is 0
                     self.interrupt(interrupt::IRQ);
                 }
             }
@@ -1919,7 +1912,6 @@ impl CPU {
             let code = self.next_byte();
             //let opcode = opcodes::CPU_OPS_CODES[code as usize];
             let opcode = &OPCODES[code as usize];
-            self.irq_last_tick = true;
 
             match code {
                 /* LDA immediate */
@@ -2016,12 +2008,8 @@ impl CPU {
 
                 /* CLI */
                 0x58 => {
-                    let irq = self.bus.irq().is_some();
                     self.last_tick();
                     self.status.remove(CpuFlags::INTERRUPT_DISABLE);
-                    if !self.status.contains(CpuFlags::INTERRUPT_DISABLE) && irq {
-                        self.irq_last_tick = false
-                    }
                 }
 
                 /* CLV */

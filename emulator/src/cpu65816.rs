@@ -390,7 +390,7 @@ impl Default for CPU {
             full_speed: Default::default(),
             bus: Default::default(),
             halt_cpu: false,
-            irq_last_tick: false,
+            irq_last_tick: true,
             self_test: false,
         }
     }
@@ -723,7 +723,8 @@ impl CPU {
     }
 
     fn last_tick(&mut self) {
-        self.irq_last_tick = self.bus.irq().is_none();
+        self.irq_last_tick =
+            self.p.contains(CpuFlags::INTERRUPT_DISABLE) || self.bus.irq().is_none();
         self.bus.tick();
     }
 
@@ -732,6 +733,7 @@ impl CPU {
         self.register_x = 0;
         self.register_y = 0;
         self.stack_pointer = 0x100;
+        self.irq_last_tick = true;
 
         self.bus.reset();
 
@@ -1044,12 +1046,9 @@ impl CPU {
                 }
             }
             _ => {
-                if !self.status.p.contains(CpuFlags::INTERRUPT_DISABLE)
-                    && self.bus.irq().is_some()
-                    && !self.irq_last_tick
-                {
-                    // If the interrupt happens on the last cycle of the opcode, execute the opcode and
-                    // then the interrupt handling routine
+                if !self.irq_last_tick {
+                    // If the interrupt happens on the last cycle of the opcode, 
+                    // execute the opcode and then the interrupt handling routine
                     if self.status.e {
                         self.interrupt(interrupt::IRQ);
                     } else {
@@ -1058,8 +1057,6 @@ impl CPU {
                 }
             }
         }
-
-        self.irq_last_tick = true;
 
         callback(self);
 

@@ -396,7 +396,6 @@ struct W65C22 {
     state: u8,
     ay8910: [AY8910; 2],
     irq_happen: usize,
-    enabled: bool,
     latch_addr_valid: bool,
     driving_bus: bool,
 }
@@ -423,7 +422,6 @@ impl W65C22 {
             state: 0,
             ay8910: [AY8910::new(name), AY8910::new(name)],
             irq_happen: 0,
-            enabled: false,
             latch_addr_valid: false,
             driving_bus: false,
         }
@@ -488,7 +486,6 @@ impl W65C22 {
         self.ay8910[0].reset();
         self.ay8910[1].reset();
         self.state = AY_INACTIVE;
-        self.enabled = false;
         self.latch_addr_valid = false;
         self.driving_bus = false;
     }
@@ -545,7 +542,6 @@ impl W65C22 {
 
     fn io_access(&mut self, addr: u8, value: u8, write_flag: bool) -> u8 {
         let mut return_addr: u8 = 0;
-        self.enabled = true;
 
         match addr & 0x0f {
             // ORB
@@ -758,6 +754,7 @@ pub struct Mockingboard {
     rng: usize,
     cycles: usize,
     mb4c: bool,
+    active: bool,
 }
 
 impl Mockingboard {
@@ -767,12 +764,13 @@ impl Mockingboard {
             rng: 1,
             cycles: 0,
             mb4c: false,
+            active: false,
         }
     }
 
     pub fn tick(&mut self) {
         self.cycles += 1;
-        if self.w65c22[0].enabled || self.w65c22[1].enabled {
+        if self.active {
             self.w65c22[0].tick(self.cycles);
             self.w65c22[1].tick(self.cycles);
         }
@@ -866,6 +864,7 @@ impl Default for Mockingboard {
 impl Card for Mockingboard {
     fn rom_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
         let map_addr: u8 = (addr & 0xff) as u8;
+        self.active = true;
         if self.mb4c || map_addr < 0x80 {
             self.w65c22[0].io_access(map_addr, value, write_flag)
         } else {

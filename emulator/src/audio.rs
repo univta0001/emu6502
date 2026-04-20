@@ -395,6 +395,33 @@ impl Audio {
         ((phase as i64 * self.dc_filter as i64) / (70000_i64)) as Channel
     }
 
+    // Extract tape handling to avoid code duplication
+    fn handle_tape_sample(&mut self) {
+        if self.tape.active == 0 {
+            return;
+        }
+
+        if self.cycles > self.tape.active {
+            if self.enable_save
+                && self.tape.record
+                && let Err(e) = self.save_tape_data()
+            {
+                eprintln!("Unable to save tape data: {e}");
+            }
+            self.tape.play = false;
+            self.tape.record = false;
+            self.tape.active = 0;
+            self.tape.level = false;
+        } else {
+            if self.tape.record {
+                self.tape.data.push(self.tape.level as u8 * 255);
+            }
+            if self.tape.play && self.tape.pos < self.tape.data.len() {
+                self.tape.pos += 1;
+            }
+        }
+    }
+
     pub fn get_buffer(&self) -> &[Channel] {
         &self.data.sample
     }
@@ -805,29 +832,8 @@ impl Tick for Audio {
                 beep = self.audio_filter.filter();
             }
             */
-            if self.tape.active != 0 {
-                if self.cycles > self.tape.active {
-                    if self.enable_save
-                        && self.tape.record
-                        && let Err(e) = self.save_tape_data()
-                    {
-                        eprintln!("Unable to save tape data: {e}");
-                    }
 
-                    self.tape.play = false;
-                    self.tape.record = false;
-                    self.tape.active = 0;
-                    self.tape.level = false;
-                } else {
-                    if self.tape.record {
-                        self.tape.data.push(self.tape.level as u8 * 255);
-                    }
-
-                    if self.tape.play && self.tape.pos < self.tape.data.len() {
-                        self.tape.pos += 1;
-                    }
-                }
-            }
+            self.handle_tape_sample();
 
             let beep = if !self.filter_enabled {
                 // Calculate average beep level
@@ -856,7 +862,7 @@ impl Tick for Audio {
                 let mut phase: HigherChannel = beep as HigherChannel;
 
                 // Update left channel
-                let tone_count = std::cmp::max(1, 1 + self.update_phase(&mut phase, channel));
+                let tone_count = self.update_phase(&mut phase, channel) + 1;
                 let phase = phase.saturating_add(disk_sound as HigherChannel);
 
                 let phase = if tone_count > 1 {
