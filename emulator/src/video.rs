@@ -1662,17 +1662,13 @@ impl Video {
     }
 
     pub fn set_pixel_2(&mut self, x: usize, y: usize, rgb: Rgb) {
-        //assert!(self.frame.len() >= (y + 1) * 4 * Video::WIDTH + x * 4 + 3);
+        assert!(self.frame.len() >= (y + 1) * 4 * Video::WIDTH + x * 4 + 3);
         let base = y * 4 * Video::WIDTH + x * 4;
         let offset = 4 * Video::WIDTH;
         let [r, g, b] = rgb;
         self.frame[base] = r;
         self.frame[base + 1] = g;
         self.frame[base + 2] = b;
-
-        if base + offset >= self.frame.len() {
-            return
-        }
 
         if !self.scanline {
             self.frame[base + offset] = r;

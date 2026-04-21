@@ -319,7 +319,9 @@ impl Videoterm {
             let src_pixels = char_rows[src_row];
 
             if col == 39 {
-                video.set_pixel_count(560, y_screen, crate::video::COLOR_BLACK, 7);
+                for i in 0..7 {
+                    video.set_pixel(560 + i, y_screen, crate::video::COLOR_BLACK);
+                }
             }
             
             for i in 0..7 {
