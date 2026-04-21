@@ -317,6 +317,11 @@ impl Videoterm {
             let y_screen = y * 2 + j;
             let src_row = ((j + 1) * 8 / 16).min(8);
             let src_pixels = char_rows[src_row];
+
+            if col == 39 {
+                video.set_pixel_count(560, y_screen, crate::video::COLOR_BLACK, 7);
+            }
+            
             for i in 0..7 {
                 let bit_set = (src_pixels & (0x80 >> i)) != 0;
                 let base_color = if bit_set { color_on } else { color_off };
