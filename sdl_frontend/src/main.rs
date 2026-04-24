@@ -71,8 +71,8 @@ const NTSC_CHROMA_BANDWIDTH: f32 = 600000.0;
 
 const DSK_PO_SIZE: u64 = 143360;
 
-const SPEED_NUMERATOR: [usize; 5] = [1, 10, 10, 10, 1];
-const SPEED_DENOMINATOR: [usize; 5] = [1, 28, 40, 80, 1];
+const SPEED_NUMERATOR: [usize; 5] = [10, 10, 10, 10, 10];
+const SPEED_DENOMINATOR: [usize; 5] = [10, 28, 40, 80, 10];
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -823,7 +823,12 @@ fn dump_track_sector_info(cpu: &CPU) {
     */
 }
 
-fn update_audio(cpu: &mut CPU, audio_stream: &Option<AudioStreamOwner>, normal_speed: bool) {
+fn update_audio(
+    cpu: &mut CPU,
+    audio_stream: &Option<AudioStreamOwner>,
+    speed_index: usize,
+    estimated_mhz: f32,
+) {
     let snd = &mut cpu.bus.audio;
 
     let video_50hz = cpu.bus.video.is_video_50hz();
@@ -835,26 +840,38 @@ fn update_audio(cpu: &mut CPU, audio_stream: &Option<AudioStreamOwner>, normal_s
 
     snd.update_cycles(video_50hz);
 
-    if let Some(stream) = audio_stream {
-        let buffer = if normal_speed || snd.get_buffer().len() < (audio_sample_size * 2) as usize {
-            snd.get_buffer()
-        } else {
-            /*
-            let step_size = snd.get_buffer().len() / ((audio_sample_size*2) as usize);
-            for item in snd.get_buffer().iter().step_by(step_size) {
-                return_buffer.push(*item)
-            }
-            &return_buffer
-            */
-            &snd.get_buffer()[0..(audio_sample_size * 2) as usize]
-        };
+    let Some(stream) = audio_stream else { return };
+    let snd_buffer = if speed_index + 1 == SPEED_DENOMINATOR.len()
+        || snd.get_buffer().len() < (audio_sample_size * 2) as usize
+    {
+        snd.get_buffer()
+    } else {
+        &snd.get_buffer()[0..(audio_sample_size * 2) as usize]
+    };
+    let threshold = if speed_index + 1 == SPEED_DENOMINATOR.len() {
+        (estimated_mhz * 10.0) as usize
+    } else {
+        SPEED_DENOMINATOR[speed_index]
+    };
 
-        // Only buffer for around 128ms of audio
-        if let Ok(queued_bytes) = stream.queued_bytes()
-            && queued_bytes < audio_sample_size as i32 * 2 * 8
-        {
-            let _ = stream.put_data_i16(buffer);
+    let mut accumulator = 0;
+    let mut output = Vec::new();
+    for (index, chunk) in snd_buffer.chunks_exact(2).enumerate() {
+        if index == 0 {
+            output.extend_from_slice(chunk);
         }
+
+        accumulator += 10;
+        if accumulator >= threshold {
+            accumulator -= threshold;
+            output.extend_from_slice(chunk);
+        }
+    }
+
+    if let Ok(queued_bytes) = stream.queued_bytes()
+        && queued_bytes < audio_sample_size as i32 * 2 * 8
+    {
+        let _ = stream.put_data_i16(&output);
     }
 }
 
@@ -2386,7 +2403,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     _cpu.bus.video.skip_update = true;
                 }
 
-                update_audio(_cpu, &audio_stream, normal_cpu_speed);
+                update_audio(_cpu, &audio_stream, speed_index, estimated_mhz);
                 _cpu.bus.audio.clear_buffer();
 
                 let video_cpu_update = t.elapsed().as_micros();
