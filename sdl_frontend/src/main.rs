@@ -841,13 +841,7 @@ fn update_audio(
     snd.update_cycles(video_50hz);
 
     let Some(stream) = audio_stream else { return };
-    let snd_buffer = if speed_index + 1 == SPEED_DENOMINATOR.len()
-        || snd.get_buffer().len() < (audio_sample_size * 2) as usize
-    {
-        snd.get_buffer()
-    } else {
-        &snd.get_buffer()[0..(audio_sample_size * 2) as usize]
-    };
+    let snd_buffer = snd.get_buffer();
     let threshold = if speed_index + 1 == SPEED_DENOMINATOR.len() {
         (estimated_mhz * 10.0) as usize
     } else {
