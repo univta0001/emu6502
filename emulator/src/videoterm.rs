@@ -323,7 +323,7 @@ impl Videoterm {
                     video.set_pixel(560 + i, y_screen, crate::video::COLOR_BLACK);
                 }
             }
-            
+
             for i in 0..7 {
                 let bit_set = (src_pixels & (0x80 >> i)) != 0;
                 let base_color = if bit_set { color_on } else { color_off };

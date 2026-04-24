@@ -807,8 +807,8 @@ impl Tick for Audio {
                 self.fcycles -= self.fcycles_per_sample;
                 self.data.sample.extend_from_slice(&[0, 0]);
             }
-            return
-        }        
+            return;
+        }
 
         let beep = if self.filter_enabled {
             if self.dc_filter > 0 {
@@ -878,13 +878,12 @@ impl Tick for Audio {
 
                 self.data.sample.push(phase as Channel);
             }
-            
+
             if beep == 0 && !mb_tone {
                 self.audio_active = false;
                 self.audio_filter.filter_tap[0] = 0.0;
                 self.audio_filter.filter_tap[1] = 0.0;
             }
-
         }
     }
 }

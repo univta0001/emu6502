@@ -2038,7 +2038,29 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     let audio_stream = match &audio_subsystem {
         Ok(audio) => {
+            // Print out the audio devices
+            if let Ok(audio_ids) = audio.audio_playback_device_ids() {
+                eprintln!("Detected Audio Devices");
+                for (index, id) in audio_ids.iter().enumerate() {
+                    eprintln!(
+                        "-- Audio Device #{index} : {}",
+                        id.name().unwrap_or(id.id().0.to_string())
+                    );
+                }
+            } else {
+                eprintln!("Unable to enumerate audio device ids");
+            }
+
             let audio_device = audio.default_playback_device();
+
+            // Print out the audio device being used
+            eprintln!(
+                "Using audio device = {}",
+                audio_device
+                    .name()
+                    .unwrap_or(audio_device.id().id().0.to_string())
+            );
+
             let audio_status = audio_device.open_device_stream(Some(&desired_spec));
             if let Ok(stream) = audio_status {
                 if stream.resume().is_ok() {
