@@ -211,7 +211,7 @@ impl HardDisk {
             disk.filename = Some(real_path.display().to_string().replace("\\\\", "\\"));
         } else {
             let disk = &mut self.drive[self.drive_select];
-            disk.filename = Some(filename.display().to_string().replace("\\\\", ""));
+            disk.filename = Some(filename.display().to_string().replace("\\\\", "\\"));
         }
     }
 
