@@ -85,25 +85,43 @@ enum OpenFileDialog {
     Tape,
 }
 
-struct EventParam<'a> {
-    video_subsystem: &'a VideoSubsystem,
-    game_controller: &'a GamepadSubsystem,
-    gamepads: &'a mut HashMap<u32, (u16, Gamepad)>,
-    key_caps: &'a mut bool,
+struct Emulator {
+    cpu: CPU,
+}
+
+struct EmulatorState {
+    video_subsystem: VideoSubsystem,
+    audio_stream: Option<AudioStreamOwner>,
+    game_controller: GamepadSubsystem,
+    gamepads: HashMap<u32, (u16, Gamepad)>,
+    key_caps: bool,
     estimated_mhz: f32,
     fps: f32,
-    reload_cpu: &'a mut bool,
-    save_screenshot: &'a mut bool,
-    display_mode: &'a [DisplayMode; 7],
-    speed_mode: &'a [CpuSpeed; 5],
-    display_index: &'a mut usize,
-    speed_index: &'a mut usize,
-    disk_mode_index: &'a mut usize,
-    clipboard_text: &'a mut String,
-    full_screen: &'a mut bool,
-    barrel_distortion: &'a mut bool,
-    vertical_blend: &'a mut bool,
-    file_dialog: &'a mut OpenFileDialog,
+    reload_cpu: bool,
+    save_screenshot: bool,
+    display_mode: [DisplayMode; 7],
+    speed_mode: [CpuSpeed; 5],
+    display_index: usize,
+    speed_index: usize,
+    disk_mode_index: usize,
+    clipboard_text: String,
+    current_full_screen: bool,
+    full_screen: bool,
+    barrel_distortion: bool,
+    vertical_blend: bool,
+    file_dialog: OpenFileDialog,
+    prev_x: i32,
+    prev_y: i32,
+    menu_bar_height: f32,
+    show_settings: bool,
+    want_capture_keyboard: bool,
+    scale: f32,
+    prev_scale: f32,
+    model_changed: bool,
+    prev_settings: Vec<usize>,
+    current_settings: Vec<usize>,
+    dcyc: usize,
+    previous_cycles: usize,
 }
 
 fn translate_key_to_apple_key(
@@ -221,8 +239,8 @@ fn translate_key_to_apple_key(
     (true, value)
 }
 
-fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
-    if function_key_processed(cpu, &event, event_param) {
+fn handle_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState) {
+    if function_key_processed(cpu, &event, state) {
         return;
     }
 
@@ -239,7 +257,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
         | Event::ControllerButtonUp { .. }
         | Event::ControllerDeviceAdded { .. }
         | Event::ControllerDeviceRemoved { .. } => {
-            handle_gamepad_event(cpu, event, event_param);
+            handle_gamepad_event(cpu, event, state);
         }
 
         Event::KeyDown {
@@ -247,7 +265,7 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             keymod,
             ..
         } if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) => {
-            *event_param.save_screenshot = true
+            state.save_screenshot = true
         }
 
         Event::KeyDown {
@@ -293,21 +311,21 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             keymod,
             ..
         } if (keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD))
-            && event_param.clipboard_text.is_empty() =>
+            && state.clipboard_text.is_empty() =>
         {
-            let clipboard = event_param.video_subsystem.clipboard();
+            let clipboard = state.video_subsystem.clipboard();
             if let Ok(text) = clipboard.clipboard_text() {
-                *event_param.clipboard_text = text.replace('\n', "");
+                state.clipboard_text = text.replace('\n', "");
             }
         }
 
         Event::MouseButtonDown {
             mouse_btn: sdl3::mouse::MouseButton::Middle,
             ..
-        } if event_param.clipboard_text.is_empty() => {
-            let clipboard = event_param.video_subsystem.clipboard();
+        } if state.clipboard_text.is_empty() => {
+            let clipboard = state.video_subsystem.clipboard();
             if let Ok(text) = clipboard.clipboard_text() {
-                *event_param.clipboard_text = text.replace('\n', "");
+                state.clipboard_text = text.replace('\n', "");
             }
         }
 
@@ -319,12 +337,12 @@ fn handle_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
             if value == Keycode::Return
                 && (keymod.contains(Mod::LALTMOD) || keymod.contains(Mod::RALTMOD))
             {
-                *event_param.full_screen = !*event_param.full_screen;
+                state.full_screen = !state.full_screen;
                 return;
             }
 
             let (status, value) =
-                translate_key_to_apple_key(cpu.is_apple2e(), event_param.key_caps, value, keymod);
+                translate_key_to_apple_key(cpu.is_apple2e(), &mut state.key_caps, value, keymod);
             if status {
                 cpu.bus.set_keyboard_latch((value + 128) as u8);
             }
@@ -823,11 +841,7 @@ fn dump_track_sector_info(cpu: &CPU) {
     */
 }
 
-fn update_audio(
-    cpu: &mut CPU,
-    audio_stream: &Option<AudioStreamOwner>,
-    speed_index: usize,
-) {
+fn update_audio(cpu: &mut CPU, state: &EmulatorState) {
     let snd = &mut cpu.bus.audio;
 
     let video_50hz = cpu.bus.video.is_video_50hz();
@@ -839,14 +853,15 @@ fn update_audio(
 
     snd.update_cycles(video_50hz);
 
-    let Some(stream) = audio_stream else { return };
+    let Some(ref stream) = state.audio_stream else { return };
 
-    if speed_index + 1 == SPEED_DENOMINATOR.len() {
-        return
+    if state.speed_index + 1 == SPEED_DENOMINATOR.len() {
+        return;
     }
 
     let snd_buffer = snd.get_buffer();
-    let threshold = SPEED_DENOMINATOR[speed_index];
+    let threshold = SPEED_DENOMINATOR[state.speed_index];
+
     let mut accumulator = 0;
     let mut output = Vec::new();
     for (index, chunk) in snd_buffer.chunks_exact(2).enumerate() {
@@ -906,7 +921,7 @@ fn update_gpu_texture(
     cpu: &mut CPU,
     imgui: &mut imgui_sdl3::ImGuiSdl3,
     device: &Device,
-    event: &EventParam,
+    state: &EmulatorState,
 ) -> imgui::TextureId {
     // Check if 80 column enabled, if enabled, refresh the video
     if cpu.bus.is_80_column_enabled() {
@@ -914,12 +929,12 @@ fn update_gpu_texture(
     }
 
     let disp = &mut cpu.bus.video;
-    let display = if *event.vertical_blend {
+    let display = if state.vertical_blend {
         &disp.get_vertical_blend_frame(&disp.frame, disp.get_scanline())
     } else {
         &disp.frame
     };
-    let display = if *event.barrel_distortion {
+    let display = if state.barrel_distortion {
         &disp.get_barrel_distorted_frame(display, 0.015)
     } else {
         display
@@ -958,8 +973,7 @@ fn update_gpu_harddisk_status(
     cpu: &mut CPU,
     drawlist: &imgui::DrawListMut<'_>,
     window: &Window,
-    menubar_height: f32,
-    scale: f32,
+    state: &EmulatorState,
 ) {
     let harddisk_on;
     let disk_is_on = {
@@ -979,8 +993,8 @@ fn update_gpu_harddisk_status(
 
         drawlist
             .add_circle(
-                [screen[0] - 4.0 * scale, menubar_height + 4.0 * scale],
-                2.0 * scale,
+                [screen[0] - 4.0 * state.scale, state.menu_bar_height + 4.0 * state.scale],
+                2.0 * state.scale,
                 color,
             )
             .filled(true)
@@ -989,12 +1003,7 @@ fn update_gpu_harddisk_status(
 }
 
 #[cfg(feature = "serialization")]
-fn initialize_new_cpu(
-    cpu: &mut CPU,
-    display_index: &mut usize,
-    speed_index: &mut usize,
-    disk_mode_index: &mut usize,
-) {
+fn initialize_new_cpu(cpu: &mut CPU, state: &mut EmulatorState) {
     let mmu = &mut cpu.bus.mem;
     let disp = &mut cpu.bus.video;
     disp.video_main[0x400..0xc00].clone_from_slice(&mmu.cpu_memory[0x400..0xc00]);
@@ -1004,31 +1013,31 @@ fn initialize_new_cpu(
 
     // Restore the display mode
     match disp.get_display_mode() {
-        DisplayMode::NTSC => *display_index = 1,
-        DisplayMode::RGB => *display_index = 2,
-        DisplayMode::MONO_WHITE => *display_index = 3,
-        DisplayMode::MONO_NTSC => *display_index = 4,
-        DisplayMode::MONO_GREEN => *display_index = 5,
-        DisplayMode::MONO_AMBER => *display_index = 6,
-        _ => *display_index = 0,
+        DisplayMode::NTSC => state.display_index = 1,
+        DisplayMode::RGB => state.display_index = 2,
+        DisplayMode::MONO_WHITE => state.display_index = 3,
+        DisplayMode::MONO_NTSC => state.display_index = 4,
+        DisplayMode::MONO_GREEN => state.display_index = 5,
+        DisplayMode::MONO_AMBER => state.display_index = 6,
+        _ => state.display_index = 0,
     }
 
     // Restore speed
     match cpu.full_speed {
-        CpuSpeed::SPEED_FASTEST => *speed_index = 4,
-        CpuSpeed::SPEED_2_8MHZ => *speed_index = 1,
-        CpuSpeed::SPEED_4MHZ => *speed_index = 2,
-        CpuSpeed::SPEED_8MHZ => *speed_index = 3,
-        _ => *speed_index = 0,
+        CpuSpeed::SPEED_FASTEST => state.speed_index = 4,
+        CpuSpeed::SPEED_2_8MHZ => state.speed_index = 1,
+        CpuSpeed::SPEED_4MHZ => state.speed_index = 2,
+        CpuSpeed::SPEED_8MHZ => state.speed_index = 3,
+        _ => state.speed_index = 0,
     }
 
     // Restore disk mode
     if cpu.bus.disk.is_disk_sound_enabled() {
-        *disk_mode_index = 0;
+        state.disk_mode_index = 0;
     } else if !cpu.bus.disk.get_disable_fast_disk() {
-        *disk_mode_index = 1;
+        state.disk_mode_index = 1;
     } else {
-        *disk_mode_index = 2;
+        state.disk_mode_index = 2;
     }
 
     // Update NTSC details
@@ -1199,7 +1208,7 @@ fn process_clipboard(cpu: &mut CPU, clipboard_text: &mut String) {
     }
 }
 
-fn function_key_processed(cpu: &mut CPU, event: &Event, event_param: &mut EventParam) -> bool {
+fn function_key_processed(cpu: &mut CPU, event: &Event, state: &mut EmulatorState) -> bool {
     match event {
         Event::KeyDown {
             keycode: Some(Keycode::F1),
@@ -1210,8 +1219,8 @@ fn function_key_processed(cpu: &mut CPU, event: &Event, event_param: &mut EventP
                 if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
                     eprintln!(
                         "MHz: {:.3} FPS: {:.2} Cycles: {}",
-                        event_param.estimated_mhz,
-                        event_param.fps,
+                        state.estimated_mhz,
+                        state.fps,
                         cpu.bus.get_cycles()
                     );
                 } else {
@@ -1286,7 +1295,7 @@ fn function_key_processed(cpu: &mut CPU, event: &Event, event_param: &mut EventP
                 if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
                     dump_disk_info(cpu);
                 } else {
-                    *event_param.reload_cpu = true;
+                    state.reload_cpu = true;
                     cpu.halt_cpu();
                 }
                 return true;
@@ -1305,8 +1314,8 @@ fn function_key_processed(cpu: &mut CPU, event: &Event, event_param: &mut EventP
                 cpu.bus.video.set_scanline(mode);
                 return true;
             } else {
-                *event_param.disk_mode_index = (*event_param.disk_mode_index + 1) % 3;
-                match *event_param.disk_mode_index {
+                state.disk_mode_index = (state.disk_mode_index + 1) % 3;
+                match state.disk_mode_index {
                     0 => {
                         cpu.bus.disk.set_disk_sound_enable(true);
                         cpu.bus.disk.set_disable_fast_disk(false);
@@ -1335,17 +1344,16 @@ fn function_key_processed(cpu: &mut CPU, event: &Event, event_param: &mut EventP
                 cpu.bus.audio.set_filter_enabled(mode);
                 return true;
             } else {
-                let display_mode = *event_param.display_mode;
+                let display_mode = state.display_mode;
                 if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
-                    *event_param.display_index =
-                        (*event_param.display_index + display_mode.len() - 1) % display_mode.len();
+                    state.display_index =
+                        (state.display_index + display_mode.len() - 1) % display_mode.len();
                 } else {
-                    *event_param.display_index =
-                        (*event_param.display_index + 1) % display_mode.len();
+                    state.display_index = (state.display_index + 1) % display_mode.len();
                 }
                 cpu.bus
                     .video
-                    .set_display_mode(display_mode[*event_param.display_index]);
+                    .set_display_mode(display_mode[state.display_index]);
                 return true;
             }
         }
@@ -1380,16 +1388,15 @@ fn function_key_processed(cpu: &mut CPU, event: &Event, event_param: &mut EventP
             keymod,
             ..
         } => {
-            let speed_mode = *event_param.speed_mode;
+            let speed_mode = state.speed_mode;
             if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
-                *event_param.speed_index =
-                    (*event_param.speed_index + speed_mode.len() - 1) % speed_mode.len();
+                state.speed_index = (state.speed_index + speed_mode.len() - 1) % speed_mode.len();
             } else if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 cpu.bus.audio.eject_tape();
             } else {
-                *event_param.speed_index = (*event_param.speed_index + 1) % speed_mode.len();
+                state.speed_index = (state.speed_index + 1) % speed_mode.len();
             }
-            cpu.set_speed(speed_mode[*event_param.speed_index]);
+            cpu.set_speed(speed_mode[state.speed_index]);
             return true;
         }
 
@@ -1462,12 +1469,12 @@ fn handle_file_drop(cpu: &mut CPU, filename: &str) {
     }
 }
 
-fn handle_gamepad_event(cpu: &mut CPU, event: Event, event_param: &mut EventParam) {
+fn handle_gamepad_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState) {
     match event {
         Event::ControllerAxisMotion {
             which, axis, value, ..
         } => {
-            if let Some(entry) = event_param.gamepads.get(&which) {
+            if let Some(entry) = state.gamepads.get(&which) {
                 let joystick_id = entry.0;
                 // Axis motion is an absolute value in the range
                 // [-32768, 32767]. Let's simulate a very rough dead
@@ -1538,7 +1545,7 @@ fn handle_gamepad_event(cpu: &mut CPU, event: Event, event_param: &mut EventPara
         }
 
         Event::ControllerButtonDown { which, button, .. } => {
-            if let Some(entry) = event_param.gamepads.get(&which) {
+            if let Some(entry) = state.gamepads.get(&which) {
                 let joystick_id = entry.0;
                 if joystick_id < 2 {
                     match button {
@@ -1567,7 +1574,7 @@ fn handle_gamepad_event(cpu: &mut CPU, event: Event, event_param: &mut EventPara
         }
 
         Event::ControllerButtonUp { which, button, .. } => {
-            if let Some(entry) = event_param.gamepads.get(&which) {
+            if let Some(entry) = state.gamepads.get(&which) {
                 let joystick_id = entry.0;
                 if joystick_id < 2 {
                     match button {
@@ -1592,18 +1599,16 @@ fn handle_gamepad_event(cpu: &mut CPU, event: Event, event_param: &mut EventPara
         Event::ControllerDeviceAdded { which, .. } => {
             // Which refers to joystick device index
             let joy_id = sdl3::joystick::JoystickId { 0: which };
-            if let Ok(controller) = event_param.game_controller.open(joy_id)
+            if let Ok(controller) = state.game_controller.open(joy_id)
                 && let Some(player_index) = controller.player_index()
             {
-                event_param
-                    .gamepads
-                    .insert(which, (player_index, controller));
+                state.gamepads.insert(which, (player_index, controller));
             }
         }
 
         Event::ControllerDeviceRemoved { which, .. } => {
             // Which refers to instance id
-            event_param.gamepads.remove(&which);
+            state.gamepads.remove(&which);
         }
 
         _ => {}
@@ -2030,7 +2035,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     // Create the game controller
     let game_controller = sdl_context.gamepad()?;
-    let mut gamepads: HashMap<u32, (u16, Gamepad)> = HashMap::new();
+    let gamepads: HashMap<u32, (u16, Gamepad)> = HashMap::new();
 
     // Set apple2 icon
     /*
@@ -2096,19 +2101,17 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     let mut t = Instant::now();
     let mut video_time = Instant::now();
-    let mut previous_cycles = 0;
-    let mut estimated_mhz: f32 = 0.0;
-    let mut fps: f32 = 0.0;
+    let previous_cycles = 0;
+    let estimated_mhz: f32 = 0.0;
+    let fps: f32 = 0.0;
 
-    let mut reload_cpu = false;
-    let mut save_screenshot = false;
+    let reload_cpu = false;
+    let save_screenshot = false;
 
-    let mut current_full_screen = false;
-    let mut full_screen = false;
+    let current_full_screen = false;
+    let full_screen = false;
 
-    let mut clipboard_text = String::new();
-
-    let mut display_index = 0;
+    let display_index = 0;
     let display_mode = [
         DisplayMode::DEFAULT,
         DisplayMode::NTSC,
@@ -2119,7 +2122,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         DisplayMode::MONO_AMBER,
     ];
 
-    let mut speed_index = 0;
+    let speed_index = 0;
     let speed_mode = [
         CpuSpeed::SPEED_DEFAULT,
         CpuSpeed::SPEED_2_8MHZ,
@@ -2128,42 +2131,79 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         CpuSpeed::SPEED_FASTEST,
     ];
 
-    let mut disk_mode_index = 0;
+    let disk_mode_index = 0;
 
     cpu.setup_emulator();
     cpu.reset();
 
     // Change the refresh video to the start of the VBL instead of end of the VBL
-    let mut dcyc = if cpu.bus.video.is_video_50hz() {
+    let dcyc = if cpu.bus.video.is_video_50hz() {
         CPU_CYCLES_PER_FRAME_50HZ - 65 * 192
     } else {
         CPU_CYCLES_PER_FRAME_60HZ - 65 * 192
     };
 
-    let mut prev_x: i32 = 0;
-    let mut prev_y: i32 = 0;
+    let prev_x: i32 = 0;
+    let prev_y: i32 = 0;
 
-    let mut menu_bar_height = 0.0;
-    let mut show_settings = false;
-    let mut prev_settings = get_slot_settings(&cpu);
-    let mut current_settings = prev_settings.clone();
-    let mut model_changed = false;
-    let mut barrel_distortion = false;
-    let mut vertical_blend = false;
-    let mut want_capture_keyboard = false;
-    let mut file_dialog = OpenFileDialog::None;
+    let menu_bar_height = 0.0;
+    let show_settings = false;
+    let prev_settings = get_slot_settings(&cpu);
+    let current_settings = prev_settings.clone();
+    let model_changed = false;
+    let barrel_distortion = false;
+    let vertical_blend = false;
+    let want_capture_keyboard = false;
+    let file_dialog = OpenFileDialog::None;
 
-    let mut prev_scale = scale;
+    let prev_scale = scale;
+
+    let mut emulator = Emulator { cpu };
+
+    let mut emulator_state = EmulatorState {
+        video_subsystem,
+        audio_stream,
+        game_controller,
+        gamepads,
+        key_caps,
+        estimated_mhz,
+        fps,
+        reload_cpu,
+        save_screenshot,
+        display_mode,
+        speed_mode,
+        display_index,
+        speed_index,
+        disk_mode_index,
+        clipboard_text: String::new(),
+        current_full_screen,
+        full_screen,
+        barrel_distortion,
+        vertical_blend,
+        file_dialog,
+        prev_x,
+        prev_y,
+        menu_bar_height,
+        show_settings,
+        want_capture_keyboard,
+        scale,
+        prev_scale,
+        model_changed,
+        prev_settings,
+        current_settings,
+        dcyc,
+        previous_cycles,
+    };
 
     loop {
-        if reload_cpu {
-            reload_cpu = false;
+        if emulator_state.reload_cpu {
+            emulator_state.reload_cpu = false;
         }
 
-        cpu.run_with_callback(|_cpu| {
+        emulator.cpu.run_with_callback(|_cpu| {
             let current_cycles = _cpu.bus.get_cycles();
-            dcyc += current_cycles - previous_cycles;
-            previous_cycles = current_cycles;
+            emulator_state.dcyc += current_cycles - emulator_state.previous_cycles;
+            emulator_state.previous_cycles = current_cycles;
 
             let mut cpu_cycles = CPU_CYCLES_PER_FRAME_60HZ;
 
@@ -2173,14 +2213,14 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             let mut cpu_period = 16_688;
 
             // Handle clipboard text if any
-            process_clipboard(_cpu, &mut clipboard_text);
+            process_clipboard(_cpu, &mut emulator_state.clipboard_text);
 
             if _cpu.bus.video.is_video_50hz() {
                 cpu_cycles = CPU_CYCLES_PER_FRAME_50HZ;
                 cpu_period = 19_968;
             }
 
-            if dcyc >= cpu_cycles {
+            if emulator_state.dcyc >= cpu_cycles {
                 let normal_disk_speed = _cpu.bus.is_normal_speed();
                 let normal_cpu_speed =
                     normal_disk_speed && _cpu.full_speed != CpuSpeed::SPEED_FASTEST;
@@ -2196,43 +2236,24 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 if video_time_elapsed >= time_tolerance {
                     video_time = Instant::now();
 
-                    if save_screenshot {
+                    if emulator_state.save_screenshot {
                         save_emulator_screenshot(_cpu);
-                        save_screenshot = false;
+                        emulator_state.save_screenshot = false;
                     }
 
                     //update_texture(_cpu, &mut texture);
-                    let mut event_param = EventParam {
-                        video_subsystem: &video_subsystem,
-                        game_controller: &game_controller,
-                        gamepads: &mut gamepads,
-                        key_caps: &mut key_caps,
-                        estimated_mhz,
-                        fps,
-                        reload_cpu: &mut reload_cpu,
-                        save_screenshot: &mut save_screenshot,
-                        display_mode: &display_mode,
-                        display_index: &mut display_index,
-                        speed_mode: &speed_mode,
-                        speed_index: &mut speed_index,
-                        disk_mode_index: &mut disk_mode_index,
-                        clipboard_text: &mut clipboard_text,
-                        full_screen: &mut full_screen,
-                        barrel_distortion: &mut barrel_distortion,
-                        vertical_blend: &mut vertical_blend,
-                        file_dialog: &mut file_dialog,
-                    };
 
                     let image_texture_id =
-                        update_gpu_texture(_cpu, &mut imgui, &device, &event_param);
+                        update_gpu_texture(_cpu, &mut imgui, &device, &emulator_state);
                     //update_video(_cpu, &mut canvas, &mut texture, current_full_screen);
 
                     _cpu.bus.video.skip_update = false;
 
-                    if prev_scale != scale {
-                        prev_scale = scale;
-                        let width = (scale * Video::WIDTH as f32) as u32;
-                        let height = (scale * Video::HEIGHT as f32) as u32 + 2 * MENUBAR_HEIGHT;
+                    if emulator_state.prev_scale != emulator_state.scale {
+                        emulator_state.prev_scale = emulator_state.scale;
+                        let width = (emulator_state.scale * Video::WIDTH as f32) as u32;
+                        let height = (emulator_state.scale * Video::HEIGHT as f32) as u32
+                            + 2 * MENUBAR_HEIGHT;
                         let _ = window.set_size(width, height);
                     }
 
@@ -2257,24 +2278,28 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                                         // Check for want capture keyboard
                                         {
                                             let io = ui.io();
-                                            want_capture_keyboard = io.want_capture_keyboard;
+                                            emulator_state.want_capture_keyboard =
+                                                io.want_capture_keyboard;
                                         }
 
                                         // Check for open file dialog events
                                         if !ui.is_any_item_hovered() {
-                                            match *event_param.file_dialog {
+                                            match emulator_state.file_dialog {
                                                 OpenFileDialog::Disk(disk) => {
-                                                    *event_param.file_dialog = OpenFileDialog::None;
+                                                    emulator_state.file_dialog =
+                                                        OpenFileDialog::None;
                                                     open_disk_dialog(_cpu, disk.into())
                                                 }
 
                                                 OpenFileDialog::HardDisk(disk) => {
-                                                    *event_param.file_dialog = OpenFileDialog::None;
+                                                    emulator_state.file_dialog =
+                                                        OpenFileDialog::None;
                                                     open_harddisk_dialog(_cpu, disk.into())
                                                 }
 
                                                 OpenFileDialog::Tape => {
-                                                    *event_param.file_dialog = OpenFileDialog::None;
+                                                    emulator_state.file_dialog =
+                                                        OpenFileDialog::None;
                                                     load_tape(_cpu)
                                                 }
 
@@ -2283,53 +2308,40 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                                         }
 
                                         // create imgui UI here
-                                        menu_bar_height = if current_full_screen {
-                                            0.0
-                                        } else {
-                                            ui.frame_height()
-                                        };
+                                        emulator_state.menu_bar_height =
+                                            if emulator_state.current_full_screen {
+                                                0.0
+                                            } else {
+                                                ui.frame_height()
+                                            };
 
                                         update_emulator_graphics(
                                             _cpu,
                                             ui,
                                             &window,
-                                            menu_bar_height,
-                                            scale,
+                                            &emulator_state,
                                             image_texture_id,
                                         );
 
-                                        if !current_full_screen {
-                                            prepare_main_menu(
-                                                _cpu,
-                                                ui,
-                                                &mut show_settings,
-                                                &mut model_changed,
-                                                &mut scale,
-                                                &mut event_param,
-                                            );
+                                        if !emulator_state.current_full_screen {
+                                            prepare_main_menu(_cpu, ui, &mut emulator_state);
 
-                                            if show_settings {
-                                                show_settings = false;
+                                            if emulator_state.show_settings {
+                                                emulator_state.show_settings = false;
                                                 ui.open_popup("Settings##settings");
                                             }
 
-                                            prepare_settings(
-                                                _cpu,
-                                                ui,
-                                                &mut current_settings,
-                                                &mut prev_settings,
-                                            );
+                                            prepare_settings(_cpu, ui, &mut emulator_state);
                                         }
 
-                                        if menu_bar_height > 0.0 {
+                                        if emulator_state.menu_bar_height > 0.0 {
                                             let window_size = window.size();
                                             prepare_statusbar(
                                                 _cpu,
                                                 ui,
-                                                &event_param,
+                                                &emulator_state,
                                                 window_size.0,
                                                 window_size.1,
-                                                menu_bar_height,
                                             );
                                         }
 
@@ -2345,8 +2357,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
                     for event_value in event_pump.poll_iter() {
                         imgui.handle_event(&event_value);
-                        if !want_capture_keyboard {
-                            handle_event(_cpu, event_value, &mut event_param);
+                        if !emulator_state.want_capture_keyboard {
+                            handle_event(_cpu, event_value, &mut emulator_state);
                         }
                     }
 
@@ -2360,32 +2372,32 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     let y = mouse_state.y();
                     let buttons = [mouse_state.left(), mouse_state.right()];
 
-                    let delta_x = (x as i32).saturating_sub(prev_x);
-                    let delta_y = (y as i32).saturating_sub(prev_y);
-                    prev_x = x as i32;
-                    prev_y = y as i32;
+                    let delta_x = (x as i32).saturating_sub(emulator_state.prev_x);
+                    let delta_y = (y as i32).saturating_sub(emulator_state.prev_y);
+                    emulator_state.prev_x = x as i32;
+                    emulator_state.prev_y = y as i32;
 
-                    if y as f32 >= menu_bar_height {
+                    if y as f32 >= emulator_state.menu_bar_height {
                         _cpu.bus.set_mouse_state(delta_x, delta_y, &buttons);
                     }
 
                     // Check the full_screen state is not change
-                    if full_screen != current_full_screen {
-                        let current_full_screen_value = current_full_screen;
-                        current_full_screen = full_screen;
-                        if current_full_screen {
+                    if emulator_state.full_screen != emulator_state.current_full_screen {
+                        let current_full_screen_value = emulator_state.current_full_screen;
+                        emulator_state.current_full_screen = emulator_state.full_screen;
+                        if emulator_state.current_full_screen {
                             if let Err(e) = window.set_fullscreen(true) {
                                 eprintln!("Unable to set full_screen = {}", e);
-                                current_full_screen = current_full_screen_value;
-                                full_screen = current_full_screen_value;
+                                emulator_state.current_full_screen = current_full_screen_value;
+                                emulator_state.full_screen = current_full_screen_value;
                             } else {
                                 sdl_context.mouse().show_cursor(false);
                                 _cpu.bus.video.invalidate_video_cache();
                             }
                         } else if let Err(e) = window.set_fullscreen(false) {
                             eprintln!("Unable to restore from full_screen = {}", e);
-                            current_full_screen = current_full_screen_value;
-                            full_screen = current_full_screen_value;
+                            emulator_state.current_full_screen = current_full_screen_value;
+                            emulator_state.full_screen = current_full_screen_value;
                         } else {
                             window.restore();
                             sdl_context.mouse().show_cursor(true);
@@ -2396,14 +2408,15 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     _cpu.bus.video.skip_update = true;
                 }
 
-                update_audio(_cpu, &audio_stream, speed_index);
+                update_audio(_cpu, &emulator_state);
                 _cpu.bus.audio.clear_buffer();
 
                 let video_cpu_update = t.elapsed().as_micros();
 
                 if normal_cpu_speed {
-                    let adj_ms = time_tolerance as usize * SPEED_NUMERATOR[speed_index]
-                        / SPEED_DENOMINATOR[speed_index];
+                    let adj_ms = time_tolerance as usize
+                        * SPEED_NUMERATOR[emulator_state.speed_index]
+                        / SPEED_DENOMINATOR[emulator_state.speed_index];
 
                     let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
 
@@ -2414,42 +2427,38 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
                 let elapsed = t.elapsed().as_micros();
                 let time_tolerance = (cpu_period - time_tolerance) as f32;
-                estimated_mhz = (dcyc as f32) / (elapsed as f32 + time_tolerance);
+                emulator_state.estimated_mhz =
+                    (emulator_state.dcyc as f32) / (elapsed as f32 + time_tolerance);
 
-                fps = if _cpu.bus.video.is_video_50hz() {
-                    1015625.0 / (dcyc as f32)
+                emulator_state.fps = if _cpu.bus.video.is_video_50hz() {
+                    1015625.0 / (emulator_state.dcyc as f32)
                 } else {
-                    1020484.0 / (dcyc as f32)
+                    1020484.0 / (emulator_state.dcyc as f32)
                 };
-                dcyc = dcyc.saturating_sub(cpu_cycles);
+                emulator_state.dcyc = emulator_state.dcyc.saturating_sub(cpu_cycles);
                 t = Instant::now();
             }
         });
 
-        if !reload_cpu {
+        if !emulator_state.reload_cpu {
             break;
-        } else if model_changed {
-            model_changed = false;
-            cpu.bus.init_memory();
-            cpu.bus.set_apple2c(false);
-            cpu.bus.video.set_apple2c(false);
-            cpu.bus.set_iwm(false);
-            cpu.setup_emulator();
-            cpu.reset();
+        } else if emulator_state.model_changed {
+            emulator_state.model_changed = false;
+            emulator.cpu.bus.init_memory();
+            emulator.cpu.bus.set_apple2c(false);
+            emulator.cpu.bus.video.set_apple2c(false);
+            emulator.cpu.bus.set_iwm(false);
+            emulator.cpu.setup_emulator();
+            emulator.cpu.reset();
         } else {
             #[cfg(feature = "serialization")]
             {
                 let result = load_serialized_image();
                 match result {
                     Ok(mut new_cpu) => {
-                        previous_cycles = new_cpu.bus.get_cycles();
-                        initialize_new_cpu(
-                            &mut new_cpu,
-                            &mut display_index,
-                            &mut speed_index,
-                            &mut disk_mode_index,
-                        );
-                        cpu = new_cpu
+                        emulator_state.previous_cycles = new_cpu.bus.get_cycles();
+                        initialize_new_cpu(&mut new_cpu, &mut emulator_state);
+                        emulator.cpu = new_cpu
                     }
                     Err(message) => {
                         if !message.is_empty() {
@@ -2478,72 +2487,58 @@ fn update_emulator_graphics(
     cpu: &mut CPU,
     ui: &imgui::Ui,
     window: &Window,
-    menu_bar_height: f32,
-    scale: f32,
+    state: &EmulatorState,
     image_texture_id: imgui::TextureId,
 ) {
     let bg_draw_list = ui.get_background_draw_list();
     let window_size = window.size();
     let mut screen = [window_size.0, window_size.1];
 
-    if menu_bar_height > 0.0 {
-        screen[1] -= menu_bar_height as u32;
+    if state.menu_bar_height > 0.0 {
+        screen[1] -= state.menu_bar_height as u32;
     }
 
     {
         bg_draw_list
             .add_image(
                 image_texture_id,
-                [0.0, menu_bar_height],
+                [0.0, state.menu_bar_height],
                 [screen[0] as f32, screen[1] as f32],
             )
             .build();
     }
 
-    update_gpu_harddisk_status(cpu, &bg_draw_list, window, menu_bar_height, scale);
+    update_gpu_harddisk_status(cpu, &bg_draw_list, window, state);
 }
 
-fn prepare_main_menu(
-    cpu: &mut CPU,
-    ui: &imgui::Ui,
-    show_settings: &mut bool,
-    model_changed: &mut bool,
-    scale: &mut f32,
-    event: &mut EventParam,
-) {
+fn prepare_main_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) {
     ui.main_menu_bar(|| {
         // System menu
-        prepare_system_menu(cpu, ui, event, show_settings, model_changed);
+        prepare_system_menu(cpu, ui, state);
 
         // Speed menu
-        prepare_speed_menu(cpu, ui, event);
+        prepare_speed_menu(cpu, ui, state);
 
         // Video menu
-        prepare_video_menu(cpu, ui, scale, event);
+        prepare_video_menu(cpu, ui, state);
 
         // Audio menu
         prepare_audio_menu(cpu, ui);
 
         // Input menu
-        prepare_input_menu(cpu, ui, event);
+        prepare_input_menu(cpu, ui, state);
     });
 }
 
-fn prepare_system_menu(
-    cpu: &mut CPU,
-    ui: &imgui::Ui,
-    event: &mut EventParam,
-    show_settings: &mut bool,
-    model_changed: &mut bool,
-) {
+fn prepare_system_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) {
     ui.menu("System", || {
-        prepare_menu_for_model(cpu, ui, model_changed, event);
+        prepare_menu_for_model(cpu, ui, state);
 
         if ui.menu_item("Slot Settings...") {
-            *show_settings = true;
+            state.show_settings = true;
         }
 
-        prepare_menu_for_disk(cpu, ui, event);
+        prepare_menu_for_disk(cpu, ui, state);
 
         let noslot_clock = cpu.bus.get_noslot_clock();
         build_toggle_menu_item(ui, "Enable NoSlot Clock", "", noslot_clock, |_| {
@@ -2552,7 +2547,7 @@ fn prepare_system_menu(
 
         ui.separator();
 
-        prepare_menu_for_state_management(cpu, ui, event);
+        prepare_menu_for_state_management(cpu, ui, state);
 
         ui.separator();
         // Add an "Exit" menu item
@@ -2570,70 +2565,70 @@ fn prepare_system_menu(
 fn prepare_speed_menu_item(
     cpu: &mut CPU,
     ui: &imgui::Ui,
-    event: &mut EventParam,
+    state: &mut EmulatorState,
     label: &str,
     shortcut: &str,
     index: usize,
 ) {
-    let speed_index = *event.speed_index;
+    let speed_index = state.speed_index;
     build_toggle_menu_item(ui, label, shortcut, speed_index == index, |_| {
-        *event.speed_index = index;
-        cpu.set_speed(event.speed_mode[*event.speed_index]);
+        state.speed_index = index;
+        cpu.set_speed(state.speed_mode[state.speed_index]);
     });
 }
 
-fn prepare_speed_menu(cpu: &mut CPU, ui: &imgui::Ui, event: &mut EventParam) {
+fn prepare_speed_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) {
     ui.menu("Speed", || {
-        prepare_speed_menu_item(cpu, ui, event, "1.0 MHz", "F9, Shift-F9", 0);
-        prepare_speed_menu_item(cpu, ui, event, "2.8 MHz", "F9, Shift-F9", 1);
-        prepare_speed_menu_item(cpu, ui, event, "4.0 MHz", "F9, Shift-F9", 2);
-        prepare_speed_menu_item(cpu, ui, event, "8.0 MHz", "F9, Shift-F9", 3);
-        prepare_speed_menu_item(cpu, ui, event, "Fastest MHz", "F9, Shift-F9", 4);
+        prepare_speed_menu_item(cpu, ui, state, "1.0 MHz", "F9, Shift-F9", 0);
+        prepare_speed_menu_item(cpu, ui, state, "2.8 MHz", "F9, Shift-F9", 1);
+        prepare_speed_menu_item(cpu, ui, state, "4.0 MHz", "F9, Shift-F9", 2);
+        prepare_speed_menu_item(cpu, ui, state, "8.0 MHz", "F9, Shift-F9", 3);
+        prepare_speed_menu_item(cpu, ui, state, "Fastest MHz", "F9, Shift-F9", 4);
     })
 }
 
 fn prepare_toggle_video_menu_item(
     cpu: &mut CPU,
     ui: &imgui::Ui,
-    event: &mut EventParam,
+    state: &mut EmulatorState,
     label: &str,
     shortcut: &str,
     index: usize,
 ) {
-    let disp_index = *event.display_index;
+    let disp_index = state.display_index;
     build_toggle_menu_item(ui, label, shortcut, disp_index == index, |_| {
-        *event.display_index = index;
+        state.display_index = index;
         cpu.bus
             .video
-            .set_display_mode(event.display_mode[*event.display_index]);
+            .set_display_mode(state.display_mode[state.display_index]);
         cpu.bus.videoterm.invalidate_video();
     });
 }
 
-fn prepare_video_menu(cpu: &mut CPU, ui: &imgui::Ui, scale: &mut f32, event: &mut EventParam) {
+fn prepare_video_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) {
     ui.menu("Video", || {
         ui.text("Window scale");
         ui.same_line();
         let width = ui.push_item_width(-1.0);
         ui.slider_config("##Scale", 1.0, 4.0)
             .flags(SliderFlags::ALWAYS_CLAMP)
-            .build(scale);
+            .build(&mut state.scale);
         width.end();
         ui.separator();
         prepare_toggle_video_menu_item(
             cpu,
             ui,
-            event,
+            state,
             "Idealized Composite (Default)",
             "F6, Shift-F6",
             0,
         );
-        prepare_toggle_video_menu_item(cpu, ui, event, "NTSC Composite", "F6, Shift-F6", 1);
-        prepare_toggle_video_menu_item(cpu, ui, event, "RGB Monitor", "F6, Shift-F6", 2);
-        prepare_toggle_video_menu_item(cpu, ui, event, "Monochrome", "F6, Shift-F6", 3);
-        prepare_toggle_video_menu_item(cpu, ui, event, "Monochrome (NTSC)", "F6, Shift-F6", 4);
-        prepare_toggle_video_menu_item(cpu, ui, event, "Monochrome (Green)", "F6, Shift-F6", 5);
-        prepare_toggle_video_menu_item(cpu, ui, event, "Monochrome (Amber)", "F6, Shift-F6", 6);
+        prepare_toggle_video_menu_item(cpu, ui, state, "NTSC Composite", "F6, Shift-F6", 1);
+        prepare_toggle_video_menu_item(cpu, ui, state, "RGB Monitor", "F6, Shift-F6", 2);
+        prepare_toggle_video_menu_item(cpu, ui, state, "Monochrome", "F6, Shift-F6", 3);
+        prepare_toggle_video_menu_item(cpu, ui, state, "Monochrome (NTSC)", "F6, Shift-F6", 4);
+        prepare_toggle_video_menu_item(cpu, ui, state, "Monochrome (Green)", "F6, Shift-F6", 5);
+        prepare_toggle_video_menu_item(cpu, ui, state, "Monochrome (Amber)", "F6, Shift-F6", 6);
 
         ui.separator();
 
@@ -2672,9 +2667,9 @@ fn prepare_video_menu(cpu: &mut CPU, ui: &imgui::Ui, scale: &mut f32, event: &mu
             ui,
             "Enable Barrel Distortion",
             "",
-            *event.barrel_distortion,
-            |state| {
-                *event.barrel_distortion = state;
+            state.barrel_distortion,
+            |estate| {
+                state.barrel_distortion = estate;
             },
         );
 
@@ -2682,9 +2677,9 @@ fn prepare_video_menu(cpu: &mut CPU, ui: &imgui::Ui, scale: &mut f32, event: &mu
             ui,
             "Enable Vertical Blend",
             "",
-            *event.vertical_blend,
-            |state| {
-                *event.vertical_blend = state;
+            state.vertical_blend,
+            |estate| {
+                state.vertical_blend = estate;
             },
         );
     })
@@ -2729,20 +2724,15 @@ fn build_toggle_menu_item<F>(
     }
 }
 
-fn prepare_menu_for_model(
-    cpu: &mut CPU,
-    ui: &imgui::Ui,
-    model_changed: &mut bool,
-    event: &mut EventParam,
-) {
+fn prepare_menu_for_model(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) {
     ui.menu("Model", || {
         let rom_value = cpu.bus.mem.mem_read(0xfbb3);
         build_toggle_menu_item(ui, "Apple ][", "", rom_value == 0x38, |_| {
             initialize_apple_system(cpu, APPLE2_ROM, 0xd000, false);
             cpu.bus.mem.slotc3rom = true;
             cpu.bus.mem.intcxrom = false;
-            *model_changed = true;
-            *event.reload_cpu = true;
+            state.model_changed = true;
+            state.reload_cpu = true;
             cpu.halt_cpu();
         });
 
@@ -2750,8 +2740,8 @@ fn prepare_menu_for_model(
             initialize_apple_system(cpu, APPLE2P_ROM, 0xd000, false);
             cpu.bus.mem.slotc3rom = true;
             cpu.bus.mem.intcxrom = false;
-            *model_changed = true;
-            *event.reload_cpu = true;
+            state.model_changed = true;
+            state.reload_cpu = true;
             cpu.halt_cpu();
         });
 
@@ -2762,8 +2752,8 @@ fn prepare_menu_for_model(
             !cpu.is_apple2c() && cpu.is_apple2e() && !cpu.is_apple2e_enh(),
             |_| {
                 initialize_apple_system(cpu, APPLE2E_ROM, 0xc000, false);
-                *model_changed = true;
-                *event.reload_cpu = true;
+                state.model_changed = true;
+                state.reload_cpu = true;
                 cpu.halt_cpu();
             },
         );
@@ -2775,8 +2765,8 @@ fn prepare_menu_for_model(
             !cpu.is_apple2c() && cpu.is_apple2e_enh(),
             |_| {
                 initialize_apple_system(cpu, APPLE2EE_ROM, 0xc000, false);
-                *model_changed = true;
-                *event.reload_cpu = true;
+                state.model_changed = true;
+                state.reload_cpu = true;
                 cpu.halt_cpu();
             },
         );
@@ -2789,8 +2779,8 @@ fn prepare_menu_for_model(
             cpu.is_apple2c() && rom_value == 0xff,
             |_| {
                 initialize_apple_system(cpu, APPLE2C_ROM, 0xc000, false);
-                *model_changed = true;
-                *event.reload_cpu = true;
+                state.model_changed = true;
+                state.reload_cpu = true;
                 cpu.halt_cpu();
             },
         );
@@ -2802,8 +2792,8 @@ fn prepare_menu_for_model(
             cpu.is_apple2c() && rom_value == 0x00,
             |_| {
                 initialize_apple_system(cpu, APPLE2C0_ROM, 0xc000, true);
-                *model_changed = true;
-                *event.reload_cpu = true;
+                state.model_changed = true;
+                state.reload_cpu = true;
                 cpu.halt_cpu();
             },
         );
@@ -2815,8 +2805,8 @@ fn prepare_menu_for_model(
             cpu.is_apple2c() && rom_value == 0x03,
             |_| {
                 initialize_apple_system(cpu, APPLE2C3_ROM, 0xc000, true);
-                *model_changed = true;
-                *event.reload_cpu = true;
+                state.model_changed = true;
+                state.reload_cpu = true;
                 cpu.halt_cpu();
             },
         );
@@ -2828,8 +2818,8 @@ fn prepare_menu_for_model(
             cpu.is_apple2c() && rom_value == 0x04,
             |_| {
                 initialize_apple_system(cpu, APPLE2C4_ROM, 0xc000, true);
-                *model_changed = true;
-                *event.reload_cpu = true;
+                state.model_changed = true;
+                state.reload_cpu = true;
                 cpu.halt_cpu();
             },
         );
@@ -2841,24 +2831,24 @@ fn prepare_menu_for_model(
             cpu.is_apple2c() && rom_value == 0x05,
             |_| {
                 initialize_apple_system(cpu, APPLE2CP_ROM, 0xc000, true);
-                *model_changed = true;
-                *event.reload_cpu = true;
+                state.model_changed = true;
+                state.reload_cpu = true;
                 cpu.halt_cpu();
             },
         );
     });
 }
 
-fn prepare_input_menu(cpu: &mut CPU, ui: &imgui::Ui, event: &mut EventParam) {
+fn prepare_input_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) {
     ui.menu("Input", || {
         if ui
             .menu_item_config("Paste from Clipboard")
             .shortcut("Shift-Insert")
             .build()
         {
-            let clipboard = event.video_subsystem.clipboard();
+            let clipboard = state.video_subsystem.clipboard();
             if let Ok(text) = clipboard.clipboard_text() {
-                *event.clipboard_text = text.replace('\n', "");
+                state.clipboard_text = text.replace('\n', "");
             }
         }
 
@@ -2887,7 +2877,7 @@ fn prepare_input_menu(cpu: &mut CPU, ui: &imgui::Ui, event: &mut EventParam) {
 
         ui.separator();
         if ui.menu_item_config("Load Tape").shortcut("Ctrl-F8").build() {
-            *event.file_dialog = OpenFileDialog::Tape;
+            state.file_dialog = OpenFileDialog::Tape;
         }
 
         if ui
@@ -2900,10 +2890,10 @@ fn prepare_input_menu(cpu: &mut CPU, ui: &imgui::Ui, event: &mut EventParam) {
     })
 }
 
-fn prepare_menu_for_disk(cpu: &mut CPU, ui: &imgui::Ui, event: &mut EventParam) {
+fn prepare_menu_for_disk(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) {
     ui.menu("Disk Drive 1", || {
         if ui.menu_item_config("Open").shortcut("F1").build() {
-            *event.file_dialog = OpenFileDialog::Disk(0);
+            state.file_dialog = OpenFileDialog::Disk(0);
         }
         if ui.menu_item_config("Eject").shortcut("Ctrl-F1").build() {
             eject_disk(cpu, 0);
@@ -2912,7 +2902,7 @@ fn prepare_menu_for_disk(cpu: &mut CPU, ui: &imgui::Ui, event: &mut EventParam) 
 
     ui.menu("Disk Drive 2", || {
         if ui.menu_item_config("Open").shortcut("F2").build() {
-            *event.file_dialog = OpenFileDialog::Disk(1);
+            state.file_dialog = OpenFileDialog::Disk(1);
         }
         if ui.menu_item_config("Eject").shortcut("Ctrl-F2").build() {
             eject_disk(cpu, 1);
@@ -2921,7 +2911,7 @@ fn prepare_menu_for_disk(cpu: &mut CPU, ui: &imgui::Ui, event: &mut EventParam) 
 
     ui.menu("Hard Drive 1", || {
         if ui.menu_item_config("Open").shortcut("F10").build() {
-            *event.file_dialog = OpenFileDialog::HardDisk(0);
+            state.file_dialog = OpenFileDialog::HardDisk(0);
         }
         if ui.menu_item_config("Eject").shortcut("Ctrl-F10").build() {
             eject_harddisk(cpu, 0);
@@ -2930,7 +2920,7 @@ fn prepare_menu_for_disk(cpu: &mut CPU, ui: &imgui::Ui, event: &mut EventParam) 
 
     ui.menu("Hard Drive 2", || {
         if ui.menu_item_config("Open").shortcut("F11").build() {
-            *event.file_dialog = OpenFileDialog::HardDisk(1);
+            state.file_dialog = OpenFileDialog::HardDisk(1);
         }
         if ui.menu_item_config("Eject").shortcut("Ctrl-F11").build() {
             eject_harddisk(cpu, 1);
@@ -2938,13 +2928,13 @@ fn prepare_menu_for_disk(cpu: &mut CPU, ui: &imgui::Ui, event: &mut EventParam) 
     });
 }
 
-fn prepare_menu_for_state_management(cpu: &mut CPU, ui: &imgui::Ui, event: &mut EventParam) {
+fn prepare_menu_for_state_management(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) {
     if ui
         .menu_item_config("Load State")
         .shortcut("Ctrl-F4")
         .build()
     {
-        *event.reload_cpu = true;
+        state.reload_cpu = true;
         cpu.halt_cpu();
     }
     if ui
@@ -3087,12 +3077,10 @@ fn update_settings(cpu: &mut CPU, settings: &[usize]) -> bool {
     true
 }
 
-fn prepare_settings(
-    cpu: &mut CPU,
-    ui: &imgui::Ui,
-    selected: &mut Vec<usize>,
-    prev_selected: &mut Vec<usize>,
-) {
+fn prepare_settings(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) {
+    let selected = &mut state.current_settings;
+    let prev_selected = &mut state.prev_settings;
+
     let _ = ui
         .modal_popup_config("Settings##settings")
         .flags(imgui::WindowFlags::NO_RESIZE | imgui::WindowFlags::NO_SAVED_SETTINGS)
@@ -3156,21 +3144,17 @@ fn prepare_settings(
         });
 }
 
-fn prepare_statusbar(
-    cpu: &CPU,
-    ui: &imgui::Ui,
-    event: &EventParam,
-    width: u32,
-    height: u32,
-    menu_bar_height: f32,
-) {
+fn prepare_statusbar(cpu: &CPU, ui: &imgui::Ui, state: &EmulatorState, width: u32, height: u32) {
     const PADDING_X: f32 = 13.0;
     const PADDING_Y: f32 = 2.0;
-    let style_token = ui.push_style_var(StyleVar::WindowMinSize([width as f32, menu_bar_height]));
+    let style_token = ui.push_style_var(StyleVar::WindowMinSize([
+        width as f32,
+        state.menu_bar_height,
+    ]));
     let pad_token = ui.push_style_var(StyleVar::WindowPadding([PADDING_X, PADDING_Y]));
     ui.window("##StatusBar")
         .position(
-            [0.0, height as f32 - menu_bar_height],
+            [0.0, height as f32 - state.menu_bar_height],
             imgui::Condition::Always,
         ) // Position at bottom
         .flags(
@@ -3189,9 +3173,9 @@ fn prepare_statusbar(
                 imgui::dear_imgui_version()
             ));
             ui.same_line();
-            ui.text(format!("FPS: {:.2}", event.fps));
+            ui.text(format!("FPS: {:.2}", state.fps));
             ui.same_line();
-            ui.text(format!("MHz: {:.3}", event.estimated_mhz));
+            ui.text(format!("MHz: {:.3}", state.estimated_mhz));
 
             let track_info = cpu.bus.disk.get_track_info();
             ui.same_line();
