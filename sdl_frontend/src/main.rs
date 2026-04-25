@@ -827,7 +827,6 @@ fn update_audio(
     cpu: &mut CPU,
     audio_stream: &Option<AudioStreamOwner>,
     speed_index: usize,
-    estimated_mhz: f32,
 ) {
     let snd = &mut cpu.bus.audio;
 
@@ -841,13 +840,13 @@ fn update_audio(
     snd.update_cycles(video_50hz);
 
     let Some(stream) = audio_stream else { return };
-    let snd_buffer = snd.get_buffer();
-    let threshold = if speed_index + 1 == SPEED_DENOMINATOR.len() {
-        (estimated_mhz * 10.0) as usize
-    } else {
-        SPEED_DENOMINATOR[speed_index]
-    };
 
+    if speed_index + 1 == SPEED_DENOMINATOR.len() {
+        return
+    }
+
+    let snd_buffer = snd.get_buffer();
+    let threshold = SPEED_DENOMINATOR[speed_index];
     let mut accumulator = 0;
     let mut output = Vec::new();
     for (index, chunk) in snd_buffer.chunks_exact(2).enumerate() {
@@ -2397,7 +2396,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     _cpu.bus.video.skip_update = true;
                 }
 
-                update_audio(_cpu, &audio_stream, speed_index, estimated_mhz);
+                update_audio(_cpu, &audio_stream, speed_index);
                 _cpu.bus.audio.clear_buffer();
 
                 let video_cpu_update = t.elapsed().as_micros();
