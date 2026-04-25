@@ -41,8 +41,8 @@ sdl3 = "0.17.3"
 #winapi = "0.3.9"
 
 [build-dependencies]
-embed-resource = "3.0.8"
-cc = { version = "1.2.60", features = ['parallel'] }
+embed-resource = "3.0.9"
+cc = { version = "1.2.61", features = ['parallel'] }
 
 [features]
 #default = [ ]

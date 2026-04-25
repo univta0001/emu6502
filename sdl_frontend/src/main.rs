@@ -2422,7 +2422,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 } else {
                     1020484.0 / (dcyc as f32)
                 };
-                dcyc -= cpu_cycles;
+                dcyc = dcyc.saturating_sub(cpu_cycles);
                 t = Instant::now();
             }
         });
