@@ -76,6 +76,38 @@ const SPEED_DENOMINATOR: [usize; 5] = [10, 28, 40, 80, 10];
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+// Display modes array
+const DISPLAY_MODES: [DisplayMode; 7] = [
+    DisplayMode::DEFAULT,
+    DisplayMode::NTSC,
+    DisplayMode::RGB,
+    DisplayMode::MONO_WHITE,
+    DisplayMode::MONO_NTSC,
+    DisplayMode::MONO_GREEN,
+    DisplayMode::MONO_AMBER,
+];
+
+const DISPLAY_MODE_NAMES: [&str; 7] = [
+    "Idealized Composite (Default)",
+    "NTSC Composite",
+    "RGB Monitor",
+    "Monochrome",
+    "Monochrome (NTSC)",
+    "Monochrome (Green)",
+    "Monochrome (Amber)",
+];
+
+// Speed values
+const SPEED_MODES: [CpuSpeed; 5] = [
+    CpuSpeed::SPEED_DEFAULT,
+    CpuSpeed::SPEED_2_8MHZ,
+    CpuSpeed::SPEED_4MHZ,
+    CpuSpeed::SPEED_8MHZ,
+    CpuSpeed::SPEED_FASTEST,
+];
+
+const SPEED_NAMES: [&str; 5] = ["1.0 MHz", "2.8 MHz", "4.0 MHz", "8.0 MHz", "Fastest MHz"];
+
 const MENUBAR_HEIGHT: u32 = 19;
 
 enum OpenFileDialog {
@@ -89,8 +121,8 @@ struct Emulator {
     cpu: CPU,
 }
 
+#[derive(Default)]
 struct VideoState {
-    display_mode: [DisplayMode; 7],
     display_index: usize,
     barrel_distortion: bool,
     vertical_blend: bool,
@@ -101,14 +133,15 @@ struct VideoState {
     full_screen: bool,
 }
 
+#[derive(Default)]
 struct SpeedState {
-    speed_mode: [CpuSpeed; 5],
     speed_index: usize,
     disk_mode_index: usize,
     estimated_mhz: f32,
     fps: f32,
 }
 
+#[derive(Default)]
 struct InputState {
     key_caps: bool,
     clipboard_text: String,
@@ -151,43 +184,14 @@ impl EmulatorState {
             game_controller,
             gamepads: HashMap::new(),
             video: VideoState {
-                display_mode: [
-                    DisplayMode::DEFAULT,
-                    DisplayMode::NTSC,
-                    DisplayMode::RGB,
-                    DisplayMode::MONO_WHITE,
-                    DisplayMode::MONO_NTSC,
-                    DisplayMode::MONO_GREEN,
-                    DisplayMode::MONO_AMBER,
-                ],
-                display_index: 0,
-                barrel_distortion: false,
-                vertical_blend: false,
                 scale,
                 prev_scale: scale,
-                menu_bar_height: 0.0,
-                current_full_screen: false,
-                full_screen: false,
+                ..Default::default()
             },
-            speed: SpeedState {
-                speed_mode: [
-                    CpuSpeed::SPEED_DEFAULT,
-                    CpuSpeed::SPEED_2_8MHZ,
-                    CpuSpeed::SPEED_4MHZ,
-                    CpuSpeed::SPEED_8MHZ,
-                    CpuSpeed::SPEED_FASTEST,
-                ],
-                speed_index: 0,
-                disk_mode_index: 0,
-                estimated_mhz: 0.0,
-                fps: 0.0,
-            },
+            speed: SpeedState::default(),
             input: InputState {
                 key_caps,
-                clipboard_text: String::new(),
-                want_capture_keyboard: false,
-                prev_x: 0,
-                prev_y: 0,
+                ..Default::default()
             },
             reload_cpu: false,
             save_screenshot: false,
@@ -1431,17 +1435,16 @@ fn function_key_processed(cpu: &mut CPU, event: &Event, state: &mut EmulatorStat
                 cpu.bus.audio.set_filter_enabled(mode);
                 return true;
             } else {
-                let display_mode = state.video.display_mode;
                 if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
                     state.video.display_index =
-                        (state.video.display_index + display_mode.len() - 1) % display_mode.len();
+                        (state.video.display_index + DISPLAY_MODES.len() - 1) % DISPLAY_MODES.len();
                 } else {
                     state.video.display_index =
-                        (state.video.display_index + 1) % display_mode.len();
+                        (state.video.display_index + 1) % DISPLAY_MODES.len();
                 }
                 cpu.bus
                     .video
-                    .set_display_mode(display_mode[state.video.display_index]);
+                    .set_display_mode(DISPLAY_MODES[state.video.display_index]);
                 return true;
             }
         }
@@ -1476,16 +1479,15 @@ fn function_key_processed(cpu: &mut CPU, event: &Event, state: &mut EmulatorStat
             keymod,
             ..
         } => {
-            let speed_mode = state.speed.speed_mode;
             if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
                 state.speed.speed_index =
-                    (state.speed.speed_index + speed_mode.len() - 1) % speed_mode.len();
+                    (state.speed.speed_index + SPEED_MODES.len() - 1) % SPEED_MODES.len();
             } else if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 cpu.bus.audio.eject_tape();
             } else {
-                state.speed.speed_index = (state.speed.speed_index + 1) % speed_mode.len();
+                state.speed.speed_index = (state.speed.speed_index + 1) % SPEED_MODES.len();
             }
-            cpu.set_speed(speed_mode[state.speed.speed_index]);
+            cpu.set_speed(SPEED_MODES[state.speed.speed_index]);
             return true;
         }
 
@@ -2594,17 +2596,15 @@ fn prepare_speed_menu_item(
     let speed_index = state.speed.speed_index;
     build_toggle_menu_item(ui, label, shortcut, speed_index == index, |_| {
         state.speed.speed_index = index;
-        cpu.set_speed(state.speed.speed_mode[state.speed.speed_index]);
+        cpu.set_speed(SPEED_MODES[state.speed.speed_index]);
     });
 }
 
 fn prepare_speed_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) {
     ui.menu("Speed", || {
-        prepare_speed_menu_item(cpu, ui, state, "1.0 MHz", "F9, Shift-F9", 0);
-        prepare_speed_menu_item(cpu, ui, state, "2.8 MHz", "F9, Shift-F9", 1);
-        prepare_speed_menu_item(cpu, ui, state, "4.0 MHz", "F9, Shift-F9", 2);
-        prepare_speed_menu_item(cpu, ui, state, "8.0 MHz", "F9, Shift-F9", 3);
-        prepare_speed_menu_item(cpu, ui, state, "Fastest MHz", "F9, Shift-F9", 4);
+        for index in 0..5 {
+            prepare_speed_menu_item(cpu, ui, state, SPEED_NAMES[index], "F9, Shift-F9", index)
+        }
     })
 }
 
@@ -2621,7 +2621,7 @@ fn prepare_toggle_video_menu_item(
         state.video.display_index = index;
         cpu.bus
             .video
-            .set_display_mode(state.video.display_mode[state.video.display_index]);
+            .set_display_mode(DISPLAY_MODES[state.video.display_index]);
         cpu.bus.videoterm.invalidate_video();
     });
 }
@@ -2636,20 +2636,17 @@ fn prepare_video_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) 
             .build(&mut state.video.scale);
         width.end();
         ui.separator();
-        prepare_toggle_video_menu_item(
-            cpu,
-            ui,
-            state,
-            "Idealized Composite (Default)",
-            "F6, Shift-F6",
-            0,
-        );
-        prepare_toggle_video_menu_item(cpu, ui, state, "NTSC Composite", "F6, Shift-F6", 1);
-        prepare_toggle_video_menu_item(cpu, ui, state, "RGB Monitor", "F6, Shift-F6", 2);
-        prepare_toggle_video_menu_item(cpu, ui, state, "Monochrome", "F6, Shift-F6", 3);
-        prepare_toggle_video_menu_item(cpu, ui, state, "Monochrome (NTSC)", "F6, Shift-F6", 4);
-        prepare_toggle_video_menu_item(cpu, ui, state, "Monochrome (Green)", "F6, Shift-F6", 5);
-        prepare_toggle_video_menu_item(cpu, ui, state, "Monochrome (Amber)", "F6, Shift-F6", 6);
+
+        for index in 0..7 {
+            prepare_toggle_video_menu_item(
+                cpu,
+                ui,
+                state,
+                DISPLAY_MODE_NAMES[index],
+                "F6, Shift-F6",
+                index,
+            )
+        }
 
         ui.separator();
 
