@@ -1114,8 +1114,9 @@ impl Bus {
 
             0x5e => {
                 let val = self.read_floating_bus();
-                if (self.video.is_apple2e() && self.mem.aux_type != AuxType::Empty)
-                    || !self.mouse.get_iou()
+                if (self.video.is_apple2e()
+                    && (self.mem.aux_type != AuxType::Empty && self.mem.aux_type != AuxType::Std80))
+                    || self.is_apple2c
                 {
                     self.video.enable_dhires(true);
                     self.video.update_video();
@@ -1129,8 +1130,9 @@ impl Bus {
 
             0x5f => {
                 let val = self.read_floating_bus();
-                if (self.video.is_apple2e() && self.mem.aux_type != AuxType::Empty)
-                    || !self.mouse.get_iou()
+                if (self.video.is_apple2e()
+                    && (self.mem.aux_type != AuxType::Empty && self.mem.aux_type != AuxType::Std80))
+                    || self.is_apple2c
                 {
                     self.video.enable_dhires(false);
                     self.video.update_video();

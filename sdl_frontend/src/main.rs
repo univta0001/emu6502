@@ -853,7 +853,9 @@ fn update_audio(cpu: &mut CPU, state: &EmulatorState) {
 
     snd.update_cycles(video_50hz);
 
-    let Some(ref stream) = state.audio_stream else { return };
+    let Some(ref stream) = state.audio_stream else {
+        return;
+    };
 
     if state.speed_index + 1 == SPEED_DENOMINATOR.len() {
         return;
@@ -993,7 +995,10 @@ fn update_gpu_harddisk_status(
 
         drawlist
             .add_circle(
-                [screen[0] - 4.0 * state.scale, state.menu_bar_height + 4.0 * state.scale],
+                [
+                    screen[0] - 4.0 * state.scale,
+                    state.menu_bar_height + 4.0 * state.scale,
+                ],
                 2.0 * state.scale,
                 color,
             )
