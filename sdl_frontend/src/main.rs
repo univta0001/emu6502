@@ -108,6 +108,16 @@ const SPEED_MODES: [CpuSpeed; 5] = [
 
 const SPEED_NAMES: [&str; 5] = ["1.0 MHz", "2.8 MHz", "4.0 MHz", "8.0 MHz", "Fastest MHz"];
 
+// Supported dongle models
+const SUPPORTED_DONGLES: &[(&str, fn() -> Dongle)] = &[
+    ("speedstar", || Dongle::SpeedStar),
+    ("hayden", || Dongle::Hayden),
+    ("codewriter", || Dongle::CodeWriter(0x6b)),
+    ("robocom500", || Dongle::Robocom(500)),
+    ("robocom1000", || Dongle::Robocom(1000)),
+    ("robocom1500", || Dongle::Robocom(1500)),
+];
+
 const MENUBAR_HEIGHT: u32 = 19;
 
 enum OpenFileDialog {
@@ -1809,17 +1819,14 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         cpu.bus.set_z80_cirtech(true);
     }
 
-    if let Some(dongle) = pargs.opt_value_from_str::<_, String>("--dongle")? {
-        match &dongle[..] {
-            "speedstar" => cpu.bus.set_dongle(Dongle::SpeedStar),
-            "hayden" => cpu.bus.set_dongle(Dongle::Hayden),
-            "codewriter" => cpu.bus.set_dongle(Dongle::CodeWriter(0x6b)),
-            "robocom500" => cpu.bus.set_dongle(Dongle::Robocom(500)),
-            "robocom1000" => cpu.bus.set_dongle(Dongle::Robocom(1000)),
-            "robocom1500" => cpu.bus.set_dongle(Dongle::Robocom(1500)),
-            _ => {
+    if let Some(dongle_name) = pargs.opt_value_from_str::<_, String>("--dongle")? {
+        let dongle_entry = SUPPORTED_DONGLES.iter().find(|(name, _)| *name == dongle_name);
+        match dongle_entry {
+            Some((_, dongle)) => cpu.bus.set_dongle(dongle()),
+            None => {
                 eprintln!(
-                    "Dongle supported: speedstar, hayden, codewriter, robocom500, robocom1000, robocom1500"
+                    "Dongle supported: {}",
+                    SUPPORTED_DONGLES.iter().map(|(n, _)| *n).collect::<Vec<_>>().join(", ")
                 );
                 return Ok(());
             }
