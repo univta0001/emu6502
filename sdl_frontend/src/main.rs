@@ -2186,7 +2186,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     };
 
     // Create SDL event pump
-    let mut event_pump = sdl_context.event_pump().unwrap();
+    let mut event_pump = sdl_context.event_pump()?;
     //_event_pump.enable_event(DropFile);
 
     let mut t = Instant::now();
