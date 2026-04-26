@@ -216,6 +216,55 @@ impl EmulatorState {
     }
 }
 
+struct NumpadMapping {
+    keycode: Keycode,
+    paddle0: Option<u16>,
+    paddle1: Option<u16>,
+}
+
+const NUMPAD_MAPPINGS: &[NumpadMapping] = &[
+    NumpadMapping {
+        keycode: Keycode::Kp1,
+        paddle0: Some(0),
+        paddle1: Some(PADDLE_MAX_VALUE),
+    },
+    NumpadMapping {
+        keycode: Keycode::Kp2,
+        paddle0: None,
+        paddle1: Some(PADDLE_MAX_VALUE),
+    },
+    NumpadMapping {
+        keycode: Keycode::Kp3,
+        paddle0: Some(PADDLE_MAX_VALUE),
+        paddle1: Some(PADDLE_MAX_VALUE),
+    },
+    NumpadMapping {
+        keycode: Keycode::Kp4,
+        paddle0: Some(0),
+        paddle1: None,
+    },
+    NumpadMapping {
+        keycode: Keycode::Kp6,
+        paddle0: Some(PADDLE_MAX_VALUE),
+        paddle1: None,
+    },
+    NumpadMapping {
+        keycode: Keycode::Kp7,
+        paddle0: Some(0),
+        paddle1: Some(0),
+    },
+    NumpadMapping {
+        keycode: Keycode::Kp8,
+        paddle0: None,
+        paddle1: Some(0),
+    },
+    NumpadMapping {
+        keycode: Keycode::Kp9,
+        paddle0: Some(PADDLE_MAX_VALUE),
+        paddle1: Some(0),
+    },
+];
+
 fn translate_key_to_apple_key(
     apple2e: bool,
     key_caps: &mut bool,
@@ -1151,145 +1200,39 @@ fn initialize_new_cpu(cpu: &mut CPU, state: &mut EmulatorState) {
 }
 
 fn numpad_key_processed(cpu: &mut CPU, event: &Event) -> bool {
-    match event {
+    let keycode = match event {
         Event::KeyDown {
-            keycode: Some(Keycode::Kp1),
-            ..
-        } => {
-            cpu.bus.paddle_latch[0] = 0x0;
-            cpu.bus.paddle_latch[1] = PADDLE_MAX_VALUE;
+            keycode: Some(k), ..
+        }
+        | Event::KeyUp {
+            keycode: Some(k), ..
+        } => k,
+        _ => return false,
+    };
+
+    let is_key_down = matches!(event, Event::KeyDown { .. });
+
+    for mapping in NUMPAD_MAPPINGS {
+        if mapping.keycode == *keycode {
+            if is_key_down {
+                if let Some(v) = mapping.paddle0 {
+                    cpu.bus.paddle_latch[0] = v;
+                }
+                if let Some(v) = mapping.paddle1 {
+                    cpu.bus.paddle_latch[1] = v;
+                }
+            } else {
+                if mapping.paddle0.is_some() {
+                    cpu.bus.reset_paddle_latch(0);
+                }
+                if mapping.paddle1.is_some() {
+                    cpu.bus.reset_paddle_latch(1);
+                }
+            }
             return true;
         }
-
-        Event::KeyUp {
-            keycode: Some(Keycode::Kp1),
-            ..
-        } => {
-            cpu.bus.reset_paddle_latch(0);
-            cpu.bus.reset_paddle_latch(1);
-            return true;
-        }
-
-        Event::KeyDown {
-            keycode: Some(Keycode::Kp2),
-            ..
-        } => {
-            cpu.bus.paddle_latch[1] = PADDLE_MAX_VALUE;
-            return true;
-        }
-
-        Event::KeyUp {
-            keycode: Some(Keycode::Kp2),
-            ..
-        } => {
-            cpu.bus.reset_paddle_latch(1);
-            return true;
-        }
-
-        Event::KeyDown {
-            keycode: Some(Keycode::Kp3),
-            ..
-        } => {
-            cpu.bus.paddle_latch[0] = PADDLE_MAX_VALUE;
-            cpu.bus.paddle_latch[1] = PADDLE_MAX_VALUE;
-            return true;
-        }
-
-        Event::KeyUp {
-            keycode: Some(Keycode::Kp3),
-            ..
-        } => {
-            cpu.bus.reset_paddle_latch(0);
-            cpu.bus.reset_paddle_latch(1);
-            return true;
-        }
-
-        Event::KeyDown {
-            keycode: Some(Keycode::Kp4),
-            ..
-        } => {
-            cpu.bus.paddle_latch[0] = 0x0;
-            return true;
-        }
-
-        Event::KeyUp {
-            keycode: Some(Keycode::Kp4),
-            ..
-        } => {
-            cpu.bus.reset_paddle_latch(0);
-            return true;
-        }
-
-        Event::KeyDown {
-            keycode: Some(Keycode::Kp6),
-            ..
-        } => {
-            cpu.bus.paddle_latch[0] = PADDLE_MAX_VALUE;
-            return true;
-        }
-
-        Event::KeyUp {
-            keycode: Some(Keycode::Kp6),
-            ..
-        } => {
-            cpu.bus.reset_paddle_latch(0);
-            return true;
-        }
-
-        Event::KeyDown {
-            keycode: Some(Keycode::Kp7),
-            ..
-        } => {
-            cpu.bus.paddle_latch[0] = 0x0;
-            cpu.bus.paddle_latch[1] = 0x0;
-            return true;
-        }
-
-        Event::KeyUp {
-            keycode: Some(Keycode::Kp7),
-            ..
-        } => {
-            cpu.bus.reset_paddle_latch(0);
-            cpu.bus.reset_paddle_latch(1);
-            return true;
-        }
-
-        Event::KeyDown {
-            keycode: Some(Keycode::Kp8),
-            ..
-        } => {
-            cpu.bus.paddle_latch[1] = 0x0;
-            return true;
-        }
-
-        Event::KeyUp {
-            keycode: Some(Keycode::Kp8),
-            ..
-        } => {
-            cpu.bus.reset_paddle_latch(1);
-            return true;
-        }
-
-        Event::KeyDown {
-            keycode: Some(Keycode::Kp9),
-            ..
-        } => {
-            cpu.bus.paddle_latch[0] = PADDLE_MAX_VALUE;
-            cpu.bus.paddle_latch[1] = 0;
-            return true;
-        }
-
-        Event::KeyUp {
-            keycode: Some(Keycode::Kp9),
-            ..
-        } => {
-            cpu.bus.reset_paddle_latch(0);
-            cpu.bus.reset_paddle_latch(1);
-            return true;
-        }
-
-        _ => {}
     }
+
     false
 }
 
@@ -1820,13 +1763,19 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
 
     if let Some(dongle_name) = pargs.opt_value_from_str::<_, String>("--dongle")? {
-        let dongle_entry = SUPPORTED_DONGLES.iter().find(|(name, _)| *name == dongle_name);
+        let dongle_entry = SUPPORTED_DONGLES
+            .iter()
+            .find(|(name, _)| *name == dongle_name);
         match dongle_entry {
             Some((_, dongle)) => cpu.bus.set_dongle(dongle()),
             None => {
                 eprintln!(
                     "Dongle supported: {}",
-                    SUPPORTED_DONGLES.iter().map(|(n, _)| *n).collect::<Vec<_>>().join(", ")
+                    SUPPORTED_DONGLES
+                        .iter()
+                        .map(|(n, _)| *n)
+                        .collect::<Vec<_>>()
+                        .join(", ")
                 );
                 return Ok(());
             }
