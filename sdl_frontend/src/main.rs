@@ -296,8 +296,8 @@ fn translate_key_to_apple_key(
     }
 
     let mut value = keycode as i16 & 0x7f;
-    let shift_mode = keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD);
-    let ctrl_mode = keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD);
+    let shift_mode = keymod.intersects(Mod::LSHIFTMOD | Mod::RSHIFTMOD);
+    let ctrl_mode = keymod.intersects(Mod::LCTRLMOD | Mod::RCTRLMOD);
 
     if keycode == Keycode::CapsLock {
         *key_caps = keymod.contains(Mod::CAPSMOD);
@@ -476,7 +476,7 @@ fn handle_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState) {
             ..
         } => {
             if value == Keycode::Return
-                && (keymod.contains(Mod::LALTMOD) || keymod.contains(Mod::RALTMOD))
+                && keymod.intersects(Mod::LALTMOD | Mod::RALTMOD)
             {
                 state.video.full_screen = !state.video.full_screen;
                 return;
