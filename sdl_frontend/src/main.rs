@@ -109,7 +109,8 @@ const SPEED_MODES: [CpuSpeed; 5] = [
 const SPEED_NAMES: [&str; 5] = ["1.0 MHz", "2.8 MHz", "4.0 MHz", "8.0 MHz", "Fastest MHz"];
 
 // Supported dongle models
-const SUPPORTED_DONGLES: &[(&str, fn() -> Dongle)] = &[
+type StrToDongle<'a> = (&'a str, fn() -> Dongle);
+const SUPPORTED_DONGLES: &[StrToDongle] = &[
     ("speedstar", || Dongle::SpeedStar),
     ("hayden", || Dongle::Hayden),
     ("codewriter", || Dongle::CodeWriter(0x6b)),
@@ -2558,8 +2559,8 @@ fn prepare_speed_menu_item(
 
 fn prepare_speed_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) {
     ui.menu("Speed", || {
-        for index in 0..5 {
-            prepare_speed_menu_item(cpu, ui, state, SPEED_NAMES[index], "F9, Shift-F9", index)
+        for (index, item) in SPEED_NAMES.iter().enumerate() {
+            prepare_speed_menu_item(cpu, ui, state, item, "F9, Shift-F9", index)
         }
     })
 }
@@ -2593,12 +2594,12 @@ fn prepare_video_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) 
         width.end();
         ui.separator();
 
-        for index in 0..7 {
+        for (index, item) in DISPLAY_MODE_NAMES.iter().enumerate() {
             prepare_toggle_video_menu_item(
                 cpu,
                 ui,
                 state,
-                DISPLAY_MODE_NAMES[index],
+                item,
                 "F6, Shift-F6",
                 index,
             )
