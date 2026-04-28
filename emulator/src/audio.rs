@@ -801,15 +801,6 @@ impl Tick for Audio {
             mb.tick();
         }
 
-        if !self.audio_active && self.dc_filter == 0 && self.data.disk_sound == 0 {
-            if self.fcycles >= (self.fcycles_per_sample) {
-                self.handle_tape_sample();
-                self.fcycles -= self.fcycles_per_sample;
-                self.data.sample.extend_from_slice(&[0, 0]);
-            }
-            return;
-        }
-
         let beep = if self.filter_enabled {
             if self.dc_filter > 0 {
                 let response = self.audio_filter.filter_response(self.data.phase);
@@ -857,9 +848,14 @@ impl Tick for Audio {
             self.fcycles -= self.fcycles_per_sample;
             //self.fcycles -= 21.0;
 
+            if beep == 0 {
+                self.audio_active = false;
+                self.audio_filter.filter_tap[0] = 0.0;
+                self.audio_filter.filter_tap[1] = 0.0;
+            }
+
             // Add the disk sound
             let disk_sound = self.data.disk_sound as HigherChannel;
-            let mut mb_tone = false;
 
             // Channel mixing for left and right
             for channel in 0..2 {
@@ -867,7 +863,6 @@ impl Tick for Audio {
 
                 // Update left channel
                 let tone_count = self.update_phase(&mut phase, channel) + 1;
-                mb_tone |= tone_count > 0;
                 let phase = phase.saturating_add(disk_sound);
 
                 let phase = if tone_count > 1 {
@@ -877,12 +872,6 @@ impl Tick for Audio {
                 };
 
                 self.data.sample.push(phase as Channel);
-            }
-
-            if beep == 0 && !mb_tone {
-                self.audio_active = false;
-                self.audio_filter.filter_tap[0] = 0.0;
-                self.audio_filter.filter_tap[1] = 0.0;
             }
         }
     }

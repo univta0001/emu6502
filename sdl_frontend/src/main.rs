@@ -476,9 +476,7 @@ fn handle_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState) {
             keymod,
             ..
         } => {
-            if value == Keycode::Return
-                && keymod.intersects(Mod::LALTMOD | Mod::RALTMOD)
-            {
+            if value == Keycode::Return && keymod.intersects(Mod::LALTMOD | Mod::RALTMOD) {
                 state.video.full_screen = !state.video.full_screen;
                 return;
             }
@@ -2595,14 +2593,7 @@ fn prepare_video_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) 
         ui.separator();
 
         for (index, item) in DISPLAY_MODE_NAMES.iter().enumerate() {
-            prepare_toggle_video_menu_item(
-                cpu,
-                ui,
-                state,
-                item,
-                "F6, Shift-F6",
-                index,
-            )
+            prepare_toggle_video_menu_item(cpu, ui, state, item, "F6, Shift-F6", index)
         }
 
         ui.separator();
@@ -3143,8 +3134,9 @@ fn prepare_statusbar(cpu: &CPU, ui: &imgui::Ui, state: &EmulatorState, width: u3
         .build(|| {
             // Render your status bar content here
             ui.text(format!(
-                "emu6502 v{} - ImGui {}",
+                "emu6502 v{} - SDL3 {} ImGui {}",
                 VERSION,
+                sdl3::version::version(),
                 imgui::dear_imgui_version()
             ));
             ui.same_line();
