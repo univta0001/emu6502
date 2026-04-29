@@ -1380,6 +1380,7 @@ impl DiskDrive {
 
     pub fn reset(&mut self) {
         self.motor_status(false);
+        self.reset_disk_sound_sample();
         self.iwm_mode = 0;
     }
 
@@ -2721,7 +2722,7 @@ impl Tick for DiskDrive {
             self.pending_ticks -= 1;
             if self.pending_ticks == 0 {
                 self.fast_disk_timer = 0;
-
+                self.reset_disk_sound_sample();
                 for drive in 0..self.drive.len() {
                     let disk = &mut self.drive[drive];
                     disk.motor_status = false;

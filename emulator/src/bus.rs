@@ -370,7 +370,6 @@ impl Bus {
                     self.disk.update_disk_sound_sample();
                     self.disk.get_disk_sound_sample()
                 } else {
-                    self.disk.reset_disk_sound_sample();
                     0
                 };
                 self.audio.update_disk_sound(sample_value);
