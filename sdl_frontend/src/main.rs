@@ -2202,14 +2202,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     normal_disk_speed && _cpu.full_speed != CpuSpeed::SPEED_FASTEST;
 
                 // Update video, audio and events at multiple of 60Hz or 50Hz
-                let time_tolerance = if normal_cpu_speed {
-                    cpu_period - 100
-                } else {
-                    cpu_period
-                };
-
                 let video_time_elapsed = video_time.elapsed().as_micros();
-                if video_time_elapsed >= time_tolerance {
+                if video_time_elapsed >= cpu_period {
                     video_time = Instant::now();
 
                     if emulator_state.save_screenshot {
@@ -2392,7 +2386,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 let video_cpu_update = t.elapsed().as_micros();
 
                 if normal_cpu_speed {
-                    let adj_ms = time_tolerance as usize
+                    let adj_ms = cpu_period as usize
                         * SPEED_NUMERATOR[emulator_state.speed.speed_index]
                         / SPEED_DENOMINATOR[emulator_state.speed.speed_index];
 
@@ -2404,9 +2398,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 }
 
                 let elapsed = t.elapsed().as_micros();
-                let time_tolerance = (cpu_period - time_tolerance) as f32;
                 emulator_state.speed.estimated_mhz =
-                    (emulator_state.dcyc as f32) / (elapsed as f32 + time_tolerance);
+                    (emulator_state.dcyc as f32) / elapsed as f32;
 
                 emulator_state.speed.fps = if _cpu.bus.video.is_video_50hz() {
                     1015625.0 / (emulator_state.dcyc as f32)
