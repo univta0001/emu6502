@@ -1475,6 +1475,18 @@ fn function_key_processed(cpu: &mut CPU, event: &Event, state: &mut EmulatorStat
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                cpu.set_reset(true);
+                return true;
+            }
+            return true;
+        }
+
+        Event::KeyUp {
+            keycode: Some(Keycode::ScrollLock) | Some(Keycode::F12),
+            keymod,
+            ..
+        } => {
+            if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 cpu.interrupt_reset();
                 return true;
             }
