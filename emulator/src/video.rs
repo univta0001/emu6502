@@ -811,7 +811,8 @@ impl Video {
         self.shr_mode = false;
         self.shr_linear_mode = false;
         self.dhires_mode = true;
-        self.mixed_mode = false;
+        self.lores_mode = true;
+        self.video_page2 = false;
     }
 
     pub fn update_video(&mut self) {
