@@ -628,8 +628,10 @@ impl Mmu {
         let bank_on_mode = (io_addr & 0x02) > 0;
         let bank1_mode = (io_addr & 0x08) > 0;
 
-        self.set_saturn_slot(0);
         if !self.saturn_flag {
+            if self.saturn_slot > 0 {
+                self.saturn_bank = 0;
+            }
             if write_mode {
                 if !write_flag && self.prewrite {
                     self.writebsr = true;
@@ -643,6 +645,7 @@ impl Mmu {
             }
             self.bank1 = bank1_mode;
         } else {
+            self.set_saturn_slot(0);
             match io_addr {
                 0x4 => self.saturn_bank = 0,
                 0x5 => self.saturn_bank = 1,
