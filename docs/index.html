@@ -282,7 +282,7 @@
 
                 // Handle reset key
                 if (e.ctrlKey && (e.key == "F12" || e.code == "Pause")) {
-                    emu6502.interrupt_reset();
+                    emu6502.set_reset(true);
                     return
                 }
 
@@ -514,6 +514,12 @@
                     emu6502.any_key_down(true);
                 } else {
                     emu6502.any_key_down(false);
+                }
+
+                // Handle reset key
+                if (e.ctrlKey && (e.key == "F12" || e.code == "Pause")) {
+                    emu6502.interrupt_reset();
+                    return
                 }
 
                 let leftAlt = e.code == "AltLeft"

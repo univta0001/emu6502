@@ -441,6 +441,10 @@ pub struct CPU {
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub irq_last_tick: bool,
 
+    #[cfg_attr(feature = "serde_support", serde(skip))]
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    pub reset: bool,
+
     #[cfg(feature = "z80")]
     #[cfg_attr(feature = "serde_support", serde(default = "default_z80cpu"))]
     #[cfg_attr(feature = "serde_support", educe(Debug(ignore)))]
@@ -560,6 +564,7 @@ impl CPU {
             bench_test: false,
             full_speed: Default::default(),
             irq_last_tick: true,
+            reset: false,
             #[cfg(feature = "z80")]
             z80cpu: default_z80cpu(),
         }
@@ -1003,6 +1008,13 @@ impl CPU {
         }
     }
 
+    pub fn set_reset(&mut self, flag: bool) {
+        self.reset = flag;
+        if self.reset {
+            self.bus.reset();
+        }
+    }
+
     pub fn reset(&mut self) {
         self.register_a = 0;
         self.register_x = 0;
@@ -1022,7 +1034,7 @@ impl CPU {
     }
 
     pub fn interrupt_reset(&mut self) {
-        self.bus.reset();
+        self.set_reset(false);
         self.interrupt(interrupt::RESET);
     }
 
@@ -1885,6 +1897,14 @@ impl CPU {
         if self.halt_cpu {
             self.halt_cpu = false;
             return false;
+        }
+
+        if self.reset {
+            self.tick();
+            if !self.alt_cpu {
+                callback(self);
+            }
+            return true;
         }
 
         if self.bus.poll_halt_status().is_some() {

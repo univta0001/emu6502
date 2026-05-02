@@ -810,6 +810,8 @@ impl Video {
         self.altchar = false;
         self.shr_mode = false;
         self.shr_linear_mode = false;
+        self.dhires_mode = true;
+        self.mixed_mode = false;
     }
 
     pub fn update_video(&mut self) {

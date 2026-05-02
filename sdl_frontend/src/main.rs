@@ -2398,8 +2398,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 }
 
                 let elapsed = t.elapsed().as_micros();
-                emulator_state.speed.estimated_mhz =
-                    (emulator_state.dcyc as f32) / elapsed as f32;
+                emulator_state.speed.estimated_mhz = (emulator_state.dcyc as f32) / elapsed as f32;
 
                 emulator_state.speed.fps = if _cpu.bus.video.is_video_50hz() {
                     1015625.0 / (emulator_state.dcyc as f32)

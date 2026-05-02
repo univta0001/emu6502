@@ -143,6 +143,12 @@ export class Emulator {
         wasm.emulator_set_paddle(this.__wbg_ptr, index, value);
     }
     /**
+     * @param {boolean} flag
+     */
+    set_reset(flag) {
+        wasm.emulator_set_reset(this.__wbg_ptr, flag);
+    }
+    /**
      * @returns {Int16Array}
      */
     sound_buffer() {

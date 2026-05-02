@@ -147,6 +147,10 @@ impl Emulator {
         self.cpu.bus.video.is_video_50hz()
     }
 
+    pub fn set_reset(&mut self, flag: bool) {
+        self.cpu.set_reset(flag);
+    }
+
     pub fn interrupt_reset(&mut self) {
         self.cpu.interrupt_reset();
     }
