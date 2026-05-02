@@ -1021,7 +1021,11 @@ impl Video {
 
             0x21 => {
                 if write_flag {
-                    self.mono_mode = value & 0x80 > 0;
+                    self.mono_mode = _value & 0x80 > 0;
+                    for item in &mut self.video_reparse {
+                        *item = 1
+                    }
+                    self.update_video();
                 } else if self.mono_mode {
                     value |= 0x80;
                 }
