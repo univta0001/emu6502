@@ -1011,7 +1011,6 @@ impl Bus {
             0x50 => {
                 {
                     self.video.enable_graphics(true);
-                    self.video.invalidate_video_cache();
                 }
                 self.read_floating_bus()
             }
@@ -1019,7 +1018,6 @@ impl Bus {
             0x51 => {
                 {
                     self.video.enable_graphics(false);
-                    self.video.invalidate_video_cache();
                 }
                 self.read_floating_bus()
             }
