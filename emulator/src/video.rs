@@ -956,8 +956,8 @@ impl Video {
         }
     }
 
-    pub fn io_access(&mut self, addr: u16, _value: u8, write_flag: bool) -> u8 {
-        let mut value = 0;
+    pub fn io_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
+        let mut return_value = self.video_latch;
         let io_addr = (addr & 0xff) as u8;
         match io_addr {
             0x0c if self.apple2e && write_flag => {
@@ -1007,37 +1007,75 @@ impl Video {
                 }
             }
 
-            0x1a if !self.graphics_mode => return 0x80,
+            0x1a => {
+                if !self.graphics_mode {
+                    return 0x80
+                } else {
+                    return 0
+                }
+            }
 
-            0x1b if self.mixed_mode => return 0x80,
+            0x1b => {
+                if self.mixed_mode {
+                    return 0x80
+                } else {
+                    return 0
+                }
+            }
 
-            0x1c if self.video_page2 => return 0x80,
+            0x1c => {
+                if self.video_page2 {
+                    return 0x80
+                } else {
+                    return 0
+                }
+            }
 
-            0x1d if !self.lores_mode => return 0x80,
+            0x1d => {
+                if !self.lores_mode {
+                    return 0x80
+                } else {
+                    return 0
+                }
+            }
 
-            0x1e if self.altchar => return 0x80,
+            0x1e => {
+                if self.altchar {
+                    return 0x80
+                } else {
+                    return 0
+                }
+            }
 
-            0x1f if self.vid80_mode => return 0x80,
+            0x1f => {
+                if self.vid80_mode {
+                    return 0x80
+                } else {
+                    return 0
+                }
+            }
 
             0x21 => {
                 if write_flag {
-                    self.mono_mode = _value & 0x80 > 0;
+                    self.mono_mode = value & 0x80 > 0;
                     for item in &mut self.video_reparse {
                         *item = 1
                     }
                     self.update_video();
                 } else if self.mono_mode {
-                    value |= 0x80;
+                    return_value |= 0x80;
+                } else {
+                    return_value &= 0x7f;
                 }
             }
 
             0x29 => {
                 if write_flag {
-                    self.mono_mode = _value & 0x20 > 0;
+                    self.mono_mode = value & 0x20 > 0;
 
                     if self.vidhd {
-                        self.shr_mode = _value & 0x80 > 0;
-                        self.shr_linear_mode = _value & 0x40 > 0;
+                        self.shr_mode = value & 0x80 > 0;
+                        self.shr_linear_mode = value & 0x40 > 0;
                     } else {
                         self.shr_mode = false;
                         self.shr_linear_mode = false;
@@ -1047,13 +1085,15 @@ impl Video {
                     }
                     self.update_video();
                 } else if self.mono_mode {
-                    value |= 0x20;
+                    return_value |= 0x20;
+                } else {
+                    return_value &= !0x20;
                 }
             }
 
             _ => {}
         }
-        value
+        return_value
     }
 
     pub fn set_apple2e(&mut self, flag: bool) {
