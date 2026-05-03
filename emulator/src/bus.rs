@@ -889,7 +889,10 @@ impl Bus {
                 self.get_keyboard_latch()
             }
 
-            0x0c..=0x0f => self.video.io_access(addr, value, write_flag),
+            0x0c..=0x0f => {
+                self.video.io_access(addr, value, write_flag);
+                self.get_keyboard_latch()
+            }
 
             0x10 => {
                 let keyboard_latch = self.get_keyboard_latch();
