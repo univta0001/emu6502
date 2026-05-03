@@ -960,7 +960,8 @@ impl Bus {
             }
 
             0x21 => {
-                self.video.io_access(addr, value, write_flag)
+                self.video.io_access(addr, value, write_flag);
+                self.read_floating_bus()
             }
 
             0x28 => {
@@ -973,7 +974,8 @@ impl Bus {
             }
 
             0x29 => {
-                self.video.io_access(addr, value, write_flag)
+                self.video.io_access(addr, value, write_flag);
+                self.read_floating_bus()
             }
 
             0x30..=0x3f => self.audio_io_access(),

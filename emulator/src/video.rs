@@ -823,12 +823,6 @@ impl Video {
             self.update_blink_state();
         }
 
-        if self.skip_update && self.video_reparse[row] == 0 {
-            self.video_latch = self.prev_video_data;
-            self.prev_video_data = (self.video_cache[cycle] & 0xff) as u8;
-            return;
-        }
-
         let is_shr = self.is_shr_mode();
 
         // Video line takes 65 clock cycles
@@ -1009,49 +1003,49 @@ impl Video {
 
             0x1a => {
                 if !self.graphics_mode {
-                    return 0x80
+                    return 0x80;
                 } else {
-                    return 0
+                    return 0;
                 }
             }
 
             0x1b => {
                 if self.mixed_mode {
-                    return 0x80
+                    return 0x80;
                 } else {
-                    return 0
+                    return 0;
                 }
             }
 
             0x1c => {
                 if self.video_page2 {
-                    return 0x80
+                    return 0x80;
                 } else {
-                    return 0
+                    return 0;
                 }
             }
 
             0x1d => {
                 if !self.lores_mode {
-                    return 0x80
+                    return 0x80;
                 } else {
-                    return 0
+                    return 0;
                 }
             }
 
             0x1e => {
                 if self.altchar {
-                    return 0x80
+                    return 0x80;
                 } else {
-                    return 0
+                    return 0;
                 }
             }
 
             0x1f => {
                 if self.vid80_mode {
-                    return 0x80
+                    return 0x80;
                 } else {
-                    return 0
+                    return 0;
                 }
             }
 
