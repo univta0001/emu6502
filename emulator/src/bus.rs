@@ -1150,9 +1150,9 @@ impl Bus {
 
             // 0x60 Need to return floating bus value for serpentine
             // If no tape is inserted, the high-bit has to be set
-            0x60 => self.audio.tape_in(self.read_floating_bus() | 0x80),
+            0x60 | 0x68 => self.audio.tape_in(self.read_floating_bus() | 0x80),
 
-            0x61 => {
+            0x61 | 0x69 => {
                 let button_value = if !self.swap_button {
                     self.pushbutton_latch[0]
                 } else {
@@ -1161,7 +1161,7 @@ impl Bus {
                 self.read_floating_bus_high_bit(button_value)
             }
 
-            0x62 => {
+            0x62 | 0x6a => {
                 let mut button_value = if !self.swap_button {
                     self.pushbutton_latch[1]
                 } else {
@@ -1175,7 +1175,7 @@ impl Bus {
                 self.read_floating_bus_high_bit(button_value)
             }
 
-            0x63 => {
+            0x63 | 0x6b => {
                 if self.is_apple2c {
                     let button_status = (self.mouse.get_button_status() as u8) << 7;
                     self.read_floating_bus_high_bit(!button_status)
@@ -1185,7 +1185,7 @@ impl Bus {
                 }
             }
 
-            0x64 => {
+            0x64 | 0x6c => {
                 // Apple PADDLE need to read value every 11 clock cycles to update counter
                 let delta = self.get_cycles() - self.get_paddle_trigger();
                 let value = self.get_joystick_value(self.paddle_latch[0]);
@@ -1196,7 +1196,7 @@ impl Bus {
                 }
             }
 
-            0x65 => {
+            0x65 | 0x6d => {
                 let delta = self.get_cycles() - self.get_paddle_trigger();
                 let value = self.get_joystick_value(self.paddle_latch[1]);
                 if delta < (value as usize * 11) {
@@ -1206,7 +1206,7 @@ impl Bus {
                 }
             }
 
-            0x66 => {
+            0x66 | 0x6e => {
                 // Apple PADDLE need to read value every 11 clock cycles to update counter
                 if !self.is_apple2c {
                     let delta = self.get_cycles() - self.get_paddle_trigger();
@@ -1221,7 +1221,7 @@ impl Bus {
                 }
             }
 
-            0x67 => {
+            0x67 | 0x6f => {
                 if !self.is_apple2c {
                     let delta = self.get_cycles() - self.get_paddle_trigger();
                     let mut value = self.get_joystick_value(self.paddle_latch[3]);
