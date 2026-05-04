@@ -178,6 +178,7 @@ struct EmulatorState {
     current_settings: Vec<usize>,
     dcyc: usize,
     previous_cycles: usize,
+    shift_mod: bool,
 }
 
 impl EmulatorState {
@@ -188,6 +189,7 @@ impl EmulatorState {
         scale: f32,
         key_caps: bool,
         previous_cycles: usize,
+        shift_mod: bool,
     ) -> Self {
         Self {
             video_subsystem,
@@ -213,6 +215,7 @@ impl EmulatorState {
             current_settings: Vec::new(),
             dcyc: 0,
             previous_cycles,
+            shift_mod,
         }
     }
 }
@@ -491,7 +494,7 @@ fn handle_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState) {
                 cpu.bus.set_keyboard_latch((value + 128) as u8);
             }
 
-            if cpu.is_apple2e() {
+            if cpu.is_apple2e() && state.shift_mod {
                 let shift_mode = keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD);
                 if shift_mode {
                     cpu.bus.pushbutton_latch[2] = 0x80;
@@ -1794,6 +1797,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
 
     let mut apple2p = false;
+    let mut shift_mod = false;
     if let Some(model) = pargs.opt_value_from_str::<_, String>(["-m", "--model"])? {
         match &model[..] {
             "apple2" => {
@@ -1809,6 +1813,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             }
             "apple2e" => initialize_apple_system(&mut cpu, APPLE2E_ROM, 0xc000, false),
             "apple2ee" => initialize_apple_system(&mut cpu, APPLE2EE_ROM, 0xc000, false),
+            "apple2ep" => {
+                initialize_apple_system(&mut cpu, APPLE2EE_ROM, 0xc000, false);
+                shift_mod = true
+            }
             "apple2c" => initialize_apple_system(&mut cpu, APPLE2C_ROM, 0xc000, false),
             "apple2c0" => initialize_apple_system(&mut cpu, APPLE2C0_ROM, 0xc000, true),
             "apple2c3" => initialize_apple_system(&mut cpu, APPLE2C3_ROM, 0xc000, true),
@@ -2178,6 +2186,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         scale,
         key_caps,
         previous_cycles,
+        shift_mod,
     );
     emulator_state.dcyc = dcyc;
     emulator_state.prev_settings = get_slot_settings(&emulator.cpu);
@@ -2732,9 +2741,24 @@ fn prepare_menu_for_model(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorSta
             ui,
             "Apple //e (Enhanced)",
             "",
-            !cpu.is_apple2c() && cpu.is_apple2e_enh(),
+            !cpu.is_apple2c() && cpu.is_apple2e_enh() && !state.shift_mod,
             |_| {
                 initialize_apple_system(cpu, APPLE2EE_ROM, 0xc000, false);
+                state.shift_mod = false;
+                state.model_changed = true;
+                state.reload_cpu = true;
+                cpu.halt_cpu();
+            },
+        );
+
+        build_toggle_menu_item(
+            ui,
+            "Apple //e (Platinum)",
+            "",
+            !cpu.is_apple2c() && cpu.is_apple2e_enh() && state.shift_mod,
+            |_| {
+                initialize_apple_system(cpu, APPLE2EE_ROM, 0xc000, false);
+                state.shift_mod = true;
                 state.model_changed = true;
                 state.reload_cpu = true;
                 cpu.halt_cpu();
