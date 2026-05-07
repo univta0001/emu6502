@@ -825,7 +825,7 @@ impl CPU {
             _ => {
                 eprintln!(
                     "Addr 0x{:04x} Opcode 0x{:02x} mode {:?} is not supported",
-                    addr, &op.code, &op.mode
+                    addr, &op.code, op.mode
                 );
                 addr
             }
@@ -849,7 +849,7 @@ impl CPU {
             _ => {
                 eprintln!(
                     "Addr 0x{:04x} Opcode 0x{:02x} mode {:?} is not supported",
-                    addr, &op.code, &op.mode
+                    addr, &op.code, op.mode
                 );
                 addr
             }
