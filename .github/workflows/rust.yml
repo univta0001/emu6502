@@ -54,7 +54,8 @@ jobs:
     - name: Install Rust Nightly
       run: rustup install nightly --profile minimal
     - uses: Swatinem/rust-cache@v2
-      with: x86_64-unknown-linux-gnu
+      with: 
+        key: x86_64-unknown-linux-gnu
     - name: Build for Linux
       run: cargo +nightly build -r --bin emu6502
     - name: Run tests
