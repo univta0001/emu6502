@@ -30,10 +30,29 @@ jobs:
     - name: Apt Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libpipewire-0.3-dev libx11-dev libaudio-dev libasound2-dev libjack-dev libsndio-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev libpulse-dev libxss-dev libatk1.0-dev libgtk-3-dev libgdk-pixbuf-2.0-dev libcairo2-dev libwayland-dev libdecor-0-dev liburing-dev
+        sudo apt-get install -y --no-install-recommends \
+          libpipewire-0.3-dev \
+          libx11-dev \
+          libaudio-dev \
+          libasound2-dev \
+          libjack-dev \
+          libsndio-dev \
+          libx11-dev \
+          libxext-dev \
+          libxrandr-dev \
+          libxcursor-dev \
+          libpulse-dev \
+          libxss-dev \
+          libatk1.0-dev \
+          libgtk-3-dev \
+          libgdk-pixbuf-2.0-dev \
+          libcairo2-dev \
+          libwayland-dev \
+          libdecor-0-dev \
+          liburing-dev
     - uses: actions/checkout@v6
     - name: Install Rust Nightly
-      run: rustup install nightly
+      run: rustup install nightly --profile minimal
     - name: Build for Linux
       run: cargo +nightly build -r --bin emu6502
     - name: Run tests
