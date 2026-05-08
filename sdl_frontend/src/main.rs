@@ -1824,7 +1824,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             "apple2cp" => initialize_apple_system(&mut cpu, APPLE2CP_ROM, 0xc000, true),
             _ => {
                 eprintln!(
-                    "Model supported: apple2, apple2p, apple2e, apple2ee, apple2c, apple2c0, apple2c3, apple2c4, apple2cp"
+                    "Model supported: apple2, apple2p, apple2e, apple2ee, apple2ep, apple2c, apple2c0, apple2c3, apple2c4, apple2cp"
                 );
                 return Ok(());
             }
