@@ -2370,6 +2370,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
                     if y as f32 >= emulator_state.video.menu_bar_height {
                         _cpu.bus.set_mouse_state(delta_x, delta_y, &buttons);
+                    } else {
+                        _cpu.bus.set_mouse_state(0, 0, &[false, false]);
                     }
 
                     // Check the full_screen state is not change
