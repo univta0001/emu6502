@@ -703,8 +703,11 @@ impl Bus {
         self.video.toggle_video_freq();
     }
 
-    pub fn set_mouse_state(&mut self, x: i32, y: i32, buttons: &[bool; 2]) {
+    pub fn refresh_mouse_tick(&mut self) {
         self.mouse.tick(self.get_cycles());
+    }
+
+    pub fn set_mouse_state(&mut self, x: i32, y: i32, buttons: &[bool; 2]) {
         self.mouse.set_state(x, y, buttons);
         if self.is_apple2c {
             self.mouse.update_mouse_2c();

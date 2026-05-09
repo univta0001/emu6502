@@ -43,7 +43,7 @@ sdl3 = "0.18.3"
 
 [build-dependencies]
 embed-resource = "3.0.9"
-cc = { version = "1.2.61", features = ['parallel'] }
+cc = { version = "1.2.62", features = ['parallel'] }
 
 [features]
 #default = [ ]
