@@ -439,7 +439,7 @@ pub struct CPU {
 
     #[cfg_attr(feature = "serde_support", serde(skip))]
     #[cfg_attr(feature = "serde_support", serde(default))]
-    pub irq_last_tick: bool,
+    pub irq_penultimate_tick: bool,
 
     #[cfg_attr(feature = "serde_support", serde(skip))]
     #[cfg_attr(feature = "serde_support", serde(default))]
@@ -563,7 +563,7 @@ impl CPU {
             self_test: false,
             bench_test: false,
             full_speed: Default::default(),
-            irq_last_tick: true,
+            irq_penultimate_tick: false,
             reset: false,
             #[cfg(feature = "z80")]
             z80cpu: default_z80cpu(),
@@ -861,8 +861,8 @@ impl CPU {
     }
 
     fn last_tick(&mut self) {
-        self.irq_last_tick =
-            self.status.contains(CpuFlags::INTERRUPT_DISABLE) || self.bus.irq().is_none();
+        self.irq_penultimate_tick =
+            !(self.status.contains(CpuFlags::INTERRUPT_DISABLE) || self.bus.irq().is_none());
         self.bus.tick();
     }
 
@@ -1022,7 +1022,7 @@ impl CPU {
         self.stack_pointer = STACK_RESET;
         self.status = CpuFlags::from_bits_truncate(0b00100100);
         self.alt_cpu = false;
-        self.irq_last_tick = true;
+        self.irq_penultimate_tick = false;
 
         self.bus.reset();
 
@@ -1916,7 +1916,7 @@ impl CPU {
                 self.interrupt(interrupt::NMI);
             }
             _ => {
-                if !self.irq_last_tick {
+                if self.irq_penultimate_tick {
                     // IRQ level is check on the penultimate cycle of the instruction.
                     // If the CPU-asserted interrupt happens on the last cycle of the opcode,
                     // execute the opcode and then the interrupt handling routine if I flag is 0

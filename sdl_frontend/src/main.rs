@@ -128,10 +128,6 @@ enum OpenFileDialog {
     Tape,
 }
 
-struct Emulator {
-    cpu: CPU,
-}
-
 #[derive(Default)]
 struct VideoState {
     display_index: usize,
@@ -2303,7 +2299,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         CPU_CYCLES_PER_FRAME_60HZ - 65 * 192
     };
 
-    let mut emulator = Emulator { cpu };
     let mut emulator_state = EmulatorState::new(
         video_subsystem,
         audio_stream,
@@ -2314,7 +2309,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         shift_mod,
     );
     emulator_state.dcyc = dcyc;
-    emulator_state.prev_settings = get_slot_settings(&emulator.cpu);
+    emulator_state.prev_settings = get_slot_settings(&cpu);
     emulator_state.current_settings = emulator_state.prev_settings.clone();
 
     loop {
@@ -2322,131 +2317,132 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             emulator_state.reload_cpu = false;
         }
 
-        emulator.cpu.run_with_callback(|_cpu| {
-            let current_cycles = _cpu.bus.get_cycles();
-            emulator_state.dcyc += current_cycles - emulator_state.previous_cycles;
-            emulator_state.previous_cycles = current_cycles;
-
+        loop {
+            let mut break_loop = false;
             let mut cpu_cycles = CPU_CYCLES_PER_FRAME_60HZ;
-
-            // The cpu_period is calculated by 17030 * 1 / CPU_MHZ
-            // For 60Hz, it is 17030 * 1_000_000 / 1_020_484 = 16_688 instead of the 16_667
-            // For 50Hz, it is 20280 * 1_000_000 / 1_015_625 = 19_968
             let mut cpu_period = 16_688;
-
-            // Handle clipboard text if any
-            process_clipboard(_cpu, &mut emulator_state.input.clipboard_text);
-
-            if _cpu.bus.video.is_video_50hz() {
+            if cpu.bus.video.is_video_50hz() {
                 cpu_cycles = CPU_CYCLES_PER_FRAME_50HZ;
                 cpu_period = 19_968;
             }
 
-            if emulator_state.dcyc >= cpu_cycles {
-                let normal_disk_speed = _cpu.bus.is_normal_speed();
-                let normal_cpu_speed =
-                    normal_disk_speed && _cpu.full_speed != CpuSpeed::SPEED_FASTEST;
-
-                // Update video, audio and events at multiple of 60Hz or 50Hz
-                let video_time_elapsed = video_time.elapsed().as_micros();
-                if video_time_elapsed >= cpu_period {
-                    video_time = Instant::now();
-
-                    if emulator_state.save_screenshot {
-                        save_emulator_screenshot(_cpu);
-                        emulator_state.save_screenshot = false;
-                    }
-
-                    //update_texture(_cpu, &mut texture);
-
-                    let image_texture_id =
-                        update_gpu_texture(_cpu, &mut imgui, &device, &emulator_state);
-                    //update_video(_cpu, &mut canvas, &mut texture, current_full_screen);
-
-                    _cpu.bus.video.skip_update = false;
-
-                    if emulator_state.video.prev_scale != emulator_state.video.scale {
-                        emulator_state.video.prev_scale = emulator_state.video.scale;
-                        let width = (emulator_state.video.scale * Video::WIDTH as f32) as u32;
-                        let height = (emulator_state.video.scale * Video::HEIGHT as f32) as u32
-                            + 2 * MENUBAR_HEIGHT;
-                        let _ = window.set_size(width, height);
-                    }
-
-                    render_frame(
-                        _cpu,
-                        (&mut sdl_context, &device, &window),
-                        &mut imgui,
-                        &mut event_pump,
-                        &mut emulator_state,
-                        image_texture_id,
-                    );
-
-                    for event_value in event_pump.poll_iter() {
-                        imgui.handle_event(&event_value);
-                        if !emulator_state.input.want_capture_keyboard {
-                            handle_event(_cpu, event_value, &mut emulator_state);
-                        }
-                    }
-
-                    // Update keyboard akd state
-                    _cpu.bus.any_key_down =
-                        event_pump.keyboard_state().pressed_scancodes().count() > 0;
-
-                    // Update mouse state
-                    update_mouse_state(_cpu, &event_pump, &mut emulator_state);
-
-                    // Check the full_screen state is not change
-                    handle_fullscreen_toggle(
-                        _cpu,
-                        &mut window,
-                        &sdl_context,
-                        &mut emulator_state.video,
-                    );
-                } else {
-                    _cpu.bus.video.skip_update = true;
+            while emulator_state.dcyc < cpu_cycles {
+                let prev_cycle = cpu.bus.get_cycles();
+                if !cpu.step_with_callback(|_| {}) {
+                    break_loop = true;
+                    break;
                 }
 
-                update_audio(_cpu, &emulator_state);
-                _cpu.bus.audio.clear_buffer();
+                process_clipboard(&mut cpu, &mut emulator_state.input.clipboard_text);
 
-                let video_cpu_update = t.elapsed().as_micros();
-
-                if normal_cpu_speed {
-                    let adj_ms = cpu_period as usize
-                        * SPEED_NUMERATOR[emulator_state.speed.speed_index]
-                        / SPEED_DENOMINATOR[emulator_state.speed.speed_index];
-
-                    let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
-
-                    if adj_time > 0 {
-                        spin_sleep::sleep(std::time::Duration::from_micros(adj_time as u64))
-                    }
-                }
-
-                let elapsed = t.elapsed().as_micros();
-                emulator_state.speed.estimated_mhz = (emulator_state.dcyc as f32) / elapsed as f32;
-
-                emulator_state.speed.fps = if _cpu.bus.video.is_video_50hz() {
-                    1015625.0 / (emulator_state.dcyc as f32)
-                } else {
-                    1020484.0 / (emulator_state.dcyc as f32)
-                };
-                emulator_state.dcyc = emulator_state.dcyc.saturating_sub(cpu_cycles);
-                t = Instant::now();
+                let cycle = cpu.bus.get_cycles() - prev_cycle;
+                emulator_state.dcyc += cycle;
             }
-        });
+
+            if break_loop {
+                break
+            }
+
+            let normal_disk_speed = cpu.bus.is_normal_speed();
+            let normal_cpu_speed =
+                normal_disk_speed && cpu.full_speed != CpuSpeed::SPEED_FASTEST;
+
+            // Update video, audio and events at multiple of 60Hz or 50Hz
+            let video_time_elapsed = video_time.elapsed().as_micros();
+            if video_time_elapsed >= cpu_period {
+                video_time = Instant::now();
+
+                if emulator_state.save_screenshot {
+                    save_emulator_screenshot(&mut cpu);
+                    emulator_state.save_screenshot = false;
+                }
+
+                let image_texture_id =
+                    update_gpu_texture(&mut cpu, &mut imgui, &device, &emulator_state);
+
+                cpu.bus.video.skip_update = false;
+
+                if emulator_state.video.prev_scale != emulator_state.video.scale {
+                    emulator_state.video.prev_scale = emulator_state.video.scale;
+                    let width = (emulator_state.video.scale * Video::WIDTH as f32) as u32;
+                    let height = (emulator_state.video.scale * Video::HEIGHT as f32) as u32
+                        + 2 * MENUBAR_HEIGHT;
+                    let _ = window.set_size(width, height);
+                }
+
+                render_frame(
+                    &mut cpu,
+                    (&mut sdl_context, &device, &window),
+                    &mut imgui,
+                    &mut event_pump,
+                    &mut emulator_state,
+                    image_texture_id,
+                );
+
+                for event_value in event_pump.poll_iter() {
+                    imgui.handle_event(&event_value);
+                    if !emulator_state.input.want_capture_keyboard {
+                        handle_event(&mut cpu, event_value, &mut emulator_state);
+                    }
+                }
+
+                // Update keyboard akd state
+                cpu.bus.any_key_down =
+                    event_pump.keyboard_state().pressed_scancodes().count() > 0;
+
+                // Update mouse state
+                update_mouse_state(&mut cpu, &event_pump, &mut emulator_state);
+
+                // Check the full_screen state is not change
+                handle_fullscreen_toggle(
+                    &mut cpu,
+                    &mut window,
+                    &sdl_context,
+                    &mut emulator_state.video,
+                );
+            } else {
+                cpu.bus.video.skip_update = true;
+            }
+
+            update_audio(&mut cpu, &emulator_state);
+            cpu.bus.audio.clear_buffer();
+
+            let video_cpu_update = t.elapsed().as_micros();
+
+            if normal_cpu_speed {
+                let adj_ms = cpu_period as usize
+                    * SPEED_NUMERATOR[emulator_state.speed.speed_index]
+                    / SPEED_DENOMINATOR[emulator_state.speed.speed_index];
+
+                let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
+
+                if adj_time > 0 {
+                    spin_sleep::sleep(std::time::Duration::from_micros(adj_time as u64))
+                }
+            }
+
+            let elapsed = t.elapsed().as_micros();
+            emulator_state.speed.estimated_mhz = (emulator_state.dcyc as f32) / elapsed as f32;
+
+            emulator_state.speed.fps = if cpu.bus.video.is_video_50hz() {
+                1015625.0 / (emulator_state.dcyc as f32)
+            } else {
+                1020484.0 / (emulator_state.dcyc as f32)
+            };
+            emulator_state.dcyc = emulator_state.dcyc.saturating_sub(cpu_cycles);
+            t = Instant::now();
+        }
 
         if !emulator_state.reload_cpu {
             break;
         } else if emulator_state.model_changed {
             emulator_state.model_changed = false;
-            emulator.cpu.bus.init_memory();
-            emulator.cpu.bus.set_apple2c(false);
-            emulator.cpu.bus.video.set_apple2c(false);
-            emulator.cpu.bus.set_iwm(false);
-            emulator.cpu.setup_emulator();
-            emulator.cpu.reset();
+            cpu.bus.init_memory();
+            cpu.bus.set_apple2c(false);
+            cpu.bus.video.set_apple2c(false);
+            cpu.bus.set_iwm(false);
+            cpu.setup_emulator();
+            cpu.reset();
         } else {
             #[cfg(feature = "serialization")]
             {
@@ -2455,7 +2451,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     Ok(mut new_cpu) => {
                         emulator_state.previous_cycles = new_cpu.bus.get_cycles();
                         initialize_new_cpu(&mut new_cpu, &mut emulator_state);
-                        emulator.cpu = new_cpu
+                        cpu = new_cpu
                     }
                     Err(message) => {
                         if !message.is_empty() {
