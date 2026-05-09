@@ -1631,6 +1631,10 @@ impl Video {
         self.cycles >= 192 * CYCLES_PER_ROW
     }
 
+    pub fn is_start_vbl(&self) -> bool {
+        self.cycles == 192 * CYCLES_PER_ROW
+    }
+
     pub fn enable_video_80col(&mut self, state: bool) {
         self.vid80_mode = state;
     }

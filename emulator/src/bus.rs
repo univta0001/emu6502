@@ -362,6 +362,9 @@ impl Bus {
 
         if !self.disable_video && !self.is_80_column_enabled() {
             self.video.tick();
+            if self.video.is_start_vbl() {
+                self.refresh_mouse_tick()
+            }
         }
 
         if !self.disable_audio {

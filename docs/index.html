@@ -818,10 +818,6 @@
                 }
             }
 
-            const update_mouse_tick = () => {
-                emu6502.update_mouse_tick();
-            }
-
             const update_mouse_state = () => {
                 let delta_x = mouse_x - mouse_prev_x;
                 let delta_y = mouse_y - mouse_prev_y;
@@ -904,9 +900,7 @@
                     update_gamepad();
                     update_ui();
                     update_audio();
-                    update_mouse_tick();
                     update_mouse_state();
-
 
                     //console.log(emu6502.cpu_cycles());
                     //console.log(emu6502.sound_buffer().length);

@@ -161,9 +161,6 @@ export class Emulator {
     toggle_joystick() {
         wasm.emulator_toggle_joystick(this.__wbg_ptr);
     }
-    update_mouse_tick() {
-        wasm.emulator_update_mouse_tick(this.__wbg_ptr);
-    }
     /**
      * @returns {string}
      */

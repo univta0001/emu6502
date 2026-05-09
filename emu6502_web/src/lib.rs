@@ -224,10 +224,6 @@ impl Emulator {
         self.cpu.bus.set_mouse_state(x, y, &buttons);
     }
 
-    pub fn update_mouse_tick(&mut self) {
-        self.cpu.bus.refresh_mouse_tick();
-    }
-
     pub fn disk_sound(&mut self, flag: bool) {
         self.cpu.bus.disk.set_disk_sound_enable(flag);
     }

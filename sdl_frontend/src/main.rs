@@ -1673,6 +1673,131 @@ fn handle_gamepad_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState) 
     }
 }
 
+fn render_frame(
+    cpu: &mut CPU,
+    ctx: (&mut sdl3::Sdl, &Device, &Window),
+    imgui: &mut ImGuiSdl3,
+    event_pump: &mut sdl3::EventPump,
+    state: &mut EmulatorState,
+    image_texture_id: imgui::TextureId,
+) {
+    let Ok(mut cmd_buf) = ctx.1.acquire_command_buffer() else {
+        return;
+    };
+    let Ok(swapchain) = cmd_buf.wait_and_acquire_swapchain_texture(ctx.2) else {
+        cmd_buf.cancel();
+        return;
+    };
+    if swapchain.raw() as usize == 0 {
+        cmd_buf.cancel();
+        return;
+    }
+
+    let color_targets = [ColorTargetInfo::default()
+        .with_texture(&swapchain)
+        .with_load_op(LoadOp::LOAD)
+        .with_store_op(StoreOp::STORE)];
+
+    imgui.render(
+        ctx.0,
+        ctx.1,
+        ctx.2,
+        event_pump,
+        &mut cmd_buf,
+        &color_targets,
+        |ui| {
+            {
+                let io = ui.io();
+                state.input.want_capture_keyboard = io.want_capture_keyboard;
+            }
+
+            // Process deferred file-dialog results
+            if !ui.is_any_item_hovered() {
+                match std::mem::replace(&mut state.file_dialog, OpenFileDialog::None) {
+                    OpenFileDialog::Disk(disk) => open_disk_dialog(cpu, disk.into()),
+                    OpenFileDialog::HardDisk(disk) => open_harddisk_dialog(cpu, disk.into()),
+                    OpenFileDialog::Tape => load_tape(cpu),
+                    OpenFileDialog::None => {}
+                }
+            }
+
+            state.video.menu_bar_height = if state.video.current_full_screen {
+                0.0
+            } else {
+                ui.frame_height()
+            };
+
+            update_emulator_graphics(cpu, ui, ctx.2, state, image_texture_id);
+
+            if !state.video.current_full_screen {
+                prepare_main_menu(cpu, ui, state);
+                if state.show_settings {
+                    state.show_settings = false;
+                    ui.open_popup("Settings##settings");
+                }
+                prepare_settings(cpu, ui, state);
+            }
+
+            if state.video.menu_bar_height > 0.0 {
+                let (w, h) = ctx.2.size();
+                prepare_statusbar(cpu, ui, state, w, h);
+            }
+        },
+    );
+
+    let _ = cmd_buf.submit();
+}
+
+fn handle_fullscreen_toggle(
+    cpu: &mut CPU,
+    window: &mut Window,
+    sdl_context: &sdl3::Sdl,
+    state: &mut VideoState,
+) {
+    if state.full_screen == state.current_full_screen {
+        return;
+    }
+
+    let previous = state.current_full_screen;
+    state.current_full_screen = state.full_screen;
+
+    if state.current_full_screen {
+        if let Err(e) = window.set_fullscreen(true) {
+            eprintln!("Unable to set full_screen = {e}");
+            state.current_full_screen = previous;
+            state.full_screen = previous;
+        } else {
+            sdl_context.mouse().show_cursor(false);
+            cpu.bus.video.invalidate_video_cache();
+        }
+    } else if let Err(e) = window.set_fullscreen(false) {
+        eprintln!("Unable to restore from full_screen = {e}");
+        state.current_full_screen = previous;
+        state.full_screen = previous;
+    } else {
+        window.restore();
+        sdl_context.mouse().show_cursor(true);
+        cpu.bus.video.invalidate_video_cache();
+    }
+}
+
+fn update_mouse_state(cpu: &mut CPU, event_pump: &sdl3::EventPump, state: &mut EmulatorState) {
+    let mouse = event_pump.mouse_state();
+    let (x, y) = (mouse.x(), mouse.y());
+    let buttons = [mouse.left(), mouse.right()];
+
+    let delta_x = (x as i32).saturating_sub(state.input.prev_x);
+    let delta_y = (y as i32).saturating_sub(state.input.prev_y);
+    state.input.prev_x = x as i32;
+    state.input.prev_y = y as i32;
+
+    if y >= state.video.menu_bar_height {
+        cpu.bus.set_mouse_state(delta_x, delta_y, &buttons);
+    } else {
+        cpu.bus.set_mouse_state(0, 0, &[false, false]);
+    }
+}
+
 //#[tokio::main]
 //async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
@@ -2251,103 +2376,14 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         let _ = window.set_size(width, height);
                     }
 
-                    if let Ok(mut command_buffer) = device.acquire_command_buffer() {
-                        if let Ok(swapchain) =
-                            command_buffer.wait_and_acquire_swapchain_texture(&window)
-                        {
-                            if swapchain.raw() as usize != 0 {
-                                let color_targets = [ColorTargetInfo::default()
-                                    .with_texture(&swapchain)
-                                    .with_load_op(LoadOp::LOAD)
-                                    .with_store_op(StoreOp::STORE)];
-
-                                imgui.render(
-                                    &mut sdl_context,
-                                    &device,
-                                    &window,
-                                    &event_pump,
-                                    &mut command_buffer,
-                                    &color_targets,
-                                    |ui| {
-                                        // Check for want capture keyboard
-                                        {
-                                            let io = ui.io();
-                                            emulator_state.input.want_capture_keyboard =
-                                                io.want_capture_keyboard;
-                                        }
-
-                                        // Check for open file dialog events
-                                        if !ui.is_any_item_hovered() {
-                                            match emulator_state.file_dialog {
-                                                OpenFileDialog::Disk(disk) => {
-                                                    emulator_state.file_dialog =
-                                                        OpenFileDialog::None;
-                                                    open_disk_dialog(_cpu, disk.into())
-                                                }
-
-                                                OpenFileDialog::HardDisk(disk) => {
-                                                    emulator_state.file_dialog =
-                                                        OpenFileDialog::None;
-                                                    open_harddisk_dialog(_cpu, disk.into())
-                                                }
-
-                                                OpenFileDialog::Tape => {
-                                                    emulator_state.file_dialog =
-                                                        OpenFileDialog::None;
-                                                    load_tape(_cpu)
-                                                }
-
-                                                OpenFileDialog::None => {}
-                                            }
-                                        }
-
-                                        // create imgui UI here
-                                        emulator_state.video.menu_bar_height =
-                                            if emulator_state.video.current_full_screen {
-                                                0.0
-                                            } else {
-                                                ui.frame_height()
-                                            };
-
-                                        update_emulator_graphics(
-                                            _cpu,
-                                            ui,
-                                            &window,
-                                            &emulator_state,
-                                            image_texture_id,
-                                        );
-
-                                        if !emulator_state.video.current_full_screen {
-                                            prepare_main_menu(_cpu, ui, &mut emulator_state);
-
-                                            if emulator_state.show_settings {
-                                                emulator_state.show_settings = false;
-                                                ui.open_popup("Settings##settings");
-                                            }
-
-                                            prepare_settings(_cpu, ui, &mut emulator_state);
-                                        }
-
-                                        if emulator_state.video.menu_bar_height > 0.0 {
-                                            let window_size = window.size();
-                                            prepare_statusbar(
-                                                _cpu,
-                                                ui,
-                                                &emulator_state,
-                                                window_size.0,
-                                                window_size.1,
-                                            );
-                                        }
-
-                                        //ui.show_demo_window(&mut true);
-                                    },
-                                );
-                            }
-                            let _ = command_buffer.submit();
-                        } else {
-                            command_buffer.cancel();
-                        }
-                    }
+                    render_frame(
+                        _cpu,
+                        (&mut sdl_context, &device, &window),
+                        &mut imgui,
+                        &mut event_pump,
+                        &mut emulator_state,
+                        image_texture_id,
+                    );
 
                     for event_value in event_pump.poll_iter() {
                         imgui.handle_event(&event_value);
@@ -2361,47 +2397,15 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         event_pump.keyboard_state().pressed_scancodes().count() > 0;
 
                     // Update mouse state
-                    let mouse_state = event_pump.mouse_state();
-                    let x = mouse_state.x();
-                    let y = mouse_state.y();
-                    let buttons = [mouse_state.left(), mouse_state.right()];
-
-                    let delta_x = (x as i32).saturating_sub(emulator_state.input.prev_x);
-                    let delta_y = (y as i32).saturating_sub(emulator_state.input.prev_y);
-                    emulator_state.input.prev_x = x as i32;
-                    emulator_state.input.prev_y = y as i32;
-
-                    if y as f32 >= emulator_state.video.menu_bar_height {
-                        _cpu.bus.set_mouse_state(delta_x, delta_y, &buttons);
-                    } else {
-                        _cpu.bus.set_mouse_state(0, 0, &[false, false]);
-                    }
+                    update_mouse_state(_cpu, &event_pump, &mut emulator_state);
 
                     // Check the full_screen state is not change
-                    if emulator_state.video.full_screen != emulator_state.video.current_full_screen
-                    {
-                        let current_full_screen_value = emulator_state.video.current_full_screen;
-                        emulator_state.video.current_full_screen = emulator_state.video.full_screen;
-                        if emulator_state.video.current_full_screen {
-                            if let Err(e) = window.set_fullscreen(true) {
-                                eprintln!("Unable to set full_screen = {}", e);
-                                emulator_state.video.current_full_screen =
-                                    current_full_screen_value;
-                                emulator_state.video.full_screen = current_full_screen_value;
-                            } else {
-                                sdl_context.mouse().show_cursor(false);
-                                _cpu.bus.video.invalidate_video_cache();
-                            }
-                        } else if let Err(e) = window.set_fullscreen(false) {
-                            eprintln!("Unable to restore from full_screen = {}", e);
-                            emulator_state.video.current_full_screen = current_full_screen_value;
-                            emulator_state.video.full_screen = current_full_screen_value;
-                        } else {
-                            window.restore();
-                            sdl_context.mouse().show_cursor(true);
-                            _cpu.bus.video.invalidate_video_cache();
-                        }
-                    }
+                    handle_fullscreen_toggle(
+                        _cpu,
+                        &mut window,
+                        &sdl_context,
+                        &mut emulator_state.video,
+                    );
                 } else {
                     _cpu.bus.video.skip_update = true;
                 }
