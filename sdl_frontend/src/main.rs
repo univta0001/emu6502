@@ -2311,8 +2311,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             emulator_state.reload_cpu = false;
         }
 
-        loop {
-            let mut break_loop = false;
+        loop 'break_loop {
             let mut cpu_cycles = CPU_CYCLES_PER_FRAME_60HZ;
             let mut cpu_period = 16_688;
             if cpu.bus.video.is_video_50hz() {
@@ -2323,18 +2322,13 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             while emulator_state.dcyc < cpu_cycles {
                 let prev_cycle = cpu.bus.get_cycles();
                 if !cpu.step_with_callback(|_| {}) {
-                    break_loop = true;
-                    break;
+                    break 'break_loop;
                 }
 
                 process_clipboard(&mut cpu, &mut emulator_state.input.clipboard_text);
 
                 let cycle = cpu.bus.get_cycles() - prev_cycle;
                 emulator_state.dcyc += cycle;
-            }
-
-            if break_loop {
-                break;
             }
 
             let normal_disk_speed = cpu.bus.is_normal_speed();
