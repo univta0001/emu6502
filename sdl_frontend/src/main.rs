@@ -1985,24 +1985,30 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         cpu.bus.disk.set_override_optimal_timing(input_rate);
     }
 
-    if let Some(input_file) = pargs.opt_value_from_str::<_, String>("--d1")? {
-        let path = Path::new(&input_file);
-        load_disk(&mut cpu, path, 0)?;
+    for drive in 1..=2 {
+        let drive_setting = match drive {
+            1 => "--s1",
+            2 => "--s2",
+            _ => unreachable!(),
+        };
+
+        if let Some(input_file) = pargs.opt_value_from_str::<_, String>(drive_setting)? {
+            let path = Path::new(&input_file);
+            load_disk(&mut cpu, path, drive)?;
+        }
     }
 
-    if let Some(input_file) = pargs.opt_value_from_str::<_, String>("--d2")? {
-        let path = Path::new(&input_file);
-        load_disk(&mut cpu, path, 1)?;
-    }
+    for drive in 1..=2 {
+        let drive_setting = match drive {
+            1 => "--h1",
+            2 => "--h2",
+            _ => unreachable!(),
+        };
 
-    if let Some(input_file) = pargs.opt_value_from_str::<_, String>("--h1")? {
-        let path = Path::new(&input_file);
-        load_harddisk(&mut cpu, path, 0)?;
-    }
-
-    if let Some(input_file) = pargs.opt_value_from_str::<_, String>("--h2")? {
-        let path = Path::new(&input_file);
-        load_harddisk(&mut cpu, path, 1)?;
+        if let Some(input_file) = pargs.opt_value_from_str::<_, String>(drive_setting)? {
+            let path = Path::new(&input_file);
+            load_harddisk(&mut cpu, path, drive)?;
+        }
     }
 
     let mut slot_mboard = 0;
@@ -2016,32 +2022,20 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         register_device(&mut cpu, "videoterm", 3, &mut slot_mboard, &mut slot_saturn);
     }
 
-    if let Some(device) = pargs.opt_value_from_str::<_, String>("--s1")? {
-        register_device(&mut cpu, &device, 1, &mut slot_mboard, &mut slot_saturn);
-    }
-
-    if let Some(device) = pargs.opt_value_from_str::<_, String>("--s2")? {
-        register_device(&mut cpu, &device, 2, &mut slot_mboard, &mut slot_saturn);
-    }
-
-    if let Some(device) = pargs.opt_value_from_str::<_, String>("--s3")? {
-        register_device(&mut cpu, &device, 3, &mut slot_mboard, &mut slot_saturn);
-    }
-
-    if let Some(device) = pargs.opt_value_from_str::<_, String>("--s4")? {
-        register_device(&mut cpu, &device, 4, &mut slot_mboard, &mut slot_saturn);
-    }
-
-    if let Some(device) = pargs.opt_value_from_str::<_, String>("--s5")? {
-        register_device(&mut cpu, &device, 5, &mut slot_mboard, &mut slot_saturn);
-    }
-
-    if let Some(device) = pargs.opt_value_from_str::<_, String>("--s6")? {
-        register_device(&mut cpu, &device, 6, &mut slot_mboard, &mut slot_saturn);
-    }
-
-    if let Some(device) = pargs.opt_value_from_str::<_, String>("--s7")? {
-        register_device(&mut cpu, &device, 7, &mut slot_mboard, &mut slot_saturn);
+    for slot in 1..=7 {
+        let slot_setting = match slot {
+            1 => "--s1",
+            2 => "--s2",
+            3 => "--s3",
+            4 => "--s4",
+            5 => "--s5",
+            6 => "--s6",
+            7 => "--s7",
+            _ => unreachable!(),
+        };
+        if let Some(device) = pargs.opt_value_from_str::<_, String>(slot_setting)? {
+            register_device(&mut cpu, &device, slot, &mut slot_mboard, &mut slot_saturn);
+        }
     }
 
     if slot_mboard > 2 {
@@ -2340,12 +2334,11 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             }
 
             if break_loop {
-                break
+                break;
             }
 
             let normal_disk_speed = cpu.bus.is_normal_speed();
-            let normal_cpu_speed =
-                normal_disk_speed && cpu.full_speed != CpuSpeed::SPEED_FASTEST;
+            let normal_cpu_speed = normal_disk_speed && cpu.full_speed != CpuSpeed::SPEED_FASTEST;
 
             // Update video, audio and events at multiple of 60Hz or 50Hz
             let video_time_elapsed = video_time.elapsed().as_micros();
@@ -2387,8 +2380,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 }
 
                 // Update keyboard akd state
-                cpu.bus.any_key_down =
-                    event_pump.keyboard_state().pressed_scancodes().count() > 0;
+                cpu.bus.any_key_down = event_pump.keyboard_state().pressed_scancodes().count() > 0;
 
                 // Update mouse state
                 update_mouse_state(&mut cpu, &event_pump, &mut emulator_state);
