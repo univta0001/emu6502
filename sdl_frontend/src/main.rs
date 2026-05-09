@@ -2347,9 +2347,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 let normal_cpu_speed =
                     normal_disk_speed && _cpu.full_speed != CpuSpeed::SPEED_FASTEST;
 
-                // Refresh mouse ticks every frame
-                _cpu.bus.refresh_mouse_tick();
-
                 // Update video, audio and events at multiple of 60Hz or 50Hz
                 let video_time_elapsed = video_time.elapsed().as_micros();
                 if video_time_elapsed >= cpu_period {
