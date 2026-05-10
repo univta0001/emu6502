@@ -138,6 +138,10 @@ struct VideoState {
     menu_bar_height: f32,
     current_full_screen: bool,
     full_screen: bool,
+    cpu_cycles: usize,
+    cpu_period: usize,
+    cpu_mhz: f32,
+    audio_sample_size: u32,
 }
 
 #[derive(Default)]
@@ -151,6 +155,7 @@ struct SpeedState {
 #[derive(Default)]
 struct InputState {
     key_caps: bool,
+    shift_mod: bool,
     clipboard_text: String,
     want_capture_keyboard: bool,
     prev_x: i32,
@@ -174,7 +179,6 @@ struct EmulatorState {
     current_settings: Vec<usize>,
     dcyc: usize,
     previous_cycles: usize,
-    shift_mod: bool,
 }
 
 impl EmulatorState {
@@ -182,26 +186,15 @@ impl EmulatorState {
         video_subsystem: VideoSubsystem,
         audio_stream: Option<AudioStreamOwner>,
         game_controller: GamepadSubsystem,
-        scale: f32,
-        key_caps: bool,
-        previous_cycles: usize,
-        shift_mod: bool,
     ) -> Self {
         Self {
             video_subsystem,
             audio_stream,
             game_controller,
             gamepads: HashMap::new(),
-            video: VideoState {
-                scale,
-                prev_scale: scale,
-                ..Default::default()
-            },
+            video: VideoState::default(),
             speed: SpeedState::default(),
-            input: InputState {
-                key_caps,
-                ..Default::default()
-            },
+            input: InputState::default(),
             reload_cpu: false,
             save_screenshot: false,
             file_dialog: OpenFileDialog::None,
@@ -210,8 +203,7 @@ impl EmulatorState {
             prev_settings: Vec::new(),
             current_settings: Vec::new(),
             dcyc: 0,
-            previous_cycles,
-            shift_mod,
+            previous_cycles: 0,
         }
     }
 }
@@ -490,7 +482,7 @@ fn handle_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState) {
                 cpu.bus.set_keyboard_latch((value + 128) as u8);
             }
 
-            if cpu.is_apple2e() && state.shift_mod {
+            if cpu.is_apple2e() && state.input.shift_mod {
                 let shift_mode = keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD);
                 if shift_mode {
                     cpu.bus.pushbutton_latch[2] = 0x80;
@@ -986,15 +978,7 @@ fn dump_track_sector_info(cpu: &CPU) {
 
 fn update_audio(cpu: &mut CPU, state: &EmulatorState) {
     let snd = &mut cpu.bus.audio;
-
-    let video_50hz = cpu.bus.video.is_video_50hz();
-    let audio_sample_size = if video_50hz {
-        AUDIO_SAMPLE_SIZE_50HZ
-    } else {
-        AUDIO_SAMPLE_SIZE
-    };
-
-    snd.update_cycles(video_50hz);
+    let audio_sample_size = state.video.audio_sample_size;
 
     let Some(ref stream) = state.audio_stream else {
         return;
@@ -1839,9 +1823,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut cpu = CPU::new(bus);
     let mut _cpu_stats = CpuStats::new();
 
-    let mut ntsc_luma = NTSC_LUMA_BANDWIDTH;
-    let mut ntsc_chroma = NTSC_CHROMA_BANDWIDTH;
-
     // Enable save for disk
     cpu.bus.disk.set_enable_save_disk(true);
 
@@ -1859,297 +1840,19 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     //cpu.self_test = true;
     //cpu.m65c02 = true;
 
-    // Handle optional arguments
-    if pargs.contains("--50hz") {
-        cpu.bus.video.set_video_50hz(true);
-        cpu.bus.audio.update_cycles(true);
-    }
-
-    if pargs.contains("--nojoystick") {
-        cpu.bus.set_joystick(false);
-    }
-
-    if pargs.contains("--swapbuttons") {
-        cpu.bus.swap_buttons(true);
-    }
-
-    if pargs.contains("--mac_lc_dlgr") {
-        cpu.bus.video.set_mac_lc_dlgr(true);
-    }
-
-    if let Some(xtrim) = pargs.opt_value_from_str::<_, i8>("--xtrim")? {
-        cpu.bus.set_joystick_xtrim(xtrim);
-    }
-
-    if let Some(ytrim) = pargs.opt_value_from_str::<_, i8>("--ytrim")? {
-        cpu.bus.set_joystick_ytrim(ytrim);
-    }
-
-    if pargs.contains("--norgb") {
-        cpu.bus.video.set_display_mode(DisplayMode::DEFAULT);
-    }
-
-    if pargs.contains("--rgb") {
-        cpu.bus.video.set_display_mode(DisplayMode::RGB);
-    }
-
-    if pargs.contains("--z80_cirtech") {
-        cpu.bus.set_z80_cirtech(true);
-    }
-
-    if let Some(dongle_name) = pargs.opt_value_from_str::<_, String>("--dongle")? {
-        let dongle_entry = SUPPORTED_DONGLES
-            .iter()
-            .find(|(name, _)| *name == dongle_name);
-        match dongle_entry {
-            Some((_, dongle)) => cpu.bus.set_dongle(dongle()),
-            None => {
-                eprintln!(
-                    "Dongle supported: {}",
-                    SUPPORTED_DONGLES
-                        .iter()
-                        .map(|(n, _)| *n)
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                );
-                return Ok(());
-            }
-        }
-    }
-
-    let mut apple2p = false;
-    let mut shift_mod = false;
-    if let Some(model) = pargs.opt_value_from_str::<_, String>(["-m", "--model"])? {
-        match &model[..] {
-            "apple2" => {
-                initialize_apple_system(&mut cpu, APPLE2_ROM, 0xd000, false);
-                cpu.bus.mem.slotc3rom = true;
-                cpu.bus.mem.intcxrom = false;
-            }
-            "apple2p" => {
-                apple2p = true;
-                initialize_apple_system(&mut cpu, APPLE2P_ROM, 0xd000, false);
-                cpu.bus.mem.slotc3rom = true;
-                cpu.bus.mem.intcxrom = false;
-            }
-            "apple2e" => initialize_apple_system(&mut cpu, APPLE2E_ROM, 0xc000, false),
-            "apple2ee" => initialize_apple_system(&mut cpu, APPLE2EE_ROM, 0xc000, false),
-            "apple2ep" => {
-                initialize_apple_system(&mut cpu, APPLE2EE_ROM, 0xc000, false);
-                shift_mod = true
-            }
-            "apple2c" => initialize_apple_system(&mut cpu, APPLE2C_ROM, 0xc000, false),
-            "apple2c0" => initialize_apple_system(&mut cpu, APPLE2C0_ROM, 0xc000, true),
-            "apple2c3" => initialize_apple_system(&mut cpu, APPLE2C3_ROM, 0xc000, true),
-            "apple2c4" => initialize_apple_system(&mut cpu, APPLE2C4_ROM, 0xc000, true),
-            "apple2cp" => initialize_apple_system(&mut cpu, APPLE2CP_ROM, 0xc000, true),
-            _ => {
-                eprintln!(
-                    "Model supported: apple2, apple2p, apple2e, apple2ee, apple2ep, apple2c, apple2c0, apple2c3, apple2c4, apple2cp"
-                );
-                return Ok(());
-            }
-        }
-    } else {
-        initialize_apple_system(&mut cpu, APPLE2EE_ROM, 0xc000, false)
-    }
-
-    if apple2p && pargs.contains("--saturn") {
-        cpu.bus.mem.set_saturn_memory(true);
-    }
-
-    if let Some(bank) = pargs.opt_value_from_str::<_, usize>("-r")? {
-        if bank == 0 || bank > 255 {
-            eprintln!("RAMWorks III accepts value from 1 to 255 (inclusive)");
-            return Ok(());
-        }
-        let mmu = &mut cpu.bus.mem;
-        mmu.set_aux_size(bank as u8);
-        mmu.aux_type = AuxType::RW3;
-        cpu.bus.video.disable_aux = false;
-    }
-
-    if let Some(value) = pargs.opt_value_from_str::<_, usize>("--rf")? {
-        if value * 1024 > 0x1000000 {
-            eprintln!("RAMFactor can accept up to 16 MiB");
-            return Ok(());
-        }
-        cpu.bus.ramfactor.set_size(value * 1024);
-    }
-
-    if let Some(input_rate) = pargs.opt_value_from_str::<_, f32>("--weakbit")? {
-        cpu.bus.disk.set_random_one_rate(input_rate);
-    }
-
-    if let Some(input_rate) = pargs.opt_value_from_str::<_, u8>("--opt_timing")? {
-        cpu.bus.disk.set_override_optimal_timing(input_rate);
-    }
-
-    for drive in 1..=2 {
-        let drive_setting = match drive {
-            1 => "--s1",
-            2 => "--s2",
-            _ => unreachable!(),
-        };
-
-        if let Some(input_file) = pargs.opt_value_from_str::<_, String>(drive_setting)? {
-            let path = Path::new(&input_file);
-            load_disk(&mut cpu, path, drive)?;
-        }
-    }
-
-    for drive in 1..=2 {
-        let drive_setting = match drive {
-            1 => "--h1",
-            2 => "--h2",
-            _ => unreachable!(),
-        };
-
-        if let Some(input_file) = pargs.opt_value_from_str::<_, String>(drive_setting)? {
-            let path = Path::new(&input_file);
-            load_harddisk(&mut cpu, path, drive)?;
-        }
-    }
-
-    let mut slot_mboard = 0;
-    let mut slot_saturn = 0;
-
-    if pargs.contains("--vidhd") {
-        register_device(&mut cpu, "vidhd", 3, &mut slot_mboard, &mut slot_saturn);
-    }
-
-    if pargs.contains("--videoterm") {
-        register_device(&mut cpu, "videoterm", 3, &mut slot_mboard, &mut slot_saturn);
-    }
-
-    for slot in 1..=7 {
-        let slot_setting = match slot {
-            1 => "--s1",
-            2 => "--s2",
-            3 => "--s3",
-            4 => "--s4",
-            5 => "--s5",
-            6 => "--s6",
-            7 => "--s7",
-            _ => unreachable!(),
-        };
-        if let Some(device) = pargs.opt_value_from_str::<_, String>(slot_setting)? {
-            register_device(&mut cpu, &device, slot, &mut slot_mboard, &mut slot_saturn);
-        }
-    }
-
-    if slot_mboard > 2 {
-        eprintln!("Maximum of two mockingboards supported");
-        return Ok(());
-    } else if slot_mboard > 0 {
-        let audio = &mut cpu.bus.audio;
-        audio.mboard.clear();
-        for _ in 0..slot_mboard {
-            audio.mboard.push(Mockingboard::new());
-        }
-    }
-
-    if let Some(mboard) = pargs.opt_value_from_str::<_, u8>("--mboard")? {
-        if mboard > 2 {
-            eprintln!("mboard only accepts 0, 1 or 2 as value");
-            return Ok(());
-        }
-
-        let audio = &mut cpu.bus.audio;
-        audio.mboard.clear();
-        for _ in 0..mboard {
-            audio.mboard.push(Mockingboard::new());
-        }
-
-        for i in 0..slot_mboard {
-            cpu.bus.clear_device(IODevice::Mockingboard(i))
-        }
-
-        for i in 0..mboard {
-            cpu.bus
-                .register_device(IODevice::Mockingboard(i as usize), (4 + i) as usize);
-        }
-    }
-
-    if let Some(luma) = pargs.opt_value_from_str::<_, f32>("--luma")? {
-        if luma > 7159090.0 {
-            eprintln!("luma can only accept value from 0 to 7159090");
-            return Ok(());
-        }
-        ntsc_luma = luma;
-    }
-
-    if let Some(chroma) = pargs.opt_value_from_str::<_, f32>("--chroma")? {
-        if chroma > 7159090.0 {
-            eprintln!("chroma can only accept value from 0 to 7159090");
-            return Ok(());
-        }
-        ntsc_chroma = chroma;
-    }
-
-    if ntsc_luma != NTSC_LUMA_BANDWIDTH || ntsc_chroma != NTSC_CHROMA_BANDWIDTH {
-        cpu.bus.video.update_ntsc_matrix(ntsc_luma, ntsc_chroma);
-    }
-
     let mut key_caps = true;
-    if let Some(capslock) = pargs.opt_value_from_str::<_, String>("--capslock")?
-        && capslock == "off"
-    {
-        key_caps = false;
-    }
-
-    if let Some(noslot_clock) = pargs.opt_value_from_str::<_, String>("--noslot_clock")?
-        && noslot_clock == "off"
-    {
-        cpu.bus.set_noslot_clock(false);
-    }
-
-    if let Some(name) = pargs.opt_value_from_str::<_, String>("--interface")? {
-        cpu.bus.uthernet2.set_interface(name);
-    }
-
-    if pargs.contains("--list_interfaces") {
-        let names = cpu.bus.uthernet2.list_interfaces();
-        eprintln!("No of network interfaces found: {}", names.len());
-        for (i, name) in names.iter().enumerate() {
-            eprintln!("{}. {}", i + 1, name);
-        }
-        return Ok(());
-    }
-
-    if pargs.contains("--disk_sound") {
-        cpu.bus.disk.set_disk_sound_enable(false);
-    }
-
-    if pargs.contains("--exact_write") {
-        cpu.bus.disk.set_exact_write(true);
-    }
-
-    if let Some(aux_type) = pargs.opt_value_from_str::<_, String>("--aux")? {
-        let aux_type = match aux_type.as_ref() {
-            "ext80" => Some(AuxType::Ext80),
-            "std80" => Some(AuxType::Std80),
-            "rw3" => Some(AuxType::RW3),
-            "none" => Some(AuxType::Empty),
-            _ => None,
-        };
-
-        if let Some(aux_type) = aux_type {
-            cpu.bus.mem.aux_type = aux_type
-        }
-
-        cpu.bus.video.disable_aux =
-            cpu.bus.mem.aux_type == AuxType::Empty || cpu.bus.mem.aux_type == AuxType::RW3;
-    }
-
     let mut scale = 1.5;
+    let mut shift_mod = false;
+    let exit_flag = parse_args(
+        &mut cpu,
+        &mut pargs,
+        &mut key_caps,
+        &mut scale,
+        &mut shift_mod,
+    )?;
 
-    if let Some(scale_value) = pargs.opt_value_from_str::<_, f32>("--scale")? {
-        if !(1.0..=4.0).contains(&scale_value) {
-            eprintln!("Scale value is from 1.0 to 4.0");
-            return Ok(());
-        }
-        scale = scale_value;
+    if exit_flag {
+        return Ok(())
     }
 
     let remaining = pargs.finish();
@@ -2231,48 +1934,12 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         format: Some(AudioFormat::s16_sys()),
     };
 
-    let audio_stream = match &audio_subsystem {
-        Ok(audio) => {
-            // Print out the audio devices
-            if let Ok(audio_ids) = audio.audio_playback_device_ids() {
-                eprintln!("Detected Audio Devices");
-                for (index, id) in audio_ids.iter().enumerate() {
-                    eprintln!(
-                        "-- Audio Device #{index} : {}",
-                        id.name().unwrap_or(id.id().0.to_string())
-                    );
-                }
-            } else {
-                eprintln!("Unable to enumerate audio device ids");
-            }
-
-            let audio_device = audio.default_playback_device();
-
-            // Print out the audio device being used
-            eprintln!(
-                "Using audio device = {}",
-                audio_device
-                    .name()
-                    .unwrap_or(audio_device.id().id().0.to_string())
-            );
-
-            let audio_status = audio_device.open_device_stream(Some(&desired_spec));
-            if let Ok(stream) = audio_status {
-                if stream.resume().is_ok() {
-                    Some(stream)
-                } else {
-                    eprintln!("Unable to resume audio playback");
-                    None
-                }
-            } else {
-                eprintln!("Unable to get audio stream: {:?}", audio_status.err());
-                None
-            }
-        }
-        err => {
-            eprintln!("No audio device detected!: {:?}", err);
-            None
-        }
+    // Init audio stream
+    let audio_stream = if let Ok(audio) = &audio_subsystem {
+        init_audio_stream(audio, &desired_spec)
+    } else {
+        eprintln!("No audio device detected!");
+        None
     };
 
     // Create SDL event pump
@@ -2297,29 +1964,26 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         video_subsystem,
         audio_stream,
         game_controller,
-        scale,
-        key_caps,
-        previous_cycles,
-        shift_mod,
     );
+
+    emulator_state.video.scale = scale;
+    emulator_state.video.prev_scale = scale;
+    emulator_state.input.key_caps = key_caps;
+    emulator_state.input.shift_mod = shift_mod;
     emulator_state.dcyc = dcyc;
+    emulator_state.previous_cycles = previous_cycles;
     emulator_state.prev_settings = get_slot_settings(&cpu);
     emulator_state.current_settings = emulator_state.prev_settings.clone();
+
+    update_video_state(&mut cpu, &mut emulator_state.video);
 
     loop {
         if emulator_state.reload_cpu {
             emulator_state.reload_cpu = false;
         }
 
-        loop 'break_loop {
-            let mut cpu_cycles = CPU_CYCLES_PER_FRAME_60HZ;
-            let mut cpu_period = 16_688;
-            if cpu.bus.video.is_video_50hz() {
-                cpu_cycles = CPU_CYCLES_PER_FRAME_50HZ;
-                cpu_period = 19_968;
-            }
-
-            while emulator_state.dcyc < cpu_cycles {
+        'break_loop: loop {
+            while emulator_state.dcyc < emulator_state.video.cpu_cycles {
                 let prev_cycle = cpu.bus.get_cycles();
                 if !cpu.step_with_callback(|_| {}) {
                     break 'break_loop;
@@ -2336,7 +2000,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
             // Update video, audio and events at multiple of 60Hz or 50Hz
             let video_time_elapsed = video_time.elapsed().as_micros();
-            if video_time_elapsed >= cpu_period {
+            if video_time_elapsed >= emulator_state.video.cpu_period as u128 {
                 video_time = Instant::now();
 
                 if emulator_state.save_screenshot {
@@ -2396,7 +2060,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             let video_cpu_update = t.elapsed().as_micros();
 
             if normal_cpu_speed {
-                let adj_ms = cpu_period as usize
+                let adj_ms = emulator_state.video.cpu_period as usize
                     * SPEED_NUMERATOR[emulator_state.speed.speed_index]
                     / SPEED_DENOMINATOR[emulator_state.speed.speed_index];
 
@@ -2409,13 +2073,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
             let elapsed = t.elapsed().as_micros();
             emulator_state.speed.estimated_mhz = (emulator_state.dcyc as f32) / elapsed as f32;
-
-            emulator_state.speed.fps = if cpu.bus.video.is_video_50hz() {
-                1015625.0 / (emulator_state.dcyc as f32)
-            } else {
-                1020484.0 / (emulator_state.dcyc as f32)
-            };
-            emulator_state.dcyc = emulator_state.dcyc.saturating_sub(cpu_cycles);
+            emulator_state.speed.fps = emulator_state.video.cpu_mhz / emulator_state.dcyc as f32;
+            emulator_state.dcyc = emulator_state
+                .dcyc
+                .saturating_sub(emulator_state.video.cpu_cycles);
             t = Instant::now();
         }
 
@@ -2460,6 +2121,349 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     */
 
     Ok(())
+}
+
+fn parse_args(
+    cpu: &mut CPU,
+    pargs: &mut pico_args::Arguments,
+    key_caps: &mut bool,
+    scale: &mut f32,
+    shift_mod: &mut bool,
+) -> Result<bool, Box<dyn Error + Send + Sync>> {
+    let mut ntsc_luma = NTSC_LUMA_BANDWIDTH;
+    let mut ntsc_chroma = NTSC_CHROMA_BANDWIDTH;
+
+    // Handle optional arguments
+    if pargs.contains("--50hz") {
+        cpu.bus.video.set_video_50hz(true);
+        cpu.bus.audio.update_cycles(true);
+    }
+
+    if pargs.contains("--nojoystick") {
+        cpu.bus.set_joystick(false);
+    }
+
+    if pargs.contains("--swapbuttons") {
+        cpu.bus.swap_buttons(true);
+    }
+
+    if pargs.contains("--mac_lc_dlgr") {
+        cpu.bus.video.set_mac_lc_dlgr(true);
+    }
+
+    if let Some(xtrim) = pargs.opt_value_from_str::<_, i8>("--xtrim")? {
+        cpu.bus.set_joystick_xtrim(xtrim);
+    }
+
+    if let Some(ytrim) = pargs.opt_value_from_str::<_, i8>("--ytrim")? {
+        cpu.bus.set_joystick_ytrim(ytrim);
+    }
+
+    if pargs.contains("--norgb") {
+        cpu.bus.video.set_display_mode(DisplayMode::DEFAULT);
+    }
+
+    if pargs.contains("--rgb") {
+        cpu.bus.video.set_display_mode(DisplayMode::RGB);
+    }
+
+    if pargs.contains("--z80_cirtech") {
+        cpu.bus.set_z80_cirtech(true);
+    }
+
+    if let Some(dongle_name) = pargs.opt_value_from_str::<_, String>("--dongle")? {
+        let dongle_entry = SUPPORTED_DONGLES
+            .iter()
+            .find(|(name, _)| *name == dongle_name);
+        match dongle_entry {
+            Some((_, dongle)) => cpu.bus.set_dongle(dongle()),
+            None => {
+                eprintln!(
+                    "Dongle supported: {}",
+                    SUPPORTED_DONGLES
+                        .iter()
+                        .map(|(n, _)| *n)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+                return Ok(true);
+            }
+        }
+    }
+
+    let mut apple2p = false;
+    if let Some(model) = pargs.opt_value_from_str::<_, String>(["-m", "--model"])? {
+        match &model[..] {
+            "apple2" => {
+                initialize_apple_system(cpu, APPLE2_ROM, 0xd000, false);
+                cpu.bus.mem.slotc3rom = true;
+                cpu.bus.mem.intcxrom = false;
+            }
+            "apple2p" => {
+                apple2p = true;
+                initialize_apple_system(cpu, APPLE2P_ROM, 0xd000, false);
+                cpu.bus.mem.slotc3rom = true;
+                cpu.bus.mem.intcxrom = false;
+            }
+            "apple2e" => initialize_apple_system(cpu, APPLE2E_ROM, 0xc000, false),
+            "apple2ee" => initialize_apple_system(cpu, APPLE2EE_ROM, 0xc000, false),
+            "apple2ep" => {
+                initialize_apple_system(cpu, APPLE2EE_ROM, 0xc000, false);
+                *shift_mod = true
+            }
+            "apple2c" => initialize_apple_system(cpu, APPLE2C_ROM, 0xc000, false),
+            "apple2c0" => initialize_apple_system(cpu, APPLE2C0_ROM, 0xc000, true),
+            "apple2c3" => initialize_apple_system(cpu, APPLE2C3_ROM, 0xc000, true),
+            "apple2c4" => initialize_apple_system(cpu, APPLE2C4_ROM, 0xc000, true),
+            "apple2cp" => initialize_apple_system(cpu, APPLE2CP_ROM, 0xc000, true),
+            _ => {
+                eprintln!(
+                    "Model supported: apple2, apple2p, apple2e, apple2ee, apple2ep, apple2c, apple2c0, apple2c3, apple2c4, apple2cp"
+                );
+                return Ok(true);
+            }
+        }
+    } else {
+        initialize_apple_system(cpu, APPLE2EE_ROM, 0xc000, false)
+    }
+
+    if apple2p && pargs.contains("--saturn") {
+        cpu.bus.mem.set_saturn_memory(true);
+    }
+
+    if let Some(bank) = pargs.opt_value_from_str::<_, usize>("-r")? {
+        if bank == 0 || bank > 255 {
+            eprintln!("RAMWorks III accepts value from 1 to 255 (inclusive)");
+            return Ok(true);
+        }
+        let mmu = &mut cpu.bus.mem;
+        mmu.set_aux_size(bank as u8);
+        mmu.aux_type = AuxType::RW3;
+        cpu.bus.video.disable_aux = false;
+    }
+
+    if let Some(value) = pargs.opt_value_from_str::<_, usize>("--rf")? {
+        if value * 1024 > 0x1000000 {
+            eprintln!("RAMFactor can accept up to 16 MiB");
+            return Ok(true);
+        }
+        cpu.bus.ramfactor.set_size(value * 1024);
+    }
+
+    if let Some(input_rate) = pargs.opt_value_from_str::<_, f32>("--weakbit")? {
+        cpu.bus.disk.set_random_one_rate(input_rate);
+    }
+
+    if let Some(input_rate) = pargs.opt_value_from_str::<_, u8>("--opt_timing")? {
+        cpu.bus.disk.set_override_optimal_timing(input_rate);
+    }
+
+    for drive in 1..=2 {
+        let drive_setting = match drive {
+            1 => "--s1",
+            2 => "--s2",
+            _ => unreachable!(),
+        };
+
+        if let Some(input_file) = pargs.opt_value_from_str::<_, String>(drive_setting)? {
+            let path = Path::new(&input_file);
+            load_disk(cpu, path, drive)?;
+        }
+    }
+
+    for drive in 1..=2 {
+        let drive_setting = match drive {
+            1 => "--h1",
+            2 => "--h2",
+            _ => unreachable!(),
+        };
+
+        if let Some(input_file) = pargs.opt_value_from_str::<_, String>(drive_setting)? {
+            let path = Path::new(&input_file);
+            load_harddisk(cpu, path, drive)?;
+        }
+    }
+
+    let mut slot_mboard = 0;
+    let mut slot_saturn = 0;
+
+    if pargs.contains("--vidhd") {
+        register_device(cpu, "vidhd", 3, &mut slot_mboard, &mut slot_saturn);
+    }
+
+    if pargs.contains("--videoterm") {
+        register_device(cpu, "videoterm", 3, &mut slot_mboard, &mut slot_saturn);
+    }
+
+    for slot in 1..=7 {
+        let slot_setting = match slot {
+            1 => "--s1",
+            2 => "--s2",
+            3 => "--s3",
+            4 => "--s4",
+            5 => "--s5",
+            6 => "--s6",
+            7 => "--s7",
+            _ => unreachable!(),
+        };
+        if let Some(device) = pargs.opt_value_from_str::<_, String>(slot_setting)? {
+            register_device(cpu, &device, slot, &mut slot_mboard, &mut slot_saturn);
+        }
+    }
+
+    if slot_mboard > 2 {
+        eprintln!("Maximum of two mockingboards supported");
+        return Ok(true);
+    } else if slot_mboard > 0 {
+        let audio = &mut cpu.bus.audio;
+        audio.mboard.clear();
+        for _ in 0..slot_mboard {
+            audio.mboard.push(Mockingboard::new());
+        }
+    }
+
+    if let Some(mboard) = pargs.opt_value_from_str::<_, u8>("--mboard")? {
+        if mboard > 2 {
+            eprintln!("mboard only accepts 0, 1 or 2 as value");
+            return Ok(true);
+        }
+
+        let audio = &mut cpu.bus.audio;
+        audio.mboard.clear();
+        for _ in 0..mboard {
+            audio.mboard.push(Mockingboard::new());
+        }
+
+        for i in 0..slot_mboard {
+            cpu.bus.clear_device(IODevice::Mockingboard(i))
+        }
+
+        for i in 0..mboard {
+            cpu.bus
+                .register_device(IODevice::Mockingboard(i as usize), (4 + i) as usize);
+        }
+    }
+
+    if let Some(luma) = pargs.opt_value_from_str::<_, f32>("--luma")? {
+        if luma > 7159090.0 {
+            eprintln!("luma can only accept value from 0 to 7159090");
+            return Ok(true);
+        }
+        ntsc_luma = luma;
+    }
+
+    if let Some(chroma) = pargs.opt_value_from_str::<_, f32>("--chroma")? {
+        if chroma > 7159090.0 {
+            eprintln!("chroma can only accept value from 0 to 7159090");
+            return Ok(true);
+        }
+        ntsc_chroma = chroma;
+    }
+
+    if ntsc_luma != NTSC_LUMA_BANDWIDTH || ntsc_chroma != NTSC_CHROMA_BANDWIDTH {
+        cpu.bus.video.update_ntsc_matrix(ntsc_luma, ntsc_chroma);
+    }
+
+    if let Some(capslock) = pargs.opt_value_from_str::<_, String>("--capslock")?
+        && capslock == "off"
+    {
+        *key_caps = false;
+    }
+
+    if let Some(noslot_clock) = pargs.opt_value_from_str::<_, String>("--noslot_clock")?
+        && noslot_clock == "off"
+    {
+        cpu.bus.set_noslot_clock(false);
+    }
+
+    if let Some(name) = pargs.opt_value_from_str::<_, String>("--interface")? {
+        cpu.bus.uthernet2.set_interface(name);
+    }
+
+    if pargs.contains("--list_interfaces") {
+        let names = cpu.bus.uthernet2.list_interfaces();
+        eprintln!("No of network interfaces found: {}", names.len());
+        for (i, name) in names.iter().enumerate() {
+            eprintln!("{}. {}", i + 1, name);
+        }
+        return Ok(true);
+    }
+
+    if pargs.contains("--disk_sound") {
+        cpu.bus.disk.set_disk_sound_enable(false);
+    }
+
+    if pargs.contains("--exact_write") {
+        cpu.bus.disk.set_exact_write(true);
+    }
+
+    if let Some(aux_type) = pargs.opt_value_from_str::<_, String>("--aux")? {
+        let aux_type = match aux_type.as_ref() {
+            "ext80" => Some(AuxType::Ext80),
+            "std80" => Some(AuxType::Std80),
+            "rw3" => Some(AuxType::RW3),
+            "none" => Some(AuxType::Empty),
+            _ => None,
+        };
+
+        if let Some(aux_type) = aux_type {
+            cpu.bus.mem.aux_type = aux_type
+        }
+
+        cpu.bus.video.disable_aux =
+            cpu.bus.mem.aux_type == AuxType::Empty || cpu.bus.mem.aux_type == AuxType::RW3;
+    }
+
+    if let Some(scale_value) = pargs.opt_value_from_str::<_, f32>("--scale")? {
+        if !(1.0..=4.0).contains(&scale_value) {
+            eprintln!("Scale value is from 1.0 to 4.0");
+            return Ok(true);
+        }
+        *scale = scale_value;
+    }
+
+    Ok(false)
+}
+
+fn init_audio_stream(
+    audio: &sdl3::AudioSubsystem,
+    desired_spec: &sdl3::audio::AudioSpec,
+) -> Option<sdl3::audio::AudioStreamOwner> {
+    // Print out the audio devices
+    if let Ok(audio_ids) = audio.audio_playback_device_ids() {
+        eprintln!("Detected Audio Devices");
+        for (index, id) in audio_ids.iter().enumerate() {
+            eprintln!(
+                "-- Audio Device #{index} : {}",
+                id.name().unwrap_or(id.id().0.to_string())
+            );
+        }
+    } else {
+        eprintln!("Unable to enumerate audio device ids");
+    }
+
+    let audio_device = audio.default_playback_device();
+
+    // Print out the audio device being used
+    eprintln!(
+        "Using audio device = {}",
+        audio_device
+            .name()
+            .unwrap_or(audio_device.id().id().0.to_string())
+    );
+
+    let audio_status = audio_device.open_device_stream(Some(desired_spec));
+    if let Ok(stream) = audio_status {
+        if stream.resume().is_ok() {
+            Some(stream)
+        } else {
+            eprintln!("Unable to resume audio playback");
+            None
+        }
+    } else {
+        eprintln!("Unable to get audio stream: {:?}", audio_status.err());
+        None
+    }
 }
 
 fn update_emulator_graphics(
@@ -2604,8 +2608,9 @@ fn prepare_video_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) 
             "50 Hz Refresh Rate",
             "F7",
             cpu.bus.video.is_video_50hz(),
-            |state| {
-                cpu.bus.video.set_video_50hz(state);
+            |setting| {
+                cpu.bus.video.set_video_50hz(setting);
+                update_video_state(cpu, &mut state.video);
             },
         );
 
@@ -2729,10 +2734,10 @@ fn prepare_menu_for_model(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorSta
             ui,
             "Apple //e (Enhanced)",
             "",
-            !cpu.is_apple2c() && cpu.is_apple2e_enh() && !state.shift_mod,
+            !cpu.is_apple2c() && cpu.is_apple2e_enh() && !state.input.shift_mod,
             |_| {
                 initialize_apple_system(cpu, APPLE2EE_ROM, 0xc000, false);
-                state.shift_mod = false;
+                state.input.shift_mod = false;
                 state.model_changed = true;
                 state.reload_cpu = true;
                 cpu.halt_cpu();
@@ -2743,10 +2748,10 @@ fn prepare_menu_for_model(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorSta
             ui,
             "Apple //e (Platinum)",
             "",
-            !cpu.is_apple2c() && cpu.is_apple2e_enh() && state.shift_mod,
+            !cpu.is_apple2c() && cpu.is_apple2e_enh() && state.input.shift_mod,
             |_| {
                 initialize_apple_system(cpu, APPLE2EE_ROM, 0xc000, false);
-                state.shift_mod = true;
+                state.input.shift_mod = true;
                 state.model_changed = true;
                 state.reload_cpu = true;
                 cpu.halt_cpu();
@@ -3170,6 +3175,22 @@ fn prepare_statusbar(cpu: &CPU, ui: &imgui::Ui, state: &EmulatorState, width: u3
         });
     pad_token.pop();
     style_token.pop();
+}
+
+fn update_video_state(cpu: &mut CPU, state: &mut VideoState) {
+    let video_50hz = cpu.bus.video.is_video_50hz();
+    if video_50hz {
+        state.cpu_cycles = CPU_CYCLES_PER_FRAME_50HZ;
+        state.cpu_period = 19_968;
+        state.cpu_mhz = 1015625.0;
+        state.audio_sample_size = AUDIO_SAMPLE_SIZE_50HZ;
+    } else {
+        state.cpu_cycles = CPU_CYCLES_PER_FRAME_60HZ;
+        state.cpu_period = 16_688;
+        state.cpu_mhz = 1020484.0;
+        state.audio_sample_size = AUDIO_SAMPLE_SIZE;
+    }
+    cpu.bus.audio.update_cycles(video_50hz);
 }
 
 fn initialize_apple_system(cpu: &mut CPU, rom_image: &[u8], offset: u16, extended_rom: bool) {
