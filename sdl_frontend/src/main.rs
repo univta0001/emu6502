@@ -1852,7 +1852,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     )?;
 
     if exit_flag {
-        return Ok(())
+        return Ok(());
     }
 
     let remaining = pargs.finish();
@@ -1960,11 +1960,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         CPU_CYCLES_PER_FRAME_60HZ - 65 * 192
     };
 
-    let mut emulator_state = EmulatorState::new(
-        video_subsystem,
-        audio_stream,
-        game_controller,
-    );
+    let mut emulator_state = EmulatorState::new(video_subsystem, audio_stream, game_controller);
 
     emulator_state.video.scale = scale;
     emulator_state.video.prev_scale = scale;
@@ -2429,6 +2425,18 @@ fn init_audio_stream(
     audio: &sdl3::AudioSubsystem,
     desired_spec: &sdl3::audio::AudioSpec,
 ) -> Option<sdl3::audio::AudioStreamOwner> {
+    let num_drivers = unsafe { sdl3::sys::audio::SDL_GetNumAudioDrivers() };
+    for i in 0..num_drivers {
+        unsafe {
+            let driver_name = sdl3::sys::audio::SDL_GetAudioDriver(i);
+            if !driver_name.is_null() {
+                let name = std::ffi::CStr::from_ptr(driver_name).to_string_lossy();
+                eprintln!("Driver {}: {}", i, name);
+            }
+        }
+    }
+    eprintln!("Using audio driver: {}", audio.current_audio_driver());
+
     // Print out the audio devices
     if let Ok(audio_ids) = audio.audio_playback_device_ids() {
         eprintln!("Detected Audio Devices");
