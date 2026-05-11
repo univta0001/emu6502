@@ -2426,12 +2426,13 @@ fn init_audio_stream(
     desired_spec: &sdl3::audio::AudioSpec,
 ) -> Option<sdl3::audio::AudioStreamOwner> {
     let num_drivers = unsafe { sdl3::sys::audio::SDL_GetNumAudioDrivers() };
+    eprintln!("Detected Audio Drivers");
     for i in 0..num_drivers {
         unsafe {
             let driver_name = sdl3::sys::audio::SDL_GetAudioDriver(i);
             if !driver_name.is_null() {
                 let name = std::ffi::CStr::from_ptr(driver_name).to_string_lossy();
-                eprintln!("Driver {}: {}", i, name);
+                eprintln!("-- Driver #{}: {}", i, name);
             }
         }
     }
@@ -2454,7 +2455,7 @@ fn init_audio_stream(
 
     // Print out the audio device being used
     eprintln!(
-        "Using audio device = {}",
+        "Using audio device: {}",
         audio_device
             .name()
             .unwrap_or(audio_device.id().id().0.to_string())
