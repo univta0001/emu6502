@@ -1852,7 +1852,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     )?;
 
     if exit_flag {
-        return Ok(());
+        return Ok(())
     }
 
     let remaining = pargs.finish();
@@ -1895,6 +1895,12 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let width = (scale * Video::WIDTH as f32) as u32;
     let height = (scale * Video::HEIGHT as f32) as u32;
     let video_subsystem = sdl_context.video()?;
+
+    eprintln!("Detected Video Drivers");
+    for (i, driver) in sdl3::video::drivers().enumerate() {
+        eprintln!("-- Driver #{}: {}", i, driver);
+    }
+    eprintln!("Using video driver: {}", video_subsystem.current_video_driver());
 
     let mut window = video_subsystem
         .window("Apple ][ emulator", width, height + 2 * MENUBAR_HEIGHT)
@@ -1960,7 +1966,11 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         CPU_CYCLES_PER_FRAME_60HZ - 65 * 192
     };
 
-    let mut emulator_state = EmulatorState::new(video_subsystem, audio_stream, game_controller);
+    let mut emulator_state = EmulatorState::new(
+        video_subsystem,
+        audio_stream,
+        game_controller,
+    );
 
     emulator_state.video.scale = scale;
     emulator_state.video.prev_scale = scale;
