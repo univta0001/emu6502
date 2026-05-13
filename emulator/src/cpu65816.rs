@@ -366,7 +366,7 @@ pub struct CPU {
     pub bus: Bus,
     pub full_speed: CpuSpeed,
     pub halt_cpu: bool,
-    pub irq_last_tick: bool,
+    pub irq_penultimate_tick: u8,
     pub self_test: bool,
 }
 
@@ -390,7 +390,7 @@ impl Default for CPU {
             full_speed: Default::default(),
             bus: Default::default(),
             halt_cpu: false,
-            irq_last_tick: true,
+            irq_penultimate_tick: 0,
             self_test: false,
         }
     }
@@ -719,12 +719,9 @@ impl CPU {
     }
 
     fn tick(&mut self) {
-        self.bus.tick();
-    }
-
-    fn last_tick(&mut self) {
-        self.irq_last_tick =
-            self.p.contains(CpuFlags::INTERRUPT_DISABLE) || self.bus.irq().is_none();
+        self.irq_penultimate_tick = (self.irq_penultimate_tick << 1)
+            | (!self.status.p.contains(CpuFlags::INTERRUPT_DISABLE) && self.bus.irq().is_some())
+                as u8;
         self.bus.tick();
     }
 
@@ -733,7 +730,6 @@ impl CPU {
         self.register_x = 0;
         self.register_y = 0;
         self.stack_pointer = 0x100;
-        self.irq_last_tick = true;
 
         self.bus.reset();
 
@@ -823,17 +819,7 @@ impl CPU {
         value
     }
 
-    fn last_tick_addr_bank_read(&mut self, bank: u8, addr: u16) -> u8 {
-        let value = self.bus.unclocked_addr_bank_read(bank, addr);
-        self.last_tick();
-        value
-    }
-
     fn addr_bank_read_u16(&mut self, bank: u8, addr: u16) -> u16 {
-        self.bus.addr_bank_read_u16(bank, addr)
-    }
-
-    fn last_tick_addr_bank_read_u16(&mut self, bank: u8, addr: u16) -> u16 {
         let lo = self.addr_bank_read(bank, addr);
         let addr_h = addr.wrapping_add(1);
         let hi = if addr_h > addr {
@@ -842,7 +828,7 @@ impl CPU {
             self.bus.unclocked_addr_bank_read(bank + 1, addr_h)
         };
         let value = u16::from_le_bytes([lo, hi]);
-        self.last_tick();
+        self.tick();
         value
     }
 
@@ -850,16 +836,7 @@ impl CPU {
         self.bus.addr_bank_write(bank, addr, value)
     }
 
-    fn last_tick_addr_bank_write(&mut self, bank: u8, addr: u16, value: u8) {
-        self.bus.unclocked_addr_bank_write(bank, addr, value);
-        self.last_tick();
-    }
-
-    fn _addr_bank_write_u16(&mut self, bank: u8, addr: u16, value: u16) {
-        self.bus.addr_bank_write_u16(bank, addr, value)
-    }
-
-    fn last_tick_addr_bank_write_u16(&mut self, bank: u8, addr: u16, value: u16) {
+    fn addr_bank_write_u16(&mut self, bank: u8, addr: u16, value: u16) {
         let hi = (value >> 8) as u8;
         let lo = (value & 0xff) as u8;
         self.addr_bank_write(bank, addr, lo);
@@ -869,7 +846,7 @@ impl CPU {
         } else {
             self.bus.unclocked_addr_bank_write(bank + 1, addr_h, hi);
         }
-        self.last_tick();
+        self.tick();
     }
 
     fn increment_pc(&mut self) {
@@ -887,22 +864,10 @@ impl CPU {
         b
     }
 
-    fn last_tick_fetch_byte(&mut self) -> u8 {
-        let b = self.last_tick_addr_bank_read(self.pbr, self.program_counter);
-        self.program_counter = self.program_counter.wrapping_add(1);
-        b
-    }
-
     /// Fetches a 16-bit word (little-endian) located at PC, by fetching 2 individual bytes
     fn fetch_word(&mut self) -> u16 {
         let lo = self.fetch_byte();
         let hi = self.fetch_byte();
-        u16::from_le_bytes([lo, hi])
-    }
-
-    fn last_tick_fetch_word(&mut self) -> u16 {
-        let lo = self.fetch_byte();
-        let hi = self.last_tick_fetch_byte();
         u16::from_le_bytes([lo, hi])
     }
 
@@ -918,29 +883,11 @@ impl CPU {
         }
     }
 
-    fn last_tick_push_byte(&mut self, value: u8) {
-        let s = self.stack_pointer;
-        self.last_tick_addr_bank_write(0, s, value);
-        if self.status.e {
-            let s = (self.stack_pointer as u8).wrapping_sub(1);
-            self.stack_pointer = (self.stack_pointer & 0xff00) | s as u16;
-        } else {
-            self.stack_pointer = self.stack_pointer.wrapping_sub(1);
-        }
-    }
-
     fn push_word(&mut self, value: u16) {
         let hi = (value >> 8) as u8;
         let lo = value as u8;
         self.push_byte(hi);
         self.push_byte(lo);
-    }
-
-    fn last_tick_push_word(&mut self, value: u16) {
-        let hi = (value >> 8) as u8;
-        let lo = value as u8;
-        self.push_byte(hi);
-        self.last_tick_push_byte(lo);
     }
 
     fn pop_byte(&mut self) -> u8 {
@@ -955,27 +902,9 @@ impl CPU {
         self.addr_bank_read(0, s)
     }
 
-    fn last_tick_pop_byte(&mut self) -> u8 {
-        if self.status.e {
-            let s = (self.stack_pointer as u8).wrapping_add(1);
-            self.stack_pointer = (self.stack_pointer & 0xff00) | s as u16;
-        } else {
-            self.stack_pointer = self.stack_pointer.wrapping_add(1);
-        }
-
-        let s = self.stack_pointer;
-        self.last_tick_addr_bank_read(0, s)
-    }
-
     fn pop_word(&mut self) -> u16 {
         let lo = self.pop_byte();
         let hi = self.pop_byte();
-        u16::from_le_bytes([lo, hi])
-    }
-
-    fn last_tick_pop_word(&mut self) -> u16 {
-        let lo = self.pop_byte();
-        let hi = self.last_tick_pop_byte();
         u16::from_le_bytes([lo, hi])
     }
 
@@ -1046,9 +975,9 @@ impl CPU {
                 }
             }
             _ => {
-                if !self.irq_last_tick {
-                    // If the interrupt happens on the last cycle of the opcode, 
-                    // execute the opcode and then the interrupt handling routine
+                if self.irq_penultimate_tick & 0x2 != 0 {
+                    // If the interrupt happens on the last cycle of the opcode, execute the opcode and
+                    // then the interrupt handling routine
                     if self.status.e {
                         self.interrupt(interrupt::IRQ);
                     } else {
@@ -1401,7 +1330,7 @@ impl CPU {
 
             /* JML absolute long */
             0x5c => {
-                let addr = self.last_tick_get_absolute_long_addr();
+                let addr = self.get_absolute_long_addr();
                 self.jml(addr);
             }
 
@@ -1561,25 +1490,25 @@ impl CPU {
 
             /* JMP Absolute */
             0x4c => {
-                let addr = self.last_tick_get_absolute_addr();
+                let addr = self.get_absolute_addr();
                 self.jmp(addr)
             }
 
             /* JMP Absolute Indirect */
             0x6c => {
-                let addr = self.last_tick_get_absolute_indirect_addr();
+                let addr = self.get_absolute_indirect_addr();
                 self.jmp(addr)
             }
 
             /* JMP (addr, X) */
             0x7c => {
-                let addr = self.last_tick_get_indirect_absolute_x_addr();
+                let addr = self.get_indirect_absolute_x_addr();
                 self.jmp(addr)
             }
 
             /* JMP [Absolute Long] */
             0xdc => {
-                let addr = self.last_tick_get_absolute_indirect_long_addr();
+                let addr = self.get_absolute_indirect_long_addr();
                 self.jml(addr)
             }
 
@@ -2438,23 +2367,10 @@ impl CPU {
         (self.dbr, addr)
     }
 
-    fn last_tick_get_absolute_addr(&mut self) -> (u8, u16) {
-        let addr = self.last_tick_fetch_word();
-        (self.dbr, addr)
-    }
-
-    fn _get_absolute_indirect_addr(&mut self) -> (u8, u16) {
+    fn get_absolute_indirect_addr(&mut self) -> (u8, u16) {
         let addr_ptr = self.fetch_word();
         let lo = self.addr_bank_read(0, addr_ptr);
         let hi = self.addr_bank_read(0, addr_ptr.wrapping_add(1));
-        let addr = u16::from_le_bytes([lo, hi]);
-        (self.dbr, addr)
-    }
-
-    fn last_tick_get_absolute_indirect_addr(&mut self) -> (u8, u16) {
-        let addr_ptr = self.fetch_word();
-        let lo = self.addr_bank_read(0, addr_ptr);
-        let hi = self.last_tick_addr_bank_read(0, addr_ptr.wrapping_add(1));
         let addr = u16::from_le_bytes([lo, hi]);
         (self.dbr, addr)
     }
@@ -2472,12 +2388,6 @@ impl CPU {
     fn get_absolute_long_addr(&mut self) -> (u8, u16) {
         let addr = self.fetch_word();
         let bank = self.fetch_byte();
-        (bank, addr)
-    }
-
-    fn last_tick_get_absolute_long_addr(&mut self) -> (u8, u16) {
-        let addr = self.fetch_word();
-        let bank = self.last_tick_fetch_byte();
         (bank, addr)
     }
 
@@ -2731,20 +2641,7 @@ impl CPU {
         (self.dbr, u16::from_le_bytes([lo, hi]))
     }
 
-    fn last_tick_get_indirect_absolute_x_addr(&mut self) -> (u8, u16) {
-        self.tick();
-        let offset = self.fetch_word();
-        let addr_ptr = if self.small_index() {
-            offset.wrapping_add(self.register_x as u8 as u16)
-        } else {
-            offset.wrapping_add(self.register_x)
-        };
-        let lo = self.addr_bank_read(self.pbr, addr_ptr);
-        let hi = self.last_tick_addr_bank_read(self.pbr, addr_ptr.wrapping_add(1));
-        (self.dbr, u16::from_le_bytes([lo, hi]))
-    }
-
-    fn _get_absolute_indirect_long_addr(&mut self) -> (u8, u16) {
+    fn get_absolute_indirect_long_addr(&mut self) -> (u8, u16) {
         let addr_ptr = self.fetch_word();
         let lo = self.addr_bank_read(0, addr_ptr);
         let hi = self.addr_bank_read(0, addr_ptr.wrapping_add(1));
@@ -2753,32 +2650,23 @@ impl CPU {
         (bank, addr)
     }
 
-    fn last_tick_get_absolute_indirect_long_addr(&mut self) -> (u8, u16) {
-        let addr_ptr = self.fetch_word();
-        let lo = self.addr_bank_read(0, addr_ptr);
-        let hi = self.addr_bank_read(0, addr_ptr.wrapping_add(1));
-        let bank = self.last_tick_addr_bank_read(0, addr_ptr.wrapping_add(2));
-        let addr = u16::from_le_bytes([lo, hi]);
-        (bank, addr)
-    }
-
     fn cld(&mut self) {
-        self.last_tick();
+        self.tick();
         self.status.clear_decimal()
     }
 
     fn sei(&mut self) {
-        self.last_tick();
+        self.tick();
         self.status.set_interrupt_flag();
     }
 
     fn clc(&mut self) {
-        self.last_tick();
+        self.tick();
         self.status.clear_carry_flag()
     }
 
     fn xce(&mut self) {
-        self.last_tick();
+        self.tick();
         let old_e = self.status.e;
         self.status.e = self.status.p.contains(CpuFlags::CARRY);
         self.status.p.set(CpuFlags::CARRY, old_e);
@@ -2795,7 +2683,7 @@ impl CPU {
     fn phk(&mut self) {
         self.tick();
         let pbr = self.pbr;
-        self.last_tick_push_byte(pbr);
+        self.push_byte(pbr);
     }
 
     fn phd(&mut self) {
@@ -2804,7 +2692,7 @@ impl CPU {
         let d_high = (self.d >> 8) as u8;
         self.addr_bank_write(0, self.stack_pointer, d_high);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
-        self.last_tick_addr_bank_write(0, self.stack_pointer, d_low);
+        self.addr_bank_write(0, self.stack_pointer, d_low);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
         if self.status.e {
             self.stack_pointer = (1 << 8) | self.stack_pointer as u8 as u16;
@@ -2813,14 +2701,14 @@ impl CPU {
 
     fn phb(&mut self) {
         self.tick();
-        self.last_tick_push_byte(self.dbr);
+        self.push_byte(self.dbr);
     }
 
     fn plb(&mut self) {
         self.tick();
         self.tick();
         self.stack_pointer = self.stack_pointer.wrapping_add(1);
-        let dbr = self.last_tick_addr_bank_read(0, self.stack_pointer);
+        let dbr = self.addr_bank_read(0, self.stack_pointer);
         self.dbr = dbr;
         if self.status.e {
             self.stack_pointer = (1 << 8) | self.stack_pointer as u8 as u16;
@@ -2830,7 +2718,7 @@ impl CPU {
     }
 
     fn rep(&mut self, value: u8) {
-        self.last_tick();
+        self.tick();
         let p = self.status.p.bits() & !value;
         *self.status.p.0.bits_mut() = p;
         if self.status.e {
@@ -2840,7 +2728,7 @@ impl CPU {
     }
 
     fn txs(&mut self) {
-        self.last_tick();
+        self.tick();
         if self.small_index() {
             self.stack_pointer = (1u16 << 8) | self.register_x as u8 as u16;
         } else {
@@ -2849,7 +2737,7 @@ impl CPU {
     }
 
     fn tsx(&mut self) {
-        self.last_tick();
+        self.tick();
         if self.small_index() {
             self.register_x = self.stack_pointer as u8 as u16;
         } else {
@@ -2859,7 +2747,7 @@ impl CPU {
     }
 
     fn txa(&mut self) {
-        self.last_tick();
+        self.tick();
         self.register_a = if self.small_accumulator() {
             self.register_a & 0xff00 | self.register_x as u8 as u16
         } else {
@@ -2869,7 +2757,7 @@ impl CPU {
     }
 
     fn tya(&mut self) {
-        self.last_tick();
+        self.tick();
         self.register_a = if self.small_accumulator() {
             self.register_a & 0xff00 | self.register_y as u8 as u16
         } else {
@@ -2879,7 +2767,7 @@ impl CPU {
     }
 
     fn tax(&mut self) {
-        self.last_tick();
+        self.tick();
         if self.small_index() {
             self.register_x = self.register_a as u8 as u16;
         } else {
@@ -2889,7 +2777,7 @@ impl CPU {
     }
 
     fn tay(&mut self) {
-        self.last_tick();
+        self.tick();
         if self.small_index() {
             self.register_y = self.register_a as u8 as u16;
         } else {
@@ -2900,24 +2788,24 @@ impl CPU {
 
     fn lda(&mut self, addr: (u8, u16)) {
         self.register_a = if self.small_accumulator() {
-            let result = self.last_tick_addr_bank_read(addr.0, addr.1) as u16;
+            let result = self.addr_bank_read(addr.0, addr.1) as u16;
             self.update_zero_and_negative_flags(result, false);
             self.register_a & 0xff00 | result
         } else {
-            let value = self.last_tick_addr_bank_read_u16(addr.0, addr.1);
+            let value = self.addr_bank_read_u16(addr.0, addr.1);
             self.update_zero_and_negative_flags(value, true);
             value
         };
     }
 
     fn tcd(&mut self) {
-        self.last_tick();
+        self.tick();
         self.d = self.register_a;
         self.update_zero_and_negative_flags(self.register_a, true);
     }
 
     fn sep(&mut self, value: u8) {
-        self.last_tick();
+        self.tick();
         let p = self.status.p.bits() | value;
         *self.status.p.0.bits_mut() = p;
 
@@ -2931,17 +2819,17 @@ impl CPU {
         let value = self.register_a;
 
         if self.small_accumulator() {
-            self.last_tick_addr_bank_write(addr.0, addr.1, value as u8);
+            self.addr_bank_write(addr.0, addr.1, value as u8);
         } else {
-            self.last_tick_addr_bank_write_u16(addr.0, addr.1, value);
+            self.addr_bank_write_u16(addr.0, addr.1, value);
         }
     }
 
     fn stz(&mut self, addr: (u8, u16)) {
         if self.small_accumulator() {
-            self.last_tick_addr_bank_write(addr.0, addr.1, 0);
+            self.addr_bank_write(addr.0, addr.1, 0);
         } else {
-            self.last_tick_addr_bank_write_u16(addr.0, addr.1, 0);
+            self.addr_bank_write_u16(addr.0, addr.1, 0);
         }
     }
 
@@ -2952,14 +2840,14 @@ impl CPU {
             self.register_x.wrapping_sub(1)
         };
         self.register_x = value;
-        self.last_tick();
+        self.tick();
         self.update_zero_and_negative_flags(self.register_x, !self.small_index());
     }
 
     fn branch_u8(&mut self, condition: bool) {
         let addr = self.get_immediate_addr(false);
         if !condition {
-            self.last_tick()
+            self.tick()
         } else {
             self.tick();
             let offset = self.bus.unclocked_addr_bank_read(addr.0, addr.1) as i8 as u16;
@@ -2967,7 +2855,7 @@ impl CPU {
             if self.status.e && self.program_counter & 0xff00 != jump_addr & 0xff00 {
                 self.tick();
             }
-            self.last_tick();
+            self.tick();
             self.program_counter = jump_addr;
         }
     }
@@ -2975,10 +2863,10 @@ impl CPU {
     fn branch_u16(&mut self, condition: bool) {
         let addr = self.get_immediate_addr(true);
         if !condition {
-            self.last_tick()
+            self.tick()
         } else {
             self.tick();
-            let offset = self.last_tick_addr_bank_read_u16(addr.0, addr.1) as i16 as u16;
+            let offset = self.addr_bank_read_u16(addr.0, addr.1) as i16 as u16;
             let jump_addr = self.program_counter.wrapping_add(offset);
             self.program_counter = jump_addr;
         }
@@ -2988,9 +2876,9 @@ impl CPU {
         let value = self.register_y;
 
         if self.small_index() {
-            self.last_tick_addr_bank_write(addr.0, addr.1, value as u8);
+            self.addr_bank_write(addr.0, addr.1, value as u8);
         } else {
-            self.last_tick_addr_bank_write_u16(addr.0, addr.1, value);
+            self.addr_bank_write_u16(addr.0, addr.1, value);
         }
     }
 
@@ -2998,14 +2886,14 @@ impl CPU {
         let value = self.register_x;
 
         if self.small_index() {
-            self.last_tick_addr_bank_write(addr.0, addr.1, value as u8);
+            self.addr_bank_write(addr.0, addr.1, value as u8);
         } else {
-            self.last_tick_addr_bank_write_u16(addr.0, addr.1, value);
+            self.addr_bank_write_u16(addr.0, addr.1, value);
         }
     }
 
     fn nop(&mut self) {
-        self.last_tick();
+        self.tick();
     }
 
     fn jml(&mut self, addr: (u8, u16)) {
@@ -3019,11 +2907,11 @@ impl CPU {
 
     fn bit_immediate(&mut self, addr: (u8, u16)) {
         if self.small_accumulator() {
-            let data = self.last_tick_addr_bank_read(addr.0, addr.1) as u16;
+            let data = self.addr_bank_read(addr.0, addr.1) as u16;
             let and = (self.register_a as u8 as u16) & data;
             self.status.p.set(CpuFlags::ZERO, and == 0);
         } else {
-            let data = self.last_tick_addr_bank_read_u16(addr.0, addr.1);
+            let data = self.addr_bank_read_u16(addr.0, addr.1);
             let and = self.register_a & data;
             self.status.p.set(CpuFlags::ZERO, and == 0);
         }
@@ -3031,13 +2919,13 @@ impl CPU {
 
     fn bit(&mut self, addr: (u8, u16)) {
         if self.small_accumulator() {
-            let data = self.last_tick_addr_bank_read(addr.0, addr.1) as u16;
+            let data = self.addr_bank_read(addr.0, addr.1) as u16;
             let and = (self.register_a as u8 as u16) & data;
             self.status.p.set(CpuFlags::ZERO, and == 0);
             self.status.p.set(CpuFlags::NEGATIVE, data & 0x80 > 0);
             self.status.p.set(CpuFlags::OVERFLOW, data & 0x40 > 0);
         } else {
-            let data = self.last_tick_addr_bank_read_u16(addr.0, addr.1);
+            let data = self.addr_bank_read_u16(addr.0, addr.1);
             let and = self.register_a & data;
             self.status.p.set(CpuFlags::ZERO, and == 0);
             self.status.p.set(CpuFlags::NEGATIVE, data & 0x8000 > 0);
@@ -3050,19 +2938,19 @@ impl CPU {
             let data = self.addr_bank_read(addr.0, addr.1) as u16;
             let result = data & 0xff00 | ((data as u8).wrapping_add(1)) as u16;
             self.tick();
-            self.last_tick_addr_bank_write(addr.0, addr.1, result as u8);
+            self.addr_bank_write(addr.0, addr.1, result as u8);
             self.update_zero_and_negative_flags(result, !self.small_accumulator());
         } else {
             let data = self.addr_bank_read_u16(addr.0, addr.1);
             let result = data.wrapping_add(1);
             self.tick();
-            self.last_tick_addr_bank_write_u16(addr.0, addr.1, result);
+            self.addr_bank_write_u16(addr.0, addr.1, result);
             self.update_zero_and_negative_flags(result, !self.small_accumulator());
         }
     }
 
     fn inc_accumulator(&mut self) {
-        self.last_tick();
+        self.tick();
         if self.small_accumulator() {
             self.register_a =
                 self.register_a & 0xff00 | ((self.register_a as u8).wrapping_add(1)) as u16;
@@ -3073,7 +2961,7 @@ impl CPU {
     }
 
     fn inx(&mut self) {
-        self.last_tick();
+        self.tick();
         self.register_x = self.register_x.wrapping_add(1);
         if self.small_index() {
             self.register_x &= 0xff;
@@ -3082,7 +2970,7 @@ impl CPU {
     }
 
     fn iny(&mut self) {
-        self.last_tick();
+        self.tick();
         self.register_y = self.register_y.wrapping_add(1);
         if self.small_index() {
             self.register_y &= 0xff;
@@ -3091,7 +2979,7 @@ impl CPU {
     }
 
     fn dec_accumulator(&mut self) {
-        self.last_tick();
+        self.tick();
         if self.small_accumulator() {
             self.register_a =
                 self.register_a & 0xff00 | ((self.register_a as u8).wrapping_sub(1)) as u16;
@@ -3106,12 +2994,12 @@ impl CPU {
         if self.small_accumulator() {
             let data = self.addr_bank_read(addr.0, addr.1) as u16;
             let result = data & 0xff00 | ((data as u8).wrapping_sub(1)) as u16;
-            self.last_tick_addr_bank_write(addr.0, addr.1, result as u8);
+            self.addr_bank_write(addr.0, addr.1, result as u8);
             self.update_zero_and_negative_flags(result, !self.small_accumulator());
         } else {
             let data = self.addr_bank_read_u16(addr.0, addr.1);
             let result = data.wrapping_sub(1);
-            self.last_tick_addr_bank_write_u16(addr.0, addr.1, result);
+            self.addr_bank_write_u16(addr.0, addr.1, result);
             self.update_zero_and_negative_flags(result, !self.small_accumulator());
         }
     }
@@ -3119,12 +3007,12 @@ impl CPU {
     fn compare(&mut self, addr: (u8, u16), compare_with: u16, word: bool) {
         let data = if word {
             (
-                self.last_tick_addr_bank_read_u16(addr.0, addr.1),
+                self.addr_bank_read_u16(addr.0, addr.1),
                 compare_with,
             )
         } else {
             (
-                self.last_tick_addr_bank_read(addr.0, addr.1) as u16,
+                self.addr_bank_read(addr.0, addr.1) as u16,
                 compare_with as u8 as u16,
             )
         };
@@ -3136,7 +3024,7 @@ impl CPU {
         self.tick();
         // Changes no flags
         let value = self.status.p.bits();
-        self.last_tick_push_byte(value);
+        self.push_byte(value);
     }
 
     fn pld(&mut self) {
@@ -3145,7 +3033,7 @@ impl CPU {
         self.stack_pointer = self.stack_pointer.wrapping_add(1);
         let d_low = self.addr_bank_read(0, self.stack_pointer);
         self.stack_pointer = self.stack_pointer.wrapping_add(1);
-        let d_high = self.last_tick_addr_bank_read(0, self.stack_pointer);
+        let d_high = self.addr_bank_read(0, self.stack_pointer);
         self.d = u16::from_le_bytes([d_low, d_high]);
         if self.status.e {
             self.stack_pointer = (1 << 8) | self.stack_pointer as u8 as u16;
@@ -3156,7 +3044,7 @@ impl CPU {
     fn plp(&mut self) {
         self.tick();
         self.tick();
-        let value = self.last_tick_pop_byte();
+        let value = self.pop_byte();
         *self.status.p.0.bits_mut() = value;
         if self.status.e {
             self.status.p.set(CpuFlags::M_FLAG, true);
@@ -3170,11 +3058,11 @@ impl CPU {
         self.tick();
         self.tick();
         let value = if self.small_accumulator() {
-            let result = self.last_tick_pop_byte() as u16;
+            let result = self.pop_byte() as u16;
             self.update_zero_and_negative_flags(result, !self.small_accumulator());
             (self.register_a & 0xff00) | result
         } else {
-            let result = self.last_tick_pop_word();
+            let result = self.pop_word();
             self.update_zero_and_negative_flags(result, !self.small_accumulator());
             result
         };
@@ -3185,9 +3073,9 @@ impl CPU {
         self.tick();
         self.tick();
         let value = if self.small_index() {
-            self.last_tick_pop_byte() as u16
+            self.pop_byte() as u16
         } else {
-            self.last_tick_pop_word()
+            self.pop_word()
         };
         self.register_x = value;
         self.update_zero_and_negative_flags(value, !self.small_index());
@@ -3197,9 +3085,9 @@ impl CPU {
         self.tick();
         self.tick();
         let value = if self.small_index() {
-            self.last_tick_pop_byte() as u16
+            self.pop_byte() as u16
         } else {
-            self.last_tick_pop_word()
+            self.pop_word()
         };
         self.register_y = value;
         self.update_zero_and_negative_flags(value, !self.small_index());
@@ -3207,7 +3095,7 @@ impl CPU {
 
     fn jsr(&mut self, addr: (u8, u16)) {
         let return_addr = self.program_counter.wrapping_sub(1);
-        self.last_tick_push_word(return_addr);
+        self.push_word(return_addr);
         self.program_counter = addr.1
     }
 
@@ -3215,7 +3103,7 @@ impl CPU {
         let return_addr = self.program_counter.wrapping_sub(1);
         self.addr_bank_write(0, self.stack_pointer, (return_addr >> 8) as u8);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
-        self.last_tick_addr_bank_write(0, self.stack_pointer, return_addr as u8);
+        self.addr_bank_write(0, self.stack_pointer, return_addr as u8);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
         if self.status.e {
             self.stack_pointer = (1 << 8) | self.stack_pointer as u8 as u16;
@@ -3233,7 +3121,7 @@ impl CPU {
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
         self.addr_bank_write(0, self.stack_pointer, (return_addr >> 8) as u8);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
-        self.last_tick_addr_bank_write(0, self.stack_pointer, return_addr as u8);
+        self.addr_bank_write(0, self.stack_pointer, return_addr as u8);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
 
         if self.status.e {
@@ -3245,22 +3133,22 @@ impl CPU {
     }
 
     fn sec(&mut self) {
-        self.last_tick();
+        self.tick();
         self.status.set_carry_flag()
     }
 
     fn sed(&mut self) {
-        self.last_tick();
+        self.tick();
         self.status.set_decimal_flag()
     }
 
     fn clv(&mut self) {
-        self.last_tick();
+        self.tick();
         self.status.clear_overflow_flag()
     }
 
     fn cli(&mut self) {
-        self.last_tick();
+        self.tick();
         self.status.clear_interrupt_flag();
     }
 
@@ -3407,30 +3295,30 @@ impl CPU {
 
     fn adc(&mut self, addr: (u8, u16)) {
         let data = if self.small_accumulator() {
-            self.last_tick_addr_bank_read(addr.0, addr.1) as u16
+            self.addr_bank_read(addr.0, addr.1) as u16
         } else {
-            self.last_tick_addr_bank_read_u16(addr.0, addr.1)
+            self.addr_bank_read_u16(addr.0, addr.1)
         };
         self.adc_to_accumulator(data);
     }
 
     fn sbc(&mut self, addr: (u8, u16)) {
         let data = if self.small_accumulator() {
-            self.last_tick_addr_bank_read(addr.0, addr.1) as u16
+            self.addr_bank_read(addr.0, addr.1) as u16
         } else {
-            self.last_tick_addr_bank_read_u16(addr.0, addr.1)
+            self.addr_bank_read_u16(addr.0, addr.1)
         };
         self.sbc_to_accumulator(data);
     }
 
     fn and(&mut self, addr: (u8, u16)) {
         if self.small_accumulator() {
-            let data = self.last_tick_addr_bank_read(addr.0, addr.1) as u16;
+            let data = self.addr_bank_read(addr.0, addr.1) as u16;
             let result = self.register_a as u8 as u16 & data;
             self.update_zero_and_negative_flags(result, false);
             self.register_a = self.register_a & 0xff00 | result
         } else {
-            let data = self.last_tick_addr_bank_read_u16(addr.0, addr.1);
+            let data = self.addr_bank_read_u16(addr.0, addr.1);
             self.register_a &= data;
             self.update_zero_and_negative_flags(self.register_a, true);
         }
@@ -3443,15 +3331,15 @@ impl CPU {
             self.register_y.wrapping_sub(1)
         };
         self.register_y = value;
-        self.last_tick();
+        self.tick();
         self.update_zero_and_negative_flags(self.register_y, !self.small_index());
     }
 
     fn ldx(&mut self, addr: (u8, u16)) {
         let value = if self.small_index() {
-            self.last_tick_addr_bank_read(addr.0, addr.1) as u16
+            self.addr_bank_read(addr.0, addr.1) as u16
         } else {
-            self.last_tick_addr_bank_read_u16(addr.0, addr.1)
+            self.addr_bank_read_u16(addr.0, addr.1)
         };
         self.register_x = value;
         self.update_zero_and_negative_flags(value, !self.small_index());
@@ -3459,9 +3347,9 @@ impl CPU {
 
     fn ldy(&mut self, addr: (u8, u16)) {
         let value = if self.small_index() {
-            self.last_tick_addr_bank_read(addr.0, addr.1) as u16
+            self.addr_bank_read(addr.0, addr.1) as u16
         } else {
-            self.last_tick_addr_bank_read_u16(addr.0, addr.1)
+            self.addr_bank_read_u16(addr.0, addr.1)
         };
         self.register_y = value;
         self.update_zero_and_negative_flags(value, !self.small_index());
@@ -3471,14 +3359,14 @@ impl CPU {
         if self.small_accumulator() {
             let data = self.register_a as u8;
             self.status.p.set(CpuFlags::CARRY, data & 0x80 > 0);
-            self.last_tick();
+            self.tick();
             let result = (data << 1) as u16;
             self.update_zero_and_negative_flags(result, false);
             self.register_a = self.register_a & 0xff00 | result;
         } else {
             let data = self.register_a;
             self.status.p.set(CpuFlags::CARRY, data & 0x8000 > 0);
-            self.last_tick();
+            self.tick();
             let result = data << 1;
             self.update_zero_and_negative_flags(result, true);
             self.register_a = result;
@@ -3491,14 +3379,14 @@ impl CPU {
             self.status.p.set(CpuFlags::CARRY, data & 0x80 > 0);
             self.tick();
             let result = ((data as u8) << 1) as u16;
-            self.last_tick_addr_bank_write(addr.0, addr.1, result as u8);
+            self.addr_bank_write(addr.0, addr.1, result as u8);
             self.update_zero_and_negative_flags(result, false);
         } else {
             let data = self.addr_bank_read_u16(addr.0, addr.1);
             self.status.p.set(CpuFlags::CARRY, data & 0x8000 > 0);
             self.tick();
             let result = data << 1;
-            self.last_tick_addr_bank_write_u16(addr.0, addr.1, result);
+            self.addr_bank_write_u16(addr.0, addr.1, result);
             self.update_zero_and_negative_flags(result, true);
         }
     }
@@ -3506,7 +3394,7 @@ impl CPU {
     fn lsr_implied(&mut self) {
         let data = self.register_a;
         self.status.p.set(CpuFlags::CARRY, data & 1 == 1);
-        self.last_tick();
+        self.tick();
         self.register_a = if self.small_accumulator() {
             let result = ((data as u8) >> 1) as u16;
             self.update_zero_and_negative_flags(result, false);
@@ -3524,13 +3412,13 @@ impl CPU {
             let data = self.addr_bank_read(addr.0, addr.1) as u16;
             self.status.p.set(CpuFlags::CARRY, data & 1 == 1);
             let result = data >> 1;
-            self.last_tick_addr_bank_write(addr.0, addr.1, result as u8);
+            self.addr_bank_write(addr.0, addr.1, result as u8);
             self.update_zero_and_negative_flags(result, false);
         } else {
             let data = self.addr_bank_read_u16(addr.0, addr.1);
             self.status.p.set(CpuFlags::CARRY, data & 1 == 1);
             let result = data >> 1;
-            self.last_tick_addr_bank_write_u16(addr.0, addr.1, result);
+            self.addr_bank_write_u16(addr.0, addr.1, result);
             self.update_zero_and_negative_flags(result, true);
         }
     }
@@ -3540,7 +3428,7 @@ impl CPU {
             let data = self.register_a as u8;
             let carry = self.status.p.contains(CpuFlags::CARRY) as u8 as u16;
             self.status.p.set(CpuFlags::CARRY, data & 0x80 > 0);
-            self.last_tick();
+            self.tick();
             let result = ((data << 1) as u16) & 0xff | carry;
             self.update_zero_and_negative_flags(result, false);
             self.register_a = self.register_a & 0xff00 | result;
@@ -3548,7 +3436,7 @@ impl CPU {
             let data = self.register_a;
             let carry = self.status.p.contains(CpuFlags::CARRY) as u8 as u16;
             self.status.p.set(CpuFlags::CARRY, data & 0x8000 > 0);
-            self.last_tick();
+            self.tick();
             let result = (data << 1) | carry;
             self.update_zero_and_negative_flags(result, true);
             self.register_a = result;
@@ -3562,7 +3450,7 @@ impl CPU {
             self.status.p.set(CpuFlags::CARRY, data & 0x80 > 0);
             self.tick();
             let result = (data << 1) & 0xff | carry;
-            self.last_tick_addr_bank_write(addr.0, addr.1, result as u8);
+            self.addr_bank_write(addr.0, addr.1, result as u8);
             self.update_zero_and_negative_flags(result, false);
         } else {
             let data = self.addr_bank_read_u16(addr.0, addr.1);
@@ -3570,7 +3458,7 @@ impl CPU {
             self.status.p.set(CpuFlags::CARRY, data & 0x8000 > 0);
             self.tick();
             let result = (data << 1) | carry;
-            self.last_tick_addr_bank_write_u16(addr.0, addr.1, result);
+            self.addr_bank_write_u16(addr.0, addr.1, result);
             self.update_zero_and_negative_flags(result, true);
         }
     }
@@ -3580,7 +3468,7 @@ impl CPU {
             let data = self.register_a as u8;
             let carry = self.status.p.contains(CpuFlags::CARRY) as u8 as u16;
             self.status.p.set(CpuFlags::CARRY, data & 0x1 > 0);
-            self.last_tick();
+            self.tick();
             let result = (data >> 1) as u16 | (carry << 7);
             self.update_zero_and_negative_flags(result, false);
             self.register_a = self.register_a & 0xff00 | result;
@@ -3588,7 +3476,7 @@ impl CPU {
             let data = self.register_a;
             let carry = self.status.p.contains(CpuFlags::CARRY) as u8 as u16;
             self.status.p.set(CpuFlags::CARRY, data & 0x1 > 0);
-            self.last_tick();
+            self.tick();
             let result = (data >> 1) | (carry << 15);
             self.update_zero_and_negative_flags(result, true);
             self.register_a = result;
@@ -3602,7 +3490,7 @@ impl CPU {
             self.status.p.set(CpuFlags::CARRY, data & 0x1 > 0);
             self.tick();
             let result = (data >> 1) | (carry << 7);
-            self.last_tick_addr_bank_write(addr.0, addr.1, result as u8);
+            self.addr_bank_write(addr.0, addr.1, result as u8);
             self.update_zero_and_negative_flags(result, false);
         } else {
             let data = self.addr_bank_read_u16(addr.0, addr.1);
@@ -3610,7 +3498,7 @@ impl CPU {
             self.status.p.set(CpuFlags::CARRY, data & 0x1 > 0);
             self.tick();
             let result = (data >> 1) | (carry << 15);
-            self.last_tick_addr_bank_write_u16(addr.0, addr.1, result);
+            self.addr_bank_write_u16(addr.0, addr.1, result);
             self.update_zero_and_negative_flags(result, true);
         }
     }
@@ -3621,12 +3509,12 @@ impl CPU {
             let val = self.addr_bank_read(addr.0, addr.1) as u16 as u8;
             self.status.set_zero(val & self.register_a as u8 == 0);
             let res = val & !(self.register_a as u8);
-            self.last_tick_addr_bank_write(addr.0, addr.1, res);
+            self.addr_bank_write(addr.0, addr.1, res);
         } else {
             let val = self.addr_bank_read_u16(addr.0, addr.1);
             self.status.set_zero(val & self.register_a == 0);
             let res = val & !self.register_a;
-            self.last_tick_addr_bank_write_u16(addr.0, addr.1, res);
+            self.addr_bank_write_u16(addr.0, addr.1, res);
         }
     }
 
@@ -3636,50 +3524,50 @@ impl CPU {
             let val = self.addr_bank_read(addr.0, addr.1) as u16 as u8;
             self.status.set_zero(val & self.register_a as u8 == 0);
             let res = val | self.register_a as u8;
-            self.last_tick_addr_bank_write(addr.0, addr.1, res);
+            self.addr_bank_write(addr.0, addr.1, res);
         } else {
             let val = self.addr_bank_read_u16(addr.0, addr.1);
             self.status.set_zero(val & self.register_a == 0);
             let res = val | self.register_a;
-            self.last_tick_addr_bank_write_u16(addr.0, addr.1, res);
+            self.addr_bank_write_u16(addr.0, addr.1, res);
         }
     }
 
     fn pha(&mut self) {
         self.tick();
         if self.small_accumulator() {
-            self.last_tick_push_byte(self.register_a as u8);
+            self.push_byte(self.register_a as u8);
         } else {
-            self.last_tick_push_word(self.register_a);
+            self.push_word(self.register_a);
         }
     }
 
     fn phx(&mut self) {
         self.tick();
         if self.small_index() {
-            self.last_tick_push_byte(self.register_x as u8);
+            self.push_byte(self.register_x as u8);
         } else {
-            self.last_tick_push_word(self.register_x);
+            self.push_word(self.register_x);
         }
     }
 
     fn phy(&mut self) {
         self.tick();
         if self.small_index() {
-            self.last_tick_push_byte(self.register_y as u8);
+            self.push_byte(self.register_y as u8);
         } else {
-            self.last_tick_push_word(self.register_y);
+            self.push_word(self.register_y);
         }
     }
 
     fn ora(&mut self, addr: (u8, u16)) {
         self.register_a = if self.small_accumulator() {
             let result = (self.register_a as u8 as u16)
-                | self.last_tick_addr_bank_read(addr.0, addr.1) as u16;
+                | self.addr_bank_read(addr.0, addr.1) as u16;
             self.update_zero_and_negative_flags(result, false);
             self.register_a & 0xff00 | result
         } else {
-            let result = self.register_a | self.last_tick_addr_bank_read_u16(addr.0, addr.1);
+            let result = self.register_a | self.addr_bank_read_u16(addr.0, addr.1);
             self.update_zero_and_negative_flags(result, true);
             result
         };
@@ -3688,11 +3576,11 @@ impl CPU {
     fn eor(&mut self, addr: (u8, u16)) {
         self.register_a = if self.small_accumulator() {
             let result = (self.register_a as u8 as u16)
-                ^ self.last_tick_addr_bank_read(addr.0, addr.1) as u16;
+                ^ self.addr_bank_read(addr.0, addr.1) as u16;
             self.update_zero_and_negative_flags(result, false);
             self.register_a & 0xff00 | result
         } else {
-            let result = self.register_a ^ self.last_tick_addr_bank_read_u16(addr.0, addr.1);
+            let result = self.register_a ^ self.addr_bank_read_u16(addr.0, addr.1);
             self.update_zero_and_negative_flags(result, true);
             result
         };
@@ -3711,7 +3599,7 @@ impl CPU {
         self.tick();
         self.tick();
         self.program_counter = self.pop_word().wrapping_add(1);
-        self.last_tick();
+        self.tick();
     }
 
     fn rti(&mut self) {
@@ -3721,14 +3609,14 @@ impl CPU {
             *self.status.p.0.bits_mut() = self.pop_byte();
             self.status.p.insert(CpuFlags::M_FLAG | CpuFlags::X_FLAG);
             self.register_x &= 0xff;
-            self.program_counter = self.last_tick_pop_word();
+            self.program_counter = self.pop_word();
         } else {
             *self.status.p.0.bits_mut() = self.pop_byte();
             if self.small_index() {
                 self.register_x &= 0xff;
             }
             self.program_counter = self.pop_word();
-            self.pbr = self.last_tick_pop_byte();
+            self.pbr = self.pop_byte();
         }
     }
 
@@ -3741,7 +3629,7 @@ impl CPU {
         self.stack_pointer = self.stack_pointer.wrapping_add(1);
         let pc_high = self.addr_bank_read(0, self.stack_pointer);
         self.stack_pointer = self.stack_pointer.wrapping_add(1);
-        self.pbr = self.last_tick_addr_bank_read(0, self.stack_pointer);
+        self.pbr = self.addr_bank_read(0, self.stack_pointer);
         self.program_counter = u16::from_le_bytes([pc_low, pc_high]).wrapping_add(1);
 
         if self.status.e {
@@ -3750,7 +3638,7 @@ impl CPU {
     }
 
     fn tcs(&mut self) {
-        self.last_tick();
+        self.tick();
         if !self.status.e {
             self.stack_pointer = self.register_a;
         } else {
@@ -3759,19 +3647,19 @@ impl CPU {
     }
 
     fn tdc(&mut self) {
-        self.last_tick();
+        self.tick();
         self.register_a = self.d;
         self.update_zero_and_negative_flags(self.register_a, true);
     }
 
     fn tsc(&mut self) {
-        self.last_tick();
+        self.tick();
         self.register_a = self.stack_pointer;
         self.update_zero_and_negative_flags(self.register_a, true);
     }
 
     fn txy(&mut self) {
-        self.last_tick();
+        self.tick();
         if self.small_index() {
             let result = self.register_x as u8 as u16;
             self.register_y = self.register_y & 0xff00 | self.register_x as u8 as u16;
@@ -3783,7 +3671,7 @@ impl CPU {
     }
 
     fn tyx(&mut self) {
-        self.last_tick();
+        self.tick();
         if self.small_index() {
             let result = self.register_y as u8 as u16;
             self.register_x = self.register_x & 0xff00 | self.register_y as u8 as u16;
@@ -3796,7 +3684,7 @@ impl CPU {
 
     fn xba(&mut self) {
         self.tick();
-        self.last_tick();
+        self.tick();
         let lo = self.register_a as u8 as u16;
         let hi = (self.register_a >> 8) as u8 as u16;
         self.register_a = (lo << 8) | hi;
@@ -3807,7 +3695,7 @@ impl CPU {
         let addr = self.fetch_word();
         self.addr_bank_write(0, self.stack_pointer, (addr >> 8) as u8);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
-        self.last_tick_addr_bank_write(0, self.stack_pointer, addr as u8);
+        self.addr_bank_write(0, self.stack_pointer, addr as u8);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
         if self.status.e {
             self.stack_pointer = (1 << 8) | self.stack_pointer as u8 as u16;
@@ -3818,7 +3706,7 @@ impl CPU {
         let addr = self.get_indirect_directpage_addr();
         self.addr_bank_write(0, self.stack_pointer, (addr.1 >> 8) as u8);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
-        self.last_tick_addr_bank_write(0, self.stack_pointer, addr.1 as u8);
+        self.addr_bank_write(0, self.stack_pointer, addr.1 as u8);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
         if self.status.e {
             self.stack_pointer = (1 << 8) | self.stack_pointer as u8 as u16;
@@ -3831,7 +3719,7 @@ impl CPU {
         let addr = self.program_counter.wrapping_add(offset);
         self.addr_bank_write(0, self.stack_pointer, (addr >> 8) as u8);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
-        self.last_tick_addr_bank_write(0, self.stack_pointer, addr as u8);
+        self.addr_bank_write(0, self.stack_pointer, addr as u8);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
         if self.status.e {
             self.stack_pointer = (1 << 8) | self.stack_pointer as u8 as u16;
@@ -3846,7 +3734,7 @@ impl CPU {
         self.dbr = dst_bank;
 
         let data = self.addr_bank_read(src_bank, self.register_x);
-        self.last_tick_addr_bank_write(self.dbr, self.register_y, data);
+        self.addr_bank_write(self.dbr, self.register_y, data);
         if !self.small_index() {
             self.register_x = self.register_x.wrapping_add(1);
             self.register_y = self.register_y.wrapping_add(1);
@@ -3869,7 +3757,7 @@ impl CPU {
         self.dbr = dst_bank;
 
         let data = self.addr_bank_read(src_bank, self.register_x);
-        self.last_tick_addr_bank_write(self.dbr, self.register_y, data);
+        self.addr_bank_write(self.dbr, self.register_y, data);
         if !self.small_index() {
             self.register_x = self.register_x.wrapping_sub(1);
             self.register_y = self.register_y.wrapping_sub(1);
@@ -3886,11 +3774,11 @@ impl CPU {
     }
 
     fn wdm(&mut self) {
-        self.last_tick_fetch_byte();
+        self.fetch_byte();
     }
 
     fn cop(&mut self) {
-        self.last_tick_fetch_byte();
+        self.fetch_byte();
         if self.status.e {
             self.interrupt(interrupt::COP);
         } else {
@@ -3900,12 +3788,12 @@ impl CPU {
 
     fn wai(&mut self) {
         self.tick();
-        self.last_tick();
+        self.tick();
     }
 
     fn stp(&mut self) {
         self.tick();
-        self.last_tick();
+        self.tick();
     }
 }
 

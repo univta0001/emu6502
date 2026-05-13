@@ -439,7 +439,7 @@ pub struct CPU {
 
     #[cfg_attr(feature = "serde_support", serde(skip))]
     #[cfg_attr(feature = "serde_support", serde(default))]
-    pub irq_penultimate_tick: bool,
+    pub irq_penultimate_tick: u8,
 
     #[cfg_attr(feature = "serde_support", serde(skip))]
     #[cfg_attr(feature = "serde_support", serde(default))]
@@ -563,7 +563,7 @@ impl CPU {
             self_test: false,
             bench_test: false,
             full_speed: Default::default(),
-            irq_penultimate_tick: false,
+            irq_penultimate_tick: 0,
             reset: false,
             #[cfg(feature = "z80")]
             z80cpu: default_z80cpu(),
@@ -604,12 +604,6 @@ impl CPU {
         value
     }
 
-    fn last_tick_addr_read(&mut self, addr: u16) -> u8 {
-        let value = self.bus.unclocked_addr_read(addr);
-        self.last_tick();
-        value
-    }
-
     fn addr_read_u16(&mut self, addr: u16) -> u16 {
         let value = self.bus.unclocked_addr_read_u16(addr);
         self.tick();
@@ -617,21 +611,9 @@ impl CPU {
         value
     }
 
-    fn last_tick_addr_read_u16(&mut self, addr: u16) -> u16 {
-        let value = self.bus.unclocked_addr_read_u16(addr);
-        self.tick();
-        self.last_tick();
-        value
-    }
-
     fn addr_write(&mut self, addr: u16, value: u8) {
         self.bus.unclocked_addr_write(addr, value);
         self.tick();
-    }
-
-    fn last_tick_addr_write(&mut self, addr: u16, value: u8) {
-        self.bus.unclocked_addr_write(addr, value);
-        self.last_tick();
     }
 
     pub fn get_zeropage_addr(&mut self) -> u16 {
@@ -857,12 +839,8 @@ impl CPU {
     }
 
     fn tick(&mut self) {
-        self.bus.tick();
-    }
-
-    fn last_tick(&mut self) {
-        self.irq_penultimate_tick =
-            !(self.status.contains(CpuFlags::INTERRUPT_DISABLE) || self.bus.irq().is_none());
+        self.irq_penultimate_tick = (self.irq_penultimate_tick << 1) |
+            (!self.status.contains(CpuFlags::INTERRUPT_DISABLE) && self.bus.irq().is_some()) as u8;
         self.bus.tick();
     }
 
@@ -887,38 +865,38 @@ impl CPU {
 
     fn nop_read(&mut self, op: &OpCode) {
         let addr = self.get_operand_address(op, self.program_counter);
-        self.last_tick_addr_read(addr);
+        self.addr_read(addr);
     }
 
     fn ldy(&mut self, addr: u16) {
-        let data = self.last_tick_addr_read(addr);
+        let data = self.addr_read(addr);
         self.set_register_y(data);
     }
 
     fn ldx(&mut self, addr: u16) {
-        let data = self.last_tick_addr_read(addr);
+        let data = self.addr_read(addr);
         self.set_register_x(data);
     }
 
     fn lda(&mut self, addr: u16) {
-        let data = self.last_tick_addr_read(addr);
+        let data = self.addr_read(addr);
         self.set_register_a(data);
     }
 
     fn sta(&mut self, addr: u16) {
-        self.last_tick_addr_write(addr, self.register_a);
+        self.addr_write(addr, self.register_a);
     }
 
     fn stx(&mut self, addr: u16) {
-        self.last_tick_addr_write(addr, self.register_x);
+        self.addr_write(addr, self.register_x);
     }
 
     fn sty(&mut self, addr: u16) {
-        self.last_tick_addr_write(addr, self.register_y);
+        self.addr_write(addr, self.register_y);
     }
 
     fn stz(&mut self, addr: u16) {
-        self.last_tick_addr_write(addr, 0);
+        self.addr_write(addr, 0);
     }
 
     fn set_register_a(&mut self, value: u8) {
@@ -937,23 +915,23 @@ impl CPU {
     }
 
     fn and(&mut self, addr: u16) {
-        let data = self.last_tick_addr_read(addr);
+        let data = self.addr_read(addr);
         self.set_register_a(data & self.register_a);
     }
 
     fn eor(&mut self, addr: u16) {
-        let data = self.last_tick_addr_read(addr);
+        let data = self.addr_read(addr);
         self.set_register_a(data ^ self.register_a);
     }
 
     fn ora(&mut self, addr: u16) {
-        let data = self.last_tick_addr_read(addr);
+        let data = self.addr_read(addr);
         self.set_register_a(data | self.register_a);
     }
 
     fn tax(&mut self) {
         self.register_x = self.register_a;
-        self.last_tick();
+        self.tick();
         self.update_zero_and_negative_flags(self.register_x);
     }
 
@@ -964,19 +942,19 @@ impl CPU {
 
     fn inc_accumulator(&mut self) {
         self.register_a = self.register_a.wrapping_add(1);
-        self.last_tick();
+        self.tick();
         self.update_zero_and_negative_flags(self.register_a);
     }
 
     fn inx(&mut self) {
         self.register_x = self.register_x.wrapping_add(1);
-        self.last_tick();
+        self.tick();
         self.update_zero_and_negative_flags(self.register_x);
     }
 
     fn iny(&mut self) {
         self.register_y = self.register_y.wrapping_add(1);
-        self.last_tick();
+        self.tick();
         self.update_zero_and_negative_flags(self.register_y);
     }
 
@@ -1022,7 +1000,7 @@ impl CPU {
         self.stack_pointer = STACK_RESET;
         self.status = CpuFlags::from_bits_truncate(0b00100100);
         self.alt_cpu = false;
-        self.irq_penultimate_tick = false;
+        self.irq_penultimate_tick = 0;
 
         self.bus.reset();
 
@@ -1133,7 +1111,7 @@ impl CPU {
         if self.m65c02 && self.status.contains(CpuFlags::DECIMAL_MODE) {
             self.tick();
         }
-        self.last_tick();
+        self.tick();
     }
 
     fn adc(&mut self, op: &OpCode) {
@@ -1144,7 +1122,7 @@ impl CPU {
         if self.m65c02 && self.status.contains(CpuFlags::DECIMAL_MODE) {
             self.tick();
         }
-        self.last_tick();
+        self.tick();
     }
 
     fn stack_pop(&mut self) -> u8 {
@@ -1152,18 +1130,8 @@ impl CPU {
         self.addr_read(STACK + self.stack_pointer as u16)
     }
 
-    fn last_tick_stack_pop(&mut self) -> u8 {
-        self.stack_pointer = self.stack_pointer.wrapping_add(1);
-        self.last_tick_addr_read(STACK + self.stack_pointer as u16)
-    }
-
     fn stack_push(&mut self, data: u8) {
         self.addr_write(STACK + self.stack_pointer as u16, data);
-        self.stack_pointer = self.stack_pointer.wrapping_sub(1)
-    }
-
-    fn last_tick_stack_push(&mut self, data: u8) {
-        self.last_tick_addr_write(STACK + self.stack_pointer as u16, data);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1)
     }
 
@@ -1180,16 +1148,10 @@ impl CPU {
         u16::from_le_bytes([lo, hi])
     }
 
-    fn last_tick_stack_pop_u16(&mut self) -> u16 {
-        let lo = self.stack_pop();
-        let hi = self.last_tick_stack_pop();
-        u16::from_le_bytes([lo, hi])
-    }
-
     fn asl_accumulator(&mut self) {
         let mut data = self.register_a;
         self.status.set(CpuFlags::CARRY, data & 0x80 > 0);
-        self.last_tick();
+        self.tick();
         data <<= 1;
         self.set_register_a(data)
     }
@@ -1199,14 +1161,14 @@ impl CPU {
         self.status.set(CpuFlags::CARRY, data & 0x80 > 0);
         self.tick();
         data <<= 1;
-        self.last_tick_addr_write(addr, data);
+        self.addr_write(addr, data);
         self.update_zero_and_negative_flags(data);
     }
 
     fn lsr_accumulator(&mut self) {
         let mut data = self.register_a;
         self.status.set(CpuFlags::CARRY, data & 1 == 1);
-        self.last_tick();
+        self.tick();
         data >>= 1;
         self.set_register_a(data)
     }
@@ -1216,7 +1178,7 @@ impl CPU {
         self.status.set(CpuFlags::CARRY, data & 1 == 1);
         data >>= 1;
         self.tick();
-        self.last_tick_addr_write(addr, data);
+        self.addr_write(addr, data);
         self.update_zero_and_negative_flags(data);
     }
 
@@ -1227,7 +1189,7 @@ impl CPU {
         data <<= 1;
         data |= old_carry;
         self.tick();
-        self.last_tick_addr_write(addr, data);
+        self.addr_write(addr, data);
         self.update_zero_and_negative_flags(data);
     }
 
@@ -1235,7 +1197,7 @@ impl CPU {
         let mut data = self.register_a;
         let old_carry = self.status.contains(CpuFlags::CARRY) as u8;
         self.status.set(CpuFlags::CARRY, data & 0x80 > 0);
-        self.last_tick();
+        self.tick();
         data <<= 1;
         data |= old_carry;
         self.set_register_a(data);
@@ -1248,7 +1210,7 @@ impl CPU {
         data >>= 1;
         data |= old_carry << 7;
         self.tick();
-        self.last_tick_addr_write(addr, data);
+        self.addr_write(addr, data);
         self.update_zero_and_negative_flags(data);
     }
 
@@ -1256,7 +1218,7 @@ impl CPU {
         let mut data = self.register_a;
         let old_carry = self.status.contains(CpuFlags::CARRY) as u8;
         self.status.set(CpuFlags::CARRY, data & 1 == 1);
-        self.last_tick();
+        self.tick();
         data >>= 1;
         data |= old_carry << 7;
         self.set_register_a(data);
@@ -1266,25 +1228,25 @@ impl CPU {
         let mut data = self.addr_read(addr);
         data = data.wrapping_add(1);
         self.tick();
-        self.last_tick_addr_write(addr, data);
+        self.addr_write(addr, data);
         self.update_zero_and_negative_flags(data);
     }
 
     fn dey(&mut self) {
         self.register_y = self.register_y.wrapping_sub(1);
-        self.last_tick();
+        self.tick();
         self.update_zero_and_negative_flags(self.register_y);
     }
 
     fn dex(&mut self) {
         self.register_x = self.register_x.wrapping_sub(1);
-        self.last_tick();
+        self.tick();
         self.update_zero_and_negative_flags(self.register_x);
     }
 
     fn dec_accumulator(&mut self) {
         self.register_a = self.register_a.wrapping_sub(1);
-        self.last_tick();
+        self.tick();
         self.update_zero_and_negative_flags(self.register_a);
     }
 
@@ -1292,7 +1254,7 @@ impl CPU {
         let mut data = self.addr_read(addr);
         data = data.wrapping_sub(1);
         self.tick();
-        self.last_tick_addr_write(addr, data);
+        self.addr_write(addr, data);
         self.update_zero_and_negative_flags(data);
     }
 
@@ -1300,7 +1262,7 @@ impl CPU {
         if self.m65c02 {
             self.tick();
             self.tick();
-            let data = self.last_tick_stack_pop();
+            let data = self.stack_pop();
             self.set_register_x(data);
         } else {
             self.tick();
@@ -1311,7 +1273,7 @@ impl CPU {
         if self.m65c02 {
             self.tick();
             self.tick();
-            let data = self.last_tick_stack_pop();
+            let data = self.stack_pop();
             self.set_register_y(data);
         } else {
             self.tick();
@@ -1321,14 +1283,14 @@ impl CPU {
     fn pla(&mut self) {
         self.tick();
         self.tick();
-        let data = self.last_tick_stack_pop();
+        let data = self.stack_pop();
         self.set_register_a(data);
     }
 
     fn plp(&mut self) {
         self.tick();
         self.tick();
-        *self.status.0.bits_mut() = self.last_tick_stack_pop();
+        *self.status.0.bits_mut() = self.stack_pop();
         self.status.remove(CpuFlags::BREAK);
         self.status.insert(CpuFlags::UNUSED);
     }
@@ -1337,18 +1299,18 @@ impl CPU {
         self.tick();
         let mut flags = self.status;
         flags.insert(CpuFlags::BREAK | CpuFlags::UNUSED);
-        self.last_tick_stack_push(flags.bits());
+        self.stack_push(flags.bits());
     }
 
     fn bit_immediate(&mut self) {
-        let data = self.last_tick_addr_read(self.program_counter);
+        let data = self.addr_read(self.program_counter);
         self.increment_pc();
         let and = self.register_a & data;
         self.status.set(CpuFlags::ZERO, and == 0);
     }
 
     fn bit(&mut self, addr: u16) {
-        let data = self.last_tick_addr_read(addr);
+        let data = self.addr_read(addr);
         let and = self.register_a & data;
         self.status.set(CpuFlags::ZERO, and == 0);
         self.status.set(CpuFlags::NEGATIVE, data & 0b10000000 > 0);
@@ -1361,7 +1323,7 @@ impl CPU {
         let and = self.register_a & data;
         self.status.set(CpuFlags::ZERO, and == 0);
         self.tick();
-        self.last_tick_addr_write(addr, data & (self.register_a ^ 0xff));
+        self.addr_write(addr, data & (self.register_a ^ 0xff));
     }
 
     fn tsb(&mut self, op: &OpCode) {
@@ -1370,11 +1332,11 @@ impl CPU {
         let and = self.register_a & data;
         self.status.set(CpuFlags::ZERO, and == 0);
         self.tick();
-        self.last_tick_addr_write(addr, data | self.register_a);
+        self.addr_write(addr, data | self.register_a);
     }
 
     fn compare(&mut self, addr: u16, compare_with: u8) {
-        let data = self.last_tick_addr_read(addr);
+        let data = self.addr_read(addr);
         self.status.set(CpuFlags::CARRY, data <= compare_with);
         self.update_zero_and_negative_flags(compare_with.wrapping_sub(data));
     }
@@ -1390,11 +1352,11 @@ impl CPU {
             if self.program_counter & 0xFF00 != jump_addr & 0xFF00 {
                 self.tick();
             }
-            self.last_tick();
+            self.tick();
 
             self.program_counter = jump_addr;
         } else {
-            self.last_tick()
+            self.tick()
         }
     }
 
@@ -1404,7 +1366,7 @@ impl CPU {
             let value = self.addr_read(zp as u16);
             self.tick();
             let mask = (1 << bit) ^ 0xff;
-            self.last_tick_addr_write(zp as u16, value & mask);
+            self.addr_write(zp as u16, value & mask);
         } else if !self.m65c02 {
             match bit {
                 0 => {
@@ -1458,7 +1420,7 @@ impl CPU {
                 _ => unreachable!(),
             }
         } else {
-            self.last_tick();
+            self.tick();
         }
     }
 
@@ -1468,7 +1430,7 @@ impl CPU {
             let value = self.addr_read(zp as u16);
             self.tick();
             let mask = 1 << bit;
-            self.last_tick_addr_write(zp as u16, value | mask);
+            self.addr_write(zp as u16, value | mask);
         } else if !self.m65c02 {
             match bit {
                 0 => {
@@ -1516,7 +1478,7 @@ impl CPU {
                 _ => unreachable!(),
             }
         } else {
-            self.last_tick();
+            self.tick();
         }
     }
 
@@ -1526,7 +1488,7 @@ impl CPU {
             let value = self.addr_read(zp as u16);
             let jump: i8 = self.next_byte() as i8;
 
-            self.last_tick();
+            self.tick();
 
             if value & (0x01 << bit) == 0 {
                 let jump_addr = self.program_counter.wrapping_add(jump as u16);
@@ -1578,7 +1540,7 @@ impl CPU {
                 _ => unreachable!(),
             }
         } else {
-            self.last_tick();
+            self.tick();
         }
     }
 
@@ -1588,7 +1550,7 @@ impl CPU {
             let value = self.addr_read(zp as u16);
             let jump: i8 = self.next_byte() as i8;
 
-            self.last_tick();
+            self.tick();
 
             if value & (0x01 << bit) > 0 {
                 let jump_addr = self.program_counter.wrapping_add(jump as u16);
@@ -1647,7 +1609,7 @@ impl CPU {
                 _ => unreachable!(),
             }
         } else {
-            self.last_tick();
+            self.tick();
         }
     }
 
@@ -1659,7 +1621,7 @@ impl CPU {
         // Compare A with decremented value (don't re-read memory)
         self.status.set(CpuFlags::CARRY, data <= self.register_a);
         self.update_zero_and_negative_flags(self.register_a.wrapping_sub(data));
-        self.last_tick();
+        self.tick();
     }
 
     fn isc(&mut self, addr: u16) {
@@ -1667,7 +1629,7 @@ impl CPU {
         data = data.wrapping_add(1);
         self.addr_write(addr, data);
         self.add_to_register_a(data.wrapping_neg().wrapping_sub(1), true);
-        self.last_tick();
+        self.tick();
     }
 
     fn lax(&mut self, addr: u16) {
@@ -1677,7 +1639,7 @@ impl CPU {
 
     fn sax(&mut self, addr: u16) {
         let result = self.register_a & self.register_x;
-        self.last_tick_addr_write(addr, result);
+        self.addr_write(addr, result);
     }
 
     fn rla(&mut self, addr: u16) {
@@ -1687,7 +1649,7 @@ impl CPU {
         data <<= 1;
         data |= old_carry;
         self.tick();
-        self.last_tick_addr_write(addr, data);
+        self.addr_write(addr, data);
         self.register_a &= data;
         self.update_zero_and_negative_flags(self.register_a);
     }
@@ -1702,7 +1664,7 @@ impl CPU {
         self.update_zero_and_negative_flags(data);
         let data = self.bus.unclocked_addr_read(addr);
         self.add_to_register_a(data, false);
-        self.last_tick();
+        self.tick();
     }
 
     fn slo(&mut self, addr: u16) {
@@ -1710,7 +1672,7 @@ impl CPU {
         self.status.set(CpuFlags::CARRY, data & 0x80 > 0);
         self.tick();
         data <<= 1;
-        self.last_tick_addr_write(addr, data);
+        self.addr_write(addr, data);
         self.register_a |= data;
         self.update_zero_and_negative_flags(self.register_a);
     }
@@ -1720,7 +1682,7 @@ impl CPU {
         self.status.set(CpuFlags::CARRY, data & 1 == 1);
         self.tick();
         data >>= 1;
-        self.last_tick_addr_write(addr, data);
+        self.addr_write(addr, data);
         self.register_a ^= data;
         self.update_zero_and_negative_flags(self.register_a);
     }
@@ -1728,22 +1690,22 @@ impl CPU {
     fn sha(&mut self, addr: u16) {
         let result = self.register_a & self.register_x;
         let high_addr = (((addr & 0xff00) >> 8) as u8).wrapping_add(1);
-        self.last_tick_addr_write(addr, result & high_addr);
+        self.addr_write(addr, result & high_addr);
     }
 
     fn shx(&mut self, addr: u16) {
         let high_addr = (((addr & 0xff00) >> 8) as u8).wrapping_add(1);
-        self.last_tick_addr_write(addr, self.register_x & high_addr);
+        self.addr_write(addr, self.register_x & high_addr);
     }
 
     fn shy(&mut self, addr: u16) {
         let high_addr = (((addr & 0xff00) >> 8) as u8).wrapping_add(1);
-        self.last_tick_addr_write(addr, self.register_y & high_addr);
+        self.addr_write(addr, self.register_y & high_addr);
     }
 
     fn sbx(&mut self) {
         let addr = self.get_immediate_addr();
-        let data = self.last_tick_addr_read(addr);
+        let data = self.addr_read(addr);
         let result = ((self.register_a & self.register_x) as u16).wrapping_sub(data as u16);
         self.status.set(CpuFlags::ZERO, result == 0);
         self.clear_carry_flag();
@@ -1755,7 +1717,7 @@ impl CPU {
 
     fn arr(&mut self) {
         let addr = self.get_immediate_addr();
-        let data = self.last_tick_addr_read(addr);
+        let data = self.addr_read(addr);
         self.register_a &= data;
 
         if self.status.contains(CpuFlags::DECIMAL_MODE) {
@@ -1916,7 +1878,7 @@ impl CPU {
                 self.interrupt(interrupt::NMI);
             }
             _ => {
-                if self.irq_penultimate_tick {
+                if self.irq_penultimate_tick & 0x2 != 0 {
                     // IRQ level is check on the penultimate cycle of the instruction.
                     // If the CPU-asserted interrupt happens on the last cycle of the opcode,
                     // execute the opcode and then the interrupt handling routine if I flag is 0
@@ -1927,6 +1889,20 @@ impl CPU {
 
         if !self.alt_cpu {
             callback(self);
+
+            /*
+            // Dump Balance of Power
+            if self.program_counter == 0xff52 {
+                for i in 0..0x100 {
+                    if i % 16 == 0 {
+                        println!();
+                        print!("{:04x}: ", 0xdc00 +i);
+                    }
+                    print!("{:02x} ", self.bus.unclocked_addr_read(0xdc00 + i));
+                }
+                std::process::exit(0);
+            }
+            */
 
             let program_counter_state = self.program_counter;
             let code = self.next_byte();
@@ -2022,49 +1998,49 @@ impl CPU {
 
                 /* CLD */
                 0xd8 => {
-                    self.last_tick();
+                    self.tick();
                     self.status.remove(CpuFlags::DECIMAL_MODE)
                 }
 
                 /* CLI */
                 0x58 => {
-                    self.last_tick();
+                    self.tick();
                     self.status.remove(CpuFlags::INTERRUPT_DISABLE);
                 }
 
                 /* CLV */
                 0xb8 => {
-                    self.last_tick();
+                    self.tick();
                     self.status.remove(CpuFlags::OVERFLOW)
                 }
 
                 /* CLC */
                 0x18 => {
-                    self.last_tick();
+                    self.tick();
                     self.clear_carry_flag()
                 }
 
                 /* SEC */
                 0x38 => {
-                    self.last_tick();
+                    self.tick();
                     self.set_carry_flag()
                 }
 
                 /* SEI */
                 0x78 => {
-                    self.last_tick();
+                    self.tick();
                     self.status.insert(CpuFlags::INTERRUPT_DISABLE)
                 }
 
                 /* SED */
                 0xf8 => {
-                    self.last_tick();
+                    self.tick();
                     self.status.insert(CpuFlags::DECIMAL_MODE)
                 }
 
                 /* PHA */
                 0x48 => {
-                    self.last_tick();
+                    self.tick();
                     self.stack_push(self.register_a)
                 }
 
@@ -2526,7 +2502,7 @@ impl CPU {
 
                 /* JMP Absolute */
                 0x4c => {
-                    let mem_address = self.last_tick_addr_read_u16(self.program_counter);
+                    let mem_address = self.addr_read_u16(self.program_counter);
                     self.program_counter = mem_address;
                 }
 
@@ -2547,11 +2523,11 @@ impl CPU {
                             let hi = self.addr_read(mem_address & 0xFF00);
                             u16::from_le_bytes([lo, hi])
                         } else {
-                            self.last_tick_addr_read_u16(mem_address)
+                            self.addr_read_u16(mem_address)
                         }
                     } else {
                         self.tick();
-                        self.last_tick_addr_read_u16(mem_address)
+                        self.addr_read_u16(mem_address)
                     };
 
                     self.program_counter = indirect_ref;
@@ -2571,7 +2547,7 @@ impl CPU {
                     let adl = self.addr_read(self.program_counter);
                     let _ = self.addr_read(self.program_counter.wrapping_add(1));
                     self.stack_push_u16(self.program_counter.wrapping_add(1));
-                    let adh = self.last_tick_addr_read(self.program_counter.wrapping_add(1));
+                    let adh = self.addr_read(self.program_counter.wrapping_add(1));
                     let target_address = u16::from_le_bytes([adl, adh]);
                     self.program_counter = target_address;
                 }
@@ -2581,7 +2557,7 @@ impl CPU {
                     self.tick();
                     self.tick();
                     self.program_counter = self.stack_pop_u16().wrapping_add(1);
-                    self.last_tick();
+                    self.tick();
                 }
 
                 /* RTI */
@@ -2589,7 +2565,7 @@ impl CPU {
                     self.tick();
                     self.tick();
                     *self.status.0.bits_mut() = self.stack_pop();
-                    self.program_counter = self.last_tick_stack_pop_u16();
+                    self.program_counter = self.stack_pop_u16();
                     self.status.remove(CpuFlags::BREAK);
                     self.status.insert(CpuFlags::UNUSED);
                 }
@@ -2640,7 +2616,7 @@ impl CPU {
                         self.bit_immediate();
                     } else {
                         self.increment_pc();
-                        self.last_tick();
+                        self.tick();
                     }
                 }
 
@@ -2665,7 +2641,7 @@ impl CPU {
                         self.increment_pc();
                         self.tick();
                         self.tick();
-                        self.last_tick();
+                        self.tick();
                     }
                 }
 
@@ -2676,7 +2652,7 @@ impl CPU {
                         self.bit(addr);
                     } else {
                         let _ = self.get_absolute_x_addr(opcode);
-                        self.last_tick();
+                        self.tick();
                     }
                 }
 
@@ -2929,7 +2905,7 @@ impl CPU {
                     if !self.m65c02 {
                         // Implement ANE
                         let addr = self.get_immediate_addr();
-                        let data = self.last_tick_addr_read(addr);
+                        let data = self.addr_read(addr);
                         self.set_register_a((self.register_a | 0xee) & self.register_x & data);
                     }
                 }
@@ -2938,7 +2914,7 @@ impl CPU {
                     if !self.m65c02 {
                         // Implement LXA
                         let addr = self.get_immediate_addr();
-                        let data = self.last_tick_addr_read(addr);
+                        let data = self.addr_read(addr);
                         self.set_register_a((self.register_a | 0xee) & data);
                         self.register_x = self.register_a;
                     }
@@ -3047,7 +3023,7 @@ impl CPU {
                         let result = self.register_a & self.register_x;
                         let high_addr = (((addr & 0xff00) >> 8) as u8).wrapping_add(1);
                         self.stack_pointer = result;
-                        self.last_tick_addr_write(addr, result & high_addr);
+                        self.addr_write(addr, result & high_addr);
                     }
                 }
 
@@ -3055,7 +3031,7 @@ impl CPU {
                     if !self.m65c02 {
                         // Implement LAS absolute,Y
                         let addr = self.get_absolute_y_addr(opcode);
-                        let data = self.last_tick_addr_read(addr);
+                        let data = self.addr_read(addr);
                         let result = data & self.stack_pointer;
                         self.set_register_a(result);
                         self.register_x = self.register_a;
@@ -3069,7 +3045,7 @@ impl CPU {
                         let addr = self.get_immediate_addr();
                         let data = self.bus.unclocked_addr_read(addr);
                         self.add_to_register_a(data.wrapping_neg().wrapping_sub(1), true);
-                        self.last_tick();
+                        self.tick();
                     }
                 }
 
@@ -3106,40 +3082,40 @@ impl CPU {
                 /* NOP */
                 0xea => {
                     //do nothing
-                    self.last_tick();
+                    self.tick();
                 }
 
                 /* TAY */
                 0xa8 => {
                     self.register_y = self.register_a;
-                    self.last_tick();
+                    self.tick();
                     self.update_zero_and_negative_flags(self.register_y);
                 }
 
                 /* TSX */
                 0xba => {
                     self.register_x = self.stack_pointer;
-                    self.last_tick();
+                    self.tick();
                     self.update_zero_and_negative_flags(self.register_x);
                 }
 
                 /* TXA */
                 0x8a => {
                     self.register_a = self.register_x;
-                    self.last_tick();
+                    self.tick();
                     self.update_zero_and_negative_flags(self.register_a);
                 }
 
                 /* TXS */
                 0x9a => {
                     self.stack_pointer = self.register_x;
-                    self.last_tick();
+                    self.tick();
                 }
 
                 /* TYA */
                 0x98 => {
                     self.register_a = self.register_y;
-                    self.last_tick();
+                    self.tick();
                     self.update_zero_and_negative_flags(self.register_a);
                 }
 
@@ -3173,7 +3149,7 @@ impl CPU {
                         self.branch(true);
                     } else {
                         self.increment_pc();
-                        self.last_tick();
+                        self.tick();
                     }
                 }
 
@@ -3185,7 +3161,7 @@ impl CPU {
                         self.increment_pc();
                         self.tick();
                         self.tick();
-                        self.last_tick();
+                        self.tick();
                     }
                 }
 
@@ -3195,7 +3171,7 @@ impl CPU {
                         self.trb(opcode);
                     } else {
                         let _ = self.get_absolute_x_addr(opcode);
-                        self.last_tick();
+                        self.tick();
                     }
                 }
 
@@ -3206,7 +3182,7 @@ impl CPU {
                     } else {
                         self.increment_pc();
                         self.tick();
-                        self.last_tick();
+                        self.tick();
                     }
                 }
 
@@ -3219,7 +3195,7 @@ impl CPU {
                         self.increment_pc();
                         self.tick();
                         self.tick();
-                        self.last_tick();
+                        self.tick();
                     }
                 }
 
@@ -3232,10 +3208,10 @@ impl CPU {
                             self.tick();
                             self.tick();
                             self.tick();
-                            self.last_tick();
+                            self.tick();
                         } else {
                             let addr = self.get_operand_address(opcode, self.program_counter);
-                            self.last_tick_addr_read(addr);
+                            self.addr_read(addr);
                         }
                     } else {
                         self.nop_read(opcode)
@@ -3244,7 +3220,7 @@ impl CPU {
 
                 /* NOPs */
                 0x02 | 0x22 | 0x42 | 0x62 => {
-                    self.last_tick();
+                    self.tick();
                     if self.m65c02 {
                         self.increment_pc();
                     }
@@ -3255,9 +3231,9 @@ impl CPU {
                 0xda => {
                     if self.m65c02 {
                         self.tick();
-                        self.last_tick_stack_push(self.register_x);
+                        self.stack_push(self.register_x);
                     } else {
-                        self.last_tick();
+                        self.tick();
                     }
                 }
 
@@ -3265,9 +3241,9 @@ impl CPU {
                 0x5a => {
                     if self.m65c02 {
                         self.tick();
-                        self.last_tick_stack_push(self.register_y);
+                        self.stack_push(self.register_y);
                     } else {
-                        self.last_tick();
+                        self.tick();
                     }
                 }
 
@@ -3276,7 +3252,7 @@ impl CPU {
                     if self.m65c02 {
                         self.plx();
                     } else {
-                        self.last_tick();
+                        self.tick();
                     }
                 }
 
@@ -3285,7 +3261,7 @@ impl CPU {
                     if self.m65c02 {
                         self.ply();
                     } else {
-                        self.last_tick();
+                        self.tick();
                     }
                 }
 
@@ -3293,7 +3269,7 @@ impl CPU {
                     if self.m65c02 {
                         self.inc_accumulator();
                     } else {
-                        self.last_tick();
+                        self.tick();
                     }
                 }
 
@@ -3301,7 +3277,7 @@ impl CPU {
                     if self.m65c02 {
                         self.dec_accumulator();
                     } else {
-                        self.last_tick();
+                        self.tick();
                     }
                 }
 
@@ -3313,7 +3289,7 @@ impl CPU {
                     } else {
                         self.increment_pc();
                         self.tick();
-                        self.last_tick();
+                        self.tick();
                     }
                 }
 
@@ -3326,7 +3302,7 @@ impl CPU {
                         self.increment_pc();
                         self.tick();
                         self.tick();
-                        self.last_tick();
+                        self.tick();
                     }
                 }
 
@@ -3359,10 +3335,10 @@ impl CPU {
                         self.tick();
                         let address = self.next_word();
                         let ptr = address.wrapping_add(self.register_x as u16);
-                        self.program_counter = self.last_tick_addr_read_u16(ptr);
+                        self.program_counter = self.addr_read_u16(ptr);
                     } else {
                         let _ = self.get_absolute_x_addr(opcode);
-                        self.last_tick();
+                        self.tick();
                     }
                 }
             }
