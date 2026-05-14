@@ -2401,7 +2401,7 @@ impl DiskDrive {
         }
     }
 
-    fn _update_position_if_track_changed(disk: &mut Disk, track_bits: usize) {
+    fn update_position_if_track_changed(disk: &mut Disk, track_bits: usize) {
         if track_bits != 0 && disk.last_track != disk.track {
             let last_track = disk.tmap_data[disk.last_track as usize];
             let last_track_bits = if last_track == 255 {
@@ -2704,7 +2704,7 @@ impl Tick for DiskDrive {
                     } else {
                         disk.raw_track_bits[tmap_data as usize]
                     };
-                    Self::_update_position_if_track_changed(disk, track_bits);
+                    Self::update_position_if_track_changed(disk, track_bits);
 
                     //  Set the stepper sound
                     if disk.track != old_track {
