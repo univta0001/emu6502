@@ -2413,7 +2413,8 @@ impl DiskDrive {
             if last_track_bits != 0 {
                 Self::check_disk_head(disk, last_track_bits);
                 let last_position = disk.head * 8 + disk.head_bit;
-                let new_position = last_position * track_bits / last_track_bits;
+                let new_position =
+                    (last_position * track_bits + last_track_bits / 2) / last_track_bits;
                 let wrapped = new_position % track_bits;
                 (disk.head, disk.head_bit) = (wrapped / 8, wrapped % 8);
                 disk.head_mask = 1 << (7 - disk.head_bit);
