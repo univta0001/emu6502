@@ -2444,16 +2444,12 @@ impl DiskDrive {
         disk.last_track = disk.track;
         let read_pulse = Self::read_flux_data(disk);
         let flux_weakbit = disk.flux_weakbit;
-        let lss_adjustment = 1isize;
+
         //let lss_adjustment = (NOMINAL_USABLE_BITS_TRACK_SIZE as i64 * multiplier as i64
         //    / track_bits as i64) as isize
         //    - multiplier;
 
-        let optimal_timing = if !self.q7 {
-            disk.optimal_timing as isize * multiplier
-        } else {
-            32 * multiplier
-        };
+        let optimal_timing = disk.optimal_timing as isize * multiplier;
 
         if self.lss_cycle >= optimal_timing {
             self.bit_buffer <<= 1;
@@ -2480,14 +2476,8 @@ impl DiskDrive {
                 self.pulse = Self::get_random_disk_bit(self.random_one_rate)
             }
 
-            self.lss_cycle -= optimal_timing;
-            if !self.q7 {
-                self.lss_cycle -= lss_adjustment;
-                let offset = (disk.optimal_timing as isize - 32) / 4;
-                if offset != 0 {
-                    self.lss_cycle += offset * multiplier
-                }
-            }
+            self.lss_cycle -= optimal_timing + 1;
+            self.lss_cycle += (disk.optimal_timing as isize - 32) / 4 * multiplier
         }
 
         if track_type == TrackType::Flux {
