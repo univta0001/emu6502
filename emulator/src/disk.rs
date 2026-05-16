@@ -2587,9 +2587,11 @@ impl DiskDrive {
                         disk.tmap_data[(track_to_write - 1) as usize] = tmap_track;
                     }
 
+                    /*
                     if track_to_write + 1 < 160 {
                         disk.tmap_data[(track_to_write + 1) as usize] = tmap_track;
                     }
+                    */
                 }
 
                 let mut value = track[disk.head];
