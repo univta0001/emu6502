@@ -2436,7 +2436,7 @@ impl DiskDrive {
             )
         };
 
-        let multiplier = 3 * 3920;
+        let multiplier = 3920;
 
         // LSS is running at 2Mhz i.e. 0.5 us
         self.lss_cycle += 4 * multiplier;
