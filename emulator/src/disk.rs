@@ -2480,8 +2480,9 @@ impl DiskDrive {
                 self.pulse = Self::get_random_disk_bit(self.random_one_rate)
             }
 
+            self.lss_cycle -= optimal_timing;
             if !self.q7 {
-                self.lss_cycle -= optimal_timing + 1;
+                self.lss_cycle -= 1;
                 self.lss_cycle += (disk.optimal_timing as isize - 32) / 4 * multiplier
             }
         }
