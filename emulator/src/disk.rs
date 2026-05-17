@@ -1525,6 +1525,10 @@ impl DiskDrive {
         result
     }
 
+    pub fn get_random_one_rate(&self) -> f32 {
+        self.random_one_rate
+    }
+
     pub fn set_random_one_rate(&mut self, value: f32) {
         self.random_one_rate = value
     }

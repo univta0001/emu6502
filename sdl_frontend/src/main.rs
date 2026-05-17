@@ -2839,6 +2839,23 @@ fn prepare_menu_for_model(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorSta
 
 fn prepare_input_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) {
     ui.menu("Input", || {
+        let fast_disk = !cpu.bus.disk.get_disable_fast_disk();
+        build_toggle_menu_item(ui, "Fast Disk", "F5", fast_disk, |new_state| {
+            cpu.bus.disk.set_disable_fast_disk(!new_state);
+        });
+
+        ui.text("Weakbit");
+        ui.same_line();
+        let width = ui.push_item_width(-1.0);
+        let mut weakbit = cpu.bus.disk.get_random_one_rate();
+        ui.slider_config("##Weakbit", 0.0, 1.0)
+            .flags(SliderFlags::ALWAYS_CLAMP)
+            .build(&mut weakbit);
+        width.end();
+        cpu.bus.disk.set_random_one_rate(weakbit);
+
+        ui.separator();
+
         if ui
             .menu_item_config("Paste from Clipboard")
             .shortcut("Shift-Insert")
@@ -2849,13 +2866,6 @@ fn prepare_input_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) 
                 state.input.clipboard_text = text.replace('\n', "");
             }
         }
-
-        ui.separator();
-
-        let fast_disk = !cpu.bus.disk.get_disable_fast_disk();
-        build_toggle_menu_item(ui, "Fast Disk", "F5", fast_disk, |new_state| {
-            cpu.bus.disk.set_disable_fast_disk(!new_state);
-        });
 
         ui.separator();
 
