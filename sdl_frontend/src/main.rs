@@ -827,28 +827,34 @@ fn replace_quoted_hex_values(string: &str) -> String {
 fn save_serialized_image(cpu: &CPU) {
     #[cfg(feature = "serde_support")]
     {
-        let output = serde_saphyr::to_string(&cpu).unwrap();
-        let output = output.replace("\"\"", "''").replace(['"', '\''], "");
+        let serialized_result = serde_saphyr::to_string(&cpu);
+        match serialized_result {
+            Err(err) => eprintln!("Unable to serialize the data : {err}"),
 
-        /*
-        #[cfg(feature = "regex")]
-        let re = regex::Regex::new(r"'([0-9A-F]{4,6})'").unwrap();
-        #[cfg(feature = "regex")]
-        let yaml_output = re
-            .replace_all(&yaml_output, |caps: &regex::Captures| (caps[1]).to_string())
-            .to_string();
-        */
+            Ok(output) => {
+                let output = output.replace("\"\"", "''").replace(['"', '\''], "");
 
-        let output = replace_quoted_hex_values(&output);
+                /*
+                #[cfg(feature = "regex")]
+                let re = regex::Regex::new(r"'([0-9A-F]{4,6})'").unwrap();
+                #[cfg(feature = "regex")]
+                let yaml_output = re
+                    .replace_all(&yaml_output, |caps: &regex::Captures| (caps[1]).to_string())
+                    .to_string();
+                */
 
-        let result = FileDialog::new()
-            .add_filter("Save state", &["yaml"])
-            .save_file();
+                let output = replace_quoted_hex_values(&output);
 
-        if let Some(file_path) = result {
-            let write_result = fs::write(&file_path, output);
-            if let Err(e) = write_result {
-                eprintln!("Unable to write to file {} : {}", file_path.display(), e);
+                let result = FileDialog::new()
+                    .add_filter("Save state", &["yaml"])
+                    .save_file();
+
+                if let Some(file_path) = result {
+                    let write_result = fs::write(&file_path, output);
+                    if let Err(e) = write_result {
+                        eprintln!("Unable to write to file {} : {}", file_path.display(), e);
+                    }
+                }
             }
         }
     }
@@ -1051,7 +1057,7 @@ fn update_gpu_texture(
     imgui: &mut imgui_sdl3::ImGuiSdl3,
     device: &Device,
     state: &EmulatorState,
-) -> imgui::TextureId {
+) -> Result<imgui::TextureId, Box<dyn Error>> {
     // Check if 80 column enabled, if enabled, refresh the video
     if cpu.bus.is_80_column_enabled() {
         cpu.bus.videoterm.refresh(&mut cpu.bus.video);
@@ -1069,33 +1075,30 @@ fn update_gpu_texture(
         display
     };
 
-    let upload_command_buffer = device.acquire_command_buffer().unwrap();
-    let copy_pass = device.begin_copy_pass(&upload_command_buffer).unwrap();
+    let upload_command_buffer = device.acquire_command_buffer()?;
+    let copy_pass = device.begin_copy_pass(&upload_command_buffer)?;
     let texture = imgui_sdl3::utils::create_texture(
         device,
         &copy_pass,
         display,
         Video::WIDTH as u32,
         Video::HEIGHT as u32,
-    )
-    .unwrap();
+    )?;
     device.end_copy_pass(copy_pass);
     let _ = upload_command_buffer.submit();
-    let sampler = device
-        .create_sampler(
-            SamplerCreateInfo::new()
-                .with_min_filter(Filter::Linear)
-                .with_mag_filter(Filter::Linear)
-                .with_mipmap_mode(SamplerMipmapMode::Linear)
-                .with_address_mode_u(SamplerAddressMode::ClampToEdge)
-                .with_address_mode_v(SamplerAddressMode::ClampToEdge)
-                .with_address_mode_w(SamplerAddressMode::ClampToEdge),
-        )
-        .unwrap();
+    let sampler = device.create_sampler(
+        SamplerCreateInfo::new()
+            .with_min_filter(Filter::Linear)
+            .with_mag_filter(Filter::Linear)
+            .with_mipmap_mode(SamplerMipmapMode::Linear)
+            .with_address_mode_u(SamplerAddressMode::ClampToEdge)
+            .with_address_mode_v(SamplerAddressMode::ClampToEdge)
+            .with_address_mode_w(SamplerAddressMode::ClampToEdge),
+    )?;
 
     let image_texture_id = imgui.push_texture(texture, sampler);
     disp.clear_video_dirty();
-    image_texture_id
+    Ok(image_texture_id)
 }
 
 fn update_gpu_harddisk_status(
@@ -2014,11 +2017,11 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     emulator_state.save_screenshot = false;
                 }
 
+                cpu.bus.video.skip_update = false;
+
                 if !window.is_minimized() {
                     let image_texture_id =
                         update_gpu_texture(&mut cpu, &mut imgui, &device, &emulator_state);
-
-                    cpu.bus.video.skip_update = false;
 
                     if emulator_state.video.prev_scale != emulator_state.video.scale {
                         emulator_state.video.prev_scale = emulator_state.video.scale;
@@ -2028,14 +2031,16 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                         let _ = window.set_size(width, height);
                     }
 
-                    render_frame(
-                        &mut cpu,
-                        (&mut sdl_context, &device, &window),
-                        &mut imgui,
-                        &mut event_pump,
-                        &mut emulator_state,
-                        image_texture_id,
-                    );
+                    if let Ok(texture_id) = image_texture_id {
+                        render_frame(
+                            &mut cpu,
+                            (&mut sdl_context, &device, &window),
+                            &mut imgui,
+                            &mut event_pump,
+                            &mut emulator_state,
+                            texture_id,
+                        );
+                    }
                 }
 
                 for event_value in event_pump.poll_iter() {
