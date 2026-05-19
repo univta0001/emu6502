@@ -2014,27 +2014,29 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     emulator_state.save_screenshot = false;
                 }
 
-                let image_texture_id =
-                    update_gpu_texture(&mut cpu, &mut imgui, &device, &emulator_state);
+                if !window.is_minimized() {
+                    let image_texture_id =
+                        update_gpu_texture(&mut cpu, &mut imgui, &device, &emulator_state);
 
-                cpu.bus.video.skip_update = false;
+                    cpu.bus.video.skip_update = false;
 
-                if emulator_state.video.prev_scale != emulator_state.video.scale {
-                    emulator_state.video.prev_scale = emulator_state.video.scale;
-                    let width = (emulator_state.video.scale * Video::WIDTH as f32) as u32;
-                    let height = (emulator_state.video.scale * Video::HEIGHT as f32) as u32
-                        + 2 * MENUBAR_HEIGHT;
-                    let _ = window.set_size(width, height);
+                    if emulator_state.video.prev_scale != emulator_state.video.scale {
+                        emulator_state.video.prev_scale = emulator_state.video.scale;
+                        let width = (emulator_state.video.scale * Video::WIDTH as f32) as u32;
+                        let height = (emulator_state.video.scale * Video::HEIGHT as f32) as u32
+                            + 2 * MENUBAR_HEIGHT;
+                        let _ = window.set_size(width, height);
+                    }
+
+                    render_frame(
+                        &mut cpu,
+                        (&mut sdl_context, &device, &window),
+                        &mut imgui,
+                        &mut event_pump,
+                        &mut emulator_state,
+                        image_texture_id,
+                    );
                 }
-
-                render_frame(
-                    &mut cpu,
-                    (&mut sdl_context, &device, &window),
-                    &mut imgui,
-                    &mut event_pump,
-                    &mut emulator_state,
-                    image_texture_id,
-                );
 
                 for event_value in event_pump.poll_iter() {
                     imgui.handle_event(&event_value);
