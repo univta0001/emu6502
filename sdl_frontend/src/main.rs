@@ -1085,7 +1085,7 @@ fn update_gpu_texture(
         Video::HEIGHT as u32,
     )?;
     device.end_copy_pass(copy_pass);
-    let _ = upload_command_buffer.submit();
+    let _ = upload_command_buffer.submit()?;
     let sampler = device.create_sampler(
         SamplerCreateInfo::new()
             .with_min_filter(Filter::Linear)
