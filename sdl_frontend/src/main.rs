@@ -179,6 +179,7 @@ struct EmulatorState {
     current_settings: Vec<usize>,
     dcyc: usize,
     previous_cycles: usize,
+    sampler: Sampler,
 }
 
 impl EmulatorState {
@@ -186,6 +187,7 @@ impl EmulatorState {
         video_subsystem: VideoSubsystem,
         audio_stream: Option<AudioStreamOwner>,
         game_controller: GamepadSubsystem,
+        sampler: Sampler,
     ) -> Self {
         Self {
             video_subsystem,
@@ -204,6 +206,7 @@ impl EmulatorState {
             current_settings: Vec::new(),
             dcyc: 0,
             previous_cycles: 0,
+            sampler,
         }
     }
 }
@@ -1063,16 +1066,16 @@ fn update_gpu_texture(
         cpu.bus.videoterm.refresh(&mut cpu.bus.video);
     }
 
-    let disp = &mut cpu.bus.video;
-    let display = if state.video.vertical_blend {
-        &disp.get_vertical_blend_frame(&disp.frame, disp.get_scanline())
+    let video = &mut cpu.bus.video;
+    let processed_frame = if state.video.vertical_blend {
+        &video.get_vertical_blend_frame(&video.frame, video.get_scanline())
     } else {
-        &disp.frame
+        &video.frame
     };
-    let display = if state.video.barrel_distortion {
-        &disp.get_barrel_distorted_frame(display, 0.015)
+    let processed_frame = if state.video.barrel_distortion {
+        &video.get_barrel_distorted_frame(processed_frame, 0.015)
     } else {
-        display
+        processed_frame
     };
 
     let upload_command_buffer = device.acquire_command_buffer()?;
@@ -1080,24 +1083,14 @@ fn update_gpu_texture(
     let texture = imgui_sdl3::utils::create_texture(
         device,
         &copy_pass,
-        display,
+        processed_frame,
         Video::WIDTH as u32,
         Video::HEIGHT as u32,
     )?;
     device.end_copy_pass(copy_pass);
     let _ = upload_command_buffer.submit()?;
-    let sampler = device.create_sampler(
-        SamplerCreateInfo::new()
-            .with_min_filter(Filter::Linear)
-            .with_mag_filter(Filter::Linear)
-            .with_mipmap_mode(SamplerMipmapMode::Linear)
-            .with_address_mode_u(SamplerAddressMode::ClampToEdge)
-            .with_address_mode_v(SamplerAddressMode::ClampToEdge)
-            .with_address_mode_w(SamplerAddressMode::ClampToEdge),
-    )?;
-
-    let image_texture_id = imgui.push_texture(texture, sampler);
-    disp.clear_video_dirty();
+    let image_texture_id = imgui.push_texture(texture, state.sampler.clone());
+    video.clear_video_dirty();
     Ok(image_texture_id)
 }
 
@@ -1920,6 +1913,16 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     let device = Device::new(ShaderFormat::SPIRV, false)?.with_window(&window)?;
 
+    let sampler = device.create_sampler(
+        SamplerCreateInfo::new()
+            .with_min_filter(Filter::Linear)
+            .with_mag_filter(Filter::Linear)
+            .with_mipmap_mode(SamplerMipmapMode::Linear)
+            .with_address_mode_u(SamplerAddressMode::ClampToEdge)
+            .with_address_mode_v(SamplerAddressMode::ClampToEdge)
+            .with_address_mode_w(SamplerAddressMode::ClampToEdge),
+    )?;
+
     // create platform and renderer
     let mut imgui = ImGuiSdl3::new(&device, &window, |ctx| {
         // disable creation of files on disc
@@ -1973,7 +1976,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         CPU_CYCLES_PER_FRAME_60HZ - 65 * 192
     };
 
-    let mut emulator_state = EmulatorState::new(video_subsystem, audio_stream, game_controller);
+    let mut emulator_state = EmulatorState::new(video_subsystem, audio_stream, game_controller, sampler);
 
     emulator_state.video.scale = scale;
     emulator_state.video.prev_scale = scale;
