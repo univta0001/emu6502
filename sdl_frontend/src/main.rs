@@ -1925,6 +1925,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         // setup platform and renderer, and fonts to imgui
         ctx.fonts()
             .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+
+        // clear output texture data as it has already been uploaded to GPU
+        ctx.fonts().clear_tex_data();
     });
 
     // Create the game controller
