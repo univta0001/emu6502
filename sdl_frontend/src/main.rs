@@ -1661,10 +1661,11 @@ fn render_frame(
     state: &mut EmulatorState,
     image_texture_id: imgui::TextureId,
 ) {
-    let Ok(mut cmd_buf) = ctx.1.acquire_command_buffer() else {
+    let (sdl, device, window) = (ctx.0, ctx.1, ctx.2);
+    let Ok(mut cmd_buf) = device.acquire_command_buffer() else {
         return;
     };
-    let Ok(swapchain) = cmd_buf.wait_and_acquire_swapchain_texture(ctx.2) else {
+    let Ok(swapchain) = cmd_buf.wait_and_acquire_swapchain_texture(window) else {
         cmd_buf.cancel();
         return;
     };
@@ -1679,9 +1680,9 @@ fn render_frame(
         .with_store_op(StoreOp::STORE)];
 
     imgui.render(
-        ctx.0,
-        ctx.1,
-        ctx.2,
+        sdl,
+        device,
+        window,
         event_pump,
         &mut cmd_buf,
         &color_targets,
@@ -1707,7 +1708,7 @@ fn render_frame(
                 ui.frame_height()
             };
 
-            update_emulator_graphics(cpu, ui, ctx.2, state, image_texture_id);
+            update_emulator_graphics(cpu, ui, window, state, image_texture_id);
 
             if !state.video.current_full_screen {
                 prepare_main_menu(cpu, ui, state);
@@ -1719,7 +1720,7 @@ fn render_frame(
             }
 
             if state.video.menu_bar_height > 0.0 {
-                let (w, h) = ctx.2.size();
+                let (w, h) = window.size();
                 prepare_statusbar(cpu, ui, state, w, h);
             }
         },
