@@ -179,6 +179,9 @@ pub struct DiskDrive {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     exact_write: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    disable_disk_jitter: bool,
 }
 
 // Q0L: Phase 0 OFF
@@ -1375,6 +1378,7 @@ impl DiskDrive {
             rotor_pending_ticks: 0,
             disk_sound: DiskSound::default(),
             exact_write: false,
+            disable_disk_jitter: false,
         }
     }
 
@@ -2486,7 +2490,9 @@ impl DiskDrive {
 
             self.lss_cycle -= optimal_timing;
             if !self.q7 {
-                self.lss_cycle -= 1;
+                if !self.disable_disk_jitter {
+                    self.lss_cycle -= 1;
+                }
                 self.lss_cycle += (disk.optimal_timing as isize - 32) / 4 * multiplier
             }
         }
@@ -2523,6 +2529,14 @@ impl DiskDrive {
         let random_value = fastrand::f32();
         // The random bit 1 is generated with probability 0.3 or 30%
         if random_value < random_one_rate { 1 } else { 0 }
+    }
+
+    pub fn set_disable_disk_jitter(&mut self, state: bool) {
+        self.disable_disk_jitter = state;
+    }
+
+    pub fn get_disable_disk_jitter(&self) -> bool {
+        self.disable_disk_jitter
     }
 
     pub fn set_disable_fast_disk(&mut self, state: bool) {

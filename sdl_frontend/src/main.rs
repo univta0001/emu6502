@@ -577,6 +577,7 @@ FLAGS:
                        Supported values (ext80, std80, rw3, none)
     --exact_write      Enable exact track writing (No write to neighbor tracks)
     --noslot_clock off Disable noslot clock 
+    --disable_jitter   Disable disk jitter
 
 ARGS:
     [disk 1]           Disk 1 file (woz, dsk, do, po file). Can be in gz format
@@ -2411,6 +2412,10 @@ fn parse_args(
 
     if pargs.contains("--exact_write") {
         cpu.bus.disk.set_exact_write(true);
+    }
+
+    if pargs.contains("--disable_jitter") {
+        cpu.bus.disk.set_disable_disk_jitter(true);
     }
 
     if let Some(aux_type) = pargs.opt_value_from_str::<_, String>("--aux")? {
