@@ -1089,7 +1089,7 @@ fn update_gpu_texture(
         Video::HEIGHT as u32,
     )?;
     device.end_copy_pass(copy_pass);
-    let _ = upload_command_buffer.submit()?;
+    upload_command_buffer.submit()?;
     let image_texture_id = imgui.push_texture(texture, state.sampler.clone());
     video.clear_video_dirty();
     Ok(image_texture_id)
@@ -1978,7 +1978,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         CPU_CYCLES_PER_FRAME_60HZ - 65 * 192
     };
 
-    let mut emulator_state = EmulatorState::new(video_subsystem, audio_stream, game_controller, sampler);
+    let mut emulator_state =
+        EmulatorState::new(video_subsystem, audio_stream, game_controller, sampler);
 
     emulator_state.video.scale = scale;
     emulator_state.video.prev_scale = scale;

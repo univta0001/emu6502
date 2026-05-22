@@ -839,10 +839,10 @@ impl CPU {
     }
 
     fn tick(&mut self) {
+        self.bus.tick();
         self.irq_penultimate_tick = (self.irq_penultimate_tick << 1)
             | (!self.status.contains(CpuFlags::INTERRUPT_DISABLE) && self.bus.irq().is_some())
                 as u8;
-        self.bus.tick();
     }
 
     //    02     03     04     07     0B     0C     0F

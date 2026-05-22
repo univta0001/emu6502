@@ -157,7 +157,7 @@ impl Tone {
 struct AY8910 {
     _name: String,
     current_reg: u8,
-    reg: Vec<u8>,
+    reg: [u8; 16],
     tone: [Tone; 3],
     envelope: Envelope,
     noise: Noise,
@@ -169,7 +169,7 @@ impl AY8910 {
         AY8910 {
             _name: name.to_owned(),
             current_reg: 0,
-            reg: vec![0; 16],
+            reg: [0; 16],
             tone: [Tone::new(), Tone::new(), Tone::new()],
             envelope: Envelope::new(),
             noise: Noise::new(),
@@ -177,12 +177,14 @@ impl AY8910 {
         }
     }
 
+    #[inline]
     fn tick(&mut self) {
         self.update_tone();
         self.update_envelope();
         self.update_noise();
     }
 
+    #[inline]
     fn update_tone(&mut self) {
         for tone in self.tone.iter_mut() {
             if tone.period == 0 {
@@ -197,6 +199,7 @@ impl AY8910 {
         }
     }
 
+    #[inline]
     fn update_noise(&mut self) {
         let env_period = self.noise.period as usize;
         self.noise.count = self.noise.count.wrapping_sub(1) & 0x1f;
@@ -207,6 +210,7 @@ impl AY8910 {
         }
     }
 
+    #[inline]
     fn update_envelope(&mut self) {
         let item = &mut self.envelope;
         let mut env_period = item.period as usize;
@@ -218,7 +222,7 @@ impl AY8910 {
             item.count += 1;
             if item.count >= env_period {
                 item.count -= env_period;
-                item.step -= 1;
+                item.step = item.step.wrapping_sub(1);
                 if item.step < 0 {
                     if item.hold {
                         if item.alternate {
@@ -264,11 +268,11 @@ impl AY8910 {
         }
 
         self.envelope.reset();
-        self.reg = vec![0; 16];
+        self.reg = [0; 16];
     }
 
     fn read_register(&self) -> u8 {
-        self.reg[self.current_reg as usize]
+        self.reg[self.current_reg as usize & 0xf]
     }
 
     fn set_register(&mut self, value: u8) {
@@ -276,7 +280,7 @@ impl AY8910 {
     }
 
     fn write_register(&mut self, value: u8) {
-        self.reg[self.current_reg as usize] = value;
+        self.reg[self.current_reg as usize & 0xf] = value;
 
         match self.current_reg {
             AY_AFINE | AY_ACOARSE => {
@@ -427,43 +431,34 @@ impl W65C22 {
         }
     }
 
+    #[inline]
     fn tick(&mut self, cycles: usize) {
-        self.t1c = self.t1c.wrapping_sub(1);
+        let old_t1c = self.t1c;
+        self.t1c = old_t1c.wrapping_sub(1);
 
-        if self.t1c == 0xffffffff {
-            if self.t1_loaded {
-                self.ifr |= 0x40;
-            }
-
-            if self.acr & 0x40 == 0 {
-                self.t1_loaded = false;
-            }
-        }
-
-        if self.t1c == 0xfffffffe {
+        if old_t1c == 0 {
+            self.ifr |= (self.t1_loaded as u8) << 6;
+            self.t1_loaded &= self.acr & 0x40 != 0;
+        } else if old_t1c == 0xffffffff {
             if self.ifr & 0x40 != 0 && self.irq_happen == 0 {
                 self.irq_happen = cycles;
             }
             self.t1c = self.t1l as u32;
         }
 
-        self.t2c = self.t2c.wrapping_sub(1);
+        let old_t2c = self.t2c;
+        self.t2c = old_t2c.wrapping_sub(1);
 
-        if self.t2c == 0xffff {
-            if self.t2_loaded {
-                self.ifr |= 0x20;
-            }
-
-            if self.acr & 0x20 == 0 {
-                self.t2_loaded = false;
-            }
+        if old_t2c == 0 {
+            self.ifr |= (self.t2_loaded as u8) << 5;
+            self.t2_loaded &= self.acr & 0x20 != 0;
         }
 
-        if self.t2c == 0xfffe && self.ifr & 0x20 != 0 && self.irq_happen == 0 {
+        if old_t2c == 0xffff && self.ifr & 0x20 != 0 && self.irq_happen == 0 {
             self.irq_happen = cycles;
         }
 
-        if cycles.is_multiple_of(8) {
+        if (cycles & 0x07) == 0 {
             self.ay8910[0].tick();
             self.ay8910[1].tick();
         }
