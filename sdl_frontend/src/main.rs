@@ -1930,6 +1930,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         ctx.set_ini_filename(None);
         ctx.set_log_filename(None);
         // setup platform and renderer, and fonts to imgui
+        ctx.fonts().clear();
         ctx.fonts()
             .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
     });
