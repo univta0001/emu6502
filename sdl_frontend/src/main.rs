@@ -527,8 +527,8 @@ FLAGS:
     -r no of pages     Emulate RAMworks III card with 1 to 127 pages
     --rf size          Ramfactor memory size in KB
     -m, --model MODEL  Set apple 2 model.
-                       Valid value: apple2p,apple2e,apple2ee,apple2c,apple2c0,
-                                    apple2c3,apple2c4,apple2cp
+                       Valid value: apple2p,apple2e,apple2ee,apple2ep,apple2c,
+                                    apple2c0,apple2c3,apple2c4,apple2cp
     --d1 PATH          Set the file path for disk 1 drive at Slot 6 Drive 1
     --d2 PATH          Set the file path for disk 2 drive at Slot 6 Drive 2
     --h1 PATH          Set the file path for hard disk 1

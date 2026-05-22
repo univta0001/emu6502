@@ -23,7 +23,7 @@ strum = { version = "0.28.0", features = ["derive"] }
 regex = "1.12.3"
 criterion = { version = "0.8.2", features = ['html_reports'] }
 crossbeam-utils = "0.8.21"
-serde_json = "1.0.149"
+serde_json = "1.0.150"
 crossbeam-epoch = "0.9.18"
 ryu = "1.0.23"
 autocfg = "1.5.0"
