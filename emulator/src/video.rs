@@ -1192,7 +1192,7 @@ impl Video {
         self.display_mode == DisplayMode::MONO_WHITE
             || self.display_mode == DisplayMode::MONO_GREEN
             || self.display_mode == DisplayMode::MONO_AMBER
-            || !self.color_burst
+            || (self.display_mode != DisplayMode::RGB && !self.color_burst)
     }
 
     pub fn is_shr_mode(&self) -> bool {

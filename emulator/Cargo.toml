@@ -26,7 +26,7 @@ crossbeam-utils = "0.8.21"
 serde_json = "1.0.150"
 crossbeam-epoch = "0.9.18"
 ryu = "1.0.23"
-autocfg = "1.5.0"
+autocfg = "1.5.1"
 crossbeam-channel = "0.5.15"
 num_cpus = "1.17.0"
 
