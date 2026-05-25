@@ -1192,7 +1192,7 @@ impl Video {
         self.display_mode == DisplayMode::MONO_WHITE
             || self.display_mode == DisplayMode::MONO_GREEN
             || self.display_mode == DisplayMode::MONO_AMBER
-            || (self.display_mode != DisplayMode::RGB && !self.color_burst)
+            || (self.display_mode == DisplayMode::NTSC && !self.color_burst)
     }
 
     pub fn is_shr_mode(&self) -> bool {
@@ -2030,7 +2030,7 @@ impl Video {
         if !self.vid80_mode {
             let x1offset = x1 * 7;
             let y1offset = y1 * 8 + yindex;
-            if !(self.display_mode == DisplayMode::RGB
+            if !(self.display_mode != DisplayMode::NTSC
                 || self.is_display_mode_mono()
                 || self.mono_mode
                 || self.text_color_burst
@@ -2073,7 +2073,7 @@ impl Video {
             let x1offset = x1 * 14 + offset;
             let y1offset = y1 * 16 + yindex * 2;
 
-            if !(self.display_mode == DisplayMode::RGB
+            if !(self.display_mode != DisplayMode::NTSC
                 || self.is_display_mode_mono()
                 || self.mono_mode
                 || self.text_color_burst
@@ -2085,6 +2085,10 @@ impl Video {
                 let alt_data = self.get_font_bitmap(alt_val, yindex).reverse_bits();
                 self.draw_raw_dhires_a2_row_col(y1 * 8 + yindex, x1, data, alt_data);
             } else {
+                if x1 == 39 {
+                    self.set_pixel_count(560, y1offset , COLOR_BLACK, 7);
+                }
+
                 for xindex in x1offset..x1offset + 7 {
                     let color = if bitmap & shift == 0 {
                         back_color
@@ -2786,7 +2790,7 @@ impl Video {
             let mut color_index = 0;
 
             if col > 0 {
-                let val = if mixed_mode || (self.color_burst && !self.graphics_mode) {
+                let val = if mixed_mode || (self.display_mode == DisplayMode::NTSC && self.color_burst && !self.graphics_mode) {
                     if value & 0x1 > 0 { 0x7f } else { 0 }
                 } else {
                     self.read_hires_memory(col - 1, row)
@@ -2940,7 +2944,7 @@ impl Video {
             let mut luma = [0u8; 14 + 2 * NTSC_PIXEL_NEIGHBOR + 1];
             // Populate col-1 luma
             let prev_value = if col > 0 {
-                if !self.vid80_mode && (mixed_mode || self.color_burst && !self.graphics_mode) {
+                if !self.vid80_mode && (mixed_mode || (self.display_mode == DisplayMode::NTSC && self.color_burst && !self.graphics_mode)) {
                     if value & 0x1 > 0 { 0x7f } else { 0 }
                 } else {
                     self.read_hires_memory(col - 1, row)
@@ -2994,7 +2998,7 @@ impl Video {
 
             // Populate col+1 luma
             let next_value = if col < 39 {
-                if !self.vid80_mode && (mixed_mode || self.color_burst && !self.graphics_mode) {
+                if !self.vid80_mode && (mixed_mode || (self.display_mode == DisplayMode::NTSC && self.color_burst && !self.graphics_mode)) {
                     if value & 0x1 > 0 { 0x7f } else { 0 }
                 } else {
                     self.read_hires_memory(col + 1, row)
@@ -3083,39 +3087,30 @@ impl Video {
     }
 
     fn draw_raw_dhires_a2_row_col(&mut self, row: usize, col: usize, value: u8, aux_value: u8) {
+        if col == 39 {
+            self.set_pixel_count(560, row * 2, COLOR_BLACK, 7);
+        }
+
         if self.display_mode == DisplayMode::RGB && self.rgb_mode == 0x3
             || self.mono_mode
             || self.is_display_mode_mono()
         {
-            if col == 39 {
-                self.set_pixel_count(560, row * 2, COLOR_BLACK, 7);
-            }
             self.draw_raw_dhires_mono_a2_row_col(row, col, value, aux_value);
             return;
         }
 
         if self.display_mode == DisplayMode::RGB && self.rgb_mode == 0x1 {
-            if col == 39 {
-                self.set_pixel_count(560, row * 2, COLOR_BLACK, 7);
-            }
             self.draw_raw_dhires_160x192_row_col(row, col, value, aux_value);
             return;
         }
 
         if self.display_mode == DisplayMode::NTSC || self.display_mode == DisplayMode::MONO_NTSC {
-            if col == 39 {
-                self.set_pixel_count(560, row * 2, COLOR_BLACK, 7);
-            }
             self.draw_raw_dhires_ntsc_a2_row_col(row, col, value, aux_value);
             return;
         }
 
         if row < 192 && col < 40 {
             let x = col * 14;
-
-            if col == 39 {
-                self.set_pixel_count(560, row * 2, COLOR_BLACK, 7);
-            }
 
             // Mixed mode
             if self.display_mode == DisplayMode::RGB && self.rgb_mode == 2 {
@@ -3125,6 +3120,8 @@ impl Video {
                 let mut color_index = if col == 0 {
                     0
                 } else if mixed_mode {
+                    if value & 1 > 0 { 0xf } else { 0 }
+                    /*
                     let val = (CHAR_APPLE2E_ROM
                         [self.read_text_memory(col - 1, row) as usize * 8 + row % 8]
                         .reverse_bits()
@@ -3135,15 +3132,23 @@ impl Video {
                     } else {
                         ((val & 0x3) << 2) | (val >> 2)
                     }
+                    */
                 } else {
                     let val = if self.is_graphics() {
-                        (self.read_hires_memory(col - 1, row) >> 3) & 0xf
+                        if !self.lores_mode {
+                            (self.read_hires_memory(col - 1, row) >> 3) & 0xf
+                        } else {
+                            if value & 1 > 0 { 0xf } else { 0 }
+                        }
                     } else {
+                        if value & 1 > 0 { 0xf } else { 0 }
+                        /*
                         (CHAR_APPLE2E_ROM
                             [self.read_text_memory(col - 1, row) as usize * 8 + row % 8]
                             .reverse_bits()
                             >> 3)
                             & 0xf
+                        */
                     };
                     if col.is_multiple_of(2) {
                         val
@@ -3406,16 +3411,25 @@ impl Video {
             // Handle luma for col - 1
             let prev_value = if col > 0 {
                 if mixed_mode {
-                    let prev_ch = self.read_text_memory(col - 1, row);
+                    /*
                     let prev_value = self.get_normalized_char(prev_ch);
                     CHAR_APPLE2E_ROM[prev_value as usize * 8 + row % 8].reverse_bits()
+                    */
+                    if value & 1 > 0 { 0x7f } else { 0 }
                 } else {
                     if self.is_graphics() {
-                        self.read_hires_memory(col - 1, row)
+                        if !self.lores_mode {
+                            self.read_hires_memory(col - 1, row)
+                        } else {
+                            if value & 1 > 0 { 0x7f } else { 0 }
+                        }
                     } else {
+                        /*
                         let prev_ch = self.read_text_memory(col - 1, row);
                         let prev_value = self.get_normalized_char(prev_ch);
                         CHAR_APPLE2E_ROM[prev_value as usize * 8 + row % 8].reverse_bits()
+                        */
+                        if value & 1 > 0 { 0x7f } else { 0 }
                     }
                 }
             } else {
@@ -3455,10 +3469,18 @@ impl Video {
             let next_value = if col < 39 {
                 if mixed_mode {
                     let next_ch = self.read_aux_text_memory(col + 1, row);
+                    /*
                     let next_value = self.get_normalized_char(next_ch);
                     CHAR_APPLE2E_ROM[next_value as usize * 8 + row % 8].reverse_bits()
+                    */
+                    if next_ch & 1 > 0 { 0x7f } else { 0}
                 } else {
-                    self.read_aux_hires_memory(col + 1, row)
+                    if !self.lores_mode {
+                        self.read_aux_hires_memory(col + 1, row)
+                    } else {
+                        let next_ch = self.read_aux_text_memory(col + 1, row);
+                        if next_ch & 1 > 0 { 0x7f } else { 0}
+                    }
                 }
             } else {
                 0
