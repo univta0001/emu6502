@@ -170,7 +170,7 @@ impl NoSlotClock {
             utc
         };
 
-        let centisecond = now.microsecond() / 10;
+        let centisecond = now.millisecond() / 10;
         let second = now.second();
         let minute = now.minute();
         let hour = now.hour();
