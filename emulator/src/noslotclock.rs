@@ -43,11 +43,11 @@ impl RingRegister64 {
         self.mask = 0x1;
     }
 
-    fn write_nibble(&mut self, data: usize) {
+    fn write_nibble(&mut self, data: u8) {
         self.write_bits(data, 4);
     }
 
-    fn write_bits(&mut self, data: usize, count: usize) {
+    fn write_bits(&mut self, data: u8, count: usize) {
         let mut process_data = data;
         for _ in 0..count {
             self.write_bit(process_data);
@@ -56,7 +56,7 @@ impl RingRegister64 {
         }
     }
 
-    fn write_bit(&mut self, data: usize) {
+    fn write_bit(&mut self, data: u8) {
         self.register = if (data as u64) & 0x1 > 0 {
             self.register | self.mask
         } else {
@@ -170,39 +170,28 @@ impl NoSlotClock {
             utc
         };
 
-        let centisecond = now.nanosecond() / 10_000_000;
-        self.clock_register
-            .write_nibble((centisecond % 10) as usize);
-        self.clock_register
-            .write_nibble((centisecond / 10) as usize);
-
+        let centisecond = now.microsecond() / 10;
         let second = now.second();
-        self.clock_register.write_nibble((second % 10) as usize);
-        self.clock_register.write_nibble((second / 10) as usize);
-
         let minute = now.minute();
-        self.clock_register.write_nibble((minute % 10) as usize);
-        self.clock_register.write_nibble((minute / 10) as usize);
-
         let hour = now.hour();
-        self.clock_register.write_nibble((hour % 10) as usize);
-        self.clock_register.write_nibble((hour / 10) as usize);
-
         let day = now.weekday().number_from_sunday();
-        self.clock_register.write_nibble((day % 10) as usize);
-        self.clock_register.write_nibble((day / 10) as usize);
-
         let date = now.day();
-        self.clock_register.write_nibble((date % 10) as usize);
-        self.clock_register.write_nibble((date / 10) as usize);
-
-        let month = now.month() as usize;
-        self.clock_register.write_nibble(month % 10);
-        self.clock_register.write_nibble(month / 10);
-
+        let month = now.month();
         let year = now.year() % 100;
-        self.clock_register.write_nibble((year % 10) as usize);
-        self.clock_register.write_nibble((year / 10) as usize);
+
+        self.write_value(centisecond as u8);
+        self.write_value(second as u8);
+        self.write_value(minute as u8);
+        self.write_value(hour as u8);
+        self.write_value(day as u8);
+        self.write_value(date as u8);
+        self.write_value(month as u8);
+        self.write_value(year as u8);
+    }
+
+    fn write_value(&mut self, value: u8) {
+        self.clock_register.write_nibble(value % 10);
+        self.clock_register.write_nibble(value / 10);
     }
 }
 

@@ -326,6 +326,9 @@ impl Bus {
         #[cfg(not(target_os = "wasi"))]
         self.uthernet2.reset(true);
 
+        // Invalidate video cache
+        self.video.invalidate_video_cache();
+
         // Clear the annunciator
         self.annunciator.fill(false);
 

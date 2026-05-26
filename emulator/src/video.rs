@@ -2086,7 +2086,7 @@ impl Video {
                 self.draw_raw_dhires_a2_row_col(y1 * 8 + yindex, x1, data, alt_data);
             } else {
                 if x1 == 39 {
-                    self.set_pixel_count(560, y1offset , COLOR_BLACK, 7);
+                    self.set_pixel_count(560, y1offset, COLOR_BLACK, 7);
                 }
 
                 for xindex in x1offset..x1offset + 7 {
@@ -2790,7 +2790,11 @@ impl Video {
             let mut color_index = 0;
 
             if col > 0 {
-                let val = if mixed_mode || (self.display_mode == DisplayMode::NTSC && self.color_burst && !self.graphics_mode) {
+                let val = if mixed_mode
+                    || (self.display_mode == DisplayMode::NTSC
+                        && self.color_burst
+                        && !self.graphics_mode)
+                {
                     if value & 0x1 > 0 { 0x7f } else { 0 }
                 } else {
                     self.read_hires_memory(col - 1, row)
@@ -2944,7 +2948,12 @@ impl Video {
             let mut luma = [0u8; 14 + 2 * NTSC_PIXEL_NEIGHBOR + 1];
             // Populate col-1 luma
             let prev_value = if col > 0 {
-                if !self.vid80_mode && (mixed_mode || (self.display_mode == DisplayMode::NTSC && self.color_burst && !self.graphics_mode)) {
+                if !self.vid80_mode
+                    && (mixed_mode
+                        || (self.display_mode == DisplayMode::NTSC
+                            && self.color_burst
+                            && !self.graphics_mode))
+                {
                     if value & 0x1 > 0 { 0x7f } else { 0 }
                 } else {
                     self.read_hires_memory(col - 1, row)
@@ -2998,7 +3007,12 @@ impl Video {
 
             // Populate col+1 luma
             let next_value = if col < 39 {
-                if !self.vid80_mode && (mixed_mode || (self.display_mode == DisplayMode::NTSC && self.color_burst && !self.graphics_mode)) {
+                if !self.vid80_mode
+                    && (mixed_mode
+                        || (self.display_mode == DisplayMode::NTSC
+                            && self.color_burst
+                            && !self.graphics_mode))
+                {
                     if value & 0x1 > 0 { 0x7f } else { 0 }
                 } else {
                     self.read_hires_memory(col + 1, row)
@@ -3473,13 +3487,13 @@ impl Video {
                     let next_value = self.get_normalized_char(next_ch);
                     CHAR_APPLE2E_ROM[next_value as usize * 8 + row % 8].reverse_bits()
                     */
-                    if next_ch & 1 > 0 { 0x7f } else { 0}
+                    if next_ch & 1 > 0 { 0x7f } else { 0 }
                 } else {
                     if !self.lores_mode {
                         self.read_aux_hires_memory(col + 1, row)
                     } else {
                         let next_ch = self.read_aux_text_memory(col + 1, row);
-                        if next_ch & 1 > 0 { 0x7f } else { 0}
+                        if next_ch & 1 > 0 { 0x7f } else { 0 }
                     }
                 }
             } else {
