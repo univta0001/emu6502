@@ -1646,11 +1646,7 @@ impl DiskDrive {
             }
         }
 
-        let mut disk_type = if po_mode { DiskType::Po } else { DiskType::Dsk };
-
-        if disk_type == DiskType::Dsk && self.check_dos_disk_in_prodos_order(&dsk) {
-            disk_type = DiskType::Po
-        }
+        let disk_type = if po_mode { DiskType::Po } else { DiskType::Dsk };
 
         let metadata = std::fs::metadata(filename)?;
         let write_protect = metadata.permissions().readonly();
@@ -1799,6 +1795,12 @@ impl DiskDrive {
         write_protect: bool,
         convert_image: fn(&mut Disk, &[u8], usize, bool),
     ) -> io::Result<()> {
+        let mut disk_type = disk_type;
+
+        if disk_type == DiskType::Dsk && self.check_dos_disk_in_prodos_order(&dsk) {
+            disk_type = DiskType::Po
+        }
+
         let disk = &mut self.drive[self.drive_select];
         let no_of_tracks = if disk_type == DiskType::Nib {
             dsk.len() / NIB_TRACK_SIZE
