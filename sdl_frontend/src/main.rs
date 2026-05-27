@@ -2279,14 +2279,16 @@ fn parse_args(
 
     for drive in 1..=2 {
         let drive_setting = match drive {
-            1 => "--s1",
-            2 => "--s2",
+            1 => "--d1",
+            2 => "--d2",
             _ => unreachable!(),
         };
 
         if let Some(input_file) = pargs.opt_value_from_str::<_, String>(drive_setting)? {
             let path = Path::new(&input_file);
-            load_disk(cpu, path, drive)?;
+            if load_disk(cpu, path, drive).is_err() {
+                eprintln!("Error loading file from {}", path.display());
+            }
         }
     }
 
@@ -2299,7 +2301,9 @@ fn parse_args(
 
         if let Some(input_file) = pargs.opt_value_from_str::<_, String>(drive_setting)? {
             let path = Path::new(&input_file);
-            load_harddisk(cpu, path, drive)?;
+            if load_harddisk(cpu, path, drive).is_err() {
+                eprintln!("Error loading file from {}", path.display());
+            }
         }
     }
 
