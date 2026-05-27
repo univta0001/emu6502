@@ -1480,12 +1480,12 @@ impl DiskDrive {
             disk.raw_track_bits[tmap_track as usize]
         };
         let sector_bits = if disk.disk_rom13 {
-            track_bits / 13
+            track_bits * 10 / 13
         } else {
-            track_bits / 16
+            track_bits * 10 / 16
         };
         let disk_pos = (disk.head * 8 + disk.head_bit) % track_bits;
-        let sector = disk_pos / sector_bits;
+        let sector = disk_pos * 10 / sector_bits;
         (disk.track as usize, tmap_track as usize, sector)
     }
 
@@ -1668,6 +1668,7 @@ impl DiskDrive {
             let offset = 0x11002 + (count << 8);
             if image[offset] != (14 - count) as u8 {
                 dos_match = false;
+                break
             }
         }
         dos_match
