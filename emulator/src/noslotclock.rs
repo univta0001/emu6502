@@ -180,11 +180,11 @@ impl NoSlotClock {
         let year = now.year() % 100;
 
         self.write_value(centisecond as u8);
-        self.write_value(second as u8);
-        self.write_value(minute as u8);
-        self.write_value(hour as u8);
-        self.write_value(day as u8);
-        self.write_value(date as u8);
+        self.write_value(second);
+        self.write_value(minute);
+        self.write_value(hour);
+        self.write_value(day);
+        self.write_value(date);
         self.write_value(month as u8);
         self.write_value(year as u8);
     }

@@ -141,6 +141,9 @@ pub struct Disk {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     flux_weakbit: usize,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    revolution: usize,
 }
 
 #[derive(Debug)]
@@ -170,9 +173,6 @@ pub struct DiskDrive {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     phase: usize,
-
-    #[cfg_attr(feature = "serde_support", serde(default))]
-    rotor_pending_ticks: usize,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     disk_sound: DiskSound,
@@ -1375,7 +1375,6 @@ impl DiskDrive {
             enable_save: false,
             fast_disk_timer: 0,
             phase: 0,
-            rotor_pending_ticks: 0,
             disk_sound: DiskSound::default(),
             exact_write: false,
             disable_disk_jitter: false,
@@ -1451,11 +1450,11 @@ impl DiskDrive {
             self.phase &= !(1 << phase);
         }
 
-        self.rotor_pending_ticks = 1000;
-        /*
-        let position = MAGNET_TO_POSITION[disk.phase];
+        let position = MAGNET_TO_POSITION[self.phase];
 
         if position >= 0 {
+            let disk = &mut self.drive[self.drive_select];
+            let old_track = disk.track;
             let last_position = disk.track & 7;
             let direction = POSITION_TO_DIRECTION[last_position as usize][position as usize];
 
@@ -1466,8 +1465,21 @@ impl DiskDrive {
             } else if disk.track >= disk.tmap_data.len() as i32 {
                 disk.track = (disk.tmap_data.len() - 1) as i32;
             }
+
+            // Update position
+            let tmap_data = disk.tmap_data[disk.track as usize];
+            let track_bits = if tmap_data == 255 {
+                NOMINAL_USABLE_BITS_TRACK_SIZE
+            } else {
+                disk.raw_track_bits[tmap_data as usize]
+            };
+            Self::update_position_if_track_changed(disk, track_bits);
+
+            //  Set the stepper sound
+            if disk.track != old_track {
+                self.disk_sound.set_stepper_sample();
+            }
         }
-        */
     }
 
     pub fn get_track_info(&self) -> (usize, usize, usize) {
@@ -1668,7 +1680,7 @@ impl DiskDrive {
             let offset = 0x11002 + (count << 8);
             if image[offset] != (14 - count) as u8 {
                 dos_match = false;
-                break
+                break;
             }
         }
         dos_match
@@ -1798,7 +1810,7 @@ impl DiskDrive {
     ) -> io::Result<()> {
         let mut disk_type = disk_type;
 
-        if disk_type == DiskType::Dsk && self.check_dos_disk_in_prodos_order(&dsk) {
+        if disk_type == DiskType::Dsk && self.check_dos_disk_in_prodos_order(dsk) {
             disk_type = DiskType::Po
         }
 
@@ -2429,6 +2441,7 @@ impl DiskDrive {
                 let wrapped = new_position % track_bits;
                 (disk.head, disk.head_bit) = (wrapped / 8, wrapped % 8);
                 disk.head_mask = 1 << (7 - disk.head_bit);
+                disk.revolution = 0;
             }
         }
     }
@@ -2493,7 +2506,9 @@ impl DiskDrive {
 
             self.lss_cycle -= optimal_timing;
             if !self.q7 {
-                if !self.disable_disk_jitter {
+                // Only jitter if it is on track 0 or certain tracks has done more than 4
+                // revolutions
+                if !self.disable_disk_jitter && (disk.track == 0 || disk.revolution > 4) {
                     self.lss_cycle -= 1;
                 }
                 self.lss_cycle += (disk.optimal_timing as isize - 32) / 4 * multiplier
@@ -2525,6 +2540,7 @@ impl DiskDrive {
             let wrapped = (disk.head * 8 + disk.head_bit) % track_bits;
             (disk.head, disk.head_bit) = (wrapped / 8, wrapped % 8);
             disk.head_mask = 1 << (7 - disk.head_bit);
+            disk.revolution = (disk.revolution + 1) & 7;
         }
     }
 
@@ -2696,43 +2712,6 @@ impl Tick for DiskDrive {
             return;
         }
 
-        if self.rotor_pending_ticks > 0 {
-            self.rotor_pending_ticks -= 1;
-            if self.rotor_pending_ticks == 0 {
-                let position = MAGNET_TO_POSITION[self.phase];
-
-                if position >= 0 {
-                    let disk = &mut self.drive[self.drive_select];
-                    let old_track = disk.track;
-                    let last_position = disk.track & 7;
-                    let direction =
-                        POSITION_TO_DIRECTION[last_position as usize][position as usize];
-
-                    disk.track += direction;
-
-                    if disk.track < 0 {
-                        disk.track = 0;
-                    } else if disk.track >= disk.tmap_data.len() as i32 {
-                        disk.track = (disk.tmap_data.len() - 1) as i32;
-                    }
-
-                    // Update position
-                    let tmap_data = disk.tmap_data[disk.track as usize];
-                    let track_bits = if tmap_data == 255 {
-                        NOMINAL_USABLE_BITS_TRACK_SIZE
-                    } else {
-                        disk.raw_track_bits[tmap_data as usize]
-                    };
-                    Self::update_position_if_track_changed(disk, track_bits);
-
-                    //  Set the stepper sound
-                    if disk.track != old_track {
-                        self.disk_sound.set_stepper_sample();
-                    }
-                }
-            }
-        }
-
         if self.fast_disk_timer > 0 {
             self.fast_disk_timer -= 1;
         }
@@ -2796,6 +2775,7 @@ impl Disk {
             mc3470_counter: 0,
             mc3470_read_pulse: 0,
             flux_weakbit: 0,
+            revolution: 0,
         }
     }
 }
