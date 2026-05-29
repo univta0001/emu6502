@@ -436,7 +436,7 @@ fn bits_write_sync(buf: &mut [u8], index: usize) -> usize {
 }
 
 fn encode_bits_for_track(data: &[u8], track: u8, sector_format_prodos: bool) -> (Vec<u8>, usize) {
-    let mut buf = vec![0u8; NOMINAL_USABLE_BYTES_TRACK_SIZE];
+    let mut buf = vec![0u8; NIB_TRACK_SIZE];
     let mut bit_index = 0;
 
     // Write 64 sync words
@@ -542,6 +542,9 @@ fn encode_bits_for_track(data: &[u8], track: u8, sector_format_prodos: bool) -> 
             bit_index = bits_write_byte(&mut buf, bit_index, 0xFF);
         }
     }
+
+    buf.truncate((bit_index + 4) / 8);
+
     (buf, bit_index)
 }
 
