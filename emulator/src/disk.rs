@@ -1449,7 +1449,10 @@ impl DiskDrive {
         } else {
             self.phase &= !(1 << phase);
         }
+        self.update_disk_phase_position();
+    }
 
+    fn update_disk_phase_position(&mut self) {
         let position = MAGNET_TO_POSITION[self.phase];
 
         if position >= 0 {
