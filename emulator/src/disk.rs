@@ -543,7 +543,7 @@ fn encode_bits_for_track(data: &[u8], track: u8, sector_format_prodos: bool) -> 
         }
     }
 
-    buf.truncate((bit_index + 4) / 8);
+    buf.truncate((bit_index + 7) / 8);
 
     (buf, bit_index)
 }
