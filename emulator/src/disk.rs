@@ -2512,9 +2512,9 @@ impl DiskDrive {
 
             self.lss_cycle -= optimal_timing;
             if !self.q7 {
-                // Only jitter if it is on track 0 or certain tracks has done more than 4
+                // Only jitter if it is on track 0 or certain tracks has done more than 8
                 // revolutions
-                if !self.disable_disk_jitter && (disk.track == 0 || disk.revolution > 4) {
+                if !self.disable_disk_jitter && (disk.track == 0 || disk.revolution > 8) {
                     self.lss_cycle -= 1;
                 }
                 self.lss_cycle += (disk.optimal_timing as isize - 32) / 4 * multiplier
@@ -2546,7 +2546,7 @@ impl DiskDrive {
             let wrapped = (disk.head * 8 + disk.head_bit) % track_bits;
             (disk.head, disk.head_bit) = (wrapped / 8, wrapped % 8);
             disk.head_mask = 1 << (7 - disk.head_bit);
-            disk.revolution = (disk.revolution + 1) & 7;
+            disk.revolution = (disk.revolution + 1) & 15;
         }
     }
 
