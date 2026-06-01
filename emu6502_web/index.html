@@ -326,8 +326,6 @@
                 let caps_mode = e.getModifierState("CapsLock");
                 let leftAlt = e.code == "AltLeft";
                 let rightAlt = e.code == "AltRight";
-                let leftShift = e.code == "ShiftLeft";
-                let rightShift = e.code == "ShiftRight";
 
                 if (e.code == "CapsLock") {
                     key_caps = caps_mode;
@@ -340,14 +338,6 @@
 
                 if (rightAlt) {
                     emu6502.pushbutton_latch(1,0x80);
-                }
-
-                if (apple2e) {
-                    if (leftShift || rightShift) {
-                        emu6502.pushbutton_latch(2,0x80);
-                    } else {
-                        emu6502.pushbutton_latch(2,0x0);
-                    }
                 }
 
                 // Handle keypad joystick
@@ -544,15 +534,6 @@
 
                 if (rightAlt) {
                     emu6502.pushbutton_latch(1,0x0);
-                }
-
-                if (apple2e) {
-                    if (leftShift) {
-                        emu6502.pushbutton_latch(2,0x0);
-                    }
-                    if (rightShift) {
-                        emu6502.pushbutton_latch(2,0x0);
-                    }
                 }
 
                 // Handle keypad joystick
