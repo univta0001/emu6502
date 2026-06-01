@@ -49,7 +49,7 @@ Features in the emulator
 
 - `emu6502 --help` will display:
 
-        emu6502 0.9.6 (79dc236eeee17bdd1674137b34beacc0e10ba6dc)
+        emu6502 0.9.7 (79dc236eeee17bdd1674137b34beacc0e10ba6dc)
 
         USAGE:
             emu6502 [FLAGS] [disk 1] [disk 2]
@@ -113,7 +113,8 @@ Features in the emulator
             --aux aux_type     Auxiliary Slot type.
                                Supported values (ext80, std80, rw3, none)
             --exact_write      Enable exact track writing (No write to neighbor tracks)
-            --noslot_clock off Disable noslot clock 
+            --noslot_clock off Disable noslot clock
+            --disable_jitter   Disable disk jitter
 
         ARGS:
             [disk 1]           Disk 1 file (woz, dsk, do, po file). File can be in gz format
