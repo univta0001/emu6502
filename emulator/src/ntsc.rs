@@ -63,7 +63,11 @@ fn lanczos_window(n: usize, fc: f32) -> Vec<f32> {
         .enumerate()
         .map(|(i, _)| {
             let x = 2.0 * std::f32::consts::PI * fc * (i as f32 - half_n);
-            if x.abs() < f32::EPSILON { 1.0 } else { f32::sin(x) / x }
+            if x.abs() < f32::EPSILON {
+                1.0
+            } else {
+                f32::sin(x) / x
+            }
         })
         .collect()
 }
@@ -82,11 +86,11 @@ pub fn mul(array1: &[f32], array2: &[f32]) -> Vec<f32> {
 }
 
 pub fn ntsc_mul(array1: &Yuv, array2: &Yuv) -> Yuv {
-    let mut v = [0.0f32; 3];
-    for i in 0..3 {
-        v[i] = array1[i] * array2[i];
-    }
-    v
+    [
+        array1[0] * array2[0],
+        array1[1] * array2[1],
+        array1[2] * array2[2],
+    ]
 }
 
 pub fn ntsc_add_mul(array0: &mut Yuv, array1: &Yuv, array2: &Yuv) {
