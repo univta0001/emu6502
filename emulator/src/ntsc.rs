@@ -63,7 +63,7 @@ fn lanczos_window(n: usize, fc: f32) -> Vec<f32> {
         .enumerate()
         .map(|(i, _)| {
             let x = 2.0 * std::f32::consts::PI * fc * (i as f32 - half_n);
-            if x == 0.0 { 1.0 } else { f32::sin(x) / x }
+            if x.abs() < f32::EPSILON { 1.0 } else { f32::sin(x) / x }
         })
         .collect()
 }
@@ -129,12 +129,8 @@ pub fn decoder_matrix(luma_bandwidth: f32, chroma_bandwidth: f32) -> Vec<Yuv> {
 
 pub fn convert_chroma_to_yuv(x_pos: usize, dhgr: bool) -> Yuv {
     let p = 0.9083333;
-
-    let phase = if dhgr {
-        2.0 * std::f32::consts::PI * (NTSC_SUBCARRIER * (x_pos as f32 + 77.0 + 0.50) + p)
-    } else {
-        2.0 * std::f32::consts::PI * (NTSC_SUBCARRIER * (x_pos as f32 + 84.0 + 0.50) + p)
-    };
+    let offset = if dhgr { 77.0 } else { 84.0 };
+    let phase = 2.0 * std::f32::consts::PI * (NTSC_SUBCARRIER * (x_pos as f32 + offset + 0.50) + p);
 
     [1.0, f32::sin(phase), f32::cos(phase)]
 }
