@@ -647,6 +647,7 @@
             };
 
             document.addEventListener('click', resumeAudio, { once: true });
+            document.addEventListener('touchstart', resumeAudio, { once: true });
             document.addEventListener('keydown', resumeAudio, { once: true });
 
             const gamepad_button_pressed = (b) => {
