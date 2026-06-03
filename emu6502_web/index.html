@@ -334,10 +334,12 @@
 
                 if (leftAlt) {
                     emu6502.pushbutton_latch(0,0x80);
+                    return;
                 }
 
                 if (rightAlt) {
                     emu6502.pushbutton_latch(1,0x80);
+                    return;
                 }
 
                 // Handle keypad joystick
@@ -530,10 +532,12 @@
 
                 if (leftAlt) {
                     emu6502.pushbutton_latch(0,0x0);
+                    return;
                 }
 
                 if (rightAlt) {
                     emu6502.pushbutton_latch(1,0x0);
+                    return;
                 }
 
                 // Handle keypad joystick
