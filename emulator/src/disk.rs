@@ -2476,11 +2476,7 @@ impl DiskDrive {
         //    / track_bits as i64) as isize
         //    - multiplier;
 
-        let optimal_timing = if !self.q7 {
-            disk.optimal_timing as isize * multiplier
-        } else {
-            32 * multiplier
-        };
+        let optimal_timing = if !self.q7 { disk.optimal_timing as isize } else { 32 };
 
         if self.lss_cycle >= optimal_timing {
             self.bit_buffer <<= 1;
@@ -2507,7 +2503,7 @@ impl DiskDrive {
                 self.pulse = Self::get_random_disk_bit(self.random_one_rate)
             }
 
-            self.lss_cycle -= (optimal_timing / multiplier + 32) / 2 * multiplier;
+            self.lss_cycle -= (optimal_timing + 32) / 2 * multiplier;
 
             if !self.q7 {
                 // Only jitter if it is on track 0 or certain tracks has done more than 8
