@@ -140,7 +140,7 @@ pub struct Disk {
     mc3470_read_pulse: usize,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
-    flux_weakbit: usize,
+    flux_weakbit: u32,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     revolution: usize,
@@ -2410,8 +2410,8 @@ impl DiskDrive {
                         value += track[disk.head] as usize;
                     }
                     disk.mc3470_read_pulse = value;
-                    return_value = true;
-                } else if disk.mc3470_counter + 1 < 4 {
+                    return_value = false;
+                } else if disk.mc3470_counter < 4 {
                     return_value = true;
                     disk.mc3470_counter += 1;
                 } else {
@@ -2419,11 +2419,8 @@ impl DiskDrive {
                     disk.mc3470_counter += 1;
                 };
             }
-            if return_value {
-                disk.flux_weakbit = 0;
-            } else {
-                disk.flux_weakbit = usize::min(32, disk.flux_weakbit + 1);
-            }
+
+            disk.flux_weakbit = (disk.flux_weakbit << 1) | return_value as u32;
             return_value
         } else {
             false
@@ -2522,7 +2519,7 @@ impl DiskDrive {
         }
 
         if track_type == TrackType::Flux {
-            if flux_weakbit >= 32 {
+            if flux_weakbit == 0 {
                 self.pulse = Self::get_random_disk_bit(self.random_one_rate)
             } else {
                 self.pulse = read_pulse as u8
