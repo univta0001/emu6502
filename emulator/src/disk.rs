@@ -2507,14 +2507,14 @@ impl DiskDrive {
                 self.pulse = Self::get_random_disk_bit(self.random_one_rate)
             }
 
-            self.lss_cycle -= optimal_timing;
+            self.lss_cycle -= (optimal_timing / multiplier + 32) / 2 * multiplier;
+
             if !self.q7 {
                 // Only jitter if it is on track 0 or certain tracks has done more than 8
                 // revolutions
                 if !self.disable_disk_jitter && (disk.track == 0 || disk.revolution > 8) {
                     self.lss_cycle -= 1;
                 }
-                self.lss_cycle += (disk.optimal_timing as isize - 32) / 4 * multiplier
             }
         }
 
