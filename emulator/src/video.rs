@@ -819,11 +819,15 @@ impl Video {
         let cycle = self.cycles;
         let (row, col) = (cycle / CYCLES_PER_ROW, cycle % CYCLES_PER_ROW);
 
+        let is_shr = self.is_shr_mode();
+        let in_hblank = col < CYCLES_PER_HBL;
+        let in_color_burst = (CYCLES_PER_BURST_START..CYCLES_PER_BURST_END).contains(&col);
+        let is_visible_row = !is_shr && row < 192 || is_shr && row < 200;
+        let is_display_area = !in_hblank && is_visible_row;
+
         if cycle == 0 {
             self.update_blink_state();
         }
-
-        let is_shr = self.is_shr_mode();
 
         // Video line takes 65 clock cycles
         // 25 clock cycle of horizontal blank
@@ -836,11 +840,11 @@ impl Video {
             return;
         }
 
-        if (CYCLES_PER_BURST_START..CYCLES_PER_BURST_END).contains(&col) {
+        if in_color_burst {
             self.update_color_burst();
         }
 
-        if (!is_shr && row >= 192) || (is_shr && row >= 200) || col < CYCLES_PER_HBL {
+        if !is_display_area {
             self.video_cache[cycle] = video_value as u32;
             return;
         }
