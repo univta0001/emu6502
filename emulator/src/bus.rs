@@ -22,9 +22,6 @@ use crate::videoterm::Videoterm;
 
 use strum::EnumIter;
 
-//use rand::Rng;
-//use std::collections::HashMap;
-
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
 
@@ -294,7 +291,6 @@ impl Bus {
             self.unclocked_addr_write(addr + 1, 0xff);
         }
 
-        //let mut rng = rand::thread_rng();
         for addr in (0x0000..0xc000).step_by(512) {
             let rand_value = fastrand::u16(0..=65535);
             self.unclocked_addr_write(addr + 0x28, (rand_value & 0xff) as u8);
@@ -1338,13 +1334,8 @@ impl Bus {
         if !self.joystick_jitter {
             value
         } else {
-            //let mut rng = rand::thread_rng();
-            let jitter: i8 = fastrand::i8(-4..5);
-            if jitter < 0 {
-                value.saturating_sub((-jitter) as u16)
-            } else {
-                value.saturating_add(jitter as u16)
-            }
+            let jitter = fastrand::i16(-4..5);
+            value.saturating_add_signed(jitter)
         }
     }
 
