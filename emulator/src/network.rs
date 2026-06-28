@@ -13,20 +13,12 @@ use std::time::Duration;
 static PCAP_LOADED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
 #[cfg(feature = "pcap")]
-use std::fmt;
-
-#[cfg(feature = "pcap")]
 use std::fmt::{Debug, Formatter};
 
 #[cfg(feature = "serde_support")]
 use crate::marshal::{as_hex, from_hex_32k};
 
-#[cfg(debug_assertions)]
-const U2_DEBUG: bool = true;
-
-#[cfg(not(debug_assertions))]
-const U2_DEBUG: bool = false;
-
+const U2_DEBUG: bool = cfg!(debug_assertions);
 const LABEL: &str = "Uthernet2";
 
 // Uthernet II registers
@@ -186,7 +178,7 @@ struct PcapCapture(pcap::Capture<pcap::Active>);
 
 #[cfg(feature = "pcap")]
 impl Debug for PcapCapture {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "PcapCapture BlockMode: {}", self.0.is_nonblock())
     }
 }
@@ -954,32 +946,20 @@ impl Uthernet2 {
             }
         }
 
-        if let Some(device) = device {
-            u2_debug!("Using device name: {} desc: {:?}", device.name, device.desc);
-
-            let cap_active = self.get_pcap_device(&device);
-
-            // Try to convert capture<active> to non-blocking
-            if let Some(tcap_active) = cap_active {
-                let nonblock_result = tcap_active.setnonblock();
-                if let Ok(nonblock_cap) = nonblock_result {
-                    self.socket[i].set_socket_handle(Proto::MacRaw(PcapCapture(nonblock_cap)));
-                } else {
-                    if let Err(error) = nonblock_result {
-                        u2_debug!(
-                            "Unable to set nonblock to device. Fall back to blocking mode: {:?}",
-                            error
-                        );
-                    }
-
-                    // Fallback to blocking with timeout of 20 ms if failed to set non-blocking
-                    let cap_active = self.get_pcap_device(&device);
-                    if let Some(tcap_active) = cap_active {
-                        self.socket[i].set_socket_handle(Proto::MacRaw(PcapCapture(tcap_active)));
-                    } else {
-                        u2_debug!("Unable to get blocking device");
-                    }
-                }
+        let Some(device) = device else { return };
+        u2_debug!("Using device name: {} desc: {:?}", device.name, device.desc);
+        let Some(cap_active) = self.get_pcap_device(&device) else { return };
+        match cap_active.setnonblock() {
+            Ok(nonblock_cap) => {
+                self.socket[i].set_socket_handle(Proto::MacRaw(PcapCapture(nonblock_cap)));
+            }
+            Err(error) => {
+                 u2_debug!(
+                    "Unable to set nonblock to device. Fall back to blocking mode: {:?}",
+                    error
+                 );
+                 let Some(cap_active) = self.get_pcap_device(&device) else { return };
+                 self.socket[i].set_socket_handle(Proto::MacRaw(PcapCapture(cap_active)));
             }
         }
     }
