@@ -2079,14 +2079,14 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     * SPEED_NUMERATOR[emulator_state.speed.speed_index]
                     / SPEED_DENOMINATOR[emulator_state.speed.speed_index];
 
-                let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
+                let adj_time = adj_ms.saturating_sub(video_cpu_update as usize).saturating_sub(50);
 
                 if adj_time > 0 {
                     spin_sleep::sleep(std::time::Duration::from_micros(adj_time as u64))
                 }
             }
 
-            let elapsed = t.elapsed().as_micros();
+            let elapsed = t.elapsed().as_micros().saturating_add(50);
             emulator_state.speed.estimated_mhz = (emulator_state.dcyc as f32) / elapsed as f32;
             emulator_state.speed.fps = emulator_state.video.cpu_mhz / emulator_state.dcyc as f32;
             emulator_state.dcyc = emulator_state
