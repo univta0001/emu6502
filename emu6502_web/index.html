@@ -782,11 +782,13 @@
                 }
             }
 
+            let next_play_time = 0;
             const update_audio = () => {
                 let data = emu6502.sound_buffer();
-                if (data.length >= 8192*4)
+                if (data.length >= 2048)
                 {
-                    let audio_buffer = ctx_audio.createBuffer(2, data.length/2, 44100);
+                    let num_frames = Math.floor(data.length / 2);
+                    let audio_buffer = ctx_audio.createBuffer(2, num_frames, 44100);
                     let left_audio = audio_buffer.getChannelData(0);
                     let right_audio = audio_buffer.getChannelData(1);
                     for (var i=0;i<data.length/2;i++) {
@@ -799,7 +801,13 @@
                     audio_source.buffer = audio_buffer;
                     audio_source.connect(audio_gain);
                     audio_gain.connect(ctx_audio.destination);
-                    audio_source.start(ctx_audio.currentTime);
+
+                    if (next_play_time < ctx_audio.currentTime) {
+                        next_play_time = ctx_audio.currentTime + 0.01;
+                    }
+
+                    audio_source.start(next_play_time);
+                    next_play_time += audio_buffer.duration;
 
                     emu6502.clear_sound_buffer();
                 }
