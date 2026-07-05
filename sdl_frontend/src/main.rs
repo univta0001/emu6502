@@ -180,6 +180,7 @@ struct EmulatorState {
     dcyc: usize,
     previous_cycles: usize,
     sampler: Sampler,
+    audio_accumulator: usize,
 }
 
 impl EmulatorState {
@@ -206,6 +207,7 @@ impl EmulatorState {
             current_settings: Vec::new(),
             dcyc: 0,
             previous_cycles: 0,
+            audio_accumulator: 0,
             sampler,
         }
     }
@@ -986,7 +988,7 @@ fn dump_track_sector_info(cpu: &CPU) {
     */
 }
 
-fn update_audio(cpu: &mut CPU, state: &EmulatorState) {
+fn update_audio(cpu: &mut CPU, state: &mut EmulatorState) {
     let snd = &mut cpu.bus.audio;
     let audio_sample_size = state.video.audio_sample_size;
 
@@ -1001,12 +1003,11 @@ fn update_audio(cpu: &mut CPU, state: &EmulatorState) {
     let snd_buffer = snd.get_buffer();
     let threshold = SPEED_DENOMINATOR[state.speed.speed_index];
 
-    let mut accumulator = 0;
     let mut output = Vec::new();
     for chunk in snd_buffer.chunks_exact(2) {
-        accumulator += 10;
-        if accumulator >= threshold {
-            accumulator -= threshold;
+        state.audio_accumulator += 10;
+        if state.audio_accumulator >= threshold {
+            state.audio_accumulator -= threshold;
             output.extend_from_slice(chunk);
         }
     }
@@ -2069,7 +2070,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 cpu.bus.video.skip_update = true;
             }
 
-            update_audio(&mut cpu, &emulator_state);
+            update_audio(&mut cpu, &mut emulator_state);
             cpu.bus.audio.clear_buffer();
 
             let video_cpu_update = t.elapsed().as_micros();
