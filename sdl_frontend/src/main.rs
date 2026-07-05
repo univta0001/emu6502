@@ -1003,7 +1003,7 @@ fn update_audio(cpu: &mut CPU, state: &EmulatorState) {
 
     let mut accumulator = 0;
     let mut output = Vec::new();
-    for (index, chunk) in snd_buffer.chunks_exact(2).enumerate() {
+    for chunk in snd_buffer.chunks_exact(2) {
         accumulator += 10;
         if accumulator >= threshold {
             accumulator -= threshold;
