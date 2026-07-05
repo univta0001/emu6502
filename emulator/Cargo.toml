@@ -14,7 +14,7 @@ serde = { version = "1.0.228", features = ["derive"],  optional = true }
 iz80 = { path = "iz80", optional = true }
 time = { version = "0.3.53", features = ["local-offset","wasm-bindgen"] }
 fastrand = "2.4.1"
-educe = { version = "0.6.0", default-features = false, features = ["Debug"], optional = true }
+educe = { version = "0.7.0", default-features = false, features = ["Debug"], optional = true }
 pcap = { version = "2.4.0", default-features = false, optional = true }
 libloading = { version = "0.9.0", default-features = false, optional = true }
 strum = { version = "0.28.0", features = ["derive"] }
