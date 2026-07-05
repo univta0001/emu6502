@@ -27,7 +27,7 @@ impl Emulator {
             false
         };
         if lname.ends_with(".2mg") || lname.ends_with(".hdv") || po_hd {
-            let hdv_mode = lname.ends_with(".hdv");
+            let hdv_mode = lname.ends_with(".hdv") || lname.ends_with(".po");
             let drv = &mut self.cpu.bus.harddisk;
             let drive_selected = drv.drive_selected();
             drv.drive_select(drive);
