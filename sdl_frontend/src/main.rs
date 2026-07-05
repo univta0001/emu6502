@@ -2073,12 +2073,12 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             update_audio(&mut cpu, &mut emulator_state);
             cpu.bus.audio.clear_buffer();
 
-            let video_cpu_update = t.elapsed().as_micros();
             if normal_cpu_speed {
                 let adj_ms = emulator_state.video.cpu_period as usize
                     * SPEED_NUMERATOR[emulator_state.speed.speed_index]
                     / SPEED_DENOMINATOR[emulator_state.speed.speed_index];
 
+                let video_cpu_update = t.elapsed().as_micros();
                 let adj_time = adj_ms.saturating_sub(video_cpu_update as usize).saturating_sub(50);
 
                 if adj_time > 0 {
