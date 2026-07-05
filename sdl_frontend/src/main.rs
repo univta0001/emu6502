@@ -1004,10 +1004,6 @@ fn update_audio(cpu: &mut CPU, state: &EmulatorState) {
     let mut accumulator = 0;
     let mut output = Vec::new();
     for (index, chunk) in snd_buffer.chunks_exact(2).enumerate() {
-        if index == 0 {
-            output.extend_from_slice(chunk);
-        }
-
         accumulator += 10;
         if accumulator >= threshold {
             accumulator -= threshold;
@@ -2082,14 +2078,14 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     / SPEED_DENOMINATOR[emulator_state.speed.speed_index];
 
                 let video_cpu_update = t.elapsed().as_micros();
-                let adj_time = adj_ms.saturating_sub(video_cpu_update as usize).saturating_sub(20);
+                let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
 
                 if adj_time > 0 {
                     spin_sleep::sleep(std::time::Duration::from_micros(adj_time as u64))
                 }
             }
 
-            let elapsed = t.elapsed().as_micros().saturating_add(20);
+            let elapsed = t.elapsed().as_micros();
             emulator_state.speed.estimated_mhz = (emulator_state.dcyc as f32) / elapsed as f32;
             emulator_state.speed.fps = emulator_state.video.cpu_mhz / emulator_state.dcyc as f32;
             emulator_state.dcyc = emulator_state
