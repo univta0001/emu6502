@@ -73,6 +73,7 @@ const DSK_PO_SIZE: u64 = 143360;
 
 const SPEED_NUMERATOR: [usize; 5] = [10, 10, 10, 10, 10];
 const SPEED_DENOMINATOR: [usize; 5] = [10, 28, 40, 80, 10];
+const SPEED_RATIO: [f32; 5] = [1.0, 2.8, 4.0, 8.0, 1.0];
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -179,7 +180,6 @@ struct EmulatorState {
     current_settings: Vec<usize>,
     dcyc: usize,
     previous_cycles: usize,
-    audio_accumulator: usize,
     sampler: Sampler,
 }
 
@@ -207,7 +207,6 @@ impl EmulatorState {
             current_settings: Vec::new(),
             dcyc: 0,
             previous_cycles: 0,
-            audio_accumulator: 0,
             sampler,
         }
     }
@@ -992,15 +991,17 @@ fn update_audio(cpu: &mut CPU, state: &mut EmulatorState) {
     let snd = &mut cpu.bus.audio;
     let audio_sample_size = state.video.audio_sample_size;
 
-    let Some(ref stream) = state.audio_stream else {
+    let Some(ref mut stream) = state.audio_stream else {
         return;
     };
 
-    if state.speed.speed_index + 1 == SPEED_DENOMINATOR.len() {
+    if state.speed.speed_index + 1 == SPEED_RATIO.len() {
         return;
     }
 
     let snd_buffer = snd.get_buffer();
+
+    /*
     let threshold = SPEED_DENOMINATOR[state.speed.speed_index];
 
     let mut output = Vec::new();
@@ -1016,6 +1017,25 @@ fn update_audio(cpu: &mut CPU, state: &mut EmulatorState) {
         && queued_bytes < audio_sample_size as i32 * 2 * 8
     {
         let _ = stream.put_data_i16(&output);
+    }
+    */
+
+    // Implement Dynamic Rate Control for audio
+    if let Ok(queued_bytes) = stream.queued_bytes() {
+        let target_bytes = audio_sample_size as i32 * 2 * 4;
+        let ratio = if queued_bytes > target_bytes + 1000 {
+            1.01
+        } else if queued_bytes < target_bytes - 1000 {
+            0.99
+        } else {
+            1.0
+        };
+        let ratio = ratio * SPEED_RATIO[state.speed.speed_index];
+
+        unsafe {
+            sdl3_sys::audio::SDL_SetAudioStreamFrequencyRatio(stream.stream(), ratio);
+        }
+        let _ = stream.put_data_i16(snd_buffer);
     }
 }
 
@@ -1989,6 +2009,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     update_video_state(&mut cpu, &mut emulator_state.video);
 
+    let mut audio_time = Instant::now();
+
     loop {
         if emulator_state.reload_cpu {
             emulator_state.reload_cpu = false;
@@ -2070,6 +2092,12 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 cpu.bus.video.skip_update = true;
             }
 
+            let audio_offset = audio_time
+                .elapsed()
+                .as_micros()
+                .saturating_sub(emulator_state.video.cpu_period as u128);
+            audio_time = Instant::now();
+
             update_audio(&mut cpu, &mut emulator_state);
             cpu.bus.audio.clear_buffer();
 
@@ -2079,14 +2107,17 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     / SPEED_DENOMINATOR[emulator_state.speed.speed_index];
 
                 let video_cpu_update = t.elapsed().as_micros();
-                let adj_time = adj_ms.saturating_sub(video_cpu_update as usize).saturating_sub(50);
+                let mut adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
+                if audio_offset > 0 {
+                    adj_time = adj_time.saturating_sub(audio_offset as usize);
+                }
 
                 if adj_time > 0 {
                     spin_sleep::sleep(std::time::Duration::from_micros(adj_time as u64))
                 }
             }
 
-            let elapsed = t.elapsed().as_micros().saturating_add(50);
+            let elapsed = t.elapsed().as_micros();
             emulator_state.speed.estimated_mhz = (emulator_state.dcyc as f32) / elapsed as f32;
             emulator_state.speed.fps = emulator_state.video.cpu_mhz / emulator_state.dcyc as f32;
             emulator_state.dcyc = emulator_state

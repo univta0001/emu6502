@@ -948,18 +948,22 @@ impl Uthernet2 {
 
         let Some(device) = device else { return };
         u2_debug!("Using device name: {} desc: {:?}", device.name, device.desc);
-        let Some(cap_active) = self.get_pcap_device(&device) else { return };
+        let Some(cap_active) = self.get_pcap_device(&device) else {
+            return;
+        };
         match cap_active.setnonblock() {
             Ok(nonblock_cap) => {
                 self.socket[i].set_socket_handle(Proto::MacRaw(PcapCapture(nonblock_cap)));
             }
             Err(error) => {
-                 u2_debug!(
+                u2_debug!(
                     "Unable to set nonblock to device. Fall back to blocking mode: {:?}",
                     error
-                 );
-                 let Some(cap_active) = self.get_pcap_device(&device) else { return };
-                 self.socket[i].set_socket_handle(Proto::MacRaw(PcapCapture(cap_active)));
+                );
+                let Some(cap_active) = self.get_pcap_device(&device) else {
+                    return;
+                };
+                self.socket[i].set_socket_handle(Proto::MacRaw(PcapCapture(cap_active)));
             }
         }
     }

@@ -2476,7 +2476,11 @@ impl DiskDrive {
         //    / track_bits as i64) as isize
         //    - multiplier;
 
-        let optimal_timing = if !self.q7 { disk.optimal_timing as isize } else { 32 };
+        let optimal_timing = if !self.q7 {
+            disk.optimal_timing as isize
+        } else {
+            32
+        };
 
         if self.lss_cycle >= optimal_timing {
             self.bit_buffer <<= 1;

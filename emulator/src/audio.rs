@@ -669,7 +669,9 @@ impl Audio {
             Ok((
                 samples_per_second,
                 data[data_pos + 8..]
-                    .chunks_exact(2)
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
                     .step_by(num_channels)
                     .map(|chunk| (i16::from_le_bytes([chunk[0], chunk[1]]) / 256 + 128) as u8)
                     .collect(),

@@ -973,9 +973,7 @@ impl Video {
             0x0e if self.apple2e && write_flag => {
                 let prev_mode = self.altchar;
                 self.altchar = false;
-                for item in &mut self.video_dirty {
-                    *item = 1;
-                }
+                self.video_dirty.fill(1);
                 if prev_mode {
                     self.update_previous_column_graphics();
                 }
@@ -984,9 +982,7 @@ impl Video {
             0x0f if (self.apple2e_enh || self.apple2c) && write_flag => {
                 let prev_mode = self.altchar;
                 self.altchar = true;
-                for item in &mut self.video_dirty {
-                    *item = 1;
-                }
+                self.video_dirty.fill(1);
                 if !prev_mode {
                     self.update_previous_column_graphics();
                 }
@@ -1052,9 +1048,7 @@ impl Video {
             0x21 => {
                 if write_flag {
                     self.mono_mode = value & 0x80 > 0;
-                    for item in &mut self.video_reparse {
-                        *item = 1
-                    }
+                    self.video_reparse.fill(1);
                     self.update_video();
                 } else if self.mono_mode {
                     return_value |= 0x80;
@@ -1074,9 +1068,7 @@ impl Video {
                         self.shr_mode = false;
                         self.shr_linear_mode = false;
                     }
-                    for item in &mut self.video_reparse {
-                        *item = 1
-                    }
+                    self.video_reparse.fill(1);
                     self.update_video();
                 } else if self.mono_mode {
                     return_value |= 0x20;
@@ -1115,9 +1107,7 @@ impl Video {
     }
 
     pub fn clear_video_dirty(&mut self) {
-        for item in &mut self.video_dirty {
-            *item = 0;
-        }
+        self.video_dirty.fill(0);
     }
 
     pub fn get_color_burst(&self) -> bool {
@@ -1183,9 +1173,7 @@ impl Video {
     }
 
     pub fn invalidate_video_cache(&mut self) {
-        for item in &mut self.video_cache {
-            *item = u32::MAX;
-        }
+        self.video_cache.fill(u32::MAX);
     }
 
     fn is_display_mode_mono(&self) -> bool {
@@ -1856,16 +1844,11 @@ impl Video {
             ch
         };
 
-        let back_color;
-        let fore_color;
-
-        if altflag {
-            back_color = color;
-            fore_color = COLOR_BLACK;
+        let (back_color, fore_color) = if altflag {
+            (color, COLOR_BLACK)
         } else {
-            back_color = COLOR_BLACK;
-            fore_color = color;
-        }
+            (COLOR_BLACK, color)
+        };
 
         let x1offset = x1 * 7;
         let y1offset = y1 * 8;
