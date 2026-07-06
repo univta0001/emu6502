@@ -1004,6 +1004,10 @@ fn update_audio(cpu: &mut CPU, state: &mut EmulatorState) {
     let snd = &mut cpu.bus.audio;
     let audio_sample_size = state.video.audio_sample_size;
 
+    if audio_sample_size == 0 {
+        return;
+    }
+
     let Some(ref mut stream) = state.audio_stream else {
         return;
     };
@@ -1039,7 +1043,11 @@ fn update_audio(cpu: &mut CPU, state: &mut EmulatorState) {
     // Implement Dynamic Rate Control for audio
     if let Ok(queued_bytes) = stream.queued_bytes() {
         let target_bytes = (audio_sample_size as i32 * 2 * 4) as f32;
-        let ratio = 1.0 + (queued_bytes as f32 - target_bytes) / target_bytes * 0.005;
+        let error = (queued_bytes as f32 - target_bytes) / target_bytes;
+        let deadband = 0.05;
+        let adjusted_error = if error.abs() < deadband { 0.0 } else { error };
+        let adjust = (adjusted_error * 0.005).clamp(-0.1, 0.1);
+        let ratio = 1.0 + adjust;
         let ratio = ratio * SPEED_RATIO[state.speed.speed_index];
         let _ = set_stream_frequency_ratio(stream, ratio);
         let _ = stream.put_data_i16(snd_buffer);
