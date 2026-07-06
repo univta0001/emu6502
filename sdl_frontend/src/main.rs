@@ -987,6 +987,19 @@ fn dump_track_sector_info(cpu: &CPU) {
     */
 }
 
+fn set_stream_frequency_ratio(
+    stream: &mut sdl3::audio::AudioStream,
+    ratio: f32,
+) -> Result<(), sdl3::Error> {
+    let result =
+        unsafe { sdl3_sys::audio::SDL_SetAudioStreamFrequencyRatio(stream.stream(), ratio) };
+    if result {
+        Ok(())
+    } else {
+        Err(sdl3::get_error())
+    }
+}
+
 fn update_audio(cpu: &mut CPU, state: &mut EmulatorState) {
     let snd = &mut cpu.bus.audio;
     let audio_sample_size = state.video.audio_sample_size;
@@ -1031,10 +1044,7 @@ fn update_audio(cpu: &mut CPU, state: &mut EmulatorState) {
             1.0
         };
         let ratio = ratio * SPEED_RATIO[state.speed.speed_index];
-
-        unsafe {
-            sdl3_sys::audio::SDL_SetAudioStreamFrequencyRatio(stream.stream(), ratio);
-        }
+        let _ = set_stream_frequency_ratio(stream, ratio);
         let _ = stream.put_data_i16(snd_buffer);
     }
 }
