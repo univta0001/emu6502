@@ -2024,8 +2024,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     update_video_state(&mut cpu, &mut emulator_state.video);
 
-    let mut audio_time = Instant::now();
-
     loop {
         if emulator_state.reload_cpu {
             emulator_state.reload_cpu = false;
@@ -2107,12 +2105,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 cpu.bus.video.skip_update = true;
             }
 
-            let audio_offset = audio_time
-                .elapsed()
-                .as_micros()
-                .saturating_sub(emulator_state.video.cpu_period as u128);
-            audio_time = Instant::now();
-
             update_audio(&mut cpu, &mut emulator_state);
             cpu.bus.audio.clear_buffer();
 
@@ -2122,10 +2114,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     / SPEED_DENOMINATOR[emulator_state.speed.speed_index];
 
                 let video_cpu_update = t.elapsed().as_micros();
-                let mut adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
-                if audio_offset > 0 {
-                    adj_time = adj_time.saturating_sub(audio_offset as usize);
-                }
+                let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
 
                 if adj_time > 0 {
                     spin_sleep::sleep(std::time::Duration::from_micros(adj_time as u64))
