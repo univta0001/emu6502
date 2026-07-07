@@ -14,7 +14,7 @@ serde = { version = "1.0.228", features = ["derive"],  optional = true }
 iz80 = { path = "iz80", optional = true }
 time = { version = "0.3.53", features = ["local-offset","wasm-bindgen"] }
 fastrand = "2.4.1"
-educe = { version = "0.7.0", default-features = false, features = ["Debug"], optional = true }
+educe = { version = "0.7.4", default-features = false, features = ["Debug"], optional = true }
 pcap = { version = "2.4.0", default-features = false, optional = true }
 libloading = { version = "0.9.0", default-features = false, optional = true }
 strum = { version = "0.28.0", features = ["derive"] }
@@ -22,12 +22,12 @@ strum = { version = "0.28.0", features = ["derive"] }
 [dev-dependencies]
 regex = "1.12.4"
 criterion = { version = "0.8.2", features = ['html_reports'] }
-crossbeam-utils = "0.8.21"
+crossbeam-utils = "0.8.22"
 serde_json = "1.0.150"
-crossbeam-epoch = "0.9.18"
+crossbeam-epoch = "0.9.20"
 ryu = "1.0.23"
 autocfg = "1.5.1"
-crossbeam-channel = "0.5.15"
+crossbeam-channel = "0.5.16"
 num_cpus = "1.17.0"
 
 [features]

@@ -1019,7 +1019,7 @@ fn update_audio(cpu: &mut CPU, state: &mut EmulatorState) {
     let snd_buffer = snd.get_buffer();
     if snd_buffer.is_empty() {
         return;
-    }    
+    }
 
     /*
     let threshold = SPEED_DENOMINATOR[state.speed.speed_index];
@@ -1042,7 +1042,8 @@ fn update_audio(cpu: &mut CPU, state: &mut EmulatorState) {
 
     // Implement Dynamic Rate Control for audio
     if let Ok(queued_bytes) = stream.queued_bytes() {
-        let target_bytes = (audio_sample_size as i32 * 2 * 4) as f32;
+        // Audio sample size * Number of Channels * Number of Buffers
+        let target_bytes = audio_sample_size as f32 * 2.0 * 4.0;
         let error = (queued_bytes as f32 - target_bytes) / target_bytes;
         let deadband = 0.05;
         let adjusted_error = if error.abs() < deadband { 0.0 } else { error };
@@ -1050,8 +1051,9 @@ fn update_audio(cpu: &mut CPU, state: &mut EmulatorState) {
         let ratio = 1.0 + adjust;
         let ratio = ratio * SPEED_RATIO[state.speed.speed_index];
         let _ = set_stream_frequency_ratio(stream, ratio);
-        let _ = stream.put_data_i16(snd_buffer);
     }
+
+    let _ = stream.put_data_i16(snd_buffer);
 }
 
 fn save_emulator_screenshot(cpu: &mut CPU) {
