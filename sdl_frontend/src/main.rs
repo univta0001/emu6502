@@ -1046,16 +1046,13 @@ fn update_audio(cpu: &mut CPU, state: &mut EmulatorState) {
         let target_bytes = audio_sample_size as f32 * 2.0 * 4.0;
         let error = (queued_bytes as f32 - target_bytes) / target_bytes;
         let deadband = 0.05;
-        let adjust = if error.abs() < deadband {
-            (error * 0.005).clamp(-0.1, 0.1)
-        } else {
-            0.0
-        };
-        let ratio = (1.0 + adjust) * SPEED_RATIO[state.speed.speed_index];
+        let adjusted_error = if error.abs() < deadband { 0.0 } else { error };
+        let adjust = (adjusted_error * 0.005).clamp(-0.1, 0.1);
+        let ratio = 1.0 + adjust;
+        let ratio = ratio * SPEED_RATIO[state.speed.speed_index];
         let _ = set_stream_frequency_ratio(stream, ratio);
+        let _ = stream.put_data_i16(snd_buffer);
     }
-
-    let _ = stream.put_data_i16(snd_buffer);
 }
 
 fn save_emulator_screenshot(cpu: &mut CPU) {
