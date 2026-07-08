@@ -180,6 +180,7 @@ struct EmulatorState {
     current_settings: Vec<usize>,
     dcyc: usize,
     previous_cycles: usize,
+    audio_integral: f32,
     sampler: Sampler,
 }
 
@@ -207,6 +208,7 @@ impl EmulatorState {
             current_settings: Vec::new(),
             dcyc: 0,
             previous_cycles: 0,
+            audio_integral: 0.0,
             sampler,
         }
     }
@@ -1046,8 +1048,11 @@ fn update_audio(cpu: &mut CPU, state: &mut EmulatorState) {
         let target_bytes = audio_sample_size as f32 * 2.0 * 4.0;
         let error = (queued_bytes as f32 - target_bytes) / target_bytes;
         let deadband = 0.05;
+        let kp = 0.005;
+        let ki = 0.0001;
         let adjusted_error = if error.abs() < deadband { 0.0 } else { error };
-        let adjust = (adjusted_error * 0.005).clamp(-0.1, 0.1);
+        state.audio_integral = (state.audio_integral * (1.0 - ki)) + (adjusted_error * ki);
+        let adjust = (adjusted_error * kp + state.audio_integral).clamp(-0.1, 0.1);
         let ratio = 1.0 + adjust;
         let ratio = ratio * SPEED_RATIO[state.speed.speed_index];
         let _ = set_stream_frequency_ratio(stream, ratio);
