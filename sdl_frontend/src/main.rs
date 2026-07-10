@@ -180,7 +180,8 @@ struct EmulatorState {
     current_settings: Vec<usize>,
     dcyc: usize,
     previous_cycles: usize,
-    audio_integral: f32,
+    //audio_integral: f32,
+    audio_accumulator: usize,
     sampler: Sampler,
 }
 
@@ -208,7 +209,8 @@ impl EmulatorState {
             current_settings: Vec::new(),
             dcyc: 0,
             previous_cycles: 0,
-            audio_integral: 0.0,
+            //audio_integral: 0.0,
+            audio_accumulator: 0,
             sampler,
         }
     }
@@ -1023,7 +1025,6 @@ fn update_audio(cpu: &mut CPU, state: &mut EmulatorState) {
         return;
     }
 
-    /*
     let threshold = SPEED_DENOMINATOR[state.speed.speed_index];
 
     let mut output = Vec::new();
@@ -1040,8 +1041,8 @@ fn update_audio(cpu: &mut CPU, state: &mut EmulatorState) {
     {
         let _ = stream.put_data_i16(&output);
     }
-    */
 
+    /*
     // Implement Dynamic Rate Control for audio
     if let Ok(queued_bytes) = stream.queued_bytes() {
         // Audio sample size * Number of Channels * Number of Buffers
@@ -1058,6 +1059,7 @@ fn update_audio(cpu: &mut CPU, state: &mut EmulatorState) {
         let _ = set_stream_frequency_ratio(stream, ratio);
         let _ = stream.put_data_i16(snd_buffer);
     }
+    */
 }
 
 fn save_emulator_screenshot(cpu: &mut CPU) {
