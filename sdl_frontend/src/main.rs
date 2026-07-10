@@ -991,7 +991,7 @@ fn dump_track_sector_info(cpu: &CPU) {
     */
 }
 
-fn set_stream_frequency_ratio(
+pub fn set_stream_frequency_ratio(
     stream: &mut sdl3::audio::AudioStream,
     ratio: f32,
 ) -> Result<(), sdl3::Error> {
