@@ -1086,6 +1086,8 @@ fn save_emulator_screenshot(cpu: &mut CPU) {
         );
         if result.is_err() {
             eprintln!("Unable to create {filename}");
+        } else {
+            eprintln!("Screenshot saved as {filename}");
         }
     } else {
         eprintln!("Unable to create {filename}");
