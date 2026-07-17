@@ -1064,7 +1064,19 @@ fn update_audio(cpu: &mut CPU, state: &mut EmulatorState) {
 
 fn save_emulator_screenshot(cpu: &mut CPU) {
     let disp = &mut cpu.bus.video;
-    if let Ok(output) = File::create("screenshot.png") {
+
+    // Get current time using only the standard library
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or(std::time::Duration::ZERO);
+
+    let secs = now.as_secs();
+    let millis = now.subsec_millis();
+
+    // Format: Screenshot_<unix_seconds>_<milliseconds>.png
+    let filename = format!("screenshot_{}_{:03}.png", secs, millis);
+
+    if let Ok(output) = File::create(&filename) {
         let encoder = PngEncoder::new(output);
         let result = encoder.write_image(
             &disp.frame,
@@ -1073,10 +1085,10 @@ fn save_emulator_screenshot(cpu: &mut CPU) {
             ColorType::Rgba8.into(),
         );
         if result.is_err() {
-            eprintln!("Unable to create screenshot.png");
+            eprintln!("Unable to create {filename}");
         }
     } else {
-        eprintln!("Unable to create screenshot.png");
+        eprintln!("Unable to create {filename}");
     }
 }
 

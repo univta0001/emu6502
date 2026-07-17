@@ -142,7 +142,7 @@ impl Tone {
         self.period = ((coarse & 0xf) as u16) * 256 + (fine as u16);
         if self.period == 0 {
             self.count = 0;
-        } else if self.count >= self.period as usize {
+        } else if self.period != 0 && self.count >= self.period as usize {
             self.count %= self.period as usize;
         }
     }
