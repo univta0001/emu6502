@@ -1028,7 +1028,7 @@ fn update_audio(cpu: &mut CPU, state: &mut EmulatorState) {
     let threshold = SPEED_DENOMINATOR[state.speed.speed_index];
 
     let mut output = Vec::new();
-    for chunk in snd_buffer.chunks_exact(2) {
+    for chunk in snd_buffer.as_chunks::<2>().0 {
         state.audio_accumulator += 10;
         if state.audio_accumulator >= threshold {
             state.audio_accumulator -= threshold;
