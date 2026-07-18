@@ -73,8 +73,8 @@ const NTSC_CHROMA_BANDWIDTH: f32 = 600000.0;
 
 const DSK_PO_SIZE: u64 = 143360;
 
-const SPEED_NUMERATOR: [usize; 5] = [10, 10, 10, 10, 10];
-const SPEED_DENOMINATOR: [usize; 5] = [10, 28, 40, 80, 10];
+const SPEED_NUMERATOR: [u64; 5] = [10, 10, 10, 10, 10];
+const SPEED_DENOMINATOR: [u64; 5] = [10, 28, 40, 80, 10];
 const SPEED_RATIO: [f32; 5] = [1.0, 2.8, 4.0, 8.0, 1.0];
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -142,7 +142,8 @@ struct VideoState {
     current_full_screen: bool,
     full_screen: bool,
     cpu_cycles: usize,
-    cpu_period: usize,
+    cpu_period: u64,
+    adj_cpu_ms: std::time::Duration,
     cpu_mhz: f32,
     audio_sample_size: u32,
 }
@@ -183,7 +184,7 @@ struct EmulatorState {
     dcyc: usize,
     previous_cycles: usize,
     //audio_integral: f32,
-    audio_accumulator: usize,
+    audio_accumulator: u64,
     sampler: Sampler,
 }
 
@@ -1481,6 +1482,7 @@ fn function_key_processed(cpu: &mut CPU, event: &Event, state: &mut EmulatorStat
                 state.speed.speed_index = (state.speed.speed_index + 1) % SPEED_MODES.len();
             }
             cpu.set_speed(SPEED_MODES[state.speed.speed_index]);
+            update_video_state(cpu, state);
             return true;
         }
 
@@ -2051,7 +2053,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     emulator_state.prev_settings = get_slot_settings(&cpu);
     emulator_state.current_settings = emulator_state.prev_settings.clone();
 
-    update_video_state(&mut cpu, &mut emulator_state.video);
+    update_video_state(&mut cpu, &mut emulator_state);
+
+    let mut adj_ms_offset = std::time::Duration::from_micros(0);
 
     loop {
         if emulator_state.reload_cpu {
@@ -2137,20 +2141,19 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             update_audio(&mut cpu, &mut emulator_state);
             cpu.bus.audio.clear_buffer();
 
+            let adj_ms = emulator_state.video.adj_cpu_ms;
+
             if normal_cpu_speed {
-                let adj_ms = emulator_state.video.cpu_period as usize
-                    * SPEED_NUMERATOR[emulator_state.speed.speed_index]
-                    / SPEED_DENOMINATOR[emulator_state.speed.speed_index];
-
-                let video_cpu_update = t.elapsed().as_micros();
-                let adj_time = adj_ms.saturating_sub(video_cpu_update as usize);
-
-                if adj_time > 0 {
-                    spin_sleep::sleep(std::time::Duration::from_micros(adj_time as u64))
+                let video_cpu_update = t.elapsed() + adj_ms_offset;
+                if adj_ms > video_cpu_update {
+                    spin_sleep::sleep(adj_ms - video_cpu_update);
                 }
             }
 
             let elapsed = t.elapsed().as_micros();
+            adj_ms_offset =
+                std::time::Duration::from_micros(elapsed.saturating_sub(adj_ms.as_micros()) as u64);
+
             emulator_state.speed.estimated_mhz = (emulator_state.dcyc as f32) / elapsed as f32;
             emulator_state.speed.fps = emulator_state.video.cpu_mhz / emulator_state.dcyc as f32;
             emulator_state.dcyc = emulator_state
@@ -2650,6 +2653,7 @@ fn prepare_speed_menu_item(
     build_toggle_menu_item(ui, label, shortcut, speed_index == index, |_| {
         state.speed.speed_index = index;
         cpu.set_speed(SPEED_MODES[state.speed.speed_index]);
+        update_video_state(cpu, state);
     });
 }
 
@@ -2703,7 +2707,7 @@ fn prepare_video_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) 
             cpu.bus.video.is_video_50hz(),
             |setting| {
                 cpu.bus.video.set_video_50hz(setting);
-                update_video_state(cpu, &mut state.video);
+                update_video_state(cpu, state);
             },
         );
 
@@ -3280,7 +3284,8 @@ fn prepare_statusbar(cpu: &CPU, ui: &imgui::Ui, state: &EmulatorState, width: u3
     style_token.pop();
 }
 
-fn update_video_state(cpu: &mut CPU, state: &mut VideoState) {
+fn update_video_state(cpu: &mut CPU, emulator_state: &mut EmulatorState) {
+    let state = &mut emulator_state.video;
     let video_50hz = cpu.bus.video.is_video_50hz();
     if video_50hz {
         state.cpu_cycles = CPU_CYCLES_PER_FRAME_50HZ;
@@ -3293,6 +3298,14 @@ fn update_video_state(cpu: &mut CPU, state: &mut VideoState) {
         state.cpu_mhz = 1020484.0;
         state.audio_sample_size = AUDIO_SAMPLE_SIZE;
     }
+
+    // Update speed_index
+    let adj_ms = std::time::Duration::from_micros(
+        state.cpu_period * SPEED_NUMERATOR[emulator_state.speed.speed_index]
+            / SPEED_DENOMINATOR[emulator_state.speed.speed_index],
+    );
+
+    state.adj_cpu_ms = adj_ms;
     cpu.bus.audio.update_cycles(video_50hz);
 }
 
