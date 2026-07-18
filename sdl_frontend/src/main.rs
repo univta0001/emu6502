@@ -33,6 +33,8 @@ use std::error::Error;
 use std::ffi::OsStr;
 use strum::IntoEnumIterator;
 
+use chrono::Local;
+
 use imgui::{SliderFlags, StyleVar};
 use imgui_sdl3::ImGuiSdl3;
 use sdl3::gpu::*;
@@ -1065,6 +1067,7 @@ fn update_audio(cpu: &mut CPU, state: &mut EmulatorState) {
 fn save_emulator_screenshot(cpu: &mut CPU) {
     let disp = &mut cpu.bus.video;
 
+    /*
     // Get current time using only the standard library
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -1072,9 +1075,13 @@ fn save_emulator_screenshot(cpu: &mut CPU) {
 
     let secs = now.as_secs();
     let millis = now.subsec_millis();
+    */
+    let now = Local::now();
+    let timestamp = now.format("%Y-%m-%d_%H-%M-%S").to_string();
 
     // Format: Screenshot_<unix_seconds>_<milliseconds>.png
-    let filename = format!("screenshot_{}_{:03}.png", secs, millis);
+    //let filename = format!("screenshot_{}_{:03}.png", secs, millis);
+    let filename = format!("screenshot_{}.png", timestamp);
 
     if let Ok(output) = File::create(&filename) {
         let encoder = PngEncoder::new(output);
