@@ -603,7 +603,7 @@ Function Keys:
     Ctrl-F5            Disable / Enable video scanline mode
     Ctrl-F6            Disable / Enable audio filter
     Ctrl-F7            Toggle text color burst for 60Hz display
-    Ctrl-F8            Load Tape
+    Ctrl-F8            Access Tape
     Ctrl-F9            Eject Tape
     Ctrl-F10           Eject Hard Disk 1
     Ctrl-F11           Eject Hard Disk 2
@@ -661,6 +661,8 @@ where
             load_disk(cpu, path_ref, drive)?;
             loaded_device.push(IODevice::Disk);
         }
+    } else {
+        return Err(format!("Unable to load image {}", path_ref.display()).into());
     }
     Ok(())
 }
@@ -698,7 +700,7 @@ fn open_disk_dialog(cpu: &mut CPU, drive: usize) {
     }
 }
 
-fn load_tape(cpu: &mut CPU) {
+fn access_tape(cpu: &mut CPU) {
     let result = FileDialog::new()
         .add_filter("Tape image", &["wav"])
         .save_file();
@@ -908,7 +910,7 @@ fn load_serialized_image() -> Result<CPU, String> {
         {
             let result = load_disk(&mut new_cpu, &disk_filename, drive);
             if let Err(e) = result {
-                eprintln!("Unable to load disk {} : {e}", file_path.display());
+                eprintln!(".display()Unable to load disk {} : {e}", disk_filename);
             }
         }
         if is_harddisk_loaded(&new_cpu, drive)
@@ -916,7 +918,7 @@ fn load_serialized_image() -> Result<CPU, String> {
         {
             let result = load_harddisk(&mut new_cpu, &disk_filename, drive);
             if let Err(e) = result {
-                eprintln!("Unable to load disk {} : {e}", file_path.display());
+                eprintln!("Unable to load disk {} : {e}", disk_filename);
             }
         }
     }
@@ -1461,7 +1463,7 @@ fn function_key_processed(cpu: &mut CPU, event: &Event, state: &mut EmulatorStat
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                load_tape(cpu);
+                access_tape(cpu);
             } else {
                 cpu.bus.toggle_joystick_jitter();
             }
@@ -1564,6 +1566,8 @@ fn handle_file_drop(cpu: &mut CPU, filename: &str) {
         if let Err(e) = result {
             eprintln!("Unable to load disk {filename} : {e}");
         }
+    } else {
+        eprintln!("Unable to load invalid image : {}", path.display());
     }
 }
 
@@ -1757,7 +1761,7 @@ fn render_frame(
                 match std::mem::replace(&mut state.file_dialog, OpenFileDialog::None) {
                     OpenFileDialog::Disk(disk) => open_disk_dialog(cpu, disk.into()),
                     OpenFileDialog::HardDisk(disk) => open_harddisk_dialog(cpu, disk.into()),
-                    OpenFileDialog::Tape => load_tape(cpu),
+                    OpenFileDialog::Tape => access_tape(cpu),
                     OpenFileDialog::None => {}
                 }
             }
@@ -2970,7 +2974,7 @@ fn prepare_input_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) 
         );
 
         ui.separator();
-        if ui.menu_item_config("Load Tape").shortcut("Ctrl-F8").build() {
+        if ui.menu_item_config("Access Tape").shortcut("Ctrl-F8").build() {
             state.file_dialog = OpenFileDialog::Tape;
         }
 
@@ -3069,17 +3073,11 @@ fn get_slot_settings(cpu: &CPU) -> Vec<usize> {
 
     for (i, item) in selected.iter_mut().enumerate().take(8).skip(1) {
         let slot_value = cpu.bus.io_slot[i];
-        *item = 0;
-        for (io_index, &io_item) in iodevice_items.iter().enumerate() {
-            if slot_value == io_item {
-                *item = io_index;
-            }
-            match slot_value {
-                IODevice::Mockingboard(_) => *item = mockingboard_id,
-                IODevice::Saturn(_) => *item = saturn_id,
-                _ => {}
-            }
-        }
+        *item = match slot_value {
+            IODevice::Mockingboard(_) => mockingboard_id,
+            IODevice::Saturn(_) => saturn_id,
+            _ => iodevice_items.iter().position(|&x| x == slot_value).unwrap_or(0),
+        };
     }
 
     if cpu.is_apple2e() {
@@ -3146,7 +3144,7 @@ fn update_settings(cpu: &mut CPU, settings: &[usize]) -> bool {
     mockingboard_count = 0;
 
     for i in 1..8 {
-        let slot_value = iodevice_items[settings[i]];
+        let slot_value = iodevice_items.get(settings[i]).copied().unwrap_or(IODevice::None);
         cpu.bus.io_slot[i] = slot_value;
         if let IODevice::Mockingboard(_) = slot_value {
             cpu.bus.io_slot[i] = IODevice::Mockingboard(mockingboard_count);
