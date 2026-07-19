@@ -396,7 +396,7 @@ fn handle_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState) {
         Event::Quit { .. } => cpu.halt_cpu(),
 
         // Gamepad
-        Event::ControllerAxisMotion { .. }
+        Event::
         | Event::ControllerButtonDown { .. }
         | Event::ControllerButtonUp { .. }
         | Event::ControllerDeviceAdded { .. }
@@ -1699,8 +1699,9 @@ fn handle_gamepad_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState) 
         }
 
         Event::ControllerDeviceAdded { which, .. } => {
-            // Which refers to joystick device index
-            let joy_id = sdl3::joystick::JoystickId { 0: which };
+            // Which refers to joystick device index and is u32
+            // Game controller accepts JoystickId
+            let joy_id = sdl3::joystick::JoystickId::new(which);
             if let Ok(controller) = state.game_controller.open(joy_id)
                 && let Some(player_index) = controller.player_index()
             {
