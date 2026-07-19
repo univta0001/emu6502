@@ -603,7 +603,7 @@ Function Keys:
     Ctrl-F5            Disable / Enable video scanline mode
     Ctrl-F6            Disable / Enable audio filter
     Ctrl-F7            Toggle text color burst for 60Hz display
-    Ctrl-F8            Access Tape
+    Ctrl-F8            Mount Tape
     Ctrl-F9            Eject Tape
     Ctrl-F10           Eject Hard Disk 1
     Ctrl-F11           Eject Hard Disk 2
@@ -700,7 +700,7 @@ fn open_disk_dialog(cpu: &mut CPU, drive: usize) {
     }
 }
 
-fn access_tape(cpu: &mut CPU) {
+fn mount_tape(cpu: &mut CPU) {
     let result = FileDialog::new()
         .add_filter("Tape image", &["wav"])
         .save_file();
@@ -708,7 +708,7 @@ fn access_tape(cpu: &mut CPU) {
     let Some(file_path) = result else { return };
     let result = cpu.bus.audio.load_tape(&file_path);
     if let Err(e) = result {
-        eprintln!("Unable to load tape {} : {e}", file_path.display());
+        eprintln!("Unable to mount tape {} : {e}", file_path.display());
     }
 }
 
@@ -1463,7 +1463,7 @@ fn function_key_processed(cpu: &mut CPU, event: &Event, state: &mut EmulatorStat
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                access_tape(cpu);
+                mount_tape(cpu);
             } else {
                 cpu.bus.toggle_joystick_jitter();
             }
@@ -1761,7 +1761,7 @@ fn render_frame(
                 match std::mem::replace(&mut state.file_dialog, OpenFileDialog::None) {
                     OpenFileDialog::Disk(disk) => open_disk_dialog(cpu, disk.into()),
                     OpenFileDialog::HardDisk(disk) => open_harddisk_dialog(cpu, disk.into()),
-                    OpenFileDialog::Tape => access_tape(cpu),
+                    OpenFileDialog::Tape => mount_tape(cpu),
                     OpenFileDialog::None => {}
                 }
             }
@@ -2974,7 +2974,7 @@ fn prepare_input_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) 
         );
 
         ui.separator();
-        if ui.menu_item_config("Access Tape").shortcut("Ctrl-F8").build() {
+        if ui.menu_item_config("Mount Tape").shortcut("Ctrl-F8").build() {
             state.file_dialog = OpenFileDialog::Tape;
         }
 
