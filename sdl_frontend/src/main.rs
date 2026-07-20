@@ -396,7 +396,7 @@ fn handle_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState) {
         Event::Quit { .. } => cpu.halt_cpu(),
 
         // Gamepad
-        Event::
+        Event::ControllerAxisMotion { .. }
         | Event::ControllerButtonDown { .. }
         | Event::ControllerButtonUp { .. }
         | Event::ControllerDeviceAdded { .. }
