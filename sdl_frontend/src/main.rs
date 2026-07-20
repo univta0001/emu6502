@@ -1032,7 +1032,7 @@ fn update_audio(cpu: &mut CPU, state: &mut EmulatorState) {
 
     let threshold = SPEED_DENOMINATOR[state.speed.speed_index];
 
-    let mut output = Vec::new();
+    let mut output = Vec::with_capacity(snd_buffer.len());
     for chunk in snd_buffer.as_chunks::<2>().0 {
         state.audio_accumulator += 10;
         if state.audio_accumulator >= threshold {
@@ -1289,7 +1289,9 @@ fn process_clipboard(cpu: &mut CPU, clipboard_text: &mut String) {
     if latch < 0x80
         && let Some(ch) = clipboard_text.chars().next()
     {
-        cpu.bus.set_keyboard_latch((ch as u8) + 0x80);
+        if ch.is_ascii() {
+            cpu.bus.set_keyboard_latch((ch as u8) | 0x80);
+        }
         let char_len = ch.len_utf8();
         clipboard_text.drain(..char_len);
     }
