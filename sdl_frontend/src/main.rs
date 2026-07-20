@@ -1080,7 +1080,7 @@ fn save_emulator_screenshot(cpu: &mut CPU) {
     let millis = now.subsec_millis();
     */
     let now = Local::now();
-    let timestamp = now.format("%Y-%m-%d_%H-%M-%S").to_string();
+    let timestamp = now.format("%Y-%m-%d_%H-%M-%S%.3f").to_string();
 
     // Format: Screenshot_<unix_seconds>_<milliseconds>.png
     //let filename = format!("screenshot_{}_{:03}.png", secs, millis);
