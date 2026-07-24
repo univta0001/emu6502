@@ -2353,16 +2353,16 @@ fn parse_args(
     }
 
     load_drive_option(cpu, pargs, "--d1", 1, |cpu, path: &Path, index| {
-        load_disk(cpu, path, index)
+        load_disk(cpu, path, index - 1)
     })?;
     load_drive_option(cpu, pargs, "--d2", 2, |cpu, path: &Path, index| {
-        load_disk(cpu, path, index)
+        load_disk(cpu, path, index - 1)
     })?;
     load_drive_option(cpu, pargs, "--h1", 1, |cpu, path: &Path, index| {
-        load_harddisk(cpu, path, index)
+        load_harddisk(cpu, path, index - 1)
     })?;
-    load_drive_option(cpu, pargs, "--h2", 1, |cpu, path: &Path, index| {
-        load_harddisk(cpu, path, index)
+    load_drive_option(cpu, pargs, "--h2", 2, |cpu, path: &Path, index| {
+        load_harddisk(cpu, path, index - 1)
     })?;
 
     let mut slot_mboard = 0;
