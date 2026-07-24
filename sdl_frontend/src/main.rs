@@ -2352,35 +2352,18 @@ fn parse_args(
         cpu.bus.disk.set_override_optimal_timing(input_rate);
     }
 
-    for drive in 1..=2 {
-        let drive_setting = match drive {
-            1 => "--d1",
-            2 => "--d2",
-            _ => unreachable!(),
-        };
-
-        if let Some(input_file) = pargs.opt_value_from_str::<_, String>(drive_setting)? {
-            let path = Path::new(&input_file);
-            if load_disk(cpu, path, drive).is_err() {
-                eprintln!("Error loading file from {}", path.display());
-            }
-        }
-    }
-
-    for drive in 1..=2 {
-        let drive_setting = match drive {
-            1 => "--h1",
-            2 => "--h2",
-            _ => unreachable!(),
-        };
-
-        if let Some(input_file) = pargs.opt_value_from_str::<_, String>(drive_setting)? {
-            let path = Path::new(&input_file);
-            if load_harddisk(cpu, path, drive).is_err() {
-                eprintln!("Error loading file from {}", path.display());
-            }
-        }
-    }
+    load_drive_option(cpu, pargs, "--d1", 1, |cpu, path: &Path, index| {
+        load_disk(cpu, path, index)
+    })?;
+    load_drive_option(cpu, pargs, "--d2", 2, |cpu, path: &Path, index| {
+        load_disk(cpu, path, index)
+    })?;
+    load_drive_option(cpu, pargs, "--h1", 1, |cpu, path: &Path, index| {
+        load_harddisk(cpu, path, index)
+    })?;
+    load_drive_option(cpu, pargs, "--h2", 1, |cpu, path: &Path, index| {
+        load_harddisk(cpu, path, index)
+    })?;
 
     let mut slot_mboard = 0;
     let mut slot_saturn = 0;
@@ -2525,6 +2508,31 @@ fn parse_args(
     }
 
     Ok(false)
+}
+
+fn load_drive_option<F: Fn(&mut CPU, &Path, usize) -> Result<(), Box<dyn Error + Send + Sync>>>(
+    cpu: &mut CPU,
+    pargs: &mut pico_args::Arguments,
+    flag: &'static str,
+    drive: usize,
+    loader: F,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    if let Some(input_file) = pargs.opt_value_from_str::<_, String>(flag)? {
+        let path = Path::new(&input_file);
+        if let Err(e) = loader(cpu, path, drive) {
+            eprintln!(
+                "Unable to load {} {}: {}",
+                if flag.starts_with("-d") {
+                    "disk"
+                } else {
+                    "hard disk"
+                },
+                path.display(),
+                e
+            );
+        }
+    }
+    Ok(())
 }
 
 fn init_audio_stream(
@@ -2982,7 +2990,11 @@ fn prepare_input_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) 
         );
 
         ui.separator();
-        if ui.menu_item_config("Mount Tape").shortcut("Ctrl-F8").build() {
+        if ui
+            .menu_item_config("Mount Tape")
+            .shortcut("Ctrl-F8")
+            .build()
+        {
             state.file_dialog = OpenFileDialog::Tape;
         }
 
@@ -3084,7 +3096,10 @@ fn get_slot_settings(cpu: &CPU) -> Vec<usize> {
         *item = match slot_value {
             IODevice::Mockingboard(_) => mockingboard_id,
             IODevice::Saturn(_) => saturn_id,
-            _ => iodevice_items.iter().position(|&x| x == slot_value).unwrap_or(0),
+            _ => iodevice_items
+                .iter()
+                .position(|&x| x == slot_value)
+                .unwrap_or(0),
         };
     }
 
@@ -3152,7 +3167,10 @@ fn update_settings(cpu: &mut CPU, settings: &[usize]) -> bool {
     mockingboard_count = 0;
 
     for i in 1..8 {
-        let slot_value = iodevice_items.get(settings[i]).copied().unwrap_or(IODevice::None);
+        let slot_value = iodevice_items
+            .get(settings[i])
+            .copied()
+            .unwrap_or(IODevice::None);
         cpu.bus.io_slot[i] = slot_value;
         if let IODevice::Mockingboard(_) = slot_value {
             cpu.bus.io_slot[i] = IODevice::Mockingboard(mockingboard_count);
@@ -3306,8 +3324,8 @@ fn update_video_state(cpu: &mut CPU, emulator_state: &mut EmulatorState) {
     }
 
     // Update speed_index
-    let adj_ms = std::time::Duration::from_micros(state.cpu_period * SPEED_FACTOR
-            / SPEED[emulator_state.speed.speed_index]
+    let adj_ms = std::time::Duration::from_micros(
+        state.cpu_period * SPEED_FACTOR / SPEED[emulator_state.speed.speed_index],
     );
 
     state.adj_cpu_ms = adj_ms;
