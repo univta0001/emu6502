@@ -3306,9 +3306,8 @@ fn update_video_state(cpu: &mut CPU, emulator_state: &mut EmulatorState) {
     }
 
     // Update speed_index
-    let adj_ms = std::time::Duration::from_micros(
-        state.cpu_period * SPEED_NUMERATOR[emulator_state.speed.speed_index]
-            / SPEED_DENOMINATOR[emulator_state.speed.speed_index],
+    let adj_ms = std::time::Duration::from_micros(state.cpu_period * SPEED_FACTOR
+            / SPEED[emulator_state.speed.speed_index]
     );
 
     state.adj_cpu_ms = adj_ms;
