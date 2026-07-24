@@ -58,7 +58,12 @@ static APPLE2C3_ROM: &[u8] = include_bytes!("../../resource/Apple2c_Rom03.rom");
 static APPLE2C4_ROM: &[u8] = include_bytes!("../../resource/Apple2c_Rom04.rom");
 static APPLE2CP_ROM: &[u8] = include_bytes!("../../resource/Apple2c_plus.rom");
 
+// Number of cpu cycles in one frame for Apple 2 60 HZ
+// In NTSC, there are 262 lines, each line takes 65 cpu cycles
 const CPU_CYCLES_PER_FRAME_60HZ: usize = 17030;
+
+// Number of cpu cycles in one frame for Apple 2 50 HZ
+// In PAL, there are 312 lines, each line takes 65 cpu cycles
 const CPU_CYCLES_PER_FRAME_50HZ: usize = 20280;
 
 const AUDIO_SAMPLE_RATE: u32 = emu6502::audio::AUDIO_SAMPLE_RATE as u32;
@@ -73,8 +78,8 @@ const NTSC_CHROMA_BANDWIDTH: f32 = 600000.0;
 
 const DSK_PO_SIZE: u64 = 143360;
 
-const SPEED_NUMERATOR: [u64; 5] = [10, 10, 10, 10, 10];
-const SPEED_DENOMINATOR: [u64; 5] = [10, 28, 40, 80, 10];
+const SPEED_FACTOR: u64 = 10;
+const SPEED: [u64; 5] = [10, 28, 40, 80, 10];
 const SPEED_RATIO: [f32; 5] = [1.0, 2.8, 4.0, 8.0, 1.0];
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -624,7 +629,7 @@ Function Keys:
     );
 }
 
-fn get_drive_number(loaded_device: &mut [IODevice], device: IODevice) -> usize {
+fn get_drive_number(loaded_device: &[IODevice], device: IODevice) -> usize {
     loaded_device.iter().filter(|&item| *item == device).count()
 }
 
@@ -1030,11 +1035,11 @@ fn update_audio(cpu: &mut CPU, state: &mut EmulatorState) {
         return;
     }
 
-    let threshold = SPEED_DENOMINATOR[state.speed.speed_index];
+    let threshold = SPEED[state.speed.speed_index];
 
     let mut output = Vec::with_capacity(snd_buffer.len());
     for chunk in snd_buffer.as_chunks::<2>().0 {
-        state.audio_accumulator += 10;
+        state.audio_accumulator += SPEED_FACTOR;
         if state.audio_accumulator >= threshold {
             state.audio_accumulator -= threshold;
             output.extend_from_slice(chunk);
