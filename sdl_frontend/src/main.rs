@@ -3166,9 +3166,9 @@ fn update_settings(cpu: &mut CPU, settings: &[usize]) -> bool {
 
     mockingboard_count = 0;
 
-    for i in 1..8 {
+    for (i, &setting) in settings.iter().enumerate().take(8).skip(1) {
         let slot_value = iodevice_items
-            .get(settings[i])
+            .get(setting)
             .copied()
             .unwrap_or(IODevice::None);
         cpu.bus.io_slot[i] = slot_value;
