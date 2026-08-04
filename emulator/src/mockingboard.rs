@@ -291,6 +291,7 @@ impl AY8910 {
                     eprintln!("{} - AY_ACOARSE = 0x{:02X} 0x{:04X}",self._name, value, self.tone[0].period);
                 }
                 */
+                self.reg[AY_ACOARSE as usize] &= 0xf;
                 let coarse = self.reg[AY_ACOARSE as usize];
                 self.tone[0].set_period(self.reg[AY_AFINE as usize], coarse)
             }
@@ -302,6 +303,7 @@ impl AY8910 {
                     eprintln!("{} - AY_BCOARSE = 0x{:02X} 0x{:04X}",self._name, value, self.tone[1].period);
                 }
                 */
+                self.reg[AY_BCOARSE as usize] &= 0xf;
                 let coarse = self.reg[AY_BCOARSE as usize];
                 self.tone[1].set_period(self.reg[AY_BFINE as usize], coarse)
             }
@@ -313,6 +315,7 @@ impl AY8910 {
                     eprintln!("{} - AY_CCOARSE = 0x{:02X} 0x{:04X}",self._name, value, self.tone[2].period);
                 }
                 */
+                self.reg[AY_CCOARSE as usize] &= 0xf;
                 let coarse = self.reg[AY_CCOARSE as usize];
                 self.tone[2].set_period(self.reg[AY_CFINE as usize], coarse);
             }
