@@ -148,7 +148,6 @@ impl Tone {
         if self.period == 0 {
             self.period = 1;
         }
-        self.count %= self.period as usize;
     }
 
     fn set_volume(&mut self, val: u8) {
