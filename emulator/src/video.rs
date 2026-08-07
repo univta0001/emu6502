@@ -2946,8 +2946,9 @@ impl Video {
             } else {
                 0
             };
+            let allow_high_bit = !(self.apple2e && self.dhires_mode);
             let mut offset = 0;
-            let mut hbs = (prev_value & 0x80 > 0) as usize;
+            let mut hbs = (prev_value & 0x80 > 0 && allow_high_bit) as usize;
             let mut mask = 1 << (7 - (NTSC_PIXEL_NEIGHBOR / 2));
             if hbs > 0 {
                 if prev_value & (mask >> 1) > 0 {
@@ -2970,7 +2971,7 @@ impl Video {
 
             // Populate col luma
             mask = 0x1;
-            hbs = (value & 0x80 > 0) as usize;
+            hbs = (value & 0x80 > 0 && allow_high_bit) as usize;
             if hbs > 0 {
                 if prev_value & 0x40 > 0 {
                     luma[2 * offset] = 1
@@ -3006,7 +3007,7 @@ impl Video {
                 0
             };
             mask = 0x1;
-            hbs = (next_value & 0x80 > 0) as usize;
+            hbs = (next_value & 0x80 > 0 && allow_high_bit) as usize;
             if hbs > 0 {
                 if value & 0x40 > 0 {
                     luma[2 * offset] = 1
