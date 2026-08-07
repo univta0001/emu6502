@@ -2219,7 +2219,7 @@ impl Video {
             }
         } else if !self.mono_mode && !(self.is_display_mode_mono()) {
             if is_ntsc {
-                if !self.dhires_mode {
+                if !(self.apple2e && self.dhires_mode) {
                     self.draw_lores_ntsc_a2_y(x1, y1, ch);
                 } else {
                     self.draw_lores7m_ntsc_a2_y(x1, y1, ch);
@@ -2255,7 +2255,7 @@ impl Video {
                 }
 
                 // Fixup LORESM mode
-                if self.dhires_mode {
+                if self.apple2e && self.dhires_mode {
                     if x1 & 1 == 0 {
                         if value & 2 > 0 {
                             color_index |= 0xc;
