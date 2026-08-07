@@ -361,6 +361,8 @@ impl Uthernet2 {
         if self.mode & (W5100_MR_IND as usize) > 0 && self.mode & (W5100_MR_AI as usize) > 0 {
             self.addr += 1;
 
+            // TX buffer is from 0x4000 to 0x5fff
+            // RX buffer is from 0x6000 to 0x7fff
             if self.addr == 0x6000 || self.addr == 0x8000 {
                 self.addr -= 0x2000;
             }
