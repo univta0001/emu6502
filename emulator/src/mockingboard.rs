@@ -254,11 +254,11 @@ impl AY8910 {
     }
 
     fn get_noise_value(&mut self) -> usize {
-        // LFSR generator g(x) = x^16 + x^3 + 1
+        // LFSR generator g(x) = x^17 + x^3 + 1
 
         let bit0 = self.rng & 0x1;
         let bit3 = (self.rng >> 3) & 0x1;
-        self.rng = (self.rng >> 1) | ((bit0 ^ bit3) << 16);
+        self.rng = ((self.rng >> 1) | ((bit0 ^ bit3) << 16)) & 0x1ffff;
         self.rng
 
         // Galois configuration
