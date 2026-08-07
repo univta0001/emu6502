@@ -292,7 +292,7 @@ impl HardDisk {
 
         if !hdv_mode {
             (disk.offset, disk.data_len) = parse_2mg_array(dsk)?;
-            if dsk[0x13] & 0x80 > 0 {
+            if dsk.len() >= 0x14 && dsk[0x13] & 0x80 > 0 {
                 disk.write_protect = true
             }
         }
@@ -301,7 +301,7 @@ impl HardDisk {
 
     fn get_version() -> (u8, u8, u8) {
         let version: Vec<_> = VERSION.split('.').collect();
-        let major_version = version.get(0).and_then(|s| s.parse().ok()).unwrap_or(0);
+        let major_version = version.first().and_then(|s| s.parse().ok()).unwrap_or(0);
         let minor_version = version.get(1).and_then(|s| s.parse().ok()).unwrap_or(0);
         let revision = version.get(2).and_then(|s| s.parse().ok()).unwrap_or(0);
         (major_version, minor_version, revision)

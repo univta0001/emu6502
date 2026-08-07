@@ -479,18 +479,21 @@ impl Uthernet2 {
             match pcap_capture.0.next_packet() {
                 Ok(packet) => {
                     let buffer = Vec::from(packet.data);
-                    let mac = &self.mem[W5100_SHAR0..=W5100_SHAR5];
-                    let broadcast = [0xff, 0xff, 0xff, 0xff, 0xff, 0xff];
-                    let mr = self.mem[base_addr + W5100_SN_MR];
-                    let accept_all = mr & _W5100_SN_MR_MF == 0;
 
-                    if accept_all || *mac == buffer[0..6] || broadcast == buffer[0..6] {
-                        let rsr = u16::from_be_bytes([
-                            self.mem[base_addr + W5100_SN_RX_RSR0],
-                            self.mem[base_addr + W5100_SN_RX_RSR1],
-                        ]) as usize;
-                        if rsr + 2 + buffer.len() < socket.receive_size {
-                            self.write_raw_data_for_protocol(i, &buffer);
+                    if buffer.len() >= 6 {
+                        let mac = &self.mem[W5100_SHAR0..=W5100_SHAR5];
+                        let broadcast = [0xff, 0xff, 0xff, 0xff, 0xff, 0xff];
+                        let mr = self.mem[base_addr + W5100_SN_MR];
+                        let accept_all = mr & _W5100_SN_MR_MF == 0;
+
+                        if accept_all || *mac == buffer[0..6] || broadcast == buffer[0..6] {
+                            let rsr = u16::from_be_bytes([
+                                self.mem[base_addr + W5100_SN_RX_RSR0],
+                                self.mem[base_addr + W5100_SN_RX_RSR1],
+                            ]) as usize;
+                            if rsr + 2 + buffer.len() < socket.receive_size {
+                                self.write_raw_data_for_protocol(i, &buffer);
+                            }
                         }
                     }
                 }
@@ -518,7 +521,7 @@ impl Uthernet2 {
                 self.mem[base_addr + W5100_SN_RX_RSR0],
                 self.mem[base_addr + W5100_SN_RX_RSR1],
             ]) as usize;
-            let free_available = socket.receive_size - rsr;
+            let free_available = socket.receive_size.saturating_sub(rsr);
             if free_available > 32 {
                 let mut buffer = vec![0; free_available - 1];
                 match stream.read(&mut buffer) {
@@ -555,7 +558,7 @@ impl Uthernet2 {
                 self.mem[base_addr + W5100_SN_RX_RSR0],
                 self.mem[base_addr + W5100_SN_RX_RSR1],
             ]) as usize;
-            let free_available = socket.receive_size - rsr;
+            let free_available = socket.receive_size.saturating_sub(rsr);
             if free_available > 8 {
                 let mut buffer = vec![0; free_available - 1];
                 match udp.recv_from(&mut buffer) {
@@ -1359,6 +1362,7 @@ impl Uthernet2 {
 impl Card for Uthernet2 {
     fn rom_access(&mut self, _addr: u16, _value: u8, _write_flag: bool) -> u8 {
         //panic!("No ROM in Uthernet2. This function should not be called")
+        debug_assert!(!_write_flag, "Uthernet2 has no ROM");
         _value
     }
 

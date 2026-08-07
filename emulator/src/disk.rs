@@ -1473,7 +1473,7 @@ impl DiskDrive {
             }
 
             // Update position
-            let tmap_data = disk.tmap_data[disk.track as usize];
+            let tmap_data = disk.tmap_data[Self::track_index(disk.track)];
             let track_bits = if tmap_data == 255 {
                 NOMINAL_USABLE_BITS_TRACK_SIZE
             } else {
@@ -1490,7 +1490,7 @@ impl DiskDrive {
 
     pub fn get_track_info(&self) -> (usize, usize, usize) {
         let disk = &self.drive[self.drive_select];
-        let tmap_track = disk.tmap_data[disk.track as usize];
+        let tmap_track = disk.tmap_data[Self::track_index(disk.track)];
         let random_bits = NOMINAL_USABLE_BITS_TRACK_SIZE;
         let track_bits = if tmap_track == 255 {
             random_bits
@@ -1504,7 +1504,7 @@ impl DiskDrive {
         };
         let disk_pos = (disk.head * 8 + disk.head_bit) % track_bits;
         let sector = disk_pos * 10 / sector_bits;
-        (disk.track as usize, tmap_track as usize, sector)
+        (Self::track_index(disk.track), tmap_track as usize, sector)
     }
 
     pub fn get_disk_head_info(&self) -> (usize, usize, usize) {
@@ -2179,7 +2179,10 @@ impl DiskDrive {
 
         for i in 0..WOZ_TMAP_SIZE {
             if disk.tmap_data[i] != 255 {
-                disk.trackmap[disk.tmap_data[i] as usize] = TrackType::Tmap
+                let index = disk.tmap_data[i] as usize;
+                if index < disk.trackmap.len() {
+                    disk.trackmap[index] = TrackType::Tmap
+                }
             }
         }
     }
@@ -2210,6 +2213,9 @@ impl DiskDrive {
         if !woz1 {
             // Handling WOZ2 format. WOZ2 format track size is variable.
             for track in 0..160 {
+                if track_offset + 8 > dsk.len() {
+                    break
+                }
                 let start_block = dsk[track_offset] as u32 + dsk[track_offset + 1] as u32 * 256;
                 let _block_count =
                     dsk[track_offset + 2] as u32 + dsk[track_offset + 3] as u32 * 256;
@@ -2390,7 +2396,7 @@ impl DiskDrive {
     /// the previous flux transition in 125us.
     /// The read pulse is valid for 0.5 microsecond (4 cycles, 1 LSS sequencer clock)
     fn read_flux_data(disk: &mut Disk) -> bool {
-        let tmap_track = disk.tmap_data[disk.track as usize];
+        let tmap_track = disk.tmap_data[Self::track_index(disk.track)];
         if tmap_track != 255 && disk.trackmap[tmap_track as usize] == TrackType::Flux {
             let track = &disk.raw_track_data[tmap_track as usize];
             let track_bits = disk.raw_track_bits[tmap_track as usize];
@@ -2427,6 +2433,10 @@ impl DiskDrive {
         }
     }
 
+    fn track_index(track: i32) -> usize {
+        track.max(0) as usize
+    }
+
     fn update_position_if_track_changed(disk: &mut Disk, track_bits: usize) {
         if track_bits != 0 && disk.last_track != disk.track {
             let last_track = disk.tmap_data[disk.last_track as usize];
@@ -2452,7 +2462,7 @@ impl DiskDrive {
     fn move_head_woz(&mut self) {
         let disk = &mut self.drive[self.drive_select];
         //let track_to_read = 0;
-        let tmap_track = disk.tmap_data[disk.track as usize];
+        let tmap_track = disk.tmap_data[Self::track_index(disk.track)];
 
         let (track_bits, track_type) = if tmap_track == 255 {
             (NOMINAL_USABLE_BITS_TRACK_SIZE, TrackType::None)
