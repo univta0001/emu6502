@@ -256,19 +256,20 @@ impl AY8910 {
     fn get_noise_value(&mut self) -> usize {
         // LFSR generator g(x) = x^17 + x^3 + 1
 
+        // Fibonacci Configuration
+        /*
         let bit0 = self.rng & 0x1;
         let bit3 = (self.rng >> 3) & 0x1;
         self.rng = ((self.rng >> 1) | ((bit0 ^ bit3) << 16)) & 0x1ffff;
         self.rng
+        */
 
         // Galois configuration
-        /*
         if self.rng & 1 > 0 {
             self.rng ^= 0x24000;
         }
         self.rng >>= 1;
         self.rng
-        */
     }
 
     fn reset(&mut self) {
