@@ -52,6 +52,9 @@ impl Noise {
 
     fn set_period(&mut self, value: u8) {
         self.period = value & 0x1f;
+        if self.period == 0 {
+            self.period = 1
+        }
         self.count = (2 * self.period) as usize;
     }
 }
@@ -95,7 +98,11 @@ impl Envelope {
     }
 
     fn set_period(&mut self, fine: u8, coarse: u8) {
-        self.period = (coarse as u16) * 256 + (fine as u16)
+        self.period = (coarse as u16) * 256 + (fine as u16);
+        if self.period == 0 {
+            self.period = 1;
+            self.count = 0;
+        }
     }
 
     fn set_shape(&mut self, shape: u8) {
@@ -193,7 +200,7 @@ impl AY8910 {
                 continue;
             }
             let env_period = tone.period as usize;
-            tone.count += 1;
+            tone.count = (tone.count + 1) & 0xfff;
             if tone.count >= env_period {
                 tone.count -= env_period;
                 tone.level = !tone.level
@@ -203,9 +210,9 @@ impl AY8910 {
 
     #[inline]
     fn update_noise(&mut self) {
-        let mut env_period = self.noise.period as usize * 2;
+        let env_period = self.noise.period as usize * 2;
         if env_period == 0 {
-            env_period = 1;
+            return
         }
         self.noise.count = self.noise.count.wrapping_sub(1) & 0x1f;
         if self.noise.count == 0 {
@@ -218,12 +225,12 @@ impl AY8910 {
     #[inline]
     fn update_envelope(&mut self) {
         let item = &mut self.envelope;
-        let mut env_period = item.period as usize * 2;
+        let env_period = item.period as usize * 2;
         if item.period == 0 {
-            env_period = 1;
+            return
         }
         if !item.holding {
-            item.count += 1;
+            item.count = (item.count + 1) & 0xffff;
             if item.count >= env_period {
                 item.count -= env_period;
                 item.step -= 1;
