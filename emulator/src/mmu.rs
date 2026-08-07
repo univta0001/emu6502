@@ -597,7 +597,7 @@ impl Mmu {
                                     self.mem_aux_bank1_write(bank_addr, data)
                                 }
                                 AuxType::Std80 => self.mem_aux_write(0x400 + (addr & 0x3ff), data),
-                                _ => {}
+                                _ => self.mem_bank1_write(bank_addr, data),
                             }
                         }
                     } else if !self.altzp {
@@ -608,7 +608,7 @@ impl Mmu {
                                 self.mem_aux_bank2_write(bank_addr, data)
                             }
                             AuxType::Std80 => self.mem_aux_write(0x400 + (addr & 0x3ff), data),
-                            _ => {}
+                            _ => self.mem_bank2_write(bank_addr, data),
                         }
                     }
                 }

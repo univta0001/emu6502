@@ -2214,7 +2214,7 @@ impl DiskDrive {
             // Handling WOZ2 format. WOZ2 format track size is variable.
             for track in 0..160 {
                 if track_offset + 8 > dsk.len() {
-                    break
+                    break;
                 }
                 let start_block = dsk[track_offset] as u32 + dsk[track_offset + 1] as u32 * 256;
                 let _block_count =

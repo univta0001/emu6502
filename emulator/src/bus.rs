@@ -639,8 +639,9 @@ impl Bus {
             }
         } else {
             if self.is_apple2c && write_flag && (0xc400..=0xc40f).contains(&addr) {
-                let device = &mut self.audio.mboard[0];
-                device.set_mb4c(true);
+                if let Some(device) = self.audio.mboard.get_mut(0) {
+                    device.set_mb4c(true);
+                }
             }
 
             if self.is_apple2c
