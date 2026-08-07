@@ -2771,6 +2771,7 @@ impl Video {
                 self.display_mode != DisplayMode::RGB && self.dhires_mode && !self.vid80_mode;
             let mixed_mode = self.mixed_mode && row >= 160;
             let mut color_index = 0;
+            let allow_high_bit = !(self.apple2e && self.dhires_mode);
 
             if col > 0 {
                 let val = if mixed_mode
@@ -2782,7 +2783,8 @@ impl Video {
                 } else {
                     self.read_hires_memory(col - 1, row)
                 };
-                let hbs = (val & 0x80 > 0) as u8;
+                let hbs = (value & 0x80 > 0 && allow_high_bit) as usize;
+
                 let index = if odd { 2 + hbs } else { hbs };
                 if val & 0x20 > 0 {
                     color_index |= 1 << index;
@@ -2803,7 +2805,7 @@ impl Video {
 
             let mut mask = 0x1;
             let mut offset = x;
-            let hbs = (value & 0x80 > 0) as usize;
+            let hbs = (value & 0x80 > 0 && allow_high_bit) as usize;
 
             if self.display_mode != DisplayMode::RGB && col == 0 {
                 self.set_pixel_count(0, row * 2, COLOR_BLACK, 7);
