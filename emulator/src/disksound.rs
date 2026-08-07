@@ -185,9 +185,14 @@ impl DiskSound {
         if self.spin_sample != SoundType::Quiet {
             let sample_bytes = self.sample(&self.spin_sample);
             let sample_length = sample_bytes.len();
-            let sample = [sample_bytes[self.spin_pos], sample_bytes[self.spin_pos + 1]];
-            self.sample_value = self.sample_value.wrapping_add(i16::from_le_bytes(sample));
-            self.spin_pos += 2;
+
+            if self.spin_pos + 1 < sample_length {
+                let sample = [sample_bytes[self.spin_pos], sample_bytes[self.spin_pos + 1]];
+                self.sample_value = self.sample_value.wrapping_add(i16::from_le_bytes(sample));
+                self.spin_pos += 2;
+            } else {
+                self.spin_pos = sample_length;
+            }
 
             if self.spin_pos + 1 >= sample_length {
                 match self.spin_sample {
@@ -215,25 +220,32 @@ impl DiskSound {
 
             // Skip 1/100 sec to dampen the loudest pulse
             // yep, a somewhat dirty trick; we don't have to record yet another sample
-            self.step_pos += 441 * 2;
+            self.step_pos = self.step_pos.saturating_add(441 * 2);
         }
 
         if self.seek_sample != SoundType::Quiet {
-            self.seek_timeout -= 1;
+            self.seek_timeout = self.seek_timeout.saturating_sub(1);
+
             // Update the seek sound state
             let sample_bytes = self.sample(&self.seek_sample);
             let sample_length = sample_bytes.len();
-            let mut seek_pos = self.seek_pos / 128 - (self.seek_pos / 128) % 2;
-            if seek_pos + 1 >= sample_length {
-                seek_pos = 0;
+
+            if sample_length >= 2 {
+                let mut seek_pos = self.seek_pos / 128 - (self.seek_pos / 128) % 2;
+                if seek_pos + 1 >= sample_length {
+                    seek_pos = 0;
+                    self.seek_pos = 0;
+                }
+                let sample = [sample_bytes[seek_pos], sample_bytes[seek_pos + 1]];
+                self.sample_value = self.sample_value.wrapping_add(i16::from_le_bytes(sample));
             }
-            let sample = [sample_bytes[seek_pos], sample_bytes[seek_pos + 1]];
-            self.sample_value = self.sample_value.wrapping_add(i16::from_le_bytes(sample));
-            self.seek_pos += self.seek_pitch * 2;
+
+            self.seek_pos = self.seek_pos.saturating_add(self.seek_pitch * 2);
         } else if self.step_sample != SoundType::Quiet {
             // Update the stepper sound state
             let sample_bytes = self.sample(&self.step_sample);
             let sample_length = sample_bytes.len();
+
             if self.step_pos + 1 < sample_length {
                 let sample = [sample_bytes[self.step_pos], sample_bytes[self.step_pos + 1]];
                 self.sample_value = self.sample_value.wrapping_add(i16::from_le_bytes(sample));
