@@ -101,8 +101,8 @@ impl Envelope {
         self.period = (coarse as u16) * 256 + (fine as u16);
         if self.period == 0 {
             self.period = 1;
-            self.count = 0;
         }
+        self.count = 0;
     }
 
     fn set_shape(&mut self, shape: u8) {
@@ -114,6 +114,7 @@ impl Envelope {
             self.hold = shape & AY_ENV_HOLD > 0;
             self.alternate = shape & AY_ENV_ALT > 0;
         }
+        self.count = 0;
         self.step = 0xf;
         self.holding = false;
         self.volume = 0xf ^ self.attack;
@@ -148,10 +149,9 @@ impl Tone {
         self.period = ((coarse & 0xf) as u16) * 256 + (fine as u16);
         if self.period == 0 {
             self.count = 0;
-            self.period = 1;
         }
 
-        if self.count >= self.period as usize {
+        if self.period > 0 && self.count >= self.period as usize {
             self.count %= self.period as usize;
         }
     }
