@@ -301,9 +301,9 @@ impl HardDisk {
 
     fn get_version() -> (u8, u8, u8) {
         let version: Vec<_> = VERSION.split('.').collect();
-        let major_version = version[0].parse().unwrap_or(0);
-        let minor_version = version[1].parse().unwrap_or(0);
-        let revision = version[2].parse().unwrap_or(0);
+        let major_version = version.get(0).and_then(|s| s.parse().ok()).unwrap_or(0);
+        let minor_version = version.get(1).and_then(|s| s.parse().ok()).unwrap_or(0);
+        let revision = version.get(2).and_then(|s| s.parse().ok()).unwrap_or(0);
         (major_version, minor_version, revision)
     }
 
