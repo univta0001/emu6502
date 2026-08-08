@@ -638,17 +638,19 @@ impl Bus {
                 floating_value
             }
         } else {
-            if self.is_apple2c && write_flag && (0xc400..=0xc40f).contains(&addr) {
-                if let Some(device) = self.audio.mboard.get_mut(0) {
-                    device.set_mb4c(true);
-                }
+            if self.is_apple2c
+                && write_flag
+                && (0xc400..=0xc40f).contains(&addr)
+                && let Some(device) = self.audio.mboard.get_mut(0)
+            {
+                device.set_mb4c(true);
             }
 
             if self.is_apple2c
-                && self.audio.mboard[0].get_mb4c()
                 && (0xc400..=0xc4ff).contains(&addr)
+                && let Some(device) = self.audio.mboard.get_mut(0)
+                && device.get_mb4c()
             {
-                let device = &mut self.audio.mboard[0];
                 device.rom_access(addr, value, write_flag)
             } else if self.mem.a2cp && self.mem.rom_bank && (0xcc00..=0xceff).contains(&addr) {
                 let ret_value = self.mem_read(addr);

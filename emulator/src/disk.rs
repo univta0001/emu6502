@@ -112,8 +112,8 @@ pub struct Disk {
     trackmap: Vec<TrackType>,
 
     optimal_timing: u8,
-    track: i32,
-    last_track: i32,
+    track: u8,
+    last_track: u8,
     head: usize,
     head_mask: usize,
     head_bit: usize,
@@ -232,7 +232,7 @@ const LOC_DRIVEREADMODE: u8 = 0x8e;
 // Q7H: Write
 const LOC_DRIVEWRITEMODE: u8 = 0x8f;
 
-const _PHASE_DELTA: [[i32; 4]; 4] = [[0, 1, 2, -1], [-1, 0, 1, 2], [-2, -1, 0, 1], [1, -2, -1, 0]];
+const _PHASE_DELTA: [[i16; 4]; 4] = [[0, 1, 2, -1], [-1, 0, 1, 2], [-2, -1, 0, 1], [1, -2, -1, 0]];
 
 const TRANSLATE_VALUE_6X2: [u8; 64] = [
     0x96, 0x97, 0x9a, 0x9b, 0x9d, 0x9e, 0x9f, 0xa6, 0xa7, 0xab, 0xac, 0xad, 0xae, 0xaf, 0xb2, 0xb3,
@@ -306,13 +306,13 @@ const WOZ_FLUX_CHUNK: u32 = 0x58554C46;
 */
 
 #[rustfmt::skip]
-const MAGNET_TO_POSITION:[i32;16] = [
+const MAGNET_TO_POSITION:[i16;16] = [
 //   0000 0001 0010 0011 0100 0101 0110 0111 1000 1001 1010 1011 1100 1101 1110 1111
        -1,   0,   2,   1,   4,  -1,   3,  -1,   6,   7,  -1,  -1,   5,  -1,  -1,  -1
 ];
 
 #[rustfmt::skip]
-const POSITION_TO_DIRECTION:[[i32;8];8] = [
+const POSITION_TO_DIRECTION:[[i16;8];8] = [
 //     N  NE   E  SE   S  SW   W  NW
 //     0   1   2   3   4   5   6   7
     [  0,  1,  2,  3,  0, -3, -2, -1 ], // 0 N
@@ -1246,11 +1246,11 @@ fn read_woz_sector(
         match state {
             0 => {
                 state =
-                    i32::from(read_woz_nibble(track, head, mask, bit, &mut rev, bit_count) == 0xd5);
+                    i16::from(read_woz_nibble(track, head, mask, bit, &mut rev, bit_count) == 0xd5);
             }
             1 => {
                 state =
-                    i32::from(read_woz_nibble(track, head, mask, bit, &mut rev, bit_count) == 0xaa)
+                    i16::from(read_woz_nibble(track, head, mask, bit, &mut rev, bit_count) == 0xaa)
                         * 2;
             }
             2 => {
@@ -1463,17 +1463,14 @@ impl DiskDrive {
             let old_track = disk.track;
             let last_position = disk.track & 7;
             let direction = POSITION_TO_DIRECTION[last_position as usize][position as usize];
+            disk.track = i16::max(0, disk.track as i16 + direction) as u8;
 
-            disk.track += direction;
-
-            if disk.track < 0 {
-                disk.track = 0;
-            } else if disk.track >= disk.tmap_data.len() as i32 {
-                disk.track = (disk.tmap_data.len() - 1) as i32;
+            if disk.track >= disk.tmap_data.len() as u8 {
+                disk.track = (disk.tmap_data.len() - 1) as u8;
             }
 
             // Update position
-            let tmap_data = disk.tmap_data[Self::track_index(disk.track)];
+            let tmap_data = disk.tmap_data[disk.track as usize];
             let track_bits = if tmap_data == 255 {
                 NOMINAL_USABLE_BITS_TRACK_SIZE
             } else {
@@ -1490,7 +1487,7 @@ impl DiskDrive {
 
     pub fn get_track_info(&self) -> (usize, usize, usize) {
         let disk = &self.drive[self.drive_select];
-        let tmap_track = disk.tmap_data[Self::track_index(disk.track)];
+        let tmap_track = disk.tmap_data[disk.track as usize];
         let random_bits = NOMINAL_USABLE_BITS_TRACK_SIZE;
         let track_bits = if tmap_track == 255 {
             random_bits
@@ -1504,7 +1501,7 @@ impl DiskDrive {
         };
         let disk_pos = (disk.head * 8 + disk.head_bit) % track_bits;
         let sector = disk_pos * 10 / sector_bits;
-        (Self::track_index(disk.track), tmap_track as usize, sector)
+        (disk.track as usize, tmap_track as usize, sector)
     }
 
     pub fn get_disk_head_info(&self) -> (usize, usize, usize) {
@@ -2396,7 +2393,7 @@ impl DiskDrive {
     /// the previous flux transition in 125us.
     /// The read pulse is valid for 0.5 microsecond (4 cycles, 1 LSS sequencer clock)
     fn read_flux_data(disk: &mut Disk) -> bool {
-        let tmap_track = disk.tmap_data[Self::track_index(disk.track)];
+        let tmap_track = disk.tmap_data[disk.track as usize];
         if tmap_track != 255 && disk.trackmap[tmap_track as usize] == TrackType::Flux {
             let track = &disk.raw_track_data[tmap_track as usize];
             let track_bits = disk.raw_track_bits[tmap_track as usize];
@@ -2433,10 +2430,6 @@ impl DiskDrive {
         }
     }
 
-    fn track_index(track: i32) -> usize {
-        track.max(0) as usize
-    }
-
     fn update_position_if_track_changed(disk: &mut Disk, track_bits: usize) {
         if track_bits != 0 && disk.last_track != disk.track {
             let last_track = disk.tmap_data[disk.last_track as usize];
@@ -2462,7 +2455,7 @@ impl DiskDrive {
     fn move_head_woz(&mut self) {
         let disk = &mut self.drive[self.drive_select];
         //let track_to_read = 0;
-        let tmap_track = disk.tmap_data[Self::track_index(disk.track)];
+        let tmap_track = disk.tmap_data[disk.track as usize];
 
         let (track_bits, track_type) = if tmap_track == 255 {
             (NOMINAL_USABLE_BITS_TRACK_SIZE, TrackType::None)
@@ -2608,7 +2601,7 @@ impl DiskDrive {
         disk.write_protect
     }
 
-    fn write_track(&mut self, track_to_write: i32, write_value: bool, write_protected: bool) {
+    fn write_track(&mut self, track_to_write: u8, write_value: bool, write_protected: bool) {
         let disk = &mut self.drive[self.drive_select];
         let mut tmap_track = disk.tmap_data[track_to_write as usize];
 

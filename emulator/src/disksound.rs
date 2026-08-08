@@ -21,7 +21,7 @@ const SEEK_12MS: &[u8] = include_bytes!("../../resource/disk/525_seek_12ms.wav")
 const SEEK_20MS: &[u8] = include_bytes!("../../resource/disk/525_seek_20ms.wav");
 const QUIET: &[u8] = &[0, 0];
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub enum SoundType {
     #[default]
@@ -184,77 +184,85 @@ impl DiskSound {
         // Update the spin sound state
         if self.spin_sample != SoundType::Quiet {
             let sample_bytes = self.sample(&self.spin_sample);
-            let sample_length = sample_bytes.len();
 
-            if self.spin_pos + 1 < sample_length {
-                let sample = [sample_bytes[self.spin_pos], sample_bytes[self.spin_pos + 1]];
-                self.sample_value = self.sample_value.wrapping_add(i16::from_le_bytes(sample));
+            if self.spin_pos + 1 < sample_bytes.len() {
+                Self::add_sample(&mut self.sample_value, sample_bytes, self.spin_pos);
                 self.spin_pos += 2;
             } else {
-                self.spin_pos = sample_length;
+                self.spin_pos = sample_bytes.len();
             }
 
-            if self.spin_pos + 1 >= sample_length {
-                match self.spin_sample {
-                    SoundType::SpinStartEmpty => self.spin_sample = SoundType::SpinEmpty,
-                    SoundType::SpinStartLoaded => self.spin_sample = SoundType::SpinLoaded,
-                    SoundType::SpinEmpty if !motor_on => self.spin_sample = SoundType::SpinEnd,
-                    SoundType::SpinLoaded if !motor_on => self.spin_sample = SoundType::SpinEnd,
-                    SoundType::SpinEnd if !motor_on => self.spin_sample = SoundType::Quiet,
-                    SoundType::SpinEnd if motor_on => {
-                        self.spin_sample = if disk_loaded {
-                            SoundType::SpinStartLoaded
-                        } else {
-                            SoundType::SpinStartEmpty
-                        }
-                    }
-                    _ => {}
-                }
+            if self.spin_pos + 1 >= sample_bytes.len() {
+                self.update_spin_state(motor_on, disk_loaded);
                 self.spin_pos = 0;
             }
         }
 
+        // Handle seek timeout logic
         if self.seek_timeout == 1 {
             self.seek_sample = SoundType::Quiet;
             self.seek_timeout = 0;
 
-            // Skip 1/100 sec to dampen the loudest pulse
-            // yep, a somewhat dirty trick; we don't have to record yet another sample
+            // Skip 1/100 sec (441 samples at 44.1kHz) to dampen the loudest pulse
             self.step_pos = self.step_pos.saturating_add(441 * 2);
         }
 
+        // Update the seek or step sound state
         if self.seek_sample != SoundType::Quiet {
             self.seek_timeout = self.seek_timeout.saturating_sub(1);
 
             // Update the seek sound state
             let sample_bytes = self.sample(&self.seek_sample);
-            let sample_length = sample_bytes.len();
 
-            if sample_length >= 2 {
-                let mut seek_pos = self.seek_pos / 128 - (self.seek_pos / 128) % 2;
-                if seek_pos + 1 >= sample_length {
+            if sample_bytes.len() >= 2 {
+                let mut seek_pos = (self.seek_pos / 256) * 2;
+                if seek_pos + 1 >= sample_bytes.len() {
                     seek_pos = 0;
                     self.seek_pos = 0;
                 }
-                let sample = [sample_bytes[seek_pos], sample_bytes[seek_pos + 1]];
-                self.sample_value = self.sample_value.wrapping_add(i16::from_le_bytes(sample));
+                Self::add_sample(&mut self.sample_value, sample_bytes, seek_pos);
             }
-
             self.seek_pos = self.seek_pos.saturating_add(self.seek_pitch * 2);
         } else if self.step_sample != SoundType::Quiet {
             // Update the stepper sound state
             let sample_bytes = self.sample(&self.step_sample);
-            let sample_length = sample_bytes.len();
 
-            if self.step_pos + 1 < sample_length {
-                let sample = [sample_bytes[self.step_pos], sample_bytes[self.step_pos + 1]];
-                self.sample_value = self.sample_value.wrapping_add(i16::from_le_bytes(sample));
+            if self.step_pos + 1 < sample_bytes.len() {
+                Self::add_sample(&mut self.sample_value, sample_bytes, self.step_pos);
             }
             self.step_pos += 2;
-            if self.step_pos + 1 >= sample_length {
+            if self.step_pos + 1 >= sample_bytes.len() {
                 self.step_sample = SoundType::Quiet;
                 self.step_pos = 0;
             }
         }
+    }
+
+    #[inline]
+    fn add_sample(sample_value: &mut i16, bytes: &[u8], pos: usize) {
+        // Explicit bounds check prevents panics and helps the compiler optimize
+        if pos + 1 < bytes.len() {
+            let sample = i16::from_le_bytes([bytes[pos], bytes[pos + 1]]);
+            *sample_value = sample_value.wrapping_add(sample);
+        }
+    }
+
+    // Handles the state machine logic for spin sound transitions.
+    fn update_spin_state(&mut self, motor_on: bool, disk_loaded: bool) {
+        self.spin_sample = match &self.spin_sample {
+            SoundType::SpinStartEmpty => SoundType::SpinEmpty,
+            SoundType::SpinStartLoaded => SoundType::SpinLoaded,
+            SoundType::SpinEmpty if !motor_on => SoundType::SpinEnd,
+            SoundType::SpinLoaded if !motor_on => SoundType::SpinEnd,
+            SoundType::SpinEnd if !motor_on => SoundType::Quiet,
+            SoundType::SpinEnd if motor_on => {
+                if disk_loaded {
+                    SoundType::SpinStartLoaded
+                } else {
+                    SoundType::SpinStartEmpty
+                }
+            }
+            other => other.clone(),
+        };
     }
 }
