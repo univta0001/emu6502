@@ -351,6 +351,7 @@ pub fn dump_trace(output: &mut String, cpu: &mut CPU, addr: u16, status: bool) {
                     mem_addr,
                     stored_value,
                 ),
+
                 AddressingMode::NoneAddressing => {
                     // assuming local jumps: BNE, BVS, etc....
                     let address: usize =
@@ -364,7 +365,7 @@ pub fn dump_trace(output: &mut String, cpu: &mut CPU, addr: u16, status: bool) {
                     dump_indirect_zeropage_addr(output, mem_addr, stored_value)
                 }
 
-                _ => panic!(
+                _ => eprintln!(
                     "unexpected addressing mode {:?} has ops-len 2. code {:02X}",
                     ops.mode, ops.code
                 ),
@@ -428,7 +429,7 @@ pub fn dump_trace(output: &mut String, cpu: &mut CPU, addr: u16, status: bool) {
                     cpu.bus
                         .unclocked_addr_read_u16(address.wrapping_add(cpu.register_x as u16)),
                 ),
-                _ => panic!(
+                _ => eprintln!(
                     "unexpected addressing mode {:?} has ops-len 3. code {:02X}",
                     ops.mode, ops.code
                 ),
@@ -521,34 +522,43 @@ mod test {
         bus.mem_write(0x1004, 0x4c);
         bus.mem_write(0x1005, 0x07);
         bus.mem_write(0x1006, 0x10);
-        bus.mem_write(0x1007, 0x7c);
-        bus.mem_write(0x1008, 0x34);
-        bus.mem_write(0x1009, 0x12);
+        bus.mem_write(0x1007, 0x11);
+        bus.mem_write(0x1008, 0x33);
+        bus.mem_write(0x1009, 0x7c);
+        bus.mem_write(0x100a, 0x34);
+        bus.mem_write(0x100b, 0x12);
 
         let mut cpu = CPU::new(bus);
         cpu.program_counter = 0x1000;
         cpu.m65c02 = true;
+        cpu.register_x = 2;
+        cpu.register_y = 3;
         let mut result: Vec<String> = vec![];
         cpu.run_with_callback(|cpu| {
             let mut s = String::new();
             trace(&mut s, cpu);
             result.push(s);
         });
+
         assert_eq!(
-            "1000: A9 01     LDA   #$01                        A:00 X:00 Y:00 P:24 SP:FD",
+            "1000: A9 01     LDA   #$01                        A:00 X:02 Y:03 P:24 SP:FD",
             result[0]
         );
         assert_eq!(
-            "1002: F0 FF     BEQ   $1003                       A:01 X:00 Y:00 P:24 SP:FD",
+            "1002: F0 FF     BEQ   $1003                       A:01 X:02 Y:03 P:24 SP:FD",
             result[1]
         );
         assert_eq!(
-            "1004: 4C 07 10  JMP   $1007                       A:01 X:00 Y:00 P:24 SP:FD",
+            "1004: 4C 07 10  JMP   $1007                       A:01 X:02 Y:03 P:24 SP:FD",
             result[2]
         );
         assert_eq!(
-            "1007: 7C 34 12  JMP   ($1234,X) @ 1234 = FFFF     A:01 X:00 Y:00 P:24 SP:FD",
+            "1007: 11 33     ORA   ($33),Y = FF00 @ FF03 = 00  A:01 X:02 Y:03 P:24 SP:FD",
             result[3]
+        );
+        assert_eq!(
+            "1009: 7C 34 12  JMP   ($1234,X) @ 1236 = 0000     A:01 X:02 Y:03 P:24 SP:FD",
+            result[4]
         );
     }
 }
