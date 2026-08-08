@@ -175,25 +175,28 @@ pub struct Video {
     pub skip_update: bool,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
-    pub color_burst: bool,
+    color_burst: bool,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
-    pub mac_lc_dlgr: bool,
+    color_burst_duration: usize,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
-    pub vidhd: bool,
+    mac_lc_dlgr: bool,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
-    pub shr_mode: bool,
+    vidhd: bool,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
-    pub shr_linear_mode: bool,
+    shr_mode: bool,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    shr_linear_mode: bool,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub disable_aux: bool,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
-    pub text_color_burst: bool,
+    text_color_burst: bool,
 }
 
 impl Tick for Video {
@@ -213,6 +216,7 @@ const HIRES_LEN: usize = 0x2000;
 const CYCLES_PER_ROW: usize = 65;
 const CYCLES_PER_BURST_START: usize = 16;
 const CYCLES_PER_BURST_END: usize = 20;
+const CYCLES_COLOR_BURST: usize = 128;
 const CYCLES_PER_HBL: usize = 25;
 const CYCLES_PER_FIELD_60HZ: usize = 17030;
 const CYCLES_PER_FIELD_50HZ: usize = 20280;
@@ -791,6 +795,7 @@ impl Video {
             scanline: false,
             skip_update: false,
             color_burst: false,
+            color_burst_duration: 0,
             text_color_burst: false,
             mac_lc_dlgr: false,
             vidhd: false,
@@ -899,7 +904,13 @@ impl Video {
     }
 
     fn update_color_burst(&mut self) {
-        self.color_burst = self.graphics_mode;
+        let next_duration = self.color_burst_duration.saturating_sub(1);
+        self.color_burst_duration = if self.graphics_mode {
+            CYCLES_COLOR_BURST
+        } else {
+            next_duration
+        };
+        self.color_burst = self.graphics_mode || next_duration > 0;
     }
 
     pub fn update_shadow_memory(&mut self, aux_memory: bool, addr: u16, value: u8) {
