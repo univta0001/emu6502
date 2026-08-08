@@ -2868,7 +2868,8 @@ impl Video {
     fn draw_raw_hires_mono_a2_row_col(&mut self, row: usize, col: usize, value: u8) {
         if row < 192 && col < 40 {
             let x = col * 14;
-            let hbs = (value & 0x80 > 0) as usize;
+            let allow_high_bit = !(self.apple2e && self.dhires_mode);
+            let hbs = (value & 0x80 > 0 && allow_high_bit) as usize;
             let mut offset = 0;
             let mut mask = 0x1;
             let mono_color = self.get_mono_color();
