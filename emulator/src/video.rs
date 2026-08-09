@@ -955,6 +955,10 @@ impl Video {
 
             if row < 192 && col >= 26 {
                 let prev_ch = self.read_text_memory(col - 26, row);
+                if self.vid80_mode {
+                    let prev_ch_2 = self.read_aux_text_memory(col - 26, row);
+                    self.draw_char_a2_y(col - 26, row / 8, prev_ch_2, row % 8, 0);
+                }
                 self.draw_char_a2_y(col - 26, row / 8, prev_ch, row % 8, 7);
             }
         }
