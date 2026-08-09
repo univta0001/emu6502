@@ -1345,9 +1345,7 @@ impl Video {
         };
 
         if elapsed > blink_period as u64 {
-            if !self.vid80_mode {
-                self.blink = !self.blink;
-            }
+            self.blink = !self.blink;
             self.blink_time = current_time_ms;
         }
     }
@@ -1398,11 +1396,6 @@ impl Video {
 
     fn get_flash_mode(&self, video_data: u32, video_mode: u8) -> bool {
         let mode = video_mode;
-
-        // Flash mode is not available in 80 col
-        if mode & 0x10 != 0 {
-            return false;
-        }
 
         // Flash only on text or mixed mode
         (video_data & 0xff) & 0xc0 == 0x40 && mode & 3 != 0
@@ -1962,7 +1955,7 @@ impl Video {
     }
 
     fn get_font_flash_mono_color(&self, ch: u8) -> (bool, Rgb, Rgb) {
-        let flash = ch & 0xc0 == 0x40 && self.blink && !self.vid80_mode && !self.altchar;
+        let flash = ch & 0xc0 == 0x40 && self.blink && !self.altchar;
         let normal = ch & 0x80 > 0;
         let back_color;
         let fore_color;
@@ -2076,10 +2069,16 @@ impl Video {
                 || self.text_color_burst
                 || self.video_50hz && self.mixed_mode && y1 >= 20)
             {
-                let data = bitmap.reverse_bits();
+                let mut data = bitmap.reverse_bits();
+                if flash {
+                    data ^= 0x7f;
+                }
                 let alt_ch = self.read_aux_text_memory(x1, y1 * 8 + yindex);
                 let alt_val = self.get_normalized_char(alt_ch);
-                let alt_data = self.get_font_bitmap(alt_val, yindex).reverse_bits();
+                let mut alt_data = self.get_font_bitmap(alt_val, yindex).reverse_bits();
+                if flash {
+                    alt_data ^= 0x7f;
+                }
                 self.draw_raw_dhires_a2_row_col(y1 * 8 + yindex, x1, data, alt_data);
             } else {
                 if x1 == 39 {
