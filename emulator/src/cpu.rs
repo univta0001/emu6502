@@ -673,8 +673,8 @@ impl CPU {
 
     pub fn get_indirect_zeropage_addr(&mut self) -> u16 {
         let ptr = self.next_byte();
-        let lo = self.bus.addr_read(ptr as u16);
-        let hi = self.bus.addr_read((ptr.wrapping_add(1)) as u16);
+        let lo = self.addr_read(ptr as u16);
+        let hi = self.addr_read((ptr.wrapping_add(1)) as u16);
         (hi as u16) * 256 + lo as u16
     }
 
@@ -682,15 +682,15 @@ impl CPU {
         let base = self.next_byte();
         let ptr = base.wrapping_add(self.register_x);
         self.tick();
-        let lo = self.bus.addr_read(ptr as u16);
-        let hi = self.bus.addr_read((ptr.wrapping_add(1)) as u16);
+        let lo = self.addr_read(ptr as u16);
+        let hi = self.addr_read((ptr.wrapping_add(1)) as u16);
         hi as u16 * 256 + lo as u16
     }
 
     pub fn get_indirect_y_addr(&mut self, op: &OpCode) -> u16 {
         let base = self.next_byte();
-        let lo = self.bus.addr_read(base as u16);
-        let hi = self.bus.addr_read((base.wrapping_add(1)) as u16);
+        let lo = self.addr_read(base as u16);
+        let hi = self.addr_read((base.wrapping_add(1)) as u16);
         let deref_base = hi as u16 * 256 + lo as u16;
         let deref = deref_base.wrapping_add(self.register_y as u16);
         let page_crossed = self.page_cross(deref, deref_base);
