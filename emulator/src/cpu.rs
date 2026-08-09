@@ -937,8 +937,8 @@ impl CPU {
     }
 
     fn update_zero_and_negative_flags(&mut self, result: u8) {
-        self.status.set(CpuFlags::ZERO, result == 0);
-        self.status.set(CpuFlags::NEGATIVE, result & 0x80 > 0);
+        let zn_update = ((result == 0) as u8) << 1 | result & 0x80;
+        self.status = CpuFlags::from_bits_truncate((self.status.bits() & ! 0x82) | zn_update); 
     }
 
     fn inc_accumulator(&mut self) {

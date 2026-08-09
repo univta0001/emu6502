@@ -904,13 +904,12 @@ impl Video {
     }
 
     fn update_color_burst(&mut self) {
-        let next_duration = self.color_burst_duration.saturating_sub(1);
         self.color_burst_duration = if self.graphics_mode {
             CYCLES_COLOR_BURST
         } else {
-            next_duration
+            self.color_burst_duration.saturating_sub(1)
         };
-        self.color_burst = self.graphics_mode || next_duration > 0;
+        self.color_burst = self.color_burst_duration > 0;
     }
 
     pub fn update_shadow_memory(&mut self, aux_memory: bool, addr: u16, value: u8) {
