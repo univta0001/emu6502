@@ -336,6 +336,7 @@ impl Audio {
         let mut tone_count = 0;
         for mb in &self.mboard {
             let mboard = mb;
+            let channel_flag = mboard.get_channel_enable(channel);
             for tone in 0..3 {
                 // The max tone volume is 0xffff. Normalized it by dividing by 2
                 let volume = (AY_LEVEL[mboard.get_tone_volume(channel, tone)] / 2) as HigherChannel;
@@ -348,21 +349,8 @@ impl Audio {
 
                 self.audio_active = true;
 
-                let channel_flag = mboard.get_channel_enable(channel);
-
-                let tone_enabled = match tone {
-                    0 => channel_flag & 0x1 == 0,
-                    1 => channel_flag & 0x2 == 0,
-                    2 => channel_flag & 0x4 == 0,
-                    _ => false,
-                };
-
-                let noise_enabled = match tone {
-                    0 => channel_flag & 0x8 == 0,
-                    1 => channel_flag & 0x10 == 0,
-                    2 => channel_flag & 0x20 == 0,
-                    _ => false,
-                };
+                let tone_enabled = (channel_flag & (1 << tone) as u8) == 0;
+                let noise_enabled = (channel_flag & (0x8 << tone) as u8) == 0;
 
                 // The 8910 has three outputs, each output is the mix of one of the three
                 // tone generators and of the (single) noise generator. The two are mixed
