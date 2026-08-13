@@ -334,8 +334,7 @@ impl Audio {
 
     fn update_phase(&mut self, phase: &mut HigherChannel, channel: usize) -> usize {
         let mut tone_count = 0;
-        for mb in &self.mboard {
-            let mboard = mb;
+        for mboard in &self.mboard {
             let channel_flag = mboard.get_channel_enable(channel);
             for tone in 0..3 {
                 // The max tone volume is 0xffff. Normalized it by dividing by 2
@@ -787,7 +786,7 @@ impl Tick for Audio {
         self.cycles += 1;
         self.fcycles += 1.0;
 
-        for mb in self.mboard.iter_mut() {
+        for mb in &mut self.mboard {
             mb.tick();
         }
 
