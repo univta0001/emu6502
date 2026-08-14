@@ -295,7 +295,7 @@ pub struct AudioData {
 impl Audio {
     pub fn new() -> Self {
         let data = AudioData {
-            sample: Vec::new(),
+            sample: Vec::with_capacity(AUDIO_SAMPLE_RATE as usize * 2),
             phase: -MAX_AMPLITUDE,
             disk_sound: 0,
         };
@@ -320,11 +320,11 @@ impl Audio {
         self.audio_active
     }
 
-    fn ntsc_cycles(&self) -> f32 {
+    const fn ntsc_cycles(&self) -> f32 {
         CPU_6502_MHZ as f32 / AUDIO_SAMPLE_RATE
     }
 
-    fn pal_cycles(&self) -> f32 {
+    const fn pal_cycles(&self) -> f32 {
         ((PAL_14M * 65) as f32 / 912.0) / AUDIO_SAMPLE_RATE
     }
 
@@ -346,6 +346,10 @@ impl Audio {
         let mut tone_count = 0;
 
         for mboard in &self.mboard {
+            if !mboard.get_active() {
+                continue
+            }
+
             let channel_flag = mboard.get_channel_enable(channel);
             for tone in 0..3 {
                 // The max tone volume is 0xffff. Normalized it by dividing by 2
@@ -356,8 +360,6 @@ impl Audio {
                 }
 
                 tone_count += 1;
-
-                self.audio_active = true;
 
                 let tone_enabled = (channel_flag & (1 << tone) as u8) == 0;
                 let noise_enabled = (channel_flag & (0x8 << tone) as u8) == 0;
@@ -375,6 +377,12 @@ impl Audio {
                 *phase += volume * mix;
             }
         }
+
+        // Set audio_active only if we actually generated tones
+        if tone_count > 0 {
+            self.audio_active = true;
+        }
+
         tone_count
     }
 
@@ -390,7 +398,7 @@ impl Audio {
             return phase;
         }
 
-        ((phase as i64 * self.dc_filter as i64) / (70000_i64)) as Channel
+        ((phase as f32 * self.dc_filter as f32) / 70000.0) as Channel
     }
 
     // Extract tape handling to avoid code duplication
@@ -829,7 +837,7 @@ impl Tick for Audio {
             for channel in 0..2 {
                 let mut phase: HigherChannel = beep as HigherChannel;
 
-                // Update left channel
+                // Update channel
                 let tone_count = self.update_phase(&mut phase, channel) + 1;
                 let phase = phase.saturating_add(disk_sound);
 

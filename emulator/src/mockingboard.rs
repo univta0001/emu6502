@@ -804,6 +804,10 @@ impl Mockingboard {
         self.mb4c
     }
 
+    pub fn get_active(&self) -> bool {
+        self.active
+    }
+
     pub fn get_tone_level(&self, chip: usize, channel: usize) -> bool {
         if !self.mb4c {
             self.w65c22[chip].ay8910[0].tone[channel].level
