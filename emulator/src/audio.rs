@@ -54,7 +54,7 @@ impl AudioFilter {
             //buffer,
             //buffer_pointer: 0,
             filter_tap: [0.0f32; 2],
-            filter_parameter: AudioFilter::filter_parameter_ntsc(),
+            filter_parameter: Self::filter_parameter_ntsc(),
         }
     }
 
@@ -164,7 +164,7 @@ impl AudioFilter {
     */
 
     fn filter_parameter_ntsc() -> [f32; 2] {
-        let (c1, c2) = AudioFilter::filter_parameter(
+        let (c1, c2) = Self::filter_parameter(
             CPU_6502_MHZ as f32,
             FAST_RESONANCE_FREQ as f32,
             FAST_DAMPING_RATE as f32,
@@ -173,7 +173,7 @@ impl AudioFilter {
     }
 
     fn filter_parameter_pal() -> [f32; 2] {
-        let (c1, c2) = AudioFilter::filter_parameter(
+        let (c1, c2) = Self::filter_parameter(
             CPU_6502_PAL_MHZ as f32,
             FAST_RESONANCE_FREQ as f32,
             FAST_DAMPING_RATE as f32,
@@ -344,6 +344,7 @@ impl Audio {
 
     fn update_phase(&mut self, phase: &mut HigherChannel, channel: usize) -> usize {
         let mut tone_count = 0;
+
         for mboard in &self.mboard {
             let channel_flag = mboard.get_channel_enable(channel);
             for tone in 0..3 {
@@ -520,6 +521,10 @@ impl Audio {
         Ok(())
     }
 
+    fn invalid_wav_response(s: &str) -> std::io::Result<(u32, Vec<u8>)> {
+        Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, s))
+    }
+
     fn parse_wav_header(&self, data: &[u8]) -> std::io::Result<(u32, Vec<u8>)> {
         if data.len() < 44 {
             return Err(std::io::Error::new(
@@ -530,49 +535,35 @@ impl Audio {
 
         // Check for RIFF header
         if &data[0..4] != RIFF_HEADER {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Invalid WAV file - Missing RIFF header",
-            ));
+            return Self::invalid_wav_response("Invalid WAV file - Missing RIFF header");
         }
 
         let file_size = u32::from_le_bytes([data[4], data[5], data[6], data[7]]);
 
         if file_size + 8 != data.len() as u32 {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Invalid WAV file - Incorrect file size",
-            ));
+            return Self::invalid_wav_response("Invalid WAV file - Incorrect file size");
         }
 
         if &data[8..12] != WAVE_CHUNK || &data[12..16] != FMT_CHUNK {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Invalid WAV file - Expected WAVE and fmt chunks",
-            ));
+            return Self::invalid_wav_response("Invalid WAV file - Expected WAVE and fmt chunks");
         }
 
         if data[16..20] != [0x10, 0, 0, 0] {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Invalid WAV file - Only PCM format supported",
-            ));
+            return Self::invalid_wav_response("Invalid WAV file - Only PCM format supported");
         }
 
         // Check audio format: must be 1 (PCM), and channels 1 or 2
         if data[20..24] != [0x01, 0, 0x01, 0] && data[20..24] != [0x01, 0, 0x02, 0] {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
+            return Self::invalid_wav_response(
                 "Invalid WAV file - Only mono or stereo PCM supported",
-            ));
+            );
         }
 
         let num_channels = u16::from_le_bytes([data[22], data[23]]) as usize;
         if num_channels != 1 && num_channels != 2 {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
+            return Self::invalid_wav_response(
                 "Invalid WAV file - Only number of channels of 1 or 2 is supported",
-            ));
+            );
         }
 
         let samples_per_second = u32::from_le_bytes([data[24], data[25], data[26], data[27]]);
@@ -581,26 +572,21 @@ impl Audio {
         let bits_per_sample = u16::from_le_bytes([data[34], data[35]]);
 
         if bits_per_sample != 8 && bits_per_sample != 16 {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
+            return Self::invalid_wav_response(
                 "Invalid WAV file - Only 8-bit or 16-bit PCM supported",
-            ));
+            );
         }
 
         let block_align = u16::from_le_bytes([data[32], data[33]]);
         let expected_block_align = num_channels as u16 * bits_per_sample / 8;
         if block_align != expected_block_align {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Invalid WAV file - Block align mismatch",
-            ));
+            return Self::invalid_wav_response("Invalid WAV file - Block align mismatch");
         }
 
         if bytes_rate != samples_per_second * num_channels as u32 * bits_per_sample as u32 / 8 {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
+            return Self::invalid_wav_response(
                 "Invalid WAV file - Bytes rate doesn't match sample rate and channel count",
-            ));
+            );
         }
 
         // Find data chunk
@@ -620,10 +606,7 @@ impl Audio {
         }
 
         if !data_found {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Invalid WAV file - Missing data chunk",
-            ));
+            return Self::invalid_wav_response("Invalid WAV file - Missing data chunk");
         }
 
         let ptr = data_pos + 4;
@@ -632,13 +615,10 @@ impl Audio {
         let audio_data = &data[data_pos + 8..];
 
         if actual_data_size != audio_data.len() as u32 {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                format!(
-                    "Invalid WAV file - Data size mismatch: declared {} bytes, found {}",
-                    actual_data_size,
-                    audio_data.len()
-                ),
+            return Self::invalid_wav_response(&format!(
+                "Invalid WAV file - Data size mismatch: declared {} bytes, found {}",
+                actual_data_size,
+                audio_data.len()
             ));
         }
 
