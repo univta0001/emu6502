@@ -252,6 +252,16 @@ struct Tape {
     play: bool,
 }
 
+impl Tape {
+    fn reset(&mut self) {
+        self.play = false;
+        self.record = false;
+        self.active = 0;
+        self.pos = 0;
+        self.level = false;
+    }
+}
+
 #[derive(Debug)]
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde_support", serde(default))]
@@ -395,10 +405,7 @@ impl Audio {
             {
                 eprintln!("Unable to save tape data: {e}");
             }
-            self.tape.play = false;
-            self.tape.record = false;
-            self.tape.active = 0;
-            self.tape.level = false;
+            self.tape.reset();
         } else {
             if self.tape.record {
                 self.tape.data.push(self.tape.level as u8 * 255);
@@ -443,14 +450,6 @@ impl Audio {
         self.tape.data[self.tape.pos]
     }
 
-    pub fn tape_reset(&mut self) {
-        self.tape.play = false;
-        self.tape.record = false;
-        self.tape.active = 0;
-        self.tape.pos = 0;
-        self.tape.level = false;
-    }
-
     pub fn load_tape(&mut self, path: impl AsRef<Path>) -> std::io::Result<()> {
         let name = path.as_ref();
         self.tape.filename = Some(name.into());
@@ -465,7 +464,7 @@ impl Audio {
         let (samples_per_second, wav_data) = self.parse_wav_header(data)?;
 
         self.tape.data.clear();
-        self.tape_reset();
+        self.tape.reset();
 
         if wav_data.is_empty() || samples_per_second == 0 {
             return Ok(());
@@ -691,7 +690,7 @@ impl Audio {
     pub fn eject_tape(&mut self) {
         self.tape.filename = None;
         self.tape.data.clear();
-        self.tape_reset();
+        self.tape.reset();
     }
 
     pub fn get_filter_enabled(&self) -> bool {
