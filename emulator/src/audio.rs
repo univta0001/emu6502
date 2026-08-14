@@ -342,12 +342,12 @@ impl Audio {
         self.fcycles + 1.0 >= (self.fcycles_per_sample)
     }
 
-    fn update_phase(&mut self, phase: &mut HigherChannel, channel: usize) -> usize {
+    fn update_phase(&mut self, phase: &mut HigherChannel, channel: usize) -> HigherChannel {
         let mut tone_count = 0;
 
         for mboard in &self.mboard {
             if !mboard.get_active() {
-                continue
+                continue;
             }
 
             let channel_flag = mboard.get_channel_enable(channel);
@@ -830,24 +830,24 @@ impl Tick for Audio {
                 self.audio_filter.filter_tap[1] = 0.0;
             }
 
-            // Add the disk sound
-            let disk_sound = self.data.disk_sound as HigherChannel;
+            let disk_sound =
+                (self.data.disk_sound as HigherChannel).saturating_add(beep as HigherChannel);
 
             // Channel mixing for left and right
             for channel in 0..2 {
-                let mut phase: HigherChannel = beep as HigherChannel;
+                let mut phase: HigherChannel = 0;
 
                 // Update channel
                 let tone_count = self.update_phase(&mut phase, channel) + 1;
-                let phase = phase.saturating_add(disk_sound);
-
                 let phase = if tone_count > 1 {
-                    phase / tone_count as HigherChannel
+                    phase / tone_count
                 } else {
                     phase
                 };
 
-                self.data.sample.push(phase as Channel);
+                self.data
+                    .sample
+                    .push((phase.saturating_add(disk_sound)) as Channel);
             }
         }
     }

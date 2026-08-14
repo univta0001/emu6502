@@ -298,10 +298,10 @@ impl HardDisk {
         }
         Ok(())
     }
-    
+
     // The version is obtained from CARGO_PKG_VERSION. It must be in major.minor.revision format
     // This format will be converted to emulator version in the format major.(minor * 10 + revision)
-    // Maximum value for minor * 10 + revision is 255. 
+    // Maximum value for minor * 10 + revision is 255.
     // The minor and revision must be 0 to 9 only.
     fn get_version() -> (u8, u8, u8) {
         let version: Vec<_> = VERSION.split('.').collect();
