@@ -1298,6 +1298,7 @@ impl Bus {
             }
 
             0x71 | 0x73 => {
+                self.set_paddle_trigger(self.get_cycles());
                 if self.video.is_apple2e() && write_flag {
                     self.mem.set_aux_bank(value);
                 }
@@ -1305,6 +1306,7 @@ impl Bus {
             }
 
             0x78..=0x7f => {
+                self.set_paddle_trigger(self.get_cycles());
                 if self.is_apple2c {
                     if addr & 0x1 == 0 {
                         self.iou_enable(false, write_flag)
