@@ -2,45 +2,76 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Apple ][ Emulator</title>
     <link rel="shortcut icon" href="logoicon.png" />
     <link rel="stylesheet" type="text/css" href="style.css" media="screen" />
 </head>
 <body>
-    <div class="flex flex-col justify-center items-center my-4">
-        <div class="relative">
+    <div class="header">
+        <h1>Apple ][ Emulator</h1>
+        <p>Click the screen to capture keyboard input · Drag & drop disk images</p>
+    </div>
+
+    <div class="monitor-wrapper">
+        <div class="screen-container">
             <div id="emulator" class="emu6502" oncontextmenu="return false;">
                 <canvas width="1120" height="768"></canvas>
                 <audio></audio>
-                <textarea id="hidden_text" style="position:absolute;left:-9999px"></textarea>
+                <textarea id="hidden_text" tabindex="-1" aria-hidden="true"></textarea>
+                <div class="drag-overlay" id="dragOverlay">
+                    <span>Drop disk image here</span>
+                </div>
             </div>
-            <div id="controller" class="absolute top-0 left-0 opacity-50" style="visibility:hidden">
-                <svg width="1120" height="40">
-                  <text x="1080" y="15" font-size="14">&#127918;</text>
+            <div id="controller" style="visibility:hidden">
+                <svg width="40" height="40" viewBox="0 0 40 40">
+                    <text x="20" y="26" text-anchor="middle" font-size="20">&#127918;</text>
                 </svg>
             </div>
-            <div id="motor" class="absolute top-0 left-0 opacity-50" style="visibility:hidden">
-                <svg height="20" width="1120">
-                    <circle cx="1110" cy="10" r="5" fill="red" />
+            <div id="motor" style="visibility:hidden">
+                <svg width="20" height="20" viewBox="0 0 20 20">
+                    <circle cx="10" cy="10" r="5" fill="red" />
                 </svg>
             </div>
         </div>
     </div>
-    <center>
-    <div id="drive">
-        <a id="disk1" class="button shadow hover:shadow-lg border-2 rounded-full font-bold py-2 px-3 cursor-pointer hover:bg-sky-400" href="#">&#x1F4BE; Insert D1</a>
-        <a id="disk2" class="button shadow hover:shadow-lg border-2 rounded-full font-bold py-2 px-3 cursor-pointer hover:bg-sky-400" href="#">&#x1F4BE; Insert D2</a>
-        <a id="joystick" class="button shadow hover:shadow-lg border-2 rounded-full font-bold py-2 px-3 cursor-pointer hover:bg-sky-400" href="#">&#x1F579; Toggle Joystick</a>
-        &nbsp;&nbsp;
-        <input type="checkbox" id="video50hz" name="video50hz"> 50Hz Video
-        <input type="checkbox" id="videoNTSC" name="videoNTSC"> NTSC Video
-        <input type="checkbox" id="videoRGB" name="videoRGB"> RGB Video
-        <input type="checkbox" id="capslock" name="capslock"> Capslock
-        <input type="checkbox" id="diskSound" name="diskSound"> Disk Sound
-        &nbsp;&nbsp;
-        <span id="speed"> </span>
+
+    <div class="control-panel">
+        <div class="control-group drives">
+            <a id="disk1" class="btn btn-disk" href="#">&#x1F4BE; Insert D1</a>
+            <a id="disk2" class="btn btn-disk" href="#">&#x1F4BE; Insert D2</a>
+            <a id="joystick" class="btn btn-joy" href="#">&#x1F579; Toggle Joystick</a>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="control-group options">
+            <label class="checkbox-wrapper">
+                <input type="checkbox" id="video50hz" name="video50hz">
+                <span>50Hz</span>
+            </label>
+            <label class="checkbox-wrapper">
+                <input type="checkbox" id="videoNTSC" name="videoNTSC">
+                <span>NTSC</span>
+            </label>
+            <label class="checkbox-wrapper">
+                <input type="checkbox" id="videoRGB" name="videoRGB">
+                <span>RGB</span>
+            </label>
+            <label class="checkbox-wrapper">
+                <input type="checkbox" id="capslock" name="capslock">
+                <span>Caps Lock</span>
+            </label>
+            <label class="checkbox-wrapper">
+                <input type="checkbox" id="diskSound" name="diskSound">
+                <span>Disk Sound</span>
+            </label>
+        </div>
+
+        <div class="control-group speed">
+            <span id="speed">Ready</span>
+        </div>
     </div>
-    </center>
 
     <script type="module">
         import init, * as wasm from './emu6502_web.js';
@@ -65,6 +96,7 @@
             var mouse_right_button = false;
 
             const hidden_text = document.getElementById("hidden_text");
+            const dragOverlay = document.getElementById("dragOverlay");
 
             const show_keyboard = (e) => {
                 hidden_text.focus();
@@ -105,12 +137,20 @@
             };
 
             const register_dnd_file = (div_id, disk) => {
-                document.getElementById(div_id).addEventListener("dragover", function(e) {
+                const el = document.getElementById(div_id);
+
+                el.addEventListener("dragover", function(e) {
                     e.preventDefault();
+                    dragOverlay.classList.add('active');
                 });
 
-                document.getElementById(div_id).addEventListener("drop", function(e) {
+                el.addEventListener("dragleave", function(e) {
+                    dragOverlay.classList.remove('active');
+                });
+
+                el.addEventListener("drop", function(e) {
                     e.preventDefault();
+                    dragOverlay.classList.remove('active');
                     const files = e.dataTransfer.files;
                     if (files.length) {
                         const reader = new FileReader();
@@ -163,13 +203,15 @@
                 }
             }
 
-            document.getElementById("disk1").addEventListener("click", function() {
+            document.getElementById("disk1").addEventListener("click", function(e) {
+                e.preventDefault();
                 load_disk( (name, content) => {
                     emu6502.load_disk(name,content,0);
                 });        
             });
 
-            document.getElementById("disk2").addEventListener("click", function() {
+            document.getElementById("disk2").addEventListener("click", function(e) {
+                e.preventDefault();
                 load_disk( (name, content) => {
                     emu6502.load_disk(name,content,1);
                 });        
@@ -199,7 +241,8 @@
             });
 
 
-            document.getElementById("joystick").addEventListener("click", function() {
+            document.getElementById("joystick").addEventListener("click", function(e) {
+                e.preventDefault();
                 emu6502.toggle_joystick();
             });     
 
@@ -422,8 +465,8 @@
                     value = ascii_to_int(';');
                 }
 
-                if (e.key == '\'') {
-                    value = ascii_to_int('\'');
+                if (e.key == "'") {
+                    value = ascii_to_int("'");
                 }
 
                 if (e.key == '`') {
@@ -761,19 +804,22 @@
                         left_audio[i] = data[2*i] / 32768.0;
                         right_audio[i] = data[2*i+1] / 32768.0;
                     }
-                    let audio_source = ctx_audio.createBufferSource();
-                    let audio_gain = ctx_audio.createGain();
-                    audio_gain.gain.value = 1.0;
-                    audio_source.buffer = audio_buffer;
-                    audio_source.connect(audio_gain);
-                    audio_gain.connect(ctx_audio.destination);
 
-                    if (next_play_time < ctx_audio.currentTime) {
-                        next_play_time = ctx_audio.currentTime + 0.01;
+                    if (ctx_audio.state != 'suspended') {
+                        let audio_source = ctx_audio.createBufferSource();
+                        let audio_gain = ctx_audio.createGain();
+                        audio_gain.gain.value = 1.0;
+                        audio_source.buffer = audio_buffer;
+                        audio_source.connect(audio_gain);
+                        audio_gain.connect(ctx_audio.destination);
+
+                        if (next_play_time < ctx_audio.currentTime) {
+                            next_play_time = ctx_audio.currentTime + 0.01;
+                        }
+
+                        audio_source.start(next_play_time);
+                        next_play_time += audio_buffer.duration;
                     }
-
-                    audio_source.start(next_play_time);
-                    next_play_time += audio_buffer.duration;
 
                     emu6502.clear_sound_buffer();
                 }
@@ -786,7 +832,7 @@
                 mouse_prev_y = mouse_y;
                 emu6502.set_mouse_state(delta_x, delta_y, mouse_left_button, mouse_right_button);
             }
-            
+
             let key_caps = true;
 
             const FRAME_TIME_NTSC = 16.688;
@@ -871,7 +917,7 @@
                     let mhz = total_cycles / (delta * 1000);
 
                     if (speedEl) {
-                        speedEl.innerHTML = `Estimated Mhz: ${mhz.toFixed(3)} Mhz`;
+                        speedEl.innerHTML = `Estimated MHz: ${mhz.toFixed(3)} MHz`;
                     }
                 }
 

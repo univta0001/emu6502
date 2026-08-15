@@ -1,4 +1,4 @@
 build:
     wasm-pack build --release --target web
     pnpx oxlint@latest
-    pnpx @tailwindcss/cli -o style.css --minify
+    pnpx @tailwindcss/cli -i style.css.orig -o style.css --minify
