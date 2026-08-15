@@ -851,22 +851,59 @@
 
             let frameImageData = null;
 
+            const freeBuffers = [];
+            const lockedBuffers = [];
+
             const update_ui = () => {
                 let arr = emu6502.frame_buffer();
 
-                // Cache ImageData to avoid allocation overhead and memory leaks
-                if (!frameImageData || frameImageData.data.length !== arr.length) {
+                // 1. Initialize or resize the buffer pool if the resolution changes
+                if (freeBuffers.length === 0 && lockedBuffers.length === 0) {
                     const height = arr.length / 4 / 567;
-                    frameImageData = new ImageData(567, height);
+                    for (let i = 0; i < 3; i++) {
+                        freeBuffers.push(new ImageData(567, height));
+                    }
+                } else if (freeBuffers.length > 0 && freeBuffers[0].data.length !== arr.length) {
+                    // Resolution changed (e.g., switching video modes). Rebuild the pool.
+                    const height = arr.length / 4 / 567;
+                    freeBuffers.length = 0;
+                    lockedBuffers.length = 0;
+                    for (let i = 0; i < 3; i++) {
+                        freeBuffers.push(new ImageData(567, height));
+                    }
                 }
-                frameImageData.data.set(arr);
 
-                createImageBitmap(frameImageData).then(renderer => {
+                // 2. Acquire a free buffer
+                let imageData = freeBuffers.pop();
+
+                if (!imageData) {
+                    // SAFETY NET: All buffers are locked (browser is heavily throttled/lagging).
+                    // Instead of allocating new memory (which causes GC stutter), we drop this frame.
+                    return;
+                }
+
+                // 3. Lock the buffer so it cannot be overwritten by the next frame
+                lockedBuffers.push(imageData);
+
+                // 4. Write the new pixel data
+                imageData.data.set(arr);
+
+                // 5. Asynchronously create the bitmap
+                createImageBitmap(imageData).then(renderer => {
                     ctx_2d.drawImage(renderer, 0, 0, canvas_width, canvas_height);
-                    // Critical: close the bitmap to free GPU memory and avoid massive memory leaks
+
+                    // Critical: close the bitmap to free GPU memory and avoid leaks
                     renderer.close();
+
+                    // 6. Unlock the buffer and return it to the free pool
+                    const index = lockedBuffers.indexOf(imageData);
+                    if (index > -1) {
+                        lockedBuffers.splice(index, 1);
+                        freeBuffers.push(imageData);
+                    }
                 });
 
+                // --- Existing DOM updates ---
                 if (motorEl) {
                     motorEl.style.visibility = emu6502.is_disk_motor_on() ? "visible" : "hidden";
                 }
