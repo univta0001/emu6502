@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <title>Apple ][ Emulator</title>
-    <!-- <script src="https://cdn.tailwindcss.com"></script> -->
     <link rel="shortcut icon" href="logoicon.png" />
     <link rel="stylesheet" type="text/css" href="style.css" media="screen" />
 </head>
@@ -748,40 +747,8 @@
                 }
             }
 
-            const update_ui = () => {
-                let arr = emu6502.frame_buffer();
-                let imageData = new ImageData(arr, 567);
-                createImageBitmap(imageData).then(renderer =>
-                    ctx_2d.drawImage(renderer,0,0, canvas_width, canvas_height)
-                );
-
-                if (emu6502.is_disk_motor_on()) {
-                    let motor = document.getElementById("motor");
-                    if (motor != null) {
-                        motor.style.visibility = "visible";
-                    }
-                } else {
-                    let motor = document.getElementById("motor");
-                    if (motor != null) {
-                        motor.style.visibility = "hidden";
-                    }
-                }
-
-                let gp = navigator.getGamepads();
-                if (gp && gp.length > 0) {
-                    let controller = document.getElementById("controller");
-                    if (controller != null) {
-                        controller.style.visibility = "visible";
-                    }
-                } else {
-                    let controller = document.getElementById("controller");
-                    if (controller != null) {
-                        controller.style.visibility = "hidden";
-                    }
-                }
-            }
-
             let next_play_time = 0;
+
             const update_audio = () => {
                 let data = emu6502.sound_buffer();
                 if (data.length >= 2048)
@@ -820,19 +787,96 @@
                 emu6502.set_mouse_state(delta_x, delta_y, mouse_left_button, mouse_right_button);
             }
             
-            var then = 0;
-            var then2 = 0;
-            var start_time = performance.now();
-            var prev_cycles = 0;
-            var cpu_delta = 0;
-            var key_caps = true;
-            var anim_ms;
+            let key_caps = true;
 
-            if (emu6502.is_video_50hz()) {
-                cpu_delta = 20280 - 65 * 192
-            } else {
-                cpu_delta = 17030 - 65 * 192
-            }
+            const FRAME_TIME_NTSC = 16.688;
+            const FRAME_TIME_PAL = 19.968;
+            const CYCLES_NTSC = 17030;
+            const CYCLES_PAL = 20280;
+
+            let then = performance.now();
+            let accumulator = 0;
+            let cpu_delta = emu6502.is_video_50hz() ? (CYCLES_PAL - 65 * 192) : (CYCLES_NTSC - 65 * 192);
+
+            // Cache DOM elements for better performance
+            const motorEl = document.getElementById("motor");
+            const controllerEl = document.getElementById("controller");
+            const speedEl = document.getElementById("speed");
+
+            let frameImageData = null;
+
+            const update_ui = () => {
+                let arr = emu6502.frame_buffer();
+
+                // Cache ImageData to avoid allocation overhead and memory leaks
+                if (!frameImageData || frameImageData.data.length !== arr.length) {
+                    const height = arr.length / 4 / 567;
+                    frameImageData = new ImageData(567, height);
+                }
+                frameImageData.data.set(arr);
+
+                createImageBitmap(frameImageData).then(renderer => {
+                    ctx_2d.drawImage(renderer, 0, 0, canvas_width, canvas_height);
+                    // Critical: close the bitmap to free GPU memory and avoid massive memory leaks
+                    renderer.close();
+                });
+
+                if (motorEl) {
+                    motorEl.style.visibility = emu6502.is_disk_motor_on() ? "visible" : "hidden";
+                }
+
+                if (controllerEl) {
+                    let gp = navigator.getGamepads();
+                    controllerEl.style.visibility = (gp && gp.length > 0) ? "visible" : "hidden";
+                }
+            };
+
+            const runloop = (now) => {
+                let delta = now - then;
+                then = now;
+
+                // Avoid "spiral of death" if the tab was backgrounded/inactive
+                if (delta > 250) delta = 250;
+
+                accumulator += delta;
+
+                const is50hz = emu6502.is_video_50hz();
+                const cpu_ms = is50hz ? FRAME_TIME_PAL : FRAME_TIME_NTSC;
+                const cpu_cycles_frame = is50hz ? CYCLES_PAL : CYCLES_NTSC;
+
+                let steps = 0;
+                let start_cycles = emu6502.cpu_cycles();
+
+                while (accumulator >= cpu_ms) {
+                    accumulator -= cpu_ms;
+
+                    let frame_start_cycles = emu6502.cpu_cycles();
+
+                    while (emu6502.cpu_cycles() - frame_start_cycles + cpu_delta < cpu_cycles_frame) {
+                        emu6502.step_cpu();
+                    }
+                    cpu_delta = (emu6502.cpu_cycles() - frame_start_cycles + cpu_delta) % cpu_cycles_frame;
+
+                    steps++;
+                }
+
+                if (steps > 0) {
+                    update_gamepad();
+                    update_audio();
+                    update_mouse_state();
+                    update_ui();
+
+                    let total_cycles = emu6502.cpu_cycles() - start_cycles;
+                    // Accurate effective MHz calculation based on real-time elapsed
+                    let mhz = total_cycles / (delta * 1000);
+
+                    if (speedEl) {
+                        speedEl.innerHTML = `Estimated Mhz: ${mhz.toFixed(3)} Mhz`;
+                    }
+                }
+
+                window.requestAnimationFrame(runloop);
+            };
 
             document.getElementById("capslock").checked = true;
 
@@ -859,61 +903,10 @@
             document.getElementById("diskSound").checked = true;
             emu6502.disk_sound(true);
 
-            const runloop = async (now) => {
-                if (!then) { then = now; then2 = then }
-
-                if (!anim_ms) { anim_ms = now }
-
-                let anim_elapsed = now - anim_ms;
-                anim_ms = now;
-
-                let delta = now - then;
-                let delta2 = now - then2;
-
-                let cpu_6502_cycles = 17030;
-                let cpu_refresh = 16;
-                let cpu_ms = 16.688;
-
-                if (emu6502.is_video_50hz()) {
-                    cpu_6502_cycles = 20280;
-                    cpu_refresh = 20;
-                    cpu_ms = 19.968;
-                }
-
-                if (delta >= cpu_refresh) 
-                //delta = 0;
-                {
-                    then = now - (delta % cpu_refresh);
-                    then2 = now;
-
-                    while (emu6502.cpu_cycles()-prev_cycles + cpu_delta < cpu_6502_cycles) 
-                    {
-                        emu6502.step_cpu();
-                    } 
-                    cpu_delta=(emu6502.cpu_cycles()-prev_cycles+cpu_delta) % cpu_6502_cycles;
-                    update_gamepad();
-                    update_ui();
-                    update_audio();
-                    update_mouse_state();
-
-                    //console.log(emu6502.cpu_cycles());
-                    //console.log(emu6502.sound_buffer().length);
-
-                    let cycles = emu6502.cpu_cycles() - prev_cycles;
-                    let mhz = cycles/(1000.0 * delta2 * cpu_ms / anim_elapsed);
-                    let speed = document.getElementById("speed");
-                    prev_cycles = emu6502.cpu_cycles();
-
-                    if (speed != null) {
-                        speed.innerHTML = `Estimated Mhz: ${mhz.toFixed(3)} Mhz`;
-                    }
-                }
-
-                window.requestAnimationFrame(runloop);
-            };
-
             console.log("Emulator version: " + emu6502.version());
-            await runloop();
+
+            // Kick off the rendering loop cleanly without unnecessary awaits
+            window.requestAnimationFrame(runloop);
 
         })()
 
