@@ -99,7 +99,6 @@ body {
 #emulator {
     position: relative;
     display: block;
-    cursor: crosshair;
     user-select: none;
 }
 
