@@ -914,12 +914,17 @@
                 }
             };
 
+            let avgMHz = 1.0;
+            let lastUIUpdate = 0;
+
             const runloop = (now) => {
                 let delta = now - then;
                 then = now;
 
+                let isSuspended = delta > 250;
+
                 // Avoid "spiral of death" if the tab was backgrounded/inactive
-                if (delta > 250) delta = 250;
+                if (isSuspended) { delta = 250; }
 
                 accumulator += delta;
 
@@ -948,13 +953,18 @@
                     update_audio();
                     update_mouse_state();
                     update_ui();
+                }
 
-                    let total_cycles = emu6502.cpu_cycles() - start_cycles;
-                    // Accurate effective MHz calculation based on real-time elapsed
-                    let mhz = total_cycles / (delta * 1000);
-
-                    if (speedEl) {
-                        speedEl.innerHTML = `Estimated MHz: ${mhz.toFixed(3)} MHz`;
+                let total_cycles = emu6502.cpu_cycles() - start_cycles;
+                if (!isSuspended && delta > 0) {
+                    let instMHz = total_cycles / (delta * 1000);
+                    let weight = Math.min(1.0, delta / 1000);
+                    avgMHz = (weight * instMHz) + ((1 - weight) * avgMHz);
+                    if (now - lastUIUpdate > 250) {
+                        if (speedEl) {
+                            speedEl.innerHTML = `Estimated MHz: ${avgMHz.toFixed(3)} MHz`;
+                        }
+                        lastUIUpdate = now;
                     }
                 }
 
