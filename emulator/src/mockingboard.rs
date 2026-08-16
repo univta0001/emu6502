@@ -51,10 +51,7 @@ impl Noise {
     }
 
     fn set_period(&mut self, value: u8) {
-        self.period = value & 0x1f;
-        if self.period == 0 {
-            self.period = 1
-        }
+        self.period = (value & 0x1f).max(1);
         self.count = (2 * self.period) as usize;
     }
 }
@@ -63,7 +60,7 @@ impl Noise {
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 struct Envelope {
     period: u16,
-    count: usize,
+    count: u16,
     step: i8,
     volume: u8,
     hold: bool,
@@ -127,7 +124,7 @@ struct Tone {
     period: u16,
     volume: u8,
     level: bool,
-    count: usize,
+    count: u16,
 }
 
 impl Tone {
@@ -151,8 +148,8 @@ impl Tone {
             self.count = 0;
         }
 
-        if self.period > 0 && self.count >= self.period as usize {
-            self.count %= self.period as usize;
+        if self.period > 0 && self.count >= self.period {
+            self.count %= self.period;
         }
     }
 
@@ -199,8 +196,8 @@ impl AY8910 {
             if tone.period == 0 {
                 continue;
             }
-            let env_period = tone.period as usize;
-            tone.count = (tone.count + 1) & 0xfff;
+            let env_period = tone.period;
+            tone.count = tone.count.wrapping_add(1);
             if tone.count >= env_period {
                 tone.count -= env_period;
                 tone.level = !tone.level
@@ -214,7 +211,7 @@ impl AY8910 {
         if env_period == 0 {
             return;
         }
-        self.noise.count = self.noise.count.wrapping_sub(1) & 0x1f;
+        self.noise.count = self.noise.count.saturating_sub(1);
         if self.noise.count == 0 {
             self.noise.count = env_period;
             let rng_value = self.get_noise_value();
@@ -225,12 +222,12 @@ impl AY8910 {
     #[inline]
     fn update_envelope(&mut self) {
         let item = &mut self.envelope;
-        let env_period = item.period as usize * 2;
+        let env_period = item.period * 2;
         if item.period == 0 {
             return;
         }
         if !item.holding {
-            item.count = (item.count + 1) & 0xffff;
+            item.count = item.count.wrapping_add(1);
             if item.count >= env_period {
                 item.count -= env_period;
                 item.step -= 1;
@@ -511,28 +508,24 @@ impl W65C22 {
     }
 
     fn ay8910_write(&mut self, device: usize, value: u8) {
-        if value & 0x07 == AY_RESET {
+        let cmd = value & 0x07;
+        if cmd == AY_RESET {
             self.ay8910[device].reset();
             self.latch_addr_valid = false;
             self.driving_bus = false;
         } else if self.state == AY_INACTIVE {
-            match value & 0x07 {
-                AY_READ_DATA if self.latch_addr_valid => {
-                    self.driving_bus = true;
-                    self.ora = self.ay8910[device].read_register() & (self.ddra ^ 0xff)
-                }
-                AY_WRITE_DATA if self.latch_addr_valid => {
-                    self.ay8910[device].write_register(self.ora)
-                }
-                AY_SET_PSG_REG if self.ora <= 0x0f => {
-                    self.latch_addr_valid = true;
-                    self.ay8910[device].set_register(self.ora & 0xf);
-                }
-                _ => {}
+            if cmd == AY_READ_DATA && self.latch_addr_valid {
+                self.driving_bus = true;
+                self.ora = self.ay8910[device].read_register() & (self.ddra ^ 0xff)
+            } else if cmd == AY_WRITE_DATA && self.latch_addr_valid {
+                self.ay8910[device].write_register(self.ora)
+            } else if cmd == AY_SET_PSG_REG && self.ora <= 0x0f {
+                self.latch_addr_valid = true;
+                self.ay8910[device].set_register(self.ora & 0xf);
             }
         }
 
-        self.state = value & 0x7;
+        self.state = cmd;
 
         if self.state == AY_INACTIVE {
             self.driving_bus = false;
@@ -547,6 +540,13 @@ impl W65C22 {
             self.ifr = input_value | 0x80;
         } else {
             self.ifr = input_value;
+        }
+    }
+
+    #[inline]
+    fn maybe_clear_irq(&mut self) {
+        if self.ifr & 0x60 == 0 {
+            self.irq_happen = 0;
         }
     }
 
@@ -611,9 +611,7 @@ impl W65C22 {
                     self.t1l = self.t1l & 0xff00 | value as u16;
                 } else {
                     self.ifr &= !0x40;
-                    if self.ifr & 0x60 == 0 {
-                        self.irq_happen = 0;
-                    }
+                    self.maybe_clear_irq();
                     return_addr = (self.t1c & 0xff) as u8;
                 }
             }
@@ -622,9 +620,7 @@ impl W65C22 {
             0x05 => {
                 if write_flag {
                     self.ifr &= !0x40;
-                    if self.ifr & 0x60 == 0 {
-                        self.irq_happen = 0;
-                    }
+                    self.maybe_clear_irq();
                     self.t1l = ((value as u16) << 8) | self.t1l & 0x00ff;
                     self.t1c = self.t1l as u32;
                     self.t1c = self.t1c.wrapping_add(1);
@@ -647,9 +643,7 @@ impl W65C22 {
             0x07 => {
                 if write_flag {
                     self.ifr &= !0x40;
-                    if self.ifr & 0x60 == 0 {
-                        self.irq_happen = 0;
-                    }
+                    self.maybe_clear_irq();
                     self.t1l = ((value as u16) << 8) | self.t1l & 0x0ff;
                 } else {
                     return_addr = ((self.t1l & 0xff00) >> 8) as u8;
@@ -662,9 +656,7 @@ impl W65C22 {
                     self.t2ll = value;
                 } else {
                     self.ifr &= !0x20;
-                    if self.ifr & 0x60 == 0 {
-                        self.irq_happen = 0;
-                    }
+                    self.maybe_clear_irq();
                     return_addr = (self.t2c & 0xff) as u8;
                 }
             }
@@ -676,9 +668,7 @@ impl W65C22 {
                     self.t2c = self.t2c.wrapping_add(1);
                     self.t2_loaded = true;
                     self.ifr &= !0x20;
-                    if self.ifr & 0x60 == 0 {
-                        self.irq_happen = 0;
-                    }
+                    self.maybe_clear_irq();
                 } else {
                     return_addr = (self.t2c >> 8) as u8;
                 }
