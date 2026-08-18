@@ -798,62 +798,45 @@ impl Mockingboard {
     }
 
     pub fn get_tone_level(&self, chip: usize, channel: usize) -> bool {
-        if !self.mb4c {
-            self.w65c22[chip].ay8910[0].tone[channel].level
-        } else {
-            self.w65c22[0].ay8910[chip].tone[channel].level
-        }
+        let w652c22_flag = chip * (!self.mb4c as usize);
+        let ay8910_flag = chip * (self.mb4c as usize);
+        self.w65c22[w652c22_flag].ay8910[ay8910_flag].tone[channel].level
     }
 
     pub fn get_tone_period(&self, chip: usize, channel: usize) -> usize {
-        if !self.mb4c {
-            self.w65c22[chip].ay8910[0].tone[channel].period as usize
-        } else {
-            self.w65c22[0].ay8910[chip].tone[channel].period as usize
-        }
+        let w652c22_flag = chip * (!self.mb4c as usize);
+        let ay8910_flag = chip * (self.mb4c as usize);
+        self.w65c22[w652c22_flag].ay8910[ay8910_flag].tone[channel].period as usize
     }
 
     pub fn get_tone_volume(&self, chip: usize, channel: usize) -> usize {
-        let vol = if !self.mb4c {
-            self.w65c22[chip].ay8910[0].tone[channel].volume as usize
-        } else {
-            self.w65c22[0].ay8910[chip].tone[channel].volume as usize
-        };
-
+        let w652c22_flag = chip * (!self.mb4c as usize);
+        let ay8910_flag = chip * (self.mb4c as usize);
+        let vol = self.w65c22[w652c22_flag].ay8910[ay8910_flag].tone[channel].volume as usize;
         if vol & 0x10 > 0 {
             // Envelope volume mode
-            if !self.mb4c {
-                self.w65c22[chip].ay8910[0].envelope.volume as usize & 0xf
-            } else {
-                self.w65c22[0].ay8910[chip].envelope.volume as usize & 0xf
-            }
+            self.w65c22[w652c22_flag].ay8910[ay8910_flag].envelope.volume as usize & 0xf
         } else {
             vol & 0xf
         }
     }
 
     pub fn get_noise_level(&self, chip: usize) -> bool {
-        if !self.mb4c {
-            self.w65c22[chip].ay8910[0].noise.level
-        } else {
-            self.w65c22[0].ay8910[chip].noise.level
-        }
+        let w652c22_flag = chip * (!self.mb4c as usize);
+        let ay8910_flag = chip * (self.mb4c as usize);
+        self.w65c22[w652c22_flag].ay8910[ay8910_flag].noise.level
     }
 
     pub fn get_noise_period(&self, chip: usize) -> usize {
-        if !self.mb4c {
-            self.w65c22[chip].ay8910[0].noise.period as usize
-        } else {
-            self.w65c22[0].ay8910[chip].noise.period as usize
-        }
+        let w652c22_flag = chip * (!self.mb4c as usize);
+        let ay8910_flag = chip * (self.mb4c as usize);
+        self.w65c22[w652c22_flag].ay8910[ay8910_flag].noise.period as usize
     }
 
     pub fn get_channel_enable(&self, chip: usize) -> u8 {
-        if !self.mb4c {
-            self.w65c22[chip].ay8910[0].get_enable()
-        } else {
-            self.w65c22[0].ay8910[chip].get_enable()
-        }
+        let w652c22_flag = chip * (!self.mb4c as usize);
+        let ay8910_flag = chip * (self.mb4c as usize);
+        self.w65c22[w652c22_flag].ay8910[ay8910_flag].get_enable()
     }
 }
 
