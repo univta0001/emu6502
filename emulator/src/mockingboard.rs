@@ -167,7 +167,7 @@ struct AY8910 {
     tone: [Tone; 3],
     envelope: Envelope,
     noise: Noise,
-    rng: usize,
+    rng: u32,
 }
 
 impl AY8910 {
@@ -250,7 +250,7 @@ impl AY8910 {
         item.volume = (item.step ^ item.attack as i8) as u8;
     }
 
-    fn get_noise_value(&mut self) -> usize {
+    fn get_noise_value(&mut self) -> u32 {
         // LFSR generator g(x) = x^17 + x^3 + 1
 
         // Fibonacci Configuration
@@ -262,10 +262,9 @@ impl AY8910 {
         */
 
         // Galois configuration
-        if self.rng & 1 > 0 {
-            self.rng ^= 0x24000;
-        }
+        let lsb = self.rng & 1;
         self.rng >>= 1;
+        self.rng ^= 0x12000 & (-(lsb as i32) as u32);
         self.rng
     }
 
