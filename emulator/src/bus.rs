@@ -795,10 +795,6 @@ impl Bus {
         self.video.read_latch()
     }
 
-    fn read_floating_bus_high_bit(&self, value: u8) -> u8 {
-        self.video.read_latch() & 0x7f | value & 0x80
-    }
-
     pub fn get_keyboard_latch(&self) -> u8 {
         self.keyboard_latch
     }
@@ -824,21 +820,22 @@ impl Bus {
             val
         } else if on {
             if !self.video.is_dhires_mode() {
-                self.read_floating_bus_high_bit(0x80)
+                val & 0x7f | 0x80
             } else {
-                self.read_floating_bus_high_bit(0)
+                val & 0x7f
             }
         } else if !self.mouse.get_iou() {
             // IOUDISON, IOU is disabled
-            self.read_floating_bus_high_bit(0x80)
+            val & 0x7f | 0x80
         } else {
             // IOU is enabled
-            self.read_floating_bus_high_bit(0)
+            val & 0x7f
         }
     }
 
     pub fn io_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
         let io_addr = (addr & 0xff) as u8;
+        let floating_bus = self.read_floating_bus();
 
         match io_addr {
             0x00 => {
@@ -944,7 +941,7 @@ impl Bus {
                         keyboard_latch & 0x7f
                     }
                 } else {
-                    self.read_floating_bus()
+                    floating_bus
                 }
             }
 
@@ -970,7 +967,7 @@ impl Bus {
                 if self.mem.aux_type != AuxType::Empty {
                     self.get_io_status(self.mem.altzp)
                 } else {
-                    self.read_floating_bus()
+                    floating_bus
                 }
             }
 
@@ -1002,12 +999,12 @@ impl Bus {
 
             0x20 => {
                 self.audio.tape_out();
-                self.read_floating_bus()
+                floating_bus
             }
 
             0x21 => {
                 self.video.io_access(addr, value, write_flag);
-                self.read_floating_bus()
+                floating_bus
             }
 
             0x28 => {
@@ -1016,31 +1013,31 @@ impl Bus {
                     self.mem.reset_mig_bank();
                     self.mem.set_rom_bank(!self.mem.rom_bank())
                 }
-                self.read_floating_bus()
+                floating_bus
             }
 
             0x29 => {
                 self.video.io_access(addr, value, write_flag);
-                self.read_floating_bus()
+                floating_bus
             }
 
-            0x30..=0x3f => self.audio_io_access(),
+            0x30..=0x3f => self.audio_io_access(floating_bus),
 
             0x40 => {
                 if self.is_apple2c {
-                    self.read_floating_bus() & 0x7f
+                    floating_bus & 0x7f
                         | (((self.mouse.get_iou_mode() & STATUS_MOVE_INTERRUPT > 0) as u8) << 7)
                 } else {
-                    self.read_floating_bus()
+                    floating_bus
                 }
             }
 
             0x41 => {
                 if self.is_apple2c {
-                    self.read_floating_bus() & 0x7f
+                    floating_bus & 0x7f
                         | (((self.mouse.get_iou_mode() & STATUS_VBL_INTERRUPT > 0) as u8) << 7)
                 } else {
-                    self.read_floating_bus()
+                    floating_bus
                 }
             }
 
@@ -1048,9 +1045,9 @@ impl Bus {
                 if self.is_apple2c {
                     self.mouse.clear_irq_mouse(STATUS_MOVE_INTERRUPT_X0);
                     self.mouse.clear_irq_mouse(STATUS_MOVE_INTERRUPT_Y0);
-                    self.read_floating_bus()
+                    floating_bus
                 } else {
-                    self.read_floating_bus()
+                    floating_bus
                 }
             }
 
@@ -1058,28 +1055,28 @@ impl Bus {
                 {
                     self.video.enable_graphics(true);
                 }
-                self.read_floating_bus()
+                floating_bus
             }
 
             0x51 => {
                 {
                     self.video.enable_graphics(false);
                 }
-                self.read_floating_bus()
+                floating_bus
             }
 
             0x52 => {
                 {
                     self.video.enable_mixed_mode(false);
                 }
-                self.read_floating_bus()
+                floating_bus
             }
 
             0x53 => {
                 {
                     self.video.enable_mixed_mode(true);
                 }
-                self.read_floating_bus()
+                floating_bus
             }
 
             0x54 => {
@@ -1088,7 +1085,7 @@ impl Bus {
                     self.video.enable_video_page2(false);
                     self.video.update_video();
                 }
-                self.read_floating_bus()
+                floating_bus
             }
 
             0x55 => {
@@ -1097,7 +1094,7 @@ impl Bus {
                     self.video.enable_video_page2(true);
                     self.video.update_video();
                 }
-                self.read_floating_bus()
+                floating_bus
             }
 
             0x56 => {
@@ -1106,7 +1103,7 @@ impl Bus {
                     self.video.enable_lores(true);
                     self.video.update_video();
                 }
-                self.read_floating_bus()
+                floating_bus
             }
 
             0x57 => {
@@ -1115,7 +1112,7 @@ impl Bus {
                     self.video.enable_lores(false);
                     self.video.update_video();
                 }
-                self.read_floating_bus()
+                floating_bus
             }
 
             0x58..=0x5d => {
@@ -1157,11 +1154,11 @@ impl Bus {
                         _ => {}
                     }
                 }
-                self.read_floating_bus()
+                floating_bus
             }
 
             0x5e => {
-                let val = self.read_floating_bus();
+                let val = floating_bus;
                 if (self.video.is_apple2e()
                     && (self.mem.aux_type != AuxType::Empty && self.mem.aux_type != AuxType::Std80))
                     || self.is_apple2c
@@ -1177,7 +1174,7 @@ impl Bus {
             }
 
             0x5f => {
-                let val = self.read_floating_bus();
+                let val = floating_bus;
                 if (self.video.is_apple2e()
                     && (self.mem.aux_type != AuxType::Empty && self.mem.aux_type != AuxType::Std80))
                     || self.is_apple2c
@@ -1194,7 +1191,7 @@ impl Bus {
 
             // 0x60 Need to return floating bus value for serpentine
             // If no tape is inserted, the high-bit has to be set
-            0x60 | 0x68 => self.audio.tape_in(self.read_floating_bus() | 0x80),
+            0x60 | 0x68 => self.audio.tape_in(floating_bus | 0x80),
 
             0x61 | 0x69 => {
                 let button_value = if !self.swap_button {
@@ -1202,7 +1199,7 @@ impl Bus {
                 } else {
                     self.pushbutton_latch[1]
                 };
-                self.read_floating_bus_high_bit(button_value)
+                floating_bus & 0x7f | button_value
             }
 
             0x62 | 0x6a => {
@@ -1215,17 +1212,16 @@ impl Bus {
                 if self.dongle == Dongle::Hayden {
                     button_value = 0;
                 }
-
-                self.read_floating_bus_high_bit(button_value)
+                floating_bus & 0x7f | button_value
             }
 
             0x63 | 0x6b => {
                 if self.is_apple2c {
                     let button_status = (self.mouse.get_button_status() as u8) << 7;
-                    self.read_floating_bus_high_bit(!button_status)
+                    floating_bus & 0x7f | !button_status
                 } else {
                     let button_value = !self.pushbutton_latch[2];
-                    self.read_floating_bus_high_bit(button_value)
+                    floating_bus & 0x7f | button_value
                 }
             }
 
@@ -1234,9 +1230,9 @@ impl Bus {
                 let delta = self.get_cycles() - self.get_paddle_trigger();
                 let value = self.get_joystick_value(self.paddle_latch[0]);
                 if delta < (value as usize * 11) {
-                    (self.read_floating_bus() & 0x7f) | 0x80
+                    (floating_bus & 0x7f) | 0x80
                 } else {
-                    self.read_floating_bus() & 0x7f
+                    floating_bus & 0x7f
                 }
             }
 
@@ -1244,9 +1240,9 @@ impl Bus {
                 let delta = self.get_cycles() - self.get_paddle_trigger();
                 let value = self.get_joystick_value(self.paddle_latch[1]);
                 if delta < (value as usize * 11) {
-                    (self.read_floating_bus() & 0x7f) | 0x80
+                    (floating_bus & 0x7f) | 0x80
                 } else {
-                    self.read_floating_bus() & 0x7f
+                    floating_bus & 0x7f
                 }
             }
 
@@ -1256,12 +1252,12 @@ impl Bus {
                     let delta = self.get_cycles() - self.get_paddle_trigger();
                     let value = self.get_joystick_value(self.paddle_latch[2]);
                     if delta < (value as usize * 11) {
-                        (self.read_floating_bus() & 0x7f) | 0x80
+                        (floating_bus & 0x7f) | 0x80
                     } else {
-                        self.read_floating_bus() & 0x7f
+                        floating_bus & 0x7f
                     }
                 } else {
-                    (((self.mouse.get_delta_x() > 0) as u8) << 7) | self.read_floating_bus() & 0x7f
+                    (((self.mouse.get_delta_x() > 0) as u8) << 7) | floating_bus & 0x7f
                 }
             }
 
@@ -1310,12 +1306,12 @@ impl Bus {
                     }
 
                     if delta < (value as usize * 11) {
-                        (self.read_floating_bus() & 0x7f) | 0x80
+                        (floating_bus & 0x7f) | 0x80
                     } else {
-                        self.read_floating_bus() & 0x7f
+                        floating_bus & 0x7f
                     }
                 } else {
-                    (((self.mouse.get_delta_y() < 0) as u8) << 7) | self.read_floating_bus() & 0x7f
+                    (((self.mouse.get_delta_y() < 0) as u8) << 7) | floating_bus & 0x7f
                 }
             }
 
@@ -1326,7 +1322,7 @@ impl Bus {
                     self.mouse.clear_irq_mouse(STATUS_VBL_INTERRUPT);
                 }
 
-                self.read_floating_bus()
+                floating_bus
             }
 
             0x71 | 0x73 => {
@@ -1334,7 +1330,7 @@ impl Bus {
                 if self.video.is_apple2e() && write_flag {
                     self.mem.set_aux_bank(value);
                 }
-                self.read_floating_bus()
+                floating_bus
             }
 
             0x78..=0x7f => {
@@ -1346,13 +1342,13 @@ impl Bus {
                         self.iou_enable(true, write_flag)
                     }
                 } else {
-                    self.read_floating_bus()
+                    floating_bus
                 }
             }
 
             0x80..=0x8f => {
                 self.mem.io_access(addr, value, write_flag);
-                self.read_floating_bus()
+                floating_bus
             }
 
             0x90..=0xff => self.iodevice_io_access(addr, value, write_flag),
@@ -1368,7 +1364,7 @@ impl Bus {
                     true
                 });
                 */
-                self.read_floating_bus()
+                floating_bus
             }
         }
     }
@@ -1382,9 +1378,9 @@ impl Bus {
         }
     }
 
-    fn audio_io_access(&mut self) -> u8 {
+    fn audio_io_access(&mut self, floating_bus: u8) -> u8 {
         self.audio.click();
-        self.read_floating_bus()
+        floating_bus
     }
 }
 
