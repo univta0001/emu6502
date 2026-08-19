@@ -368,8 +368,9 @@ impl Bus {
 
         if !self.disable_audio {
             if self.audio.ready_update_disk_sound() {
-                let sample_value = if self.disk.is_motor_on() {
-                    self.disk.update_disk_sound_sample();
+                let motor_on = self.disk.is_motor_on();
+                let sample_value = if motor_on {
+                    self.disk.update_disk_sound_sample(motor_on);
                     self.disk.get_disk_sound_sample()
                 } else {
                     0
