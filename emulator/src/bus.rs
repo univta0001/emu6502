@@ -509,6 +509,38 @@ impl Bus {
         self.setup_vidhd();
     }
 
+    fn shadow_memory_to_vram(&mut self, addr: u16, data: u8) {
+        // Shadow it to the video ram
+        let aux_memory = self.mem.is_aux_memory(addr, true);
+        let aux_bank = self.mem.aux_bank();
+        if aux_memory && aux_bank == 0 {
+            if !self.mem.vidhd {
+                match self.mem.aux_type {
+                    AuxType::Ext80 | AuxType::RW3 => {
+                        self.video.update_shadow_memory(aux_memory, addr, data)
+                    }
+                    AuxType::Std80 => {
+                        if addr < 0x800 {
+                            self.video.update_shadow_memory(aux_memory, addr, data);
+                        } else {
+                            self.video.update_shadow_memory(
+                                aux_memory,
+                                0x400 + (addr & 0x3ff),
+                                data,
+                            )
+                        }
+                    }
+
+                    _ => {}
+                }
+            } else {
+                self.video.update_shadow_memory(aux_memory, addr, data)
+            }
+        } else {
+            self.video.update_shadow_memory(aux_memory, addr, data);
+        }
+    }
+
     fn iodevice_io_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
         let slot = (((addr & 0x00ff) - 0x0080) >> 4) as usize;
         let floating_value = self.read_floating_bus();
@@ -1369,112 +1401,78 @@ impl Mem for Bus {
     }
 
     fn unclocked_addr_read(&mut self, addr: u16) -> u8 {
-        if (0xc000..0xd000).contains(&addr) {
-            match addr {
-                // Unused slots should be random values
-                0xc100..=0xc2ff | 0xc400..=0xc7ff => self.iodevice_rom_access(addr, 0, false),
+        match addr {
+            // Unused slots should be random values
+            0xc100..=0xc2ff | 0xc400..=0xc7ff => self.iodevice_rom_access(addr, 0, false),
 
-                0xc300..=0xc3ff => {
-                    // Implement no slot clock
-                    if !self.disable_noslot_clock {
-                        if self.noslotclock.is_clock_register_enabled() {
-                            return self.noslotclock.io_access(addr, 0, false);
-                        } else {
-                            self.noslotclock.io_access(addr, 0, false);
-                        }
-                    }
-
-                    if !self.mem.slotc3rom {
-                        self.mem.intc8rom = true;
-                    }
-
-                    if !self.video.is_apple2e() {
-                        self.iodevice_rom_access(addr, 0, false)
-                    } else if self.mem.intcxrom || !self.mem.slotc3rom {
-                        self.mem_read(addr)
+            0xc300..=0xc3ff => {
+                // Implement no slot clock
+                if !self.disable_noslot_clock {
+                    if self.noslotclock.is_clock_register_enabled() {
+                        return self.noslotclock.io_access(addr, 0, false);
                     } else {
-                        self.iodevice_rom_access(addr, 0, false)
+                        self.noslotclock.io_access(addr, 0, false);
                     }
                 }
 
-                0xc000..=0xc0ff => self.io_access(addr, 0, false),
-                0xc800..=0xcfff => {
-                    if addr == 0xcfff {
-                        self.mem.intc8rom = false;
-                        self.extended_rom = 0;
-                    }
-                    if self.mem.intcxrom || self.mem.intc8rom || self.is_apple2c {
-                        if self.mem.a2cp && self.mem.rom_bank && (0xcc00..=0xceff).contains(&addr) {
-                            let ret_value = self.mem_read(addr);
-                            self.mem
-                                .mig_io_access(&mut self.disk, addr, 0, ret_value, false)
-                        } else {
-                            self.mem_read(addr)
-                        }
-                    } else {
-                        self.iodevice_rom_access(addr, 0, false)
-                    }
+                if !self.mem.slotc3rom {
+                    self.mem.intc8rom = true;
                 }
 
-                _ => unreachable!("Addr should be unreachable: {:04x}", addr),
+                if !self.video.is_apple2e() {
+                    self.iodevice_rom_access(addr, 0, false)
+                } else if self.mem.intcxrom || !self.mem.slotc3rom {
+                    self.mem_read(addr)
+                } else {
+                    self.iodevice_rom_access(addr, 0, false)
+                }
             }
-        } else {
-            self.mem.unclocked_addr_read(addr)
+
+            0xc000..=0xc0ff => self.io_access(addr, 0, false),
+            0xc800..=0xcfff => {
+                if addr == 0xcfff {
+                    self.mem.intc8rom = false;
+                    self.extended_rom = 0;
+                }
+                if self.mem.intcxrom || self.mem.intc8rom || self.is_apple2c {
+                    if self.mem.a2cp && self.mem.rom_bank && (0xcc00..=0xceff).contains(&addr) {
+                        let ret_value = self.mem_read(addr);
+                        self.mem
+                            .mig_io_access(&mut self.disk, addr, 0, ret_value, false)
+                    } else {
+                        self.mem_read(addr)
+                    }
+                } else {
+                    self.iodevice_rom_access(addr, 0, false)
+                }
+            }
+
+            _ => self.mem.unclocked_addr_read(addr),
         }
     }
 
     fn unclocked_addr_write(&mut self, addr: u16, data: u8) {
-        if (0xc000..0xd000).contains(&addr) {
-            match addr {
-                0xc000..=0xc0ff => {
-                    let _write = self.io_access(addr, data, true);
-                }
-
-                0xc100..=0xcffe => {
-                    self.iodevice_rom_access(addr, data, true);
-                }
-
-                0xcfff => {
-                    self.mem.intc8rom = false;
-                    self.extended_rom = 0;
-                }
-
-                _ => unreachable!("Addr should be unreachable: {:04x}", addr),
+        match addr {
+            0xc000..=0xc0ff => {
+                let _write = self.io_access(addr, data, true);
             }
-        } else {
-            self.mem.unclocked_addr_write(addr, data);
-            let aux_memory = self.mem.is_aux_memory(addr, true);
-            if (0x400..0xc00).contains(&addr)
-                || (0x2000..=0x9fff).contains(&addr)
-                || (!self.video.is_apple2e() && (0x1400..0x1c00).contains(&addr))
-            {
-                // Shadow it to the video ram
-                let aux_bank = self.mem.aux_bank();
-                if aux_memory && aux_bank == 0 {
-                    if !self.mem.vidhd {
-                        match self.mem.aux_type {
-                            AuxType::Ext80 | AuxType::RW3 => {
-                                self.video.update_shadow_memory(aux_memory, addr, data)
-                            }
-                            AuxType::Std80 => {
-                                if addr < 0x800 {
-                                    self.video.update_shadow_memory(aux_memory, addr, data);
-                                } else {
-                                    self.video.update_shadow_memory(
-                                        aux_memory,
-                                        0x400 + (addr & 0x3ff),
-                                        data,
-                                    )
-                                }
-                            }
 
-                            _ => {}
-                        }
-                    } else {
-                        self.video.update_shadow_memory(aux_memory, addr, data)
-                    }
-                } else {
-                    self.video.update_shadow_memory(aux_memory, addr, data);
+            0xc100..=0xcffe => {
+                self.iodevice_rom_access(addr, data, true);
+            }
+
+            0xcfff => {
+                self.mem.intc8rom = false;
+                self.extended_rom = 0;
+            }
+
+            _ => {
+                self.mem.unclocked_addr_write(addr, data);
+                if (0x400..0xc00).contains(&addr)
+                    || (0x2000..=0x9fff).contains(&addr)
+                    || (!self.video.is_apple2e() && (0x1400..0x1c00).contains(&addr))
+                {
+                    self.shadow_memory_to_vram(addr, data);
                 }
             }
         }
