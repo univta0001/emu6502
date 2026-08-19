@@ -435,6 +435,7 @@ impl Bus {
         self.disk.set_iwm(flag);
     }
 
+    #[inline(always)]
     pub fn is_80_column_enabled(&self) -> bool {
         self.annunciator[0] && self.io_slot[3] == IODevice::Videoterm
     }
