@@ -1891,20 +1891,6 @@ impl CPU {
         if !self.alt_cpu {
             callback(self);
 
-            /*
-            // Dump Balance of Power
-            if self.program_counter == 0xff52 {
-                for i in 0..0x100 {
-                    if i % 16 == 0 {
-                        println!();
-                        print!("{:04x}: ", 0xdc00 +i);
-                    }
-                    print!("{:02x} ", self.bus.unclocked_addr_read(0xdc00 + i));
-                }
-                std::process::exit(0);
-            }
-            */
-
             let program_counter_state = self.program_counter;
             let code = self.next_byte();
             //let opcode = opcodes::CPU_OPS_CODES[code as usize];
