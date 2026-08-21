@@ -201,6 +201,7 @@ impl Tick for Video {
 
         if self.cycles >= self.cycle_field {
             self.cycles = 0;
+            self.update_blink_state();
         }
 
         self.update_video();
@@ -818,11 +819,6 @@ impl Video {
     pub fn update_video(&mut self) {
         let cycle = self.cycles;
         let (row, col) = (cycle / CYCLES_PER_ROW, cycle % CYCLES_PER_ROW);
-
-        if cycle == 0 {
-            self.update_blink_state();
-        }
-
         let is_shr = self.is_shr_mode();
 
         // Video line takes 65 clock cycles
