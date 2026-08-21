@@ -815,7 +815,10 @@ impl Mockingboard {
         let vol = self.w65c22[w652c22_flag].ay8910[ay8910_flag].tone[channel].volume as usize;
         if vol & 0x10 > 0 {
             // Envelope volume mode
-            self.w65c22[w652c22_flag].ay8910[ay8910_flag].envelope.volume as usize & 0xf
+            self.w65c22[w652c22_flag].ay8910[ay8910_flag]
+                .envelope
+                .volume as usize
+                & 0xf
         } else {
             vol & 0xf
         }

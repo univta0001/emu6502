@@ -1586,8 +1586,7 @@ impl DiskDrive {
 
     pub fn update_disk_sound_sample(&mut self, motor_on: bool) {
         let disk_loaded = self.is_loaded(self.drive_select);
-        self.disk_sound
-            .update_sample(motor_on, disk_loaded);
+        self.disk_sound.update_sample(motor_on, disk_loaded);
     }
 
     pub fn reset_disk_sound_sample(&mut self) {
