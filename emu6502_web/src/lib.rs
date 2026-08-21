@@ -111,22 +111,6 @@ impl Emulator {
         self.cpu.bus.video.set_video_50hz(state);
     }
 
-    pub fn clear_dirty_page_frame_buffer(&mut self) {
-        self.cpu.bus.video.clear_video_dirty();
-    }
-
-    pub fn get_dirty_region_frame_buffer(&self) -> js_sys::Uint8ClampedArray {
-        let mut lower_array = Vec::new();
-        let mut upper_array = Vec::new();
-        let dirty_region = self.cpu.bus.video.get_dirty_region();
-        for item in dirty_region {
-            lower_array.push(item.0 as u8);
-            upper_array.push(item.1 as u8);
-        }
-        lower_array.extend(upper_array.iter());
-        js_sys::Uint8ClampedArray::from(&lower_array[..])
-    }
-
     pub fn sound_buffer(&self) -> js_sys::Int16Array {
         js_sys::Int16Array::from(self.cpu.bus.audio.get_buffer())
     }

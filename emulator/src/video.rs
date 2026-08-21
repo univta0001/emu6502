@@ -859,7 +859,7 @@ impl Video {
             // Redraw the whole row in the next 2 cycle
             if needs_reparse {
                 if visible_col == 39 {
-                    if self.video_reparse[row] > 2 {
+                    if self.video_reparse[row] >= 2 {
                         self.video_reparse[row] = 0;
                     } else {
                         self.video_reparse[row] += 1;
@@ -916,7 +916,7 @@ impl Video {
 
         mem[addr as usize] = value;
 
-        if (0x0400..0x0c00).contains(&addr) {
+        if !self.is_graphics() && (0x0400..0x0c00).contains(&addr) {
             // 000000cd eabab000 -> 000abcde
             let row = ((addr & 0x18) | ((addr >> 7) & 0x06) | ((addr & 0x80) >> 7)) * 8;
             let start = row as usize;
@@ -931,7 +931,7 @@ impl Video {
                     self.video_reparse[i] = 1;
                 }
             }
-        } else if (0x2000..=0x5fff).contains(&addr) {
+        } else if self.is_graphics() && (0x2000..=0x5fff).contains(&addr) {
             // 000fghcd eabab000 -> abcdefgh
             let row = ((addr << 1) & 0xc0) | ((addr >> 4) & 0x38) | ((addr >> 10) & 0x07);
             self.video_reparse[row as usize] = 1;
