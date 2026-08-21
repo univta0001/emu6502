@@ -114,6 +114,9 @@ pub struct Video {
     cycles: usize,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
+    video_mode: u8,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
     graphics_mode: bool,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
@@ -767,6 +770,7 @@ impl Video {
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap_or(std::time::Duration::ZERO)
                 .as_millis()) as u64,
+            video_mode: 0,
             graphics_mode: false,
             mixed_mode: false,
             lores_mode: false,
@@ -814,6 +818,7 @@ impl Video {
         self.dhires_mode = true;
         self.lores_mode = true;
         self.video_page2 = false;
+        self.update_video_mode();
     }
 
     pub fn update_video(&mut self) {
@@ -843,7 +848,7 @@ impl Video {
 
         let video_aux_latch = self.read_aux_video_data(cycle, row);
         let visible_col = col - CYCLES_PER_HBL;
-        let video_mode = self.get_video_mode();
+        let video_mode = self.video_mode;
         let video_data =
             video_value as u32 | ((video_aux_latch as u32) << 8) | ((video_mode as u32) << 16);
         let flash_status = self.get_flash_mode(video_data, video_mode);
@@ -1067,6 +1072,7 @@ impl Video {
                         self.shr_linear_mode = false;
                     }
                     self.video_reparse.fill(1);
+                    self.update_video_mode();
                     self.update_video();
                 } else if self.mono_mode {
                     return_value |= 0x20;
@@ -1347,6 +1353,10 @@ impl Video {
         mode
     }
 
+    fn update_video_mode(&mut self) {
+        self.video_mode = self.get_video_mode();
+    }
+
     fn get_flash_mode(&self, video_data: u32, video_mode: u8) -> bool {
         let mode = video_mode;
 
@@ -1526,10 +1536,12 @@ impl Video {
 
     pub fn enable_graphics(&mut self, state: bool) {
         self.graphics_mode = state;
+        self.update_video_mode();
     }
 
     pub fn enable_lores(&mut self, state: bool) {
         self.lores_mode = state;
+        self.update_video_mode();
     }
 
     pub fn enable_dhires(&mut self, state: bool) {
@@ -1545,14 +1557,17 @@ impl Video {
             self.rgb_mode = (self.rgb_mode << 1) & 3 | vid_80;
         }
         self.dhires_mode = state;
+        self.update_video_mode();
     }
 
     pub fn enable_mixed_mode(&mut self, state: bool) {
         self.mixed_mode = state;
+        self.update_video_mode();
     }
 
     pub fn enable_video_page2(&mut self, state: bool) {
         self.video_page2 = state;
+        self.update_video_mode();
     }
 
     pub fn is_graphics(&self) -> bool {
@@ -1585,6 +1600,7 @@ impl Video {
 
     pub fn enable_video_80col(&mut self, state: bool) {
         self.vid80_mode = state;
+        self.update_video_mode();
     }
 
     pub fn toggle_video_freq(&mut self) {
@@ -1608,11 +1624,13 @@ impl Video {
 
     pub fn set_display_mode(&mut self, mode: DisplayMode) {
         self.display_mode = mode;
+        self.update_video_mode();
         self.invalidate_video_cache();
     }
 
     pub fn set_mono_mode(&mut self, state: bool) {
         self.mono_mode = state;
+        self.update_video_mode();
         self.invalidate_video_cache();
     }
 
