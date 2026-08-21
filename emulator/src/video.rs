@@ -87,10 +87,6 @@ pub struct Video {
     video_reparse: Vec<u8>,
 
     #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
-    #[cfg_attr(feature = "serde_support", serde(default = "default_video_dirty"))]
-    video_dirty: Vec<u8>,
-
-    #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
     #[cfg_attr(feature = "serde_support", serde(default = "default_ntsc_decoder"))]
     ntsc_decoder: Vec<Yuv>,
 
@@ -757,7 +753,6 @@ impl Video {
             video_aux: vec![0u8; 0x10000],
             video_cache: vec![0x00; CYCLES_PER_FIELD_50HZ],
             video_reparse: vec![0x00; LINES_PER_FRAME_50HZ],
-            video_dirty: vec![0x00; 25],
             lut_text,
             lut_text_2e,
             lut_hires,
@@ -861,17 +856,12 @@ impl Video {
         let needs_reparse = self.video_reparse[row] != 0;
 
         if cache_changed || needs_reparse || flash_status {
-            if cache_changed || flash_status {
-                self.video_dirty[row / 8] = 1;
-            }
-
             // Redraw the whole row in the next 2 cycle
             if needs_reparse {
                 if visible_col == 39 {
                     if self.video_reparse[row] > 2 {
                         self.video_reparse[row] = 0;
                     } else {
-                        self.video_dirty[row / 8] = 1;
                         self.video_reparse[row] += 1;
                     }
                 }
@@ -987,7 +977,6 @@ impl Video {
             0x0e if self.apple2e && write_flag => {
                 let prev_mode = self.altchar;
                 self.altchar = false;
-                self.video_dirty.fill(1);
                 if prev_mode {
                     self.update_previous_column_graphics();
                 }
@@ -996,7 +985,6 @@ impl Video {
             0x0f if (self.apple2e_enh || self.apple2c) && write_flag => {
                 let prev_mode = self.altchar;
                 self.altchar = true;
-                self.video_dirty.fill(1);
                 if !prev_mode {
                     self.update_previous_column_graphics();
                 }
@@ -1120,10 +1108,6 @@ impl Video {
         self.apple2c
     }
 
-    pub fn clear_video_dirty(&mut self) {
-        self.video_dirty.fill(0);
-    }
-
     pub fn get_color_burst(&self) -> bool {
         self.color_burst
     }
@@ -1157,33 +1141,6 @@ impl Video {
     pub fn set_mac_lc_dlgr(&mut self, flag: bool) {
         self.mac_lc_dlgr = flag;
         self.invalidate_video_cache();
-    }
-
-    pub fn get_dirty_region(&self) -> Vec<(usize, usize)> {
-        let mut vec: Vec<(usize, usize)> = Vec::new();
-        let mut found = false;
-        let mut start = 0;
-        let mut end = 0;
-        for (i, &item) in self.video_dirty.iter().enumerate() {
-            if item > 0 {
-                if !found {
-                    start = i;
-                    end = i;
-                    found = true;
-                } else {
-                    end = i;
-                }
-            } else {
-                if found {
-                    vec.push((start, end));
-                }
-                found = false;
-            }
-        }
-        if found {
-            vec.push((start, end));
-        }
-        vec
     }
 
     pub fn invalidate_video_cache(&mut self) {
@@ -3742,11 +3699,6 @@ fn default_video_cache() -> Vec<u32> {
 #[cfg(feature = "serde_support")]
 fn default_video_reparse() -> Vec<u8> {
     vec![0x00; LINES_PER_FRAME_50HZ]
-}
-
-#[cfg(feature = "serde_support")]
-fn default_video_dirty() -> Vec<u8> {
-    vec![0x00; 25]
 }
 
 #[cfg(feature = "serde_support")]

@@ -25,8 +25,6 @@ use sdl3::gamepad::Button;
 use sdl3::gamepad::Gamepad;
 use sdl3::keyboard::Keycode;
 use sdl3::keyboard::Mod;
-use sdl3::rect::Rect;
-use sdl3::render::Texture;
 use sdl3::video::Window;
 use std::collections::HashMap;
 use std::error::Error;
@@ -1109,22 +1107,6 @@ fn save_emulator_screenshot(cpu: &mut CPU) {
     }
 }
 
-fn _update_texture(cpu: &mut CPU, texture: &mut Texture) {
-    let disp = &mut cpu.bus.video;
-    let dirty_region = disp.get_dirty_region();
-    for region in dirty_region {
-        let start = region.0 * 16;
-        let end = 16 * ((region.1 - region.0) + 1);
-        let rect = Rect::new(0, start as i32, Video::WIDTH as u32, end as u32);
-        let _ = texture.update(
-            rect,
-            &disp.frame[start * 4 * Video::WIDTH..],
-            Video::WIDTH * 4,
-        );
-    }
-    disp.clear_video_dirty();
-}
-
 fn update_gpu_texture(
     cpu: &mut CPU,
     imgui: &mut imgui_sdl3::ImGuiSdl3,
@@ -1160,7 +1142,6 @@ fn update_gpu_texture(
     device.end_copy_pass(copy_pass);
     upload_command_buffer.submit()?;
     let image_texture_id = imgui.push_texture(texture, state.sampler.clone());
-    video.clear_video_dirty();
     Ok(image_texture_id)
 }
 
