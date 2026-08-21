@@ -1472,6 +1472,8 @@ fn function_key_processed(cpu: &mut CPU, event: &Event, state: &mut EmulatorStat
                 state.speed.speed_index = (state.speed.speed_index + 1) % SPEED_MODES.len();
             }
             cpu.set_speed(SPEED_MODES[state.speed.speed_index]);
+            cpu.bus.fast_as_possible =
+                SPEED_MODES[state.speed.speed_index] == CpuSpeed::SPEED_FASTEST;
             update_video_state(cpu, state);
             return true;
         }
@@ -2655,6 +2657,11 @@ fn prepare_speed_menu_item(
         state.speed.speed_index = index;
         cpu.set_speed(SPEED_MODES[state.speed.speed_index]);
         update_video_state(cpu, state);
+        cpu.bus.fast_as_possible = SPEED_MODES[state.speed.speed_index] == CpuSpeed::SPEED_FASTEST;
+
+        if SPEED_MODES[state.speed.speed_index] == CpuSpeed::SPEED_FASTEST {
+            println!("{}", cpu.bus.fast_as_possible);
+        }
     });
 }
 
