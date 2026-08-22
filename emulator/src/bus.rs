@@ -788,7 +788,7 @@ impl Bus {
             return Some(irq_val);
         }
 
-        if self.disable_audio {
+        if self.disable_audio || self.fast_as_possible {
             return None;
         }
 
