@@ -1169,54 +1169,59 @@ impl Video {
         }
     }
 
-    pub fn get_vertical_blend_frame(&self, frame: &[u8], scanline: bool) -> Vec<u8> {
-        let mut display = vec![0xff_u8; Self::WIDTH * Self::HEIGHT * 4];
 
-        for y in (0..Self::HEIGHT).step_by(2) {
-            for x in 0..Self::WIDTH {
-                let base = y * WIDTH_STEP + x * 4;
-                let (r, g, b) = (frame[base], frame[base + 1], frame[base + 2]);
-                let [r1, g1, b1] = if base < WIDTH_STEP {
-                    COLOR_BLACK
-                } else {
-                    [
-                        frame[base - WIDTH_STEP],
-                        frame[base - WIDTH_STEP + 1],
-                        frame[base - WIDTH_STEP + 2],
-                    ]
-                };
-                let [r2, g2, b2] = if base + 8 * Self::WIDTH >= frame.len() {
-                    COLOR_BLACK
-                } else {
-                    [
-                        frame[base + 8 * Self::WIDTH],
-                        frame[base + 8 * Self::WIDTH + 1],
-                        frame[base + 8 * Self::WIDTH + 2],
-                    ]
-                };
+       pub fn get_vertical_blend_frame(&self, frame: &[u8], scanline: bool) -> Vec<u8> {
+        let mut display = vec![0xff_u8; WIDTH_STEP * Self::HEIGHT];
+        let width = Self::WIDTH;
+        let height = Self::HEIGHT;
+        let width_step = WIDTH_STEP;
+        let frame_len = frame.len();
 
-                let [r, g, b] = if [r, g, b] == COLOR_BLACK || [r, g, b] == COLOR_WHITE {
-                    [r, g, b]
+        for y in (0..height).step_by(2) {
+            let base_y = y * width_step;
+            let prev_y = if y == 0 { 0 } else { base_y - width_step };
+            let next_y = if y + 2 >= height { frame_len } else { base_y + 2 * width_step };
+
+            for x in 0..width {
+                let base = base_y + x * 4;
+                let r = frame[base];
+                let g = frame[base + 1];
+                let b = frame[base + 2];
+
+                let is_black = r == 0 && g == 0 && b == 0;
+                let is_white = r == 0xff && g == 0xff && b == 0xff;
+
+                let (r, g, b) = if is_black || is_white {
+                    (r, g, b)
                 } else {
-                    [
-                        r / 2 + r1 / 4 + r2 / 4,
-                        g / 2 + g1 / 4 + g2 / 4,
-                        b / 2 + b1 / 4 + b2 / 4,
-                    ]
+                    let r1 = if y == 0 { 0 } else { frame[prev_y + x * 4] };
+                    let g1 = if y == 0 { 0 } else { frame[prev_y + x * 4 + 1] };
+                    let b1 = if y == 0 { 0 } else { frame[prev_y + x * 4 + 2] };
+
+                    let r2 = if y + 2 >= height { 0 } else { frame[next_y + x * 4] };
+                    let g2 = if y + 2 >= height { 0 } else { frame[next_y + x * 4 + 1] };
+                    let b2 = if y + 2 >= height { 0 } else { frame[next_y + x * 4 + 2] };
+
+                    (
+                        (r >> 1) + (r1 >> 2) + (r2 >> 2),
+                        (g >> 1) + (g1 >> 2) + (g2 >> 2),
+                        (b >> 1) + (b1 >> 2) + (b2 >> 2),
+                    )
                 };
 
                 display[base] = r;
                 display[base + 1] = g;
                 display[base + 2] = b;
 
+                let next_base = base + width_step;
                 if !scanline {
-                    display[base + WIDTH_STEP] = r;
-                    display[base + WIDTH_STEP + 1] = g;
-                    display[base + WIDTH_STEP + 2] = b;
+                    display[next_base] = r;
+                    display[next_base + 1] = g;
+                    display[next_base + 2] = b;
                 } else {
-                    display[base + WIDTH_STEP] = r / 2;
-                    display[base + WIDTH_STEP + 1] = g / 2;
-                    display[base + WIDTH_STEP + 2] = b / 2;
+                    display[next_base] = r >> 1;
+                    display[next_base + 1] = g >> 1;
+                    display[next_base + 2] = b >> 1;
                 }
             }
         }
@@ -1224,71 +1229,82 @@ impl Video {
         display
     }
 
-    pub fn get_barrel_distorted_frame(&self, frame: &[u8], distortion: f64) -> Vec<u8> {
-        fn get_color(frame: &[u8], width: usize, height: usize, x: usize, y: usize) -> Rgb {
-            if x >= width || y >= height {
-                return COLOR_BLACK;
-            }
-            let base = y * 4 * width + x * 4;
-            [frame[base], frame[base + 1], frame[base + 2]]
-        }
-
-        fn interpolate_color(dx: f64, dy: f64, x11: u8, x12: u8, x21: u8, x22: u8) -> u8 {
-            (x11 as f64 * (1.0 - dx) * (1.0 - dy)
-                + x12 as f64 * dx * (1.0 - dy)
-                + x21 as f64 * (1.0 - dx) * dy
-                + x22 as f64 * dx * dy) as u8
-        }
-
-        let mut barrel_display = vec![0xff_u8; Self::WIDTH * Self::HEIGHT * 4];
+    pub fn get_barrel_distorted_frame(&self, frame: &[u8], distortion: f32) -> Vec<u8> {
+        let mut barrel_display = vec![0xff_u8; WIDTH_STEP * Self::HEIGHT];
         let width = Self::WIDTH;
         let height = Self::HEIGHT;
-        let center_x = (width / 2) as i32;
-        let center_y = (height / 2) as i32;
+        let width_f = width as f32;
+        let height_f = height as f32;
+        let center_x = width_f * 0.5;
+        let center_y = height_f * 0.5;
+        let inv_center_x = 1.0 / center_x;
+        let inv_center_y = 1.0 / center_y;
+        let frame_stride = width * 4;
+        let distortion_f = distortion;
+
         for y_d in 0..height {
+            let y_d_f = y_d as f32;
+            let y_norm = (y_d_f - center_y) * inv_center_y;
+            let y_norm_sq = y_norm * y_norm;
+            let dbase_y = y_d * WIDTH_STEP;
+
             for x_d in 0..width {
-                let x_norm = (x_d as f64 - center_x as f64) / center_x as f64;
-                let y_norm = (y_d as f64 - center_y as f64) / center_y as f64;
-                let r2 = x_norm * x_norm + y_norm * y_norm;
+                let x_d_f = x_d as f32;
+                let x_norm = (x_d_f - center_x) * inv_center_x;
+                let r2 = x_norm * x_norm + y_norm_sq;
 
-                let x_norm_u = x_norm * (1.0 + distortion * r2);
-                let y_norm_u = y_norm * (1.0 + distortion * r2);
-
-                let x_u = x_norm_u * center_x as f64 + center_x as f64;
-                let y_u = y_norm_u * center_y as f64 + center_y as f64;
+                let factor = 1.0 + distortion_f * r2;
+                let x_u = x_norm * factor * center_x + center_x;
+                let y_u = y_norm * factor * center_y + center_y;
 
                 let x1 = x_u.floor() as i32;
                 let y1 = y_u.floor() as i32;
 
                 if x1 < 0 || y1 < 0 || x1 + 1 >= width as i32 || y1 + 1 >= height as i32 {
-                    let dbase = y_d * WIDTH_STEP + x_d * 4;
+                    let dbase = dbase_y + x_d * 4;
                     barrel_display[dbase] = 0;
                     barrel_display[dbase + 1] = 0;
                     barrel_display[dbase + 2] = 0;
                     continue;
                 }
 
-                let (x2, y2) = (x1 + 1, y1 + 1);
-                let dx = x_u - x1 as f64;
-                let dy = y_u - y1 as f64;
+                let x2 = x1 + 1;
+                let y2 = y1 + 1;
+                let dx = x_u - x1 as f32;
+                let dy = y_u - y1 as f32;
+                let inv_dx = 1.0 - dx;
+                let inv_dy = 1.0 - dy;
+                let w11 = inv_dx * inv_dy;
+                let w12 = dx * inv_dy;
+                let w21 = inv_dx * dy;
+                let w22 = dx * dy;
 
-                let p11 = get_color(frame, width, height, x1 as usize, y1 as usize);
-                let p12 = get_color(frame, width, height, x2 as usize, y1 as usize);
-                let p21 = get_color(frame, width, height, x1 as usize, y2 as usize);
-                let p22 = get_color(frame, width, height, x2 as usize, y2 as usize);
+                let p11_base = (y1 as usize) * frame_stride + (x1 as usize) * 4;
+                let p12_base = (y1 as usize) * frame_stride + (x2 as usize) * 4;
+                let p21_base = (y2 as usize) * frame_stride + (x1 as usize) * 4;
+                let p22_base = (y2 as usize) * frame_stride + (x2 as usize) * 4;
 
-                let r = interpolate_color(dx, dy, p11[0], p12[0], p21[0], p22[0]);
-                let g = interpolate_color(dx, dy, p11[1], p12[1], p21[1], p22[1]);
-                let b = interpolate_color(dx, dy, p11[2], p12[2], p21[2], p22[2]);
+                let r = (frame[p11_base] as f32 * w11
+                    + frame[p12_base] as f32 * w12
+                    + frame[p21_base] as f32 * w21
+                    + frame[p22_base] as f32 * w22) as u8;
+                let g = (frame[p11_base + 1] as f32 * w11
+                    + frame[p12_base + 1] as f32 * w12
+                    + frame[p21_base + 1] as f32 * w21
+                    + frame[p22_base + 1] as f32 * w22) as u8;
+                let b = (frame[p11_base + 2] as f32 * w11
+                    + frame[p12_base + 2] as f32 * w12
+                    + frame[p21_base + 2] as f32 * w21
+                    + frame[p22_base + 2] as f32 * w22) as u8;
 
-                let dbase = y_d * WIDTH_STEP + x_d * 4;
+                let dbase = dbase_y + x_d * 4;
                 barrel_display[dbase] = r;
                 barrel_display[dbase + 1] = g;
                 barrel_display[dbase + 2] = b;
             }
         }
         barrel_display
-    }
+    }       
 
     fn update_blink_state(&mut self) {
         let current_time_ms = SystemTime::now()
