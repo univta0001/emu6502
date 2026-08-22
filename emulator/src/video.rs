@@ -56,27 +56,27 @@ pub struct Video {
 
     #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
     #[cfg_attr(feature = "serde_support", serde(default = "default_lut_text"))]
-    lut_text: Vec<usize>,
+    lut_text: Vec<u16>,
 
     #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
     #[cfg_attr(feature = "serde_support", serde(default = "default_lut_text_2e"))]
-    lut_text_2e: Vec<usize>,
+    lut_text_2e: Vec<u16>,
 
     #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
     #[cfg_attr(feature = "serde_support", serde(default = "default_lut_hires"))]
-    lut_hires: Vec<usize>,
+    lut_hires: Vec<u16>,
 
     #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
     #[cfg_attr(feature = "serde_support", serde(default = "default_lut_text_pal"))]
-    lut_text_pal: Vec<usize>,
+    lut_text_pal: Vec<u16>,
 
     #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
     #[cfg_attr(feature = "serde_support", serde(default = "default_lut_text_2e_pal"))]
-    lut_text_2e_pal: Vec<usize>,
+    lut_text_2e_pal: Vec<u16>,
 
     #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
     #[cfg_attr(feature = "serde_support", serde(default = "default_lut_hires_pal"))]
-    lut_hires_pal: Vec<usize>,
+    lut_hires_pal: Vec<u16>,
 
     #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
     #[cfg_attr(feature = "serde_support", serde(default = "default_video_cache"))]
@@ -211,6 +211,7 @@ impl Tick for Video {
     }
 }
 
+const WIDTH_STEP: usize = Video::WIDTH * 4;
 const TEXT_LEN: usize = 0x400;
 const HIRES_LEN: usize = 0x2000;
 const CYCLES_PER_ROW: usize = 65;
@@ -1173,15 +1174,15 @@ impl Video {
 
         for y in (0..Self::HEIGHT).step_by(2) {
             for x in 0..Self::WIDTH {
-                let base = y * 4 * Self::WIDTH + x * 4;
+                let base = y * WIDTH_STEP + x * 4;
                 let (r, g, b) = (frame[base], frame[base + 1], frame[base + 2]);
-                let [r1, g1, b1] = if base < 4 * Self::WIDTH {
+                let [r1, g1, b1] = if base < WIDTH_STEP {
                     COLOR_BLACK
                 } else {
                     [
-                        frame[base - 4 * Self::WIDTH],
-                        frame[base - 4 * Self::WIDTH + 1],
-                        frame[base - 4 * Self::WIDTH + 2],
+                        frame[base - WIDTH_STEP],
+                        frame[base - WIDTH_STEP + 1],
+                        frame[base - WIDTH_STEP + 2],
                     ]
                 };
                 let [r2, g2, b2] = if base + 8 * Self::WIDTH >= frame.len() {
@@ -1209,13 +1210,13 @@ impl Video {
                 display[base + 2] = b;
 
                 if !scanline {
-                    display[base + 4 * Self::WIDTH] = r;
-                    display[base + 4 * Self::WIDTH + 1] = g;
-                    display[base + 4 * Self::WIDTH + 2] = b;
+                    display[base + WIDTH_STEP] = r;
+                    display[base + WIDTH_STEP + 1] = g;
+                    display[base + WIDTH_STEP + 2] = b;
                 } else {
-                    display[base + 4 * Self::WIDTH] = r / 2;
-                    display[base + 4 * Self::WIDTH + 1] = g / 2;
-                    display[base + 4 * Self::WIDTH + 2] = b / 2;
+                    display[base + WIDTH_STEP] = r / 2;
+                    display[base + WIDTH_STEP + 1] = g / 2;
+                    display[base + WIDTH_STEP + 2] = b / 2;
                 }
             }
         }
@@ -1260,7 +1261,7 @@ impl Video {
                 let y1 = y_u.floor() as i32;
 
                 if x1 < 0 || y1 < 0 || x1 + 1 >= width as i32 || y1 + 1 >= height as i32 {
-                    let dbase = y_d * 4 * Self::WIDTH + x_d * 4;
+                    let dbase = y_d * WIDTH_STEP + x_d * 4;
                     barrel_display[dbase] = 0;
                     barrel_display[dbase + 1] = 0;
                     barrel_display[dbase + 2] = 0;
@@ -1280,7 +1281,7 @@ impl Video {
                 let g = interpolate_color(dx, dy, p11[1], p12[1], p21[1], p22[1]);
                 let b = interpolate_color(dx, dy, p11[2], p12[2], p21[2], p22[2]);
 
-                let dbase = y_d * 4 * Self::WIDTH + x_d * 4;
+                let dbase = y_d * WIDTH_STEP + x_d * 4;
                 barrel_display[dbase] = r;
                 barrel_display[dbase + 1] = g;
                 barrel_display[dbase + 2] = b;
@@ -1372,7 +1373,7 @@ impl Video {
             (false, false) => &self.lut_text,
         };
 
-        self.read_raw_text_memory(lut[cycle])
+        self.read_raw_text_memory(lut[cycle].into())
     }
 
     fn read_video_data(&self, cycle: usize, r: usize) -> u8 {
@@ -1403,7 +1404,7 @@ impl Video {
             }
         }
 
-        self.read_raw_hires_memory(lut[cycle])
+        self.read_raw_hires_memory(lut[cycle].into())
     }
 
     fn read_video_aux_text_data(&self, cycle: usize) -> u8 {
@@ -1417,7 +1418,7 @@ impl Video {
             &self.lut_text_2e
         };
 
-        self.read_raw_aux_text_memory(lut[cycle])
+        self.read_raw_aux_text_memory(lut[cycle].into())
     }
 
     fn read_aux_video_data(&self, cycle: usize, r: usize) -> u8 {
@@ -1437,7 +1438,7 @@ impl Video {
             && (!self.mixed_mode || r < MIXED_GRAPHICS_MAX_ROW);
 
         if is_hires_region {
-            self.read_raw_aux_hires_memory(lut[cycle])
+            self.read_raw_aux_hires_memory(lut[cycle].into())
         } else {
             self.read_video_aux_text_data(cycle)
         }
@@ -1658,14 +1659,14 @@ impl Video {
     }
 
     pub fn get_pixel(&self, x: usize, y: usize) -> Rgb {
-        assert!(self.frame.len() >= y * 4 * Video::WIDTH + x * 4 + 3);
-        let base = y * 4 * Video::WIDTH + x * 4;
+        assert!(self.frame.len() >= y * WIDTH_STEP + x * 4 + 3);
+        let base = y * WIDTH_STEP + x * 4;
         [self.frame[base], self.frame[base + 1], self.frame[base + 2]]
     }
 
     pub fn set_pixel(&mut self, x: usize, y: usize, rgb: Rgb) {
-        assert!(self.frame.len() >= y * 4 * Video::WIDTH + x * 4 + 3);
-        let base = y * 4 * Video::WIDTH + x * 4;
+        assert!(self.frame.len() >= y * WIDTH_STEP + x * 4 + 3);
+        let base = y * WIDTH_STEP + x * 4;
         let [r, g, b] = rgb;
         self.frame[base] = r;
         self.frame[base + 1] = g;
@@ -1673,9 +1674,9 @@ impl Video {
     }
 
     pub fn set_pixel_2(&mut self, x: usize, y: usize, rgb: Rgb) {
-        assert!(self.frame.len() >= (y + 1) * 4 * Video::WIDTH + x * 4 + 3);
-        let base = y * 4 * Video::WIDTH + x * 4;
-        let offset = 4 * Video::WIDTH;
+        assert!(self.frame.len() >= (y + 1) * WIDTH_STEP + x * 4 + 3);
+        let base = y * WIDTH_STEP + x * 4;
+        let offset = WIDTH_STEP;
         let [r, g, b] = rgb;
         self.frame[base] = r;
         self.frame[base + 1] = g;
@@ -1693,7 +1694,7 @@ impl Video {
     }
 
     pub fn set_pixel_blend_alpha(&mut self, x: usize, y: usize, rgb: Rgb, alpha: u8) {
-        let base = y * 4 * Video::WIDTH + x * 4;
+        let base = y * WIDTH_STEP + x * 4;
         let [r, g, b] = rgb;
         let alpha_ratio: f32 = alpha as f32 / 255.0;
         self.frame[base] =
@@ -1716,31 +1717,18 @@ impl Video {
 
     pub fn set_a2_pixel(&mut self, x: usize, y: usize, rgb: Rgb) {
         let base = 8 * (y * Video::WIDTH + x);
-        let offset = 4 * Video::WIDTH;
+        let offset = WIDTH_STEP;
 
         let [r, g, b] = rgb;
 
-        self.frame[base] = r;
-        self.frame[base + 1] = g;
-        self.frame[base + 2] = b;
-        self.frame[base + 4] = r;
-        self.frame[base + 5] = g;
-        self.frame[base + 6] = b;
+        let pattern = [r, g , b, 0xff, r, g, b, 0xff];
+        self.frame[base..base + pattern.len()].copy_from_slice(&pattern);
 
         if !self.scanline {
-            self.frame[base + offset] = r;
-            self.frame[base + 1 + offset] = g;
-            self.frame[base + 2 + offset] = b;
-            self.frame[base + 4 + offset] = r;
-            self.frame[base + 5 + offset] = g;
-            self.frame[base + 6 + offset] = b;
+            self.frame[base + offset..base + offset +pattern.len()].copy_from_slice(&pattern);
         } else {
-            self.frame[base + offset] = r / 2;
-            self.frame[base + 1 + offset] = g / 2;
-            self.frame[base + 2 + offset] = b / 2;
-            self.frame[base + 4 + offset] = r / 2;
-            self.frame[base + 5 + offset] = g / 2;
-            self.frame[base + 6 + offset] = b / 2;
+            let pattern = [r/2, g/2 , b/2, 0xff, r/2, g/2, b/2, 0xff];
+            self.frame[base + offset..base + offset +pattern.len()].copy_from_slice(&pattern);
         }
     }
 
@@ -2175,11 +2163,7 @@ impl Video {
                         };
 
                         self.set_pixel_count(x1 * 14 + xindex + offset, y1 * 2, color, 1);
-
-                        mask <<= 1;
-                        if mask > 0xf {
-                            mask = 0x1;
-                        }
+                        mask = mask.rotate_left(1) & 0xf
                     }
                 }
             } else {
@@ -2195,10 +2179,7 @@ impl Video {
                     } else {
                         self.set_pixel_count(x1 * 14 + xindex + offset, y1 * 2, COLOR_BLACK, 1);
                     }
-                    mask <<= 1;
-                    if mask > 0xf {
-                        mask = 0x1;
-                    }
+                    mask = mask.rotate_left(1) & 0xf
                 }
             }
         } else if !self.mono_mode && !(self.is_display_mode_mono()) {
@@ -2272,10 +2253,7 @@ impl Video {
                     let color = LORES_COLORS[color_index as usize];
                     self.set_pixel_count(hires_offset + x1 * 14 + xindex, y1 * 2, color, step_size);
 
-                    mask <<= 1;
-                    if mask > 0xf {
-                        mask = 0x1;
-                    }
+                    mask = mask.rotate_left(1) & 0xf
                 }
             }
         } else {
@@ -2313,10 +2291,7 @@ impl Video {
                         step_size,
                     );
                 }
-                mask <<= 1;
-                if mask > 0xf {
-                    mask = 0x1;
-                }
+                mask = mask.rotate_left(1) & 0xf;
             }
         }
     }
@@ -2356,10 +2331,7 @@ impl Video {
             } else {
                 count -= 1;
             }
-            mask <<= 1;
-            if mask > 0xf {
-                mask = 0x1;
-            }
+            mask = mask.rotate_left(1) & 0xf
         }
 
         // Prepare luma for col
@@ -2379,10 +2351,7 @@ impl Video {
                 luma[offset] = 0;
             }
             offset += 1;
-            mask <<= 1;
-            if mask > 0xf {
-                mask = 0x1;
-            }
+            mask = mask.rotate_left(1) & 0xf
         }
 
         // Prepare luma for col + 1
@@ -2409,10 +2378,7 @@ impl Video {
             }
             offset += 1;
             count += 1;
-            mask <<= 1;
-            if mask > 0xf {
-                mask = 0x1;
-            }
+            mask = mask.rotate_left(1) & 0xf
         }
 
         if self.display_mode != DisplayMode::RGB && x1 == 0 {
@@ -2491,10 +2457,7 @@ impl Video {
             } else {
                 count -= 1;
             }
-            mask <<= 1;
-            if mask > 0xf {
-                mask = 0x1;
-            }
+            mask = mask.rotate_left(1) & 0xf;
         }
 
         // Prepare luma for col
@@ -2516,10 +2479,7 @@ impl Video {
                 luma[offset + 1] = 0;
             }
             offset += 2;
-            mask <<= 1;
-            if mask > 0xf {
-                mask = 0x1;
-            }
+            mask = mask.rotate_left(1) & 0xf;
         }
 
         // Prepare luma for col + 1
@@ -2548,10 +2508,7 @@ impl Video {
             }
             offset += 2;
             count += 2;
-            mask <<= 1;
-            if mask > 0xf {
-                mask = 0x1;
-            }
+            mask = mask.rotate_left(1) & 0xf;
         }
 
         let x = x1 * 14;
@@ -2631,10 +2588,7 @@ impl Video {
             } else {
                 count -= 1;
             }
-            mask <<= 1;
-            if mask > 0xf {
-                mask = 0x1;
-            }
+            mask = mask.rotate_left(1) & 0xf
         }
 
         // Prepare luma for col
@@ -2654,10 +2608,7 @@ impl Video {
                 luma[ptr] = 0;
             }
             ptr += 1;
-            mask <<= 1;
-            if mask > 0xf {
-                mask = 0x1;
-            }
+            mask = mask.rotate_left(1) & 0xf
         }
 
         // Prepare luma for col + 1
@@ -2695,10 +2646,7 @@ impl Video {
             }
             ptr += 1;
             count += 1;
-            mask <<= 1;
-            if mask > 0xf {
-                mask = 0x1;
-            }
+            mask = mask.rotate_left(1) & 0xf
         }
 
         let x = x1 * 14;
@@ -3635,11 +3583,11 @@ fn calc_lut(cycle: usize, ntsc: bool) -> usize {
     a as usize
 }
 
-fn build_lut(text_mode: bool, apple2e: bool, ntsc: bool) -> Vec<usize> {
+fn build_lut(text_mode: bool, apple2e: bool, ntsc: bool) -> Vec<u16> {
     let mut output = if ntsc {
-        vec![0; CYCLES_PER_FIELD_60HZ]
+        vec![0u16; CYCLES_PER_FIELD_60HZ]
     } else {
-        vec![0; CYCLES_PER_FIELD_50HZ]
+        vec![0u16; CYCLES_PER_FIELD_50HZ]
     };
 
     for (cycle, item) in output.iter_mut().enumerate() {
@@ -3670,38 +3618,38 @@ fn build_lut(text_mode: bool, apple2e: bool, ntsc: bool) -> Vec<usize> {
             offset = offset.wrapping_add(base2);
         }
         //let offset = video_get_scanner_address(cycle as u32, !text_mode, ntsc, false, !apple2e);
-        *item = offset;
+        *item = offset as u16;
     }
     output
 }
 
 #[cfg(feature = "serde_support")]
-fn default_lut_text() -> Vec<usize> {
+fn default_lut_text() -> Vec<u16> {
     build_lut(true, false, true)
 }
 
 #[cfg(feature = "serde_support")]
-fn default_lut_text_2e() -> Vec<usize> {
+fn default_lut_text_2e() -> Vec<u16> {
     build_lut(true, true, true)
 }
 
 #[cfg(feature = "serde_support")]
-fn default_lut_hires() -> Vec<usize> {
+fn default_lut_hires() -> Vec<u16> {
     build_lut(false, true, true)
 }
 
 #[cfg(feature = "serde_support")]
-fn default_lut_text_pal() -> Vec<usize> {
+fn default_lut_text_pal() -> Vec<u16> {
     build_lut(true, false, false)
 }
 
 #[cfg(feature = "serde_support")]
-fn default_lut_text_2e_pal() -> Vec<usize> {
+fn default_lut_text_2e_pal() -> Vec<u16> {
     build_lut(true, true, false)
 }
 
 #[cfg(feature = "serde_support")]
-fn default_lut_hires_pal() -> Vec<usize> {
+fn default_lut_hires_pal() -> Vec<u16> {
     build_lut(false, true, false)
 }
 
