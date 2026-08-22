@@ -12,6 +12,7 @@ use crate::noslotclock::NoSlotClock;
 use crate::parallel::ParallelCard;
 use crate::ramfactor::RamFactor;
 use crate::video::Video;
+use crate::mockingboard::Mockingboard;
 
 #[cfg(not(target_os = "wasi"))]
 use crate::network::Uthernet2;
@@ -117,7 +118,6 @@ pub struct Bus {
     pub paddle_latch: [u16; 4],
     pub paddle_x_trim: i8,
     pub paddle_y_trim: i8,
-    pub fast_as_possible: bool,
     pub disable_video: bool,
     pub disable_disk: bool,
     pub disable_audio: bool,
@@ -262,7 +262,6 @@ impl Bus {
             annunciator: [false; 4],
             is_apple2c: false,
             noslotclock: NoSlotClock::new(),
-            fast_as_possible: false,
             disable_video: false,
             disable_disk: false,
             disable_audio: false,
@@ -368,7 +367,7 @@ impl Bus {
             }
         }
 
-        if !self.disable_audio && !self.fast_as_possible {
+        if !self.disable_audio {
             if self.audio.ready_update_disk_sound() {
                 let motor_on = self.disk.is_motor_on();
                 let sample_value = if motor_on {
@@ -792,7 +791,7 @@ impl Bus {
             return None;
         }
 
-        self.audio.mboard.iter().find_map(|mb| mb.poll_irq())
+        self.audio.mboard.iter().find_map(Mockingboard::poll_irq)
     }
 
     fn read_floating_bus(&self) -> u8 {
