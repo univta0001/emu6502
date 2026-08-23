@@ -2306,7 +2306,7 @@ fn parse_args(
         cpu.bus.mem.set_saturn_memory(true);
     }
 
-    if let Some(bank) = pargs.opt_value_from_str::<_, usize>("-r")? {
+    if let Some(bank) = pargs.opt_value_from_str::<_, u16>("-r")? {
         if bank == 0 || bank > 255 {
             eprintln!("RAMWorks III accepts value from 1 to 255 (inclusive)");
             return Ok(true);
@@ -2473,7 +2473,11 @@ fn parse_args(
         };
 
         if let Some(aux_type) = aux_type {
-            cpu.bus.mem.aux_type = aux_type
+            cpu.bus.mem.aux_type = aux_type;
+
+            if aux_type == AuxType::RW3 {
+                cpu.bus.mem.set_aux_size(16);
+            }
         }
 
         cpu.bus.video.disable_aux = cpu.bus.mem.aux_type == AuxType::Empty;
@@ -3167,7 +3171,14 @@ fn update_settings(cpu: &mut CPU, settings: &[usize]) -> bool {
     if cpu.is_apple2e() {
         let auxtype_items: Vec<_> = AuxType::iter().collect();
         let auxtype = auxtype_items[settings[8]];
+        cpu.bus.mem.set_aux_size(0);
         cpu.bus.mem.aux_type = auxtype;
+        if auxtype == AuxType::RW3 {
+            cpu.bus.mem.set_aux_size(16);
+        }
+        if auxtype == AuxType::Empty {
+            cpu.bus.video.enable_video_80col(false);
+        }
         cpu.bus.video.disable_aux = cpu.bus.mem.aux_type == AuxType::Empty;
     }
 

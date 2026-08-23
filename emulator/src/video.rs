@@ -816,7 +816,6 @@ impl Video {
         self.altchar = false;
         self.shr_mode = false;
         self.shr_linear_mode = false;
-        self.dhires_mode = true;
         self.lores_mode = true;
         self.video_page2 = false;
         self.update_video_mode();
