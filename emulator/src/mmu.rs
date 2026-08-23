@@ -555,11 +555,8 @@ impl Mmu {
                 if !self.altzp {
                     self.mem_write(addr, data)
                 } else {
-                    match self.aux_type {
-                        AuxType::Ext80 | AuxType::Std80 | AuxType::RW3 => {
-                            self.mem_aux_write(addr, data)
-                        }
-                        _ => {}
+                    if self.aux_type != AuxType::Empty {
+                        self.mem_aux_write(addr, data)
                     }
                 }
             }

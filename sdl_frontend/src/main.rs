@@ -2476,8 +2476,7 @@ fn parse_args(
             cpu.bus.mem.aux_type = aux_type
         }
 
-        cpu.bus.video.disable_aux =
-            cpu.bus.mem.aux_type == AuxType::Empty || cpu.bus.mem.aux_type == AuxType::RW3;
+        cpu.bus.video.disable_aux = cpu.bus.mem.aux_type == AuxType::Empty;
     }
 
     if let Some(scale_value) = pargs.opt_value_from_str::<_, f32>("--scale")? {
@@ -3169,8 +3168,7 @@ fn update_settings(cpu: &mut CPU, settings: &[usize]) -> bool {
         let auxtype_items: Vec<_> = AuxType::iter().collect();
         let auxtype = auxtype_items[settings[8]];
         cpu.bus.mem.aux_type = auxtype;
-        cpu.bus.video.disable_aux =
-            cpu.bus.mem.aux_type == AuxType::Empty || cpu.bus.mem.aux_type == AuxType::RW3;
+        cpu.bus.video.disable_aux = cpu.bus.mem.aux_type == AuxType::Empty;
     }
 
     true
