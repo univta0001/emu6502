@@ -902,14 +902,14 @@ impl Bus {
             }
 
             0x08 => {
-                if write_flag && self.mem.aux_type != AuxType::Empty {
+                if write_flag {
                     self.mem.altzp = false;
                 }
                 self.get_keyboard_latch()
             }
 
             0x09 => {
-                if write_flag && self.mem.aux_type != AuxType::Empty {
+                if write_flag {
                     self.mem.altzp = true;
                 }
                 self.get_keyboard_latch()
@@ -966,13 +966,7 @@ impl Bus {
                 }
             }
 
-            0x16 => {
-                if self.mem.aux_type != AuxType::Empty {
-                    self.get_io_status(self.mem.altzp)
-                } else {
-                    floating_bus
-                }
-            }
+            0x16 => self.get_io_status(self.mem.altzp),
 
             0x17 => {
                 if self.is_apple2c {
