@@ -927,10 +927,7 @@ impl Video {
         } else if self.is_shr_mode() && (0x2000..=0x9fff).contains(&addr) {
             let row = (addr - 0x2000) as usize / 160;
             if row < 200 {
-                let start = row * 71 / 80;
-                for i in start..=row {
-                    self.video_reparse[i] = 1;
-                }
+                self.video_reparse[row] = 1;
             }
         } else if self.is_graphics() && (0x2000..=0x5fff).contains(&addr) {
             // 000fghcd eabab000 -> abcdefgh
@@ -3479,11 +3476,11 @@ impl Video {
                         pal_index,
                         (value >> (4 * (1 - i))) & 0xf,
                         fill_mode,
-                        index * 71 / 80,
+                        index * 7 / 8,
                         row,
                     );
-                    self.set_pixel_count(index * 71 / 80, row * 192 / 100, color, 1);
-                    self.set_pixel_count((index + 1) * 71 / 80, row * 192 / 100, color, 1);
+                    self.set_pixel_count(index * 7 / 8, row * 192 / 100, color, 1);
+                    self.set_pixel_count((index + 1) * 7 / 8, row * 192 / 100, color, 1);
                 }
             } else {
                 let offset = [0x8, 0xc, 0x0, 0x4];
