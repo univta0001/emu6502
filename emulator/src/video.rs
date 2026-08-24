@@ -1165,8 +1165,7 @@ impl Video {
         }
     }
 
-
-       pub fn get_vertical_blend_frame(&self, frame: &[u8], scanline: bool) -> Vec<u8> {
+    pub fn get_vertical_blend_frame(&self, frame: &[u8], scanline: bool) -> Vec<u8> {
         let mut display = vec![0xff_u8; WIDTH_STEP * Self::HEIGHT];
         let width = Self::WIDTH;
         let height = Self::HEIGHT;
@@ -1176,7 +1175,11 @@ impl Video {
         for y in (0..height).step_by(2) {
             let base_y = y * width_step;
             let prev_y = if y == 0 { 0 } else { base_y - width_step };
-            let next_y = if y + 2 >= height { frame_len } else { base_y + 2 * width_step };
+            let next_y = if y + 2 >= height {
+                frame_len
+            } else {
+                base_y + 2 * width_step
+            };
 
             for x in 0..width {
                 let base = base_y + x * 4;
@@ -1194,9 +1197,21 @@ impl Video {
                     let g1 = if y == 0 { 0 } else { frame[prev_y + x * 4 + 1] };
                     let b1 = if y == 0 { 0 } else { frame[prev_y + x * 4 + 2] };
 
-                    let r2 = if y + 2 >= height { 0 } else { frame[next_y + x * 4] };
-                    let g2 = if y + 2 >= height { 0 } else { frame[next_y + x * 4 + 1] };
-                    let b2 = if y + 2 >= height { 0 } else { frame[next_y + x * 4 + 2] };
+                    let r2 = if y + 2 >= height {
+                        0
+                    } else {
+                        frame[next_y + x * 4]
+                    };
+                    let g2 = if y + 2 >= height {
+                        0
+                    } else {
+                        frame[next_y + x * 4 + 1]
+                    };
+                    let b2 = if y + 2 >= height {
+                        0
+                    } else {
+                        frame[next_y + x * 4 + 2]
+                    };
 
                     (
                         (r >> 1) + (r1 >> 2) + (r2 >> 2),
@@ -1300,7 +1315,7 @@ impl Video {
             }
         }
         barrel_display
-    }       
+    }
 
     fn update_blink_state(&mut self) {
         let current_time_ms = SystemTime::now()
@@ -1733,14 +1748,14 @@ impl Video {
 
         let [r, g, b] = rgb;
 
-        let pattern = [r, g , b, 0xff, r, g, b, 0xff];
+        let pattern = [r, g, b, 0xff, r, g, b, 0xff];
         self.frame[base..base + pattern.len()].copy_from_slice(&pattern);
 
         if !self.scanline {
-            self.frame[base + offset..base + offset +pattern.len()].copy_from_slice(&pattern);
+            self.frame[base + offset..base + offset + pattern.len()].copy_from_slice(&pattern);
         } else {
-            let pattern = [r/2, g/2 , b/2, 0xff, r/2, g/2, b/2, 0xff];
-            self.frame[base + offset..base + offset +pattern.len()].copy_from_slice(&pattern);
+            let pattern = [r / 2, g / 2, b / 2, 0xff, r / 2, g / 2, b / 2, 0xff];
+            self.frame[base + offset..base + offset + pattern.len()].copy_from_slice(&pattern);
         }
     }
 
@@ -2175,7 +2190,10 @@ impl Video {
                         };
 
                         self.set_pixel_count(x1 * 14 + xindex + offset, y1 * 2, color, 1);
-                        mask = mask.rotate_left(1) & 0xf
+                        mask <<= 1;
+                        if mask > 0xf {
+                            mask = 0x1;
+                        }
                     }
                 }
             } else {
@@ -2191,7 +2209,10 @@ impl Video {
                     } else {
                         self.set_pixel_count(x1 * 14 + xindex + offset, y1 * 2, COLOR_BLACK, 1);
                     }
-                    mask = mask.rotate_left(1) & 0xf
+                    mask <<= 1;
+                    if mask > 0xf {
+                        mask = 0x1;
+                    }
                 }
             }
         } else if !self.mono_mode && !(self.is_display_mode_mono()) {
@@ -2265,7 +2286,10 @@ impl Video {
                     let color = LORES_COLORS[color_index as usize];
                     self.set_pixel_count(hires_offset + x1 * 14 + xindex, y1 * 2, color, step_size);
 
-                    mask = mask.rotate_left(1) & 0xf
+                    mask <<= 1;
+                    if mask > 0xf {
+                        mask = 0x1;
+                    }
                 }
             }
         } else {
@@ -2303,7 +2327,10 @@ impl Video {
                         step_size,
                     );
                 }
-                mask = mask.rotate_left(1) & 0xf;
+                mask <<= 1;
+                if mask > 0xf {
+                    mask = 0x1;
+                }
             }
         }
     }
@@ -2343,7 +2370,10 @@ impl Video {
             } else {
                 count -= 1;
             }
-            mask = mask.rotate_left(1) & 0xf
+            mask <<= 1;
+            if mask > 0xf {
+                mask = 0x1;
+            }
         }
 
         // Prepare luma for col
@@ -2363,7 +2393,10 @@ impl Video {
                 luma[offset] = 0;
             }
             offset += 1;
-            mask = mask.rotate_left(1) & 0xf
+            mask <<= 1;
+            if mask > 0xf {
+                mask = 0x1;
+            }
         }
 
         // Prepare luma for col + 1
@@ -2390,7 +2423,10 @@ impl Video {
             }
             offset += 1;
             count += 1;
-            mask = mask.rotate_left(1) & 0xf
+            mask <<= 1;
+            if mask > 0xf {
+                mask = 0x1;
+            }
         }
 
         if self.display_mode != DisplayMode::RGB && x1 == 0 {
@@ -2469,7 +2505,10 @@ impl Video {
             } else {
                 count -= 1;
             }
-            mask = mask.rotate_left(1) & 0xf;
+            mask <<= 1;
+            if mask > 0xf {
+                mask = 0x1;
+            }
         }
 
         // Prepare luma for col
@@ -2491,7 +2530,10 @@ impl Video {
                 luma[offset + 1] = 0;
             }
             offset += 2;
-            mask = mask.rotate_left(1) & 0xf;
+            mask <<= 1;
+            if mask > 0xf {
+                mask = 0x1;
+            }
         }
 
         // Prepare luma for col + 1
@@ -2520,7 +2562,10 @@ impl Video {
             }
             offset += 2;
             count += 2;
-            mask = mask.rotate_left(1) & 0xf;
+            mask <<= 1;
+            if mask > 0xf {
+                mask = 0x1;
+            }
         }
 
         let x = x1 * 14;
@@ -2600,7 +2645,10 @@ impl Video {
             } else {
                 count -= 1;
             }
-            mask = mask.rotate_left(1) & 0xf
+            mask <<= 1;
+            if mask > 0xf {
+                mask = 0x1;
+            }
         }
 
         // Prepare luma for col
@@ -2620,7 +2668,10 @@ impl Video {
                 luma[ptr] = 0;
             }
             ptr += 1;
-            mask = mask.rotate_left(1) & 0xf
+            mask <<= 1;
+            if mask > 0xf {
+                mask = 0x1;
+            }
         }
 
         // Prepare luma for col + 1
@@ -2658,7 +2709,10 @@ impl Video {
             }
             ptr += 1;
             count += 1;
-            mask = mask.rotate_left(1) & 0xf
+            mask <<= 1;
+            if mask > 0xf {
+                mask = 0x1;
+            }
         }
 
         let x = x1 * 14;
@@ -3490,10 +3544,10 @@ impl Video {
                         pal_index,
                         ((value >> (6 - 2 * i)) & 0x3) + offset_value,
                         fill_mode,
-                        index * 71 / 80,
+                        index * 7 / 8,
                         row,
                     );
-                    self.set_pixel_count(index * 71 / 80, row * 192 / 100, color, 1);
+                    self.set_pixel_count(index * 7 / 8, row * 192 / 100, color, 1);
                 }
             }
         }

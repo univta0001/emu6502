@@ -4,6 +4,7 @@ use crate::harddisk::HardDisk;
 use crate::mmu::AuxType;
 use crate::mmu::Mmu;
 use crate::mmu::Saturn;
+use crate::mockingboard::Mockingboard;
 use crate::mouse::{
     Mouse, STATUS_MOVE_INTERRUPT, STATUS_MOVE_INTERRUPT_X0, STATUS_MOVE_INTERRUPT_Y0,
     STATUS_VBL_INTERRUPT,
@@ -12,7 +13,6 @@ use crate::noslotclock::NoSlotClock;
 use crate::parallel::ParallelCard;
 use crate::ramfactor::RamFactor;
 use crate::video::Video;
-use crate::mockingboard::Mockingboard;
 
 #[cfg(not(target_os = "wasi"))]
 use crate::network::Uthernet2;
