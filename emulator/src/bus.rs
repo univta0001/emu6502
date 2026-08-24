@@ -1050,6 +1050,9 @@ impl Bus {
 
             0x50 => {
                 {
+                    if self.is_80_column_enabled() {
+                        self.video.invalidate_video_cache();
+                    }
                     self.video.enable_graphics(true);
                 }
                 floating_bus
