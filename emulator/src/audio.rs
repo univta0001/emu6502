@@ -777,22 +777,19 @@ impl Tick for Audio {
             mb.tick();
         }
 
-        let beep = if self.filter_enabled {
+        let filter_response = if self.filter_enabled {
             if self.dc_filter > 0 {
-                let response = self.audio_filter.filter_response(self.data.phase);
-                self.dc_filter((response * 32767.0) as Channel)
+                self.audio_filter.filter_response(self.data.phase)
             } else {
-                0
+                0.0
             }
         } else {
-            let value = self.dc_filter(self.data.phase);
-            if value > 0 {
-                self.level += value as f32;
+            if self.data.phase > 0 {
+                self.level += self.data.phase as f32;
             }
-
             // For, Low pass averaging, the return value is not used.
             // It only relies on the self.level
-            0
+            0.0
         };
 
         /*
@@ -813,12 +810,11 @@ impl Tick for Audio {
 
             let beep = if !self.filter_enabled {
                 // Calculate average beep level
-                let count = self.fcycles as u32;
-                let avg = (self.level / count as f32) as Channel;
+                let avg = (self.level / self.fcycles_per_sample) as Channel;
                 self.level = 0.0;
-                avg
+                self.dc_filter(avg)
             } else {
-                beep
+                self.dc_filter((filter_response * 32767.0) as Channel)
             };
 
             self.fcycles -= self.fcycles_per_sample;

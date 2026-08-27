@@ -1694,29 +1694,21 @@ impl Video {
     pub fn set_pixel(&mut self, x: usize, y: usize, rgb: Rgb) {
         assert!(self.frame.len() >= y * WIDTH_STEP + x * 4 + 3);
         let base = y * WIDTH_STEP + x * 4;
-        let [r, g, b] = rgb;
-        self.frame[base] = r;
-        self.frame[base + 1] = g;
-        self.frame[base + 2] = b;
+        self.frame[base..base + 3].copy_from_slice(&rgb);
     }
 
     pub fn set_pixel_2(&mut self, x: usize, y: usize, rgb: Rgb) {
         assert!(self.frame.len() >= (y + 1) * WIDTH_STEP + x * 4 + 3);
         let base = y * WIDTH_STEP + x * 4;
-        let offset = WIDTH_STEP;
-        let [r, g, b] = rgb;
-        self.frame[base] = r;
-        self.frame[base + 1] = g;
-        self.frame[base + 2] = b;
+        let base2 = base + WIDTH_STEP;
+        self.frame[base..base + 3].copy_from_slice(&rgb);
 
         if !self.scanline {
-            self.frame[base + offset] = r;
-            self.frame[base + offset + 1] = g;
-            self.frame[base + offset + 2] = b;
+            self.frame[base2..base2 + 3].copy_from_slice(&rgb);
         } else {
-            self.frame[base + offset] = self.frame[base] / 2;
-            self.frame[base + offset + 1] = self.frame[base + 1] / 2;
-            self.frame[base + offset + 2] = self.frame[base + 2] / 2;
+            self.frame[base2] = self.frame[base] / 2;
+            self.frame[base2 + 1] = self.frame[base + 1] / 2;
+            self.frame[base2 + 2] = self.frame[base + 2] / 2;
         }
     }
 
