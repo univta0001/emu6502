@@ -1151,7 +1151,6 @@ impl Video {
 
     pub fn invalidate_video_cache(&mut self) {
         self.video_cache.fill(u32::MAX);
-        self.video_reparse.fill(1);
     }
 
     fn is_display_mode_mono(&self) -> bool {
