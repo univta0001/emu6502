@@ -928,6 +928,13 @@ impl Video {
             let row = (addr - 0x2000) as usize / 160;
             if row < 200 {
                 self.video_reparse[row] = 1;
+            } else if (0x9d00..=0x9dff).contains(&addr) {
+                let scb_row = (addr - 0x9d00) as usize;
+                if scb_row < 200 {
+                    self.video_reparse[scb_row] = 1;
+                }
+            } else if (0x9e00..=0x9fff).contains(&addr) {
+                self.invalidate_video_cache();
             }
         } else if self.is_graphics() && (0x2000..=0x5fff).contains(&addr) {
             // 000fghcd eabab000 -> abcdefgh
@@ -1144,6 +1151,7 @@ impl Video {
 
     pub fn invalidate_video_cache(&mut self) {
         self.video_cache.fill(u32::MAX);
+        self.video_reparse.fill(1);
     }
 
     fn is_display_mode_mono(&self) -> bool {
@@ -1382,7 +1390,11 @@ impl Video {
     }
 
     fn update_video_mode(&mut self) {
-        self.video_mode = self.get_video_mode();
+        let new_mode = self.get_video_mode();
+        if self.video_mode != new_mode {
+            self.video_mode = new_mode;
+            self.invalidate_video_cache();
+        }
     }
 
     fn get_flash_mode(&self, video_data: u32, video_mode: u8) -> bool {
