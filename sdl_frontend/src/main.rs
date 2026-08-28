@@ -513,7 +513,12 @@ fn handle_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState) {
 }
 
 fn print_version() {
-    eprintln!("emu6502 {VERSION} ({})", env!("GIT_HASH"));
+    let git_hash = env!("GIT_HASH");
+    if git_hash.len() > 0 {
+        eprintln!("emu6502 {VERSION} ({})", git_hash);
+    } else {
+        eprintln!("emu6502 {VERSION}");
+    }
 }
 
 fn print_help() {
