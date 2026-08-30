@@ -375,8 +375,8 @@ impl Videoterm {
     }
 
     pub fn invalidate_video(&mut self) {
-        for i in 0..24 {
-            self.dirty_lines[i] = true
+        for item in self.dirty_lines.iter_mut().take(24) {
+            *item = true
         }
     }
 

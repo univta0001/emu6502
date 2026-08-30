@@ -514,7 +514,7 @@ fn handle_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState) {
 
 fn print_version() {
     let git_hash = env!("GIT_HASH");
-    if git_hash.len() > 0 {
+    if !git_hash.is_empty() {
         eprintln!("emu6502 {VERSION} ({})", git_hash);
     } else {
         eprintln!("emu6502 {VERSION}");
@@ -936,8 +936,8 @@ fn load_serialized_image() -> Result<CPU, String> {
 
 fn dump_disk_info(cpu: &CPU) {
     let mut slot = 0;
-    for i in 1..8 {
-        if cpu.bus.io_slot[i] == IODevice::Disk {
+    for (i, item) in cpu.bus.io_slot.iter().enumerate().take(8).skip(1) {
+        if *item == IODevice::Disk {
             slot = i as u8;
             break;
         }
@@ -960,8 +960,8 @@ fn dump_disk_info(cpu: &CPU) {
 
 fn dump_track_sector_info(cpu: &CPU) {
     let mut slot = 0;
-    for i in 1..8 {
-        if cpu.bus.io_slot[i] == IODevice::Disk {
+    for (i, item) in cpu.bus.io_slot.iter().enumerate().take(8).skip(1) {
+        if *item == IODevice::Disk {
             slot = i as u8;
             break;
         }

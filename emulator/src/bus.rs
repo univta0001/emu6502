@@ -485,9 +485,9 @@ impl Bus {
                 || device == IODevice::HardDisk
                 || device == IODevice::VidHD
             {
-                for i in 1..8 {
-                    if i != slot && (self.io_slot[i] == device) {
-                        self.io_slot[i] = IODevice::None
+                for (i, item) in self.io_slot.iter_mut().enumerate().take(8).skip(1) {
+                    if i != slot && (*item == device) {
+                        *item = IODevice::None
                     }
                 }
             }
@@ -504,9 +504,9 @@ impl Bus {
     }
 
     pub fn clear_device(&mut self, device: IODevice) {
-        for i in 1..8 {
-            if self.io_slot[i] == device {
-                self.io_slot[i] = IODevice::None
+        for item in self.io_slot.iter_mut().take(8).skip(1) {
+            if *item == device {
+                *item = IODevice::None
             }
         }
         self.setup_vidhd();

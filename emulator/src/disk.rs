@@ -941,8 +941,8 @@ fn create_woz1_trk(dsk: &[u8], woz_offset: usize, disk: &Disk, newdsk: &mut Vec<
 
     // Chunk Size for tracks
     let mut chunk_size = 0;
-    for qt in 0..160 {
-        if !disk.raw_track_data[qt].is_empty() {
+    for item in disk.raw_track_data.iter().take(160) {
+        if !item.is_empty() {
             chunk_size += BITS_TRACK_SIZE;
         }
     }
@@ -975,9 +975,9 @@ fn create_woz2_trk(dsk: &[u8], woz_offset: usize, disk: &Disk, newdsk: &mut Vec<
 
     // Chunk Size for tracks
     let mut chunk_size = 0;
-    for qt in 0..160 {
-        let len = disk.raw_track_data[qt].len();
-        chunk_size += disk.raw_track_data[qt].len() + 8;
+    for item in disk.raw_track_data.iter().take(160) {
+        let len = item.len();
+        chunk_size += item.len() + 8;
         if !len.is_multiple_of(512) {
             chunk_size += 512 - (len % 512);
         }
@@ -1014,10 +1014,10 @@ fn create_woz2_trk(dsk: &[u8], woz_offset: usize, disk: &Disk, newdsk: &mut Vec<
         write_woz_u32(newdsk, bit_count as u32);
     }
 
-    for qt in 0..160 {
-        let len = disk.raw_track_data[qt].len();
+    for item in disk.raw_track_data.iter().take(160) {
+        let len = item.len();
         if len > 0 {
-            newdsk.extend_from_slice(&disk.raw_track_data[qt]);
+            newdsk.extend_from_slice(item);
 
             // If the len is not divisible by 512, pad it
             if !len.is_multiple_of(512) {
@@ -1827,8 +1827,8 @@ impl DiskDrive {
 
         // Create TMAP
         let mut byte_index = 0;
-        for i in 0..WOZ_TMAP_SIZE {
-            disk.trackmap[i] = TrackType::None;
+        for item in disk.trackmap.iter_mut().take(WOZ_TMAP_SIZE) {
+            *item = TrackType::None;
         }
 
         for i in 0..WOZ_TMAP_SIZE {
@@ -2022,8 +2022,8 @@ impl DiskDrive {
             disk.raw_track_bits[track] = 0;
         }
 
-        for i in 0..WOZ_TMAP_SIZE {
-            disk.trackmap[i] = TrackType::None
+        for item in disk.trackmap.iter_mut().take(WOZ_TMAP_SIZE) {
+            *item = TrackType::None
         }
 
         let mut trks_woz_offset = 0;

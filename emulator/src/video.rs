@@ -45,50 +45,50 @@ pub struct Video {
 
     #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
     #[cfg_attr(feature = "serde_support", serde(default = "default_video_main"))]
-    pub video_main: Vec<u8>,
+    pub video_main: Box<[u8]>,
 
     #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
     #[cfg_attr(feature = "serde_support", serde(default = "default_video_aux"))]
-    pub video_aux: Vec<u8>,
+    pub video_aux: Box<[u8]>,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub _80storeon: bool,
 
     #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
     #[cfg_attr(feature = "serde_support", serde(default = "default_lut_text"))]
-    lut_text: Vec<u16>,
+    lut_text: Box<[u16]>,
 
     #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
     #[cfg_attr(feature = "serde_support", serde(default = "default_lut_text_2e"))]
-    lut_text_2e: Vec<u16>,
+    lut_text_2e: Box<[u16]>,
 
     #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
     #[cfg_attr(feature = "serde_support", serde(default = "default_lut_hires"))]
-    lut_hires: Vec<u16>,
+    lut_hires: Box<[u16]>,
 
     #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
     #[cfg_attr(feature = "serde_support", serde(default = "default_lut_text_pal"))]
-    lut_text_pal: Vec<u16>,
+    lut_text_pal: Box<[u16]>,
 
     #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
     #[cfg_attr(feature = "serde_support", serde(default = "default_lut_text_2e_pal"))]
-    lut_text_2e_pal: Vec<u16>,
+    lut_text_2e_pal: Box<[u16]>,
 
     #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
     #[cfg_attr(feature = "serde_support", serde(default = "default_lut_hires_pal"))]
-    lut_hires_pal: Vec<u16>,
+    lut_hires_pal: Box<[u16]>,
 
     #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
     #[cfg_attr(feature = "serde_support", serde(default = "default_video_cache"))]
-    video_cache: Vec<u32>,
+    video_cache: Box<[u32]>,
 
     #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
     #[cfg_attr(feature = "serde_support", serde(default = "default_video_reparse"))]
-    video_reparse: Vec<u8>,
+    video_reparse: Box<[u8]>,
 
     #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
     #[cfg_attr(feature = "serde_support", serde(default = "default_ntsc_decoder"))]
-    ntsc_decoder: Vec<Yuv>,
+    ntsc_decoder: Box<[Yuv]>,
 
     #[cfg_attr(feature = "serde_support", serde(skip_serializing))]
     #[cfg_attr(feature = "serde_support", serde(default = "default_chroma_dhgr"))]
@@ -745,7 +745,8 @@ impl Video {
 
         let luma_bandwidth = NTSC_LUMA_BANDWIDTH;
         let chroma_bandwidth = NTSC_CHROMA_BANDWIDTH;
-        let ntsc_decoder = decoder_matrix(NTSC_LUMA_BANDWIDTH, NTSC_CHROMA_BANDWIDTH);
+        let ntsc_decoder =
+            decoder_matrix(NTSC_LUMA_BANDWIDTH, NTSC_CHROMA_BANDWIDTH).into();
         let cycle_field = CYCLES_PER_FIELD_60HZ;
 
         let chroma_hgr = default_chroma_hgr();
@@ -754,10 +755,10 @@ impl Video {
         Video {
             frame,
             display_mode: DisplayMode::DEFAULT,
-            video_main: vec![0u8; 0x10000],
-            video_aux: vec![0u8; 0x10000],
-            video_cache: vec![0x00; CYCLES_PER_FIELD_50HZ],
-            video_reparse: vec![0x00; LINES_PER_FRAME_50HZ],
+            video_main: Box::new([0u8; 0x10000]),
+            video_aux: Box::new([0u8; 0x10000]),
+            video_cache: Box::new([0x00; CYCLES_PER_FIELD_50HZ]),
+            video_reparse: Box::new([0x00; LINES_PER_FRAME_50HZ]),
             lut_text,
             lut_text_2e,
             lut_hires,
@@ -1689,7 +1690,7 @@ impl Video {
     }
 
     pub fn update_ntsc_matrix(&mut self, luma_bandwidth: f32, chroma_bandwidth: f32) {
-        self.ntsc_decoder = decoder_matrix(luma_bandwidth, chroma_bandwidth);
+        self.ntsc_decoder = decoder_matrix(luma_bandwidth, chroma_bandwidth).into();
         let new_chroma_hgr = generate_chroma(&self.ntsc_decoder, false);
         let new_chroma_dhgr = generate_chroma(&self.ntsc_decoder, true);
         self.chroma_hgr = new_chroma_hgr;
@@ -3660,7 +3661,7 @@ fn calc_lut(cycle: usize, ntsc: bool) -> usize {
     a as usize
 }
 
-fn build_lut(text_mode: bool, apple2e: bool, ntsc: bool) -> Vec<u16> {
+fn build_lut(text_mode: bool, apple2e: bool, ntsc: bool) -> Box<[u16]> {
     let mut output = if ntsc {
         vec![0u16; CYCLES_PER_FIELD_60HZ]
     } else {
@@ -3697,47 +3698,47 @@ fn build_lut(text_mode: bool, apple2e: bool, ntsc: bool) -> Vec<u16> {
         //let offset = video_get_scanner_address(cycle as u32, !text_mode, ntsc, false, !apple2e);
         *item = offset as u16;
     }
-    output
+    output.into()
 }
 
 #[cfg(feature = "serde_support")]
-fn default_lut_text() -> Vec<u16> {
+fn default_lut_text() -> Box<[u16]> {
     build_lut(true, false, true)
 }
 
 #[cfg(feature = "serde_support")]
-fn default_lut_text_2e() -> Vec<u16> {
+fn default_lut_text_2e() -> Box<[u16]> {
     build_lut(true, true, true)
 }
 
 #[cfg(feature = "serde_support")]
-fn default_lut_hires() -> Vec<u16> {
+fn default_lut_hires() -> Box<[u16]> {
     build_lut(false, true, true)
 }
 
 #[cfg(feature = "serde_support")]
-fn default_lut_text_pal() -> Vec<u16> {
+fn default_lut_text_pal() -> Box<[u16]> {
     build_lut(true, false, false)
 }
 
 #[cfg(feature = "serde_support")]
-fn default_lut_text_2e_pal() -> Vec<u16> {
+fn default_lut_text_2e_pal() -> Box<[u16]> {
     build_lut(true, true, false)
 }
 
 #[cfg(feature = "serde_support")]
-fn default_lut_hires_pal() -> Vec<u16> {
+fn default_lut_hires_pal() -> Box<[u16]> {
     build_lut(false, true, false)
 }
 
 #[cfg(feature = "serde_support")]
-fn default_video_cache() -> Vec<u32> {
-    vec![0x00; CYCLES_PER_FIELD_50HZ]
+fn default_video_cache() -> Box<[u32]> {
+    vec![0x00; CYCLES_PER_FIELD_50HZ].into()
 }
 
 #[cfg(feature = "serde_support")]
-fn default_video_reparse() -> Vec<u8> {
-    vec![0x00; LINES_PER_FRAME_50HZ]
+fn default_video_reparse() -> Box<[u8]> {
+    vec![0x00; LINES_PER_FRAME_50HZ].into()
 }
 
 #[cfg(feature = "serde_support")]
@@ -3749,8 +3750,8 @@ fn default_frame() -> Vec<u8> {
     frame
 }
 
-fn default_ntsc_decoder() -> Vec<Yuv> {
-    decoder_matrix(NTSC_LUMA_BANDWIDTH, NTSC_CHROMA_BANDWIDTH)
+fn default_ntsc_decoder() -> Box<[Yuv]> {
+    decoder_matrix(NTSC_LUMA_BANDWIDTH, NTSC_CHROMA_BANDWIDTH).into()
 }
 
 #[cfg(feature = "serde_support")]
@@ -3769,13 +3770,13 @@ fn default_cycle_field() -> usize {
 }
 
 #[cfg(feature = "serde_support")]
-fn default_video_main() -> Vec<u8> {
-    vec![0u8; 0x10000]
+fn default_video_main() -> Box<[u8]> {
+    vec![0u8; 0x10000].into()
 }
 
 #[cfg(feature = "serde_support")]
-fn default_video_aux() -> Vec<u8> {
-    vec![0u8; 0x10000]
+fn default_video_aux() -> Box<[u8]> {
+    vec![0u8; 0x10000].into()
 }
 
 fn generate_chroma(ntsc_decoder: &[Yuv], dhires: bool) -> Vec<Vec<Rgb>> {
