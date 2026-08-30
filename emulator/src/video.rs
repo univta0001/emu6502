@@ -1736,11 +1736,19 @@ impl Video {
     }
 
     pub fn set_pixel_count(&mut self, x: usize, y: usize, rgb: Rgb, count: usize) {
-        for i in 0..count {
-            if x + i < Video::WIDTH {
-                self.set_pixel_2(x + i, y, rgb);
+        let safe_count = count.min(Video::WIDTH.saturating_sub(x));
+        let base = y * WIDTH_STEP + x * 4;
+        let base2 = base + WIDTH_STEP;
+        for i in 0..safe_count {
+            let index = base + i * 4;
+            let index2 = base2 + i * 4;
+            self.frame[index..index + 3].copy_from_slice(&rgb);
+            if !self.scanline {
+                self.frame[index2..index2 + 3].copy_from_slice(&rgb);
             } else {
-                break;
+                self.frame[index2] = self.frame[index] / 2;
+                self.frame[index2 + 1] = self.frame[index + 1] / 2;
+                self.frame[index2 + 2] = self.frame[index + 2] / 2;
             }
         }
     }

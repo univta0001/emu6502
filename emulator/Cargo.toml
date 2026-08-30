@@ -7,7 +7,7 @@ edition = "2024"
 
 [dependencies]
 bitflags = "2.13.1"
-flate2 = { version = "1.1.9", features = ["zlib-rs"], optional = true }
+flate2 = { version = "1.1.10", features = ["zlib-rs"], optional = true }
 zip = { version = "8.6.0", default-features = false, features = ["deflate", "deflate64", "time"], optional = true }
 web-time = { version = "1.1.0", optional = true }
 serde = { version = "1.0.229", features = ["derive"],  optional = true }
