@@ -465,8 +465,8 @@ fn encode_bits_for_track(data: &[u8], track: u8, sector_format_prodos: bool) -> 
         bit_index = bits_write_byte(&mut buf, bit_index, 0xAA);
         bit_index = bits_write_byte(&mut buf, bit_index, 0xEB);
 
-        // Write 7 sync words.
-        for _ in 0..7 {
+        // Write 5 sync words.
+        for _ in 0..5 {
             bit_index = bits_write_sync(&mut buf, bit_index);
         }
 
@@ -534,8 +534,7 @@ fn encode_bits_for_track(data: &[u8], track: u8, sector_format_prodos: bool) -> 
 
         // Conclude the track
         if s < SECTORS_PER_TRACK - 1 {
-            let sync_bytes = if track == 0 { 20 } else { 19 };
-            for _ in 0..sync_bytes {
+            for _ in 0..21 {
                 bit_index = bits_write_sync(&mut buf, bit_index);
             }
         } else {
