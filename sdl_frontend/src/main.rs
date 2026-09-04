@@ -1004,6 +1004,7 @@ fn dump_track_sector_info(cpu: &CPU) {
     */
 }
 
+/*
 pub fn set_stream_frequency_ratio(
     stream: &mut sdl3::audio::AudioStream,
     ratio: f32,
@@ -1016,6 +1017,7 @@ pub fn set_stream_frequency_ratio(
         Err(sdl3::get_error())
     }
 }
+*/
 
 fn update_audio(cpu: &mut CPU, state: &mut EmulatorState) {
     let snd = &mut cpu.bus.audio;
