@@ -12,6 +12,6 @@ emu6502 = { path = "../emulator" }
 pprof = { version = "0.15.0", features = ["flamegraph","protobuf-codec"] }
 
 [[bin]]
-name = "self_test"
+name = "self-test"
 path = "src/main.rs"
 
