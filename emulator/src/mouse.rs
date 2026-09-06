@@ -546,6 +546,7 @@ impl Card for Mouse {
 
     fn io_access(
         &mut self,
+        _cycles: usize,
         mem: &mut Mmu,
         _video: &mut Video,
         addr: u16,
@@ -607,7 +608,14 @@ mod test {
         let mut mouse = Mouse::new();
 
         setup_mem(&mut bus);
-        mouse.io_access(&mut bus.mem, &mut bus.video, 0xc0c3, INIT_MOUSE, false);
+        mouse.io_access(
+            bus.get_cycles(),
+            &mut bus.mem,
+            &mut bus.video,
+            0xc0c3,
+            INIT_MOUSE,
+            false,
+        );
         assert_eq!(bus.mem.mem_read(0x77c), 0, "0x77c must be zero");
     }
 
@@ -621,7 +629,14 @@ mod test {
         // Clamp screen holes only available in apple 2c
         bus.mem.a2c = true;
 
-        mouse.io_access(&mut bus.mem, &mut bus.video, 0xc0c3, INIT_MOUSE, false);
+        mouse.io_access(
+            bus.get_cycles(),
+            &mut bus.mem,
+            &mut bus.video,
+            0xc0c3,
+            INIT_MOUSE,
+            false,
+        );
         assert_eq!(
             bus.mem.mem_read(0x47d) == 0 && bus.mem.mem_read(0x57d) == 0,
             true,
@@ -651,7 +666,14 @@ mod test {
         let mut mouse = Mouse::new();
 
         setup_mem(&mut bus);
-        mouse.io_access(&mut bus.mem, &mut bus.video, 0xc0c3, INIT_MOUSE, false);
+        mouse.io_access(
+            bus.get_cycles(),
+            &mut bus.mem,
+            &mut bus.video,
+            0xc0c3,
+            INIT_MOUSE,
+            false,
+        );
         assert_eq!(
             bus.mem.mem_read(0x47c) == 0 && bus.mem.mem_read(0x57c) == 0,
             true,
@@ -670,7 +692,14 @@ mod test {
         let mut mouse = Mouse::new();
 
         setup_mem(&mut bus);
-        mouse.io_access(&mut bus.mem, &mut bus.video, 0xc0c3, HOME_MOUSE, false);
+        mouse.io_access(
+            bus.get_cycles(),
+            &mut bus.mem,
+            &mut bus.video,
+            0xc0c3,
+            HOME_MOUSE,
+            false,
+        );
 
         assert_eq!(
             bus.mem.mem_read(0x47c) == 0 && bus.mem.mem_read(0x57c) == 0,
@@ -690,7 +719,14 @@ mod test {
         let mut mouse = Mouse::new();
 
         setup_mem(&mut bus);
-        mouse.io_access(&mut bus.mem, &mut bus.video, 0xc0c3, CLEAR_MOUSE, false);
+        mouse.io_access(
+            bus.get_cycles(),
+            &mut bus.mem,
+            &mut bus.video,
+            0xc0c3,
+            CLEAR_MOUSE,
+            false,
+        );
 
         assert_eq!(
             bus.mem.mem_read(0x47c) == 0 && bus.mem.mem_read(0x57c) == 0,
@@ -713,14 +749,35 @@ mod test {
         setup_mem(&mut bus);
 
         for i in 0..0x10 {
-            mouse.io_access(&mut bus.mem, &mut bus.video, 0xc0c2, i, false);
+            mouse.io_access(
+                bus.get_cycles(),
+                &mut bus.mem,
+                &mut bus.video,
+                0xc0c2,
+                i,
+                false,
+            );
             assert_eq!(bus.mem.mem_read(0x7fc), i, "0x7fc must be {i}");
         }
 
-        mouse.io_access(&mut bus.mem, &mut bus.video, 0xc0c2, 0x1, false);
+        mouse.io_access(
+            bus.get_cycles(),
+            &mut bus.mem,
+            &mut bus.video,
+            0xc0c2,
+            0x1,
+            false,
+        );
 
         for i in 0x11..=0xff {
-            mouse.io_access(&mut bus.mem, &mut bus.video, 0xc0c2, i, false);
+            mouse.io_access(
+                bus.get_cycles(),
+                &mut bus.mem,
+                &mut bus.video,
+                0xc0c2,
+                i,
+                false,
+            );
             assert_eq!(bus.mem.mem_read(0x7fc), 1, "0x7fc must be 1");
         }
     }

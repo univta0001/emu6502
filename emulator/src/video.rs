@@ -745,8 +745,7 @@ impl Video {
 
         let luma_bandwidth = NTSC_LUMA_BANDWIDTH;
         let chroma_bandwidth = NTSC_CHROMA_BANDWIDTH;
-        let ntsc_decoder =
-            decoder_matrix(NTSC_LUMA_BANDWIDTH, NTSC_CHROMA_BANDWIDTH).into();
+        let ntsc_decoder = decoder_matrix(NTSC_LUMA_BANDWIDTH, NTSC_CHROMA_BANDWIDTH).into();
         let cycle_field = CYCLES_PER_FIELD_60HZ;
 
         let chroma_hgr = default_chroma_hgr();

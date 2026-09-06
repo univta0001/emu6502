@@ -47,6 +47,7 @@ impl Card for ParallelCard {
 
     fn io_access(
         &mut self,
+        _cycles: usize,
         _mem: &mut Mmu,
         _video: &mut Video,
         addr: u16,

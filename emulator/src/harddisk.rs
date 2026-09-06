@@ -778,6 +778,7 @@ impl Card for HardDisk {
 
     fn io_access(
         &mut self,
+        _cycles: usize,
         mmu: &mut Mmu,
         video: &mut Video,
         addr: u16,

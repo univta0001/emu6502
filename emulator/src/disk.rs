@@ -150,6 +150,7 @@ pub struct Disk {
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde_support", serde(default))]
 pub struct DiskDrive {
+    cycles: usize,
     drive: Vec<Disk>,
     drive_select: usize,
     bus: u8,
@@ -1356,6 +1357,7 @@ impl DiskDrive {
     pub fn new() -> Self {
         let disk = vec![Disk::default(), Disk::default()];
         DiskDrive {
+            cycles: 0,
             drive: disk,
             drive_select: 0,
             bus: 0,
@@ -1443,6 +1445,35 @@ impl DiskDrive {
         self.drive.push(disk);
         let disk = &mut self.drive[self.drive_select];
         disk.track = track;
+    }
+
+    fn tick_internal(&mut self) {
+        self.prev_latch = self.latch;
+        self.move_head_woz();
+        self.step_lss();
+        self.pulse = 0;
+        self.move_head_woz();
+        self.step_lss();
+        self.pulse = 0;
+    }
+
+    fn update_cycles(&mut self, cycles: usize) {
+        if self.is_motor_on() && cycles != self.cycles {
+            let disk = &mut self.drive[self.drive_select];
+            let tmap_track = disk.tmap_data[disk.track as usize];
+
+            let track_bits = if tmap_track == 255 {
+                NOMINAL_USABLE_BITS_TRACK_SIZE
+            } else {
+                disk.raw_track_bits[tmap_track as usize]
+            };
+
+            let steps = cycles.saturating_sub(self.cycles) % track_bits;
+            for _ in 0..steps {
+                self.tick_internal();
+            }
+        }
+        self.cycles = cycles;
     }
 
     fn set_phase(&mut self, phase: usize, flag: bool) {
@@ -2743,14 +2774,6 @@ impl Tick for DiskDrive {
                 return;
             }
         }
-
-        self.prev_latch = self.latch;
-        self.move_head_woz();
-        self.step_lss();
-        self.pulse = 0;
-        self.move_head_woz();
-        self.step_lss();
-        self.pulse = 0;
     }
 }
 
@@ -2803,12 +2826,15 @@ impl Card for DiskDrive {
 
     fn io_access(
         &mut self,
+        cycles: usize,
         mem: &mut Mmu,
         _video: &mut Video,
         addr: u16,
         value: u8,
         write_flag: bool,
     ) -> u8 {
+        self.update_cycles(cycles);
+
         let slot = (((addr & 0x00ff) - 0x0080) >> 4) as usize;
         let io_addr = ((addr & 0x00ff) - ((slot as u16) << 4)) as u8;
         match io_addr {

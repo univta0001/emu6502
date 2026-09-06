@@ -33,6 +33,7 @@ pub trait Card {
     fn rom_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8;
     fn io_access(
         &mut self,
+        cycles: usize,
         mem: &mut Mmu,
         video: &mut Video,
         addr: u16,
@@ -585,9 +586,17 @@ impl Bus {
 
         if let Some(device) = return_value {
             if write_flag {
-                device.io_access(&mut self.mem, &mut self.video, addr, value, write_flag)
+                device.io_access(
+                    self.cycles,
+                    &mut self.mem,
+                    &mut self.video,
+                    addr,
+                    value,
+                    write_flag,
+                )
             } else {
                 device.io_access(
+                    self.cycles,
                     &mut self.mem,
                     &mut self.video,
                     addr,
