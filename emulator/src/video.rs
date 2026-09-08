@@ -824,7 +824,6 @@ impl Video {
     pub fn update_video(&mut self) {
         let cycle = self.cycles;
         let (row, col) = (cycle / CYCLES_PER_ROW, cycle % CYCLES_PER_ROW);
-        let is_shr = self.is_shr_mode();
 
         // Video line takes 65 clock cycles
         // 25 clock cycle of horizontal blank
@@ -840,6 +839,8 @@ impl Video {
         if (CYCLES_PER_BURST_START..CYCLES_PER_BURST_END).contains(&col) {
             self.update_color_burst();
         }
+
+        let is_shr = self.is_shr_mode();
 
         if (!is_shr && row >= 192) || (is_shr && row >= 200) || col < CYCLES_PER_HBL {
             self.video_cache[cycle] = video_value as u32;
@@ -1415,12 +1416,6 @@ impl Video {
     }
 
     fn read_video_data(&self, cycle: usize, r: usize) -> u8 {
-        let lut = if self.video_50hz {
-            &self.lut_hires_pal
-        } else {
-            &self.lut_hires
-        };
-
         if !self.graphics_mode || self.lores_mode {
             return self.read_video_text_data(cycle);
         }
@@ -1441,6 +1436,12 @@ impl Video {
                 return self.read_video_text_data(cycle);
             }
         }
+
+        let lut = if self.video_50hz {
+            &self.lut_hires_pal
+        } else {
+            &self.lut_hires
+        };
 
         self.read_raw_hires_memory(lut[cycle].into())
     }
