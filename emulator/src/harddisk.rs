@@ -1,4 +1,4 @@
-use crate::bus::{Card, Tick};
+use crate::bus::Card;
 use crate::mmu::Mmu;
 use crate::video::Video;
 use std::ffi::OsStr;
@@ -121,6 +121,7 @@ struct Disk {
     mem_block: u16,
     disk_block: u32,
     busy_cycle: usize,
+    prev_cycles: usize,
 }
 
 impl Disk {
@@ -136,6 +137,7 @@ impl Disk {
             mem_block: 0,
             disk_block: 0,
             busy_cycle: 0,
+            prev_cycles: 0,
         }
     }
 }
@@ -698,14 +700,12 @@ impl HardDisk {
     }
 }
 
+/*
 impl Tick for HardDisk {
     fn tick(&mut self) {
-        let disk = &mut self.drive[self.drive_select];
-        if disk.busy_cycle > 0 {
-            disk.busy_cycle -= 1;
-        }
     }
 }
+*/
 
 fn read_dsk_u32(dsk: &[u8], offset: usize) -> u32 {
     dsk[offset] as u32
@@ -778,7 +778,7 @@ impl Card for HardDisk {
 
     fn io_access(
         &mut self,
-        _cycles: usize,
+        cycles: usize,
         mmu: &mut Mmu,
         video: &mut Video,
         addr: u16,
@@ -789,6 +789,15 @@ impl Card for HardDisk {
         //    "map_addr = {:02x}, value={:02x}, write_flag={} cmd={} drive={}",
         //    map_addr, value, write_flag, self.command, self.drive_select
         //);
+
+        let disk = &mut self.drive[self.drive_select];
+        if disk.busy_cycle > 0 {
+            let delta = cycles.saturating_sub(disk.prev_cycles);
+            disk.busy_cycle = disk.busy_cycle.saturating_sub(delta);
+        }
+
+        disk.prev_cycles = cycles;
+
         let slot = (((addr & 0x00ff) - 0x0080) >> 4) as usize;
         let mut map_addr = (((addr & 0x00ff) - ((slot as u16) << 4)) & 0xf) as u8;
         let mut value = value;
