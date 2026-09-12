@@ -28,7 +28,6 @@ use serde::{Deserialize, Serialize};
 
 pub const ROM_START: u16 = 0xd000;
 pub const ROM_END: u16 = 0xffff;
-const JOYPORT_DISABLE_CYCLE: usize = 500_000;
 
 pub trait Card {
     fn rom_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8;
@@ -130,7 +129,6 @@ pub struct Bus {
     pub paddle_trigger: usize,
     pub mem: Mmu,
     pub cycles: usize,
-    pub last_reset: usize,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub annunciator: [bool; 4],
@@ -259,7 +257,6 @@ impl Bus {
             joystick_count: 0,
             joyport_enable: false,
             cycles: 0,
-            last_reset: 0,
             disk: DiskDrive::default(),
             video: Video::new(),
             audio: Audio::new(),
@@ -355,6 +352,9 @@ impl Bus {
             self.video.disable_aux = true;
         }
 
+        // Disable joyport
+        self.joyport_enable = false;
+
         if !self.disable_audio {
             self.audio.mboard.iter_mut().for_each(|mb| mb.reset())
         }
@@ -363,8 +363,6 @@ impl Bus {
             self.disk.reset();
             self.harddisk.reset();
         }
-
-        self.last_reset = self.cycles;
     }
 
     pub fn tick(&mut self) {
@@ -1230,7 +1228,7 @@ impl Bus {
                     self.pushbutton_latch[1]
                 };
 
-                if self.joyport_enable && self.cycles > self.last_reset + JOYPORT_DISABLE_CYCLE {
+                if self.joyport_enable {
                     let button_index = if self.joystick_count < 2 {
                         0
                     } else {
@@ -1252,7 +1250,7 @@ impl Bus {
                 if self.dongle == Dongle::Hayden {
                     button_value = 0;
                 }
-                if self.joyport_enable && self.cycles > self.last_reset + JOYPORT_DISABLE_CYCLE {
+                if self.joyport_enable {
                     let button_index = if self.joystick_count < 2 {
                         0
                     } else {
@@ -1271,7 +1269,7 @@ impl Bus {
                     floating_bus & 0x7f | !button_status
                 } else {
                     let mut button_value = !self.pushbutton_latch[2];
-                    if self.joyport_enable && self.cycles > self.last_reset + 500_000 {
+                    if self.joyport_enable {
                         let button_index = if self.joystick_count < 2 {
                             0
                         } else {
