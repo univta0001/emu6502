@@ -1702,11 +1702,13 @@ fn handle_gamepad_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState) 
             {
                 state.gamepads.insert(which, (player_index, controller));
             }
+            cpu.bus.update_joystick_count(state.gamepads.len());
         }
 
         Event::ControllerDeviceRemoved { which, .. } => {
             // Which refers to instance id
             state.gamepads.remove(&which);
+            cpu.bus.update_joystick_count(state.gamepads.len());
         }
 
         _ => {}
@@ -2977,6 +2979,16 @@ fn prepare_input_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) 
             cpu.bus.joystick_jitter,
             |new_state| {
                 cpu.bus.joystick_jitter = new_state;
+            },
+        );
+
+        build_toggle_menu_item(
+            ui,
+            "Joyport Emulation",
+            "",
+            cpu.bus.joyport_enable,
+            |new_state| {
+                cpu.bus.set_joyport(new_state);
             },
         );
 

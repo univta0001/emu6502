@@ -28,6 +28,7 @@ use serde::{Deserialize, Serialize};
 
 pub const ROM_START: u16 = 0xd000;
 pub const ROM_END: u16 = 0xffff;
+const JOYPORT_DISABLE_CYCLE: usize = 500_000;
 
 pub trait Card {
     fn rom_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8;
@@ -124,9 +125,12 @@ pub struct Bus {
     pub disable_audio: bool,
     pub joystick_flag: bool,
     pub joystick_jitter: bool,
+    pub joystick_count: usize,
+    pub joyport_enable: bool,
     pub paddle_trigger: usize,
     pub mem: Mmu,
     pub cycles: usize,
+    pub last_reset: usize,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub annunciator: [bool; 4],
@@ -252,7 +256,10 @@ impl Bus {
             swap_button: false,
             joystick_flag: true,
             joystick_jitter: false,
+            joystick_count: 0,
+            joyport_enable: false,
             cycles: 0,
+            last_reset: 0,
             disk: DiskDrive::default(),
             video: Video::new(),
             audio: Audio::new(),
@@ -356,6 +363,8 @@ impl Bus {
             self.disk.reset();
             self.harddisk.reset();
         }
+
+        self.last_reset = self.cycles;
     }
 
     pub fn tick(&mut self) {
@@ -709,6 +718,22 @@ impl Bus {
 
     pub fn toggle_joystick_jitter(&mut self) {
         self.joystick_jitter = !self.joystick_jitter;
+    }
+
+    pub fn update_joystick_count(&mut self, count: usize) {
+        self.joystick_count = count;
+    }
+
+    pub fn get_joystick_count(&self) -> usize {
+        self.joystick_count
+    }
+
+    pub fn set_joyport(&mut self, state: bool) {
+        self.joyport_enable = state;
+    }
+
+    pub fn get_joyport_enable(&self) -> bool {
+        self.joyport_enable
     }
 
     pub fn set_noslot_clock(&mut self, flag: bool) {
@@ -1199,11 +1224,21 @@ impl Bus {
             0x60 | 0x68 => self.audio.tape_in(floating_bus | 0x80),
 
             0x61 | 0x69 => {
-                let button_value = if !self.swap_button {
+                let mut button_value = if !self.swap_button {
                     self.pushbutton_latch[0]
                 } else {
                     self.pushbutton_latch[1]
                 };
+
+                if self.joyport_enable && self.cycles > self.last_reset + JOYPORT_DISABLE_CYCLE {
+                    let button_index = if self.joystick_count < 2 {
+                        0
+                    } else {
+                        self.annunciator[0] as usize
+                    };
+                    button_value = !(self.pushbutton_latch[2 * button_index]
+                        | self.pushbutton_latch[2 * button_index + 1])
+                }
                 floating_bus & 0x7f | button_value
             }
 
@@ -1217,6 +1252,16 @@ impl Bus {
                 if self.dongle == Dongle::Hayden {
                     button_value = 0;
                 }
+                if self.joyport_enable && self.cycles > self.last_reset + JOYPORT_DISABLE_CYCLE {
+                    let button_index = if self.joystick_count < 2 {
+                        0
+                    } else {
+                        self.annunciator[0] as usize
+                    };
+                    let direction = self.annunciator[1] as usize;
+                    button_value =
+                        (self.paddle_latch[2 * button_index + direction] >= 32) as u8 * 0x80;
+                }
                 floating_bus & 0x7f | button_value
             }
 
@@ -1225,7 +1270,17 @@ impl Bus {
                     let button_status = (self.mouse.get_button_status() as u8) << 7;
                     floating_bus & 0x7f | !button_status
                 } else {
-                    let button_value = !self.pushbutton_latch[2];
+                    let mut button_value = !self.pushbutton_latch[2];
+                    if self.joyport_enable && self.cycles > self.last_reset + 500_000 {
+                        let button_index = if self.joystick_count < 2 {
+                            0
+                        } else {
+                            self.annunciator[0] as usize
+                        };
+                        let direction = self.annunciator[1] as usize;
+                        button_value =
+                            (self.paddle_latch[2 * button_index + direction] <= 224) as u8 * 0x80;
+                    }
                     floating_bus & 0x7f | button_value
                 }
             }
