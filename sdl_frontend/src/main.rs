@@ -1579,7 +1579,7 @@ fn handle_gamepad_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState) 
                 if joystick_id < 2 {
                     match axis {
                         Axis::LeftX | Axis::RightX => {
-                            if value.abs() < 128 {
+                            if value.saturating_abs() < 128 {
                                 cpu.bus.reset_paddle_latch(2 * joystick_id as usize);
                             } else {
                                 let u = entry.1.axis(axis) as f32 / 32768.0;
@@ -1607,7 +1607,7 @@ fn handle_gamepad_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState) 
                             }
                         }
                         Axis::LeftY | Axis::RightY => {
-                            if value.abs() < 128 {
+                            if value.saturating_abs() < 128 {
                                 cpu.bus.reset_paddle_latch(2 * joystick_id as usize + 1);
                             } else {
                                 let v = entry.1.axis(axis) as f32 / 32768.0;
