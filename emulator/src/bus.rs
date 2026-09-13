@@ -352,8 +352,10 @@ impl Bus {
             self.video.disable_aux = true;
         }
 
-        // Disable joyport
-        self.joyport_enable = false;
+        // Disable joyport for Apple 2e and above
+        if self.video.is_apple2e() {
+            self.joyport_enable = false;
+        }
 
         if !self.disable_audio {
             self.audio.mboard.iter_mut().for_each(|mb| mb.reset())
