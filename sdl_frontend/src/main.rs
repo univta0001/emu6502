@@ -2795,9 +2795,23 @@ fn build_toggle_menu_item<F>(
 ) where
     F: FnOnce(bool),
 {
+    build_enable_toggle_menu_item(ui, label, shortcut, true, is_active, on_toggle)
+}
+
+fn build_enable_toggle_menu_item<F>(
+    ui: &imgui::Ui,
+    label: &str,
+    shortcut: &str,
+    enabled: bool,
+    is_active: bool,
+    on_toggle: F,
+) where
+    F: FnOnce(bool),
+{
     if ui
         .menu_item_config(label)
         .shortcut(shortcut)
+        .enabled(enabled)
         .selected(is_active)
         .build()
     {
@@ -2982,10 +2996,11 @@ fn prepare_input_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) 
             },
         );
 
-        build_toggle_menu_item(
+        build_enable_toggle_menu_item(
             ui,
             "Joyport Emulation",
             "",
+            !cpu.is_apple2c(),
             cpu.bus.joyport_enable,
             |new_state| {
                 cpu.bus.set_joyport(new_state);

@@ -1230,7 +1230,7 @@ impl Bus {
                     self.pushbutton_latch[1]
                 };
 
-                if self.joyport_enable {
+                if !self.is_apple2c && self.joyport_enable {
                     let button_index = if self.joystick_count < 2 {
                         0
                     } else {
@@ -1252,7 +1252,7 @@ impl Bus {
                 if self.dongle == Dongle::Hayden {
                     button_value = 0;
                 }
-                if self.joyport_enable {
+                if !self.is_apple2c && self.joyport_enable {
                     let button_index = if self.joystick_count < 2 {
                         0
                     } else {
@@ -1271,7 +1271,7 @@ impl Bus {
                     floating_bus & 0x7f | !button_status
                 } else {
                     let mut button_value = !self.pushbutton_latch[2];
-                    if self.joyport_enable {
+                    if !self.is_apple2c && self.joyport_enable {
                         let button_index = if self.joystick_count < 2 {
                             0
                         } else {
