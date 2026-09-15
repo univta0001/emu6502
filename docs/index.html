@@ -962,7 +962,7 @@
                     avgMHz = (weight * instMHz) + ((1 - weight) * avgMHz);
                     if (now - lastUIUpdate > 250) {
                         if (speedEl) {
-                            speedEl.innerHTML = `Estimated MHz: ${avgMHz.toFixed(3)} MHz`;
+                            speedEl.innerHTML = `MHz: ${avgMHz.toFixed(3)} MHz`;
                         }
                         lastUIUpdate = now;
                     }

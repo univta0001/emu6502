@@ -134,7 +134,7 @@ body {
 /* Control Panel */
 .control-panel {
     width: 100%;
-    max-width: 1120px;
+    max-width: 950px;
     background: var(--bg-panel);
     border: 1px solid var(--border);
     border-radius: 12px;
@@ -158,7 +158,7 @@ body {
 }
 
 .control-group.options {
-    gap: 1rem;
+    gap: 0.5rem;
 }
 
 .control-group.speed {
@@ -183,7 +183,7 @@ body {
     border-radius: 8px;
     background: linear-gradient(145deg, #252a33, #1e2229);
     color: var(--text-primary);
-    font-size: 0.875rem;
+    font-size: 0.68rem;
     font-weight: 600;
     text-decoration: none;
     cursor: pointer;

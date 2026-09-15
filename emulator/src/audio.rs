@@ -779,7 +779,8 @@ impl Tick for Audio {
 
         let filter_response = if self.filter_enabled {
             if self.dc_filter > 0 {
-                self.audio_filter.filter_response(self.data.phase)
+                let response = self.audio_filter.filter_response(self.data.phase);
+                self.dc_filter((response * 32767.0) as Channel) as f32
             } else {
                 0.0
             }
@@ -814,7 +815,7 @@ impl Tick for Audio {
                 self.level = 0.0;
                 self.dc_filter(avg)
             } else {
-                self.dc_filter((filter_response * 32767.0) as Channel)
+                filter_response as Channel
             };
 
             self.fcycles -= self.fcycles_per_sample;
