@@ -391,10 +391,8 @@ impl Bus {
             self.audio.tick();
         }
 
-        if !self.disable_disk {
-            if self.disk.is_motor_off_pending() {
-                self.disk.tick();
-            }
+        if !self.disable_disk && self.disk.is_motor_off_pending() {
+            self.disk.tick();
         }
     }
 

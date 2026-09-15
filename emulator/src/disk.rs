@@ -2771,7 +2771,6 @@ impl Tick for DiskDrive {
                         disk.modified = false;
                     }
                 }
-                return;
             }
         }
     }
