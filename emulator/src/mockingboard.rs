@@ -52,7 +52,7 @@ impl Noise {
 
     fn set_period(&mut self, value: u8) {
         self.period = (value & 0x1f).max(1);
-        if self.period < self.count {
+        if self.period <= self.count {
             self.count = 0;
         }
     }
@@ -98,7 +98,7 @@ impl Envelope {
 
     fn set_period(&mut self, fine: u8, coarse: u8) {
         self.period = (coarse as u16) * 256 + (fine as u16);
-        if self.period < self.count {
+        if self.period <= self.count {
             self.count = 0;
         }
     }
@@ -145,7 +145,7 @@ impl Tone {
 
     fn set_period(&mut self, fine: u8, coarse: u8) {
         self.period = ((coarse & 0xf) as u16) * 256 + (fine as u16);
-        if self.period < self.count {
+        if self.period <= self.count {
             self.count = 0;
         }
     }
