@@ -52,9 +52,6 @@ impl Noise {
 
     fn set_period(&mut self, value: u8) {
         self.period = (value & 0x1f).max(1);
-        if self.period <= self.count {
-            self.count = 0;
-        }
     }
 }
 
@@ -98,9 +95,6 @@ impl Envelope {
 
     fn set_period(&mut self, fine: u8, coarse: u8) {
         self.period = (coarse as u16) * 256 + (fine as u16);
-        if self.period <= self.count {
-            self.count = 0;
-        }
     }
 
     fn set_shape(&mut self, shape: u8) {
@@ -145,9 +139,6 @@ impl Tone {
 
     fn set_period(&mut self, fine: u8, coarse: u8) {
         self.period = ((coarse & 0xf) as u16) * 256 + (fine as u16);
-        if self.period <= self.count {
-            self.count = 0;
-        }
     }
 
     fn set_volume(&mut self, val: u8) {
@@ -194,9 +185,9 @@ impl AY8910 {
                 continue;
             }
             let env_period = tone.period;
-            tone.count = tone.count.saturating_sub(1);
-            if tone.count == 0 {
-                tone.count = env_period;
+            tone.count += 1;
+            if tone.count >= env_period {
+                tone.count = 0;
                 tone.level = !tone.level
             }
         }
@@ -208,9 +199,9 @@ impl AY8910 {
         if env_period == 0 {
             return;
         }
-        self.noise.count = self.noise.count.saturating_sub(1);
-        if self.noise.count == 0 {
-            self.noise.count = env_period;
+        self.noise.count += 1;
+        if self.noise.count >= env_period {
+            self.noise.count = 0;
             let rng_value = self.get_noise_value();
             self.noise.level = rng_value & 0x1 > 0;
         }
@@ -224,9 +215,9 @@ impl AY8910 {
             return;
         }
         if !item.holding {
-            item.count = item.count.saturating_sub(1);
-            if item.count == 0 {
-                item.count = env_period;
+            item.count += 1;
+            if item.count >= env_period {
+                item.count = 0;
                 item.step -= 1;
                 if item.step < 0 {
                     if item.hold {
