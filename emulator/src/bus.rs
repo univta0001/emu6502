@@ -124,12 +124,16 @@ pub struct Bus {
     pub disable_audio: bool,
     pub joystick_flag: bool,
     pub joystick_jitter: bool,
-    pub joystick_count: usize,
-    pub joyport_enable: bool,
     pub paddle_trigger: usize,
     pub mem: Mmu,
     pub cycles: usize,
 
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    pub joystick_count: usize,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    pub joyport_enable: bool,
+    
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub annunciator: [bool; 4],
 

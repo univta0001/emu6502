@@ -121,6 +121,8 @@ struct Disk {
     mem_block: u16,
     disk_block: u32,
     busy_cycle: usize,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
     prev_cycles: usize,
 }
 
