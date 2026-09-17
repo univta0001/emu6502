@@ -37,7 +37,7 @@ const AY_ENV_HOLD: u8 = 1;
 #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 struct Noise {
     period: u8,
-    count: usize,
+    count: u8,
     level: bool,
 }
 
@@ -52,7 +52,9 @@ impl Noise {
 
     fn set_period(&mut self, value: u8) {
         self.period = (value & 0x1f).max(1);
-        self.count = (2 * self.period) as usize;
+        if self.period < self.count {
+            self.count = 0;
+        }
     }
 }
 
@@ -96,10 +98,9 @@ impl Envelope {
 
     fn set_period(&mut self, fine: u8, coarse: u8) {
         self.period = (coarse as u16) * 256 + (fine as u16);
-        if self.period == 0 {
-            self.period = 1;
+        if self.period < self.count {
+            self.count = 0;
         }
-        self.count = 0;
     }
 
     fn set_shape(&mut self, shape: u8) {
@@ -144,12 +145,8 @@ impl Tone {
 
     fn set_period(&mut self, fine: u8, coarse: u8) {
         self.period = ((coarse & 0xf) as u16) * 256 + (fine as u16);
-        if self.period == 0 {
+        if self.period < self.count {
             self.count = 0;
-        }
-
-        if self.period > 0 && self.count >= self.period {
-            self.count %= self.period;
         }
     }
 
@@ -197,9 +194,9 @@ impl AY8910 {
                 continue;
             }
             let env_period = tone.period;
-            tone.count = tone.count.wrapping_add(1);
-            if tone.count >= env_period {
-                tone.count -= env_period;
+            tone.count = tone.count.saturating_sub(1);
+            if tone.count == 0 {
+                tone.count = env_period;
                 tone.level = !tone.level
             }
         }
@@ -207,7 +204,7 @@ impl AY8910 {
 
     #[inline]
     fn update_noise(&mut self) {
-        let env_period = self.noise.period as usize * 2;
+        let env_period = self.noise.period * 2;
         if env_period == 0 {
             return;
         }
@@ -227,22 +224,19 @@ impl AY8910 {
             return;
         }
         if !item.holding {
-            item.count = item.count.wrapping_add(1);
-            if item.count >= env_period {
-                item.count -= env_period;
+            item.count = item.count.saturating_sub(1);
+            if item.count == 0 {
+                item.count = env_period;
                 item.step -= 1;
                 if item.step < 0 {
                     if item.hold {
-                        if item.alternate {
-                            item.attack ^= 0xf;
-                        }
                         item.holding = true;
                         item.step = 0;
                     } else {
-                        if item.alternate && ((item.step & 0x10) > 0) {
-                            item.attack ^= 0xf;
-                        }
                         item.step &= 0xf;
+                    }
+                    if item.alternate {
+                        item.attack ^= 0xf;
                     }
                 }
             }
