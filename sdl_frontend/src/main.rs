@@ -849,7 +849,9 @@ fn replace_quoted_hex_values(string: &str) -> String {
 fn save_serialized_image(cpu: &CPU) {
     #[cfg(feature = "serde_support")]
     {
-        let serialized_result = serde_saphyr::to_string(&cpu);
+        use serde_saphyr::ser_options;
+        let options = ser_options! { prefer_block_scalars: false };
+        let serialized_result = serde_saphyr::to_string_with_options(&cpu, options);
         match serialized_result {
             Err(err) => eprintln!("Unable to serialize the data : {err}"),
 
