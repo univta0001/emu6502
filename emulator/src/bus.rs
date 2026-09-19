@@ -133,7 +133,7 @@ pub struct Bus {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub joyport_enable: bool,
-    
+
     #[cfg_attr(feature = "serde_support", serde(default))]
     pub annunciator: [bool; 4],
 

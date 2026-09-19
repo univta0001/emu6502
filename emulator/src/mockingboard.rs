@@ -139,7 +139,7 @@ impl Tone {
 
     fn set_period(&mut self, fine: u8, coarse: u8) {
         self.period = ((coarse & 0xf) as u16) * 256 + (fine as u16);
-        if self.period > 0 && self.count >= self.period  {
+        if self.period > 0 && self.count >= self.period {
             self.count %= self.period
         }
     }

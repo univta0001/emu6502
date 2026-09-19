@@ -653,12 +653,38 @@ fn _remove_unused_disk_tracks(disk: &mut Disk) {
 fn expand_unused_disk_track(disk: &mut Disk, qt: usize) {
     let tmap_track = disk.tmap_data[qt];
     if tmap_track == 0xff {
+        let mut left_bits = 0;
+        let mut right_bits = 0;
+
+        for q in (0..qt.saturating_sub(1)).rev() {
+            let idx = disk.tmap_data[q];
+            if idx == 0xff {
+                continue;
+            }
+            left_bits = disk.raw_track_bits[idx as usize];
+            break;
+        }
+
+        for q in qt + 1..160 {
+            let idx = disk.tmap_data[q];
+            if idx == 0xff {
+                continue;
+            }
+            right_bits = disk.raw_track_bits[idx as usize];
+            break;
+        }
+
+        let mut allocated_bits = left_bits.max(right_bits);
+        if allocated_bits == 0 {
+            allocated_bits = NOMINAL_USABLE_BITS_TRACK_SIZE
+        }
+
         // Create a empty track and assigned a new tmap entry
         for t in 0..160 {
             if disk.raw_track_data[t].is_empty() {
                 disk.tmap_data[qt] = t as u8;
-                disk.raw_track_data[t] = vec![0u8; NOMINAL_USABLE_BYTES_TRACK_SIZE];
-                disk.raw_track_bits[t] = NOMINAL_USABLE_BITS_TRACK_SIZE;
+                disk.raw_track_data[t] = vec![0u8; allocated_bits.div_ceil(8)];
+                disk.raw_track_bits[t] = allocated_bits;
                 disk.trackmap[qt] = TrackType::Tmap;
                 break;
             }
