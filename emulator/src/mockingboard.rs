@@ -227,7 +227,7 @@ impl AY8910 {
                         item.holding = true;
                         item.step = 0;
                     } else {
-                        item.step &= 0xf;
+                        item.step = 0xf;
                     }
                     if item.alternate {
                         item.attack ^= 0xf;
