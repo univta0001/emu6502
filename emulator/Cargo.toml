@@ -26,7 +26,7 @@ criterion = { version = "0.8.2", features = ['html_reports'] }
 [features]
 default = []
 #default = [ "serde_support" ]
-serde_support = ["dep:serde", "dep:educe"]
+serde_support = ["dep:serde", "dep:educe", "dep:flate2"]
 z80 = ["dep:iz80"]
 web_time = ["dep:web-time"]
 flate = ["dep:flate2"]
