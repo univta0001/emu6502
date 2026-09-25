@@ -4,7 +4,7 @@ FROM rust:latest as builder
 # Set the working directory in the container
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y cmake build-essential libatk1.0-dev libgtk-3-dev libgdk-pixbuf-2.0-dev libpango1.0-0 libcairo2-dev libwayland-dev libpulse-dev
+RUN apt-get update && apt-get install -y cmake build-essential libpipewire-0.3-dev libx11-dev libaudio-dev libasound2-dev libjack-dev libsndio-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev libpulse-dev libxss-dev libatk1.0-dev libgtk-3-dev libgdk-pixbuf-2.0-dev libcairo2-dev libwayland-dev libdecor-0-dev liburing-dev
 
 # Copy only the dependencies
 COPY Cargo.toml Cargo.lock ./
@@ -31,10 +31,10 @@ RUN cargo +nightly build --release --bin emu6502
 RUN strip target/release/emu6502
 
 # Use a slim image for running the application
-FROM debian:bookworm-slim as runtime
+FROM debian:13-slim as runtime
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends libgtk-3-0 libpango1.0-0 pulseaudio \
+ && apt-get install -y --no-install-recommends libgtk-3-0 pulseaudio \
  && rm -rf /var/cache/debconf/* \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
@@ -45,10 +45,7 @@ COPY --from=builder /app/target/release/emu6502 /bin/emu6502
 # Create non-root user
 RUN useradd --create-home --shell /bin/false appuser
 
-# Copy sample disk with correct ownership
-COPY --chown=appuser:appuser sample.dsk /sample.dsk
-
 USER appuser
 
 # Specify the command to run when the container starts
-CMD ["/bin/emu6502","/sample.dsk"]
+ENTRYPOINT ["/bin/emu6502"]
