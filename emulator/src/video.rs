@@ -1256,7 +1256,7 @@ impl Video {
         let center_y = height_f * 0.5;
         let inv_center_x = 1.0 / center_x;
         let inv_center_y = 1.0 / center_y;
-        let frame_stride = width * 4;
+        let frame_stride = WIDTH_STEP;
         let distortion_f = distortion;
 
         for y_d in 0..height {
