@@ -41,6 +41,7 @@ use std::fs;
 
 use std::fs::File;
 use std::path::Path;
+use std::sync::OnceLock;
 use std::time::Instant;
 
 //use sdl2::surface::Surface;
@@ -81,6 +82,8 @@ const SPEED: [u64; 5] = [10, 28, 40, 80, 10];
 const SPEED_RATIO: [f32; 5] = [1.0, 2.8, 4.0, 8.0, 1.0];
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+static STATUS_VERSION_TEXT: OnceLock<String> = OnceLock::new();
 
 // Display modes array
 const DISPLAY_MODES: [DisplayMode; 7] = [
@@ -2148,7 +2151,11 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 }
 
                 // Update keyboard akd state
-                cpu.bus.any_key_down = event_pump.keyboard_state().pressed_scancodes().count() > 0;
+                cpu.bus.any_key_down = event_pump
+                    .keyboard_state()
+                    .pressed_scancodes()
+                    .next()
+                    .is_some();
 
                 // Update mouse state
                 update_mouse_state(&mut cpu, &event_pump, &mut emulator_state);
@@ -3333,12 +3340,15 @@ fn prepare_statusbar(cpu: &CPU, ui: &imgui::Ui, state: &EmulatorState, width: u3
         )
         .build(|| {
             // Render your status bar content here
-            ui.text(format!(
-                "emu6502 v{} - SDL3 {} ImGui {}",
-                VERSION,
-                sdl3::version::version(),
-                imgui::dear_imgui_version()
-            ));
+            let version_text = STATUS_VERSION_TEXT.get_or_init(|| {
+                format!(
+                    "emu6502 v{} - SDL3 {} ImGui {}",
+                    VERSION,
+                    sdl3::version::version(),
+                    imgui::dear_imgui_version()
+                )
+            });
+            ui.text(version_text);
             ui.same_line();
             ui.text(format!("FPS: {:.2}", state.speed.fps));
             ui.same_line();
