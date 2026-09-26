@@ -1120,6 +1120,8 @@ fn update_gpu_texture(
     cpu: &mut CPU,
     imgui: &mut imgui_sdl3::ImGuiSdl3,
     device: &Device,
+    blend_buffer: &mut [u8],
+    barrel_buffer: &mut [u8],
     state: &EmulatorState,
 ) -> Result<imgui::TextureId, Box<dyn Error>> {
     // Check if 80 column enabled, if enabled, refresh the video
@@ -1128,15 +1130,18 @@ fn update_gpu_texture(
     }
 
     let video = &mut cpu.bus.video;
-    let processed_frame = if state.video.vertical_blend {
-        &video.get_vertical_blend_frame(&video.frame, video.get_scanline())
+
+    if state.video.vertical_blend {
+        video.write_vertical_blend_frame(&video.frame, video.get_scanline(), blend_buffer);
     } else {
-        &video.frame
-    };
-    let processed_frame = if state.video.barrel_distortion {
-        &video.get_barrel_distorted_frame(processed_frame, 0.015)
+        blend_buffer.copy_from_slice(&video.frame);
+    }
+
+    let processed_frame: &[u8] = if state.video.barrel_distortion {
+        video.write_barrel_distorted_frame(blend_buffer, 0.015, barrel_buffer);
+        barrel_buffer
     } else {
-        processed_frame
+        blend_buffer
     };
 
     let upload_command_buffer = device.acquire_command_buffer()?;
@@ -2005,6 +2010,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     // Create the game controller
     let game_controller = sdl_context.gamepad()?;
 
+    const FRAME_BYTES: usize = Video::WIDTH * Video::HEIGHT * 4;
+    let mut blend_buffer = vec![0xff_u8; FRAME_BYTES];
+    let mut barrel_buffer = vec![0xff_u8; FRAME_BYTES];
+
     // Set apple2 icon
     /*
     let apple2_icon = Surface::from_file("apple2.png")?;
@@ -2095,8 +2104,14 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 cpu.bus.video.skip_update = false;
 
                 if !window.is_minimized() {
-                    let image_texture_id =
-                        update_gpu_texture(&mut cpu, &mut imgui, &device, &emulator_state);
+                    let image_texture_id = update_gpu_texture(
+                        &mut cpu,
+                        &mut imgui,
+                        &device,
+                        &mut blend_buffer,
+                        &mut barrel_buffer,
+                        &emulator_state,
+                    );
 
                     if emulator_state.video.prev_scale != emulator_state.video.scale {
                         emulator_state.video.prev_scale = emulator_state.video.scale;

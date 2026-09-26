@@ -1173,8 +1173,8 @@ impl Video {
         }
     }
 
-    pub fn get_vertical_blend_frame(&self, frame: &[u8], scanline: bool) -> Vec<u8> {
-        let mut display = vec![0xff_u8; WIDTH_STEP * Self::HEIGHT];
+    pub fn write_vertical_blend_frame(&self, frame: &[u8], scanline: bool, display: &mut [u8]) {
+        assert!(display.len() >= WIDTH_STEP * Self::HEIGHT);
         let width = Self::WIDTH;
         let height = Self::HEIGHT;
         let width_step = WIDTH_STEP;
@@ -1244,12 +1244,10 @@ impl Video {
                 }
             }
         }
-
-        display
     }
 
-    pub fn get_barrel_distorted_frame(&self, frame: &[u8], distortion: f32) -> Vec<u8> {
-        let mut barrel_display = vec![0xff_u8; WIDTH_STEP * Self::HEIGHT];
+    pub fn write_barrel_distorted_frame(&self, frame: &[u8], distortion: f32, display: &mut [u8]) {
+        assert!(display.len() >= WIDTH_STEP * Self::HEIGHT);
         let width = Self::WIDTH;
         let height = Self::HEIGHT;
         let width_f = width as f32;
@@ -1281,9 +1279,9 @@ impl Video {
 
                 if x1 < 0 || y1 < 0 || x1 + 1 >= width as i32 || y1 + 1 >= height as i32 {
                     let dbase = dbase_y + x_d * 4;
-                    barrel_display[dbase] = 0;
-                    barrel_display[dbase + 1] = 0;
-                    barrel_display[dbase + 2] = 0;
+                    display[dbase] = 0;
+                    display[dbase + 1] = 0;
+                    display[dbase + 2] = 0;
                     continue;
                 }
 
@@ -1317,12 +1315,11 @@ impl Video {
                     + frame[p22_base + 2] as f32 * w22) as u8;
 
                 let dbase = dbase_y + x_d * 4;
-                barrel_display[dbase] = r;
-                barrel_display[dbase + 1] = g;
-                barrel_display[dbase + 2] = b;
+                display[dbase] = r;
+                display[dbase + 1] = g;
+                display[dbase + 2] = b;
             }
         }
-        barrel_display
     }
 
     fn update_blink_state(&mut self) {
