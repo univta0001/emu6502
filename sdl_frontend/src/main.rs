@@ -1137,11 +1137,18 @@ fn update_gpu_texture(
         blend_buffer.copy_from_slice(&video.frame);
     }
 
-    let processed_frame: &[u8] = if state.video.barrel_distortion {
-        video.write_barrel_distorted_frame(blend_buffer, 0.015, barrel_buffer);
-        barrel_buffer
-    } else {
-        blend_buffer
+    let processed_frame: &[u8] = {
+        if state.video.vertical_blend {
+            video.write_vertical_blend_frame(&video.frame, video.get_scanline(), blend_buffer);
+        } else {
+            blend_buffer.copy_from_slice(&video.frame);
+        }
+        if state.video.barrel_distortion {
+            video.write_barrel_distorted_frame(blend_buffer, 0.015, barrel_buffer);
+            barrel_buffer
+        } else {
+            blend_buffer
+        }
     };
 
     let upload_command_buffer = device.acquire_command_buffer()?;
