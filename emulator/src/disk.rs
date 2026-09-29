@@ -1494,9 +1494,17 @@ impl DiskDrive {
                 disk.raw_track_bits[tmap_track as usize]
             };
 
+            let disk_loaded = self.is_loaded(self.drive_select);
             let steps = cycles.saturating_sub(self.cycles) % track_bits;
-            for _ in 0..steps {
-                self.tick_internal();
+            if disk_loaded {
+                for _ in 0..steps {
+                    self.tick_internal();
+                }
+            } else {
+                for _ in (0..steps).step_by(4) {
+                    self.prev_latch = self.latch;
+                    self.latch = self.latch << 1 | Self::get_random_disk_bit(self.random_one_rate);
+                }
             }
         }
         self.cycles = cycles;

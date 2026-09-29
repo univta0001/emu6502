@@ -1970,6 +1970,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let height = (scale * Video::HEIGHT as f32) as u32;
     let video_subsystem = sdl_context.video()?;
 
+    eprintln!("emu6502 v{}", VERSION);
     eprintln!("Detected Video Drivers");
     for (i, driver) in sdl3::video::drivers().enumerate() {
         eprintln!("-- Driver #{}: {}", i, driver);
