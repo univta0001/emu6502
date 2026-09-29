@@ -1134,12 +1134,6 @@ fn update_gpu_texture(
 
     let video = &mut cpu.bus.video;
 
-    if state.video.vertical_blend {
-        video.write_vertical_blend_frame(&video.frame, video.get_scanline(), blend_buffer);
-    } else {
-        blend_buffer.copy_from_slice(&video.frame);
-    }
-
     let processed_frame: &[u8] = {
         if state.video.vertical_blend {
             video.write_vertical_blend_frame(&video.frame, video.get_scanline(), blend_buffer);
