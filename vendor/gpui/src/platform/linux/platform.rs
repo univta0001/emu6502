@@ -996,9 +996,13 @@ impl crate::Modifiers {
             keymap_state.mod_name_is_active(xkb::MOD_NAME_CTRL, xkb::STATE_MODS_EFFECTIVE);
         let platform =
             keymap_state.mod_name_is_active(xkb::MOD_NAME_LOGO, xkb::STATE_MODS_EFFECTIVE);
+        // left_alt/right_alt cannot be derived from the aggregate Mod1 mask;
+        // the platform clients track them per-keysym and merge them in
         Self {
             shift,
             alt,
+            left_alt: false,
+            right_alt: false,
             control,
             platform,
             function: false,

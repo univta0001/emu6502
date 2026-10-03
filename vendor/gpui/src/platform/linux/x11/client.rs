@@ -197,6 +197,10 @@ pub struct X11ClientState {
     pub(crate) xim_handler: Option<XimHandler>,
     pub modifiers: Modifiers,
     pub capslock: Capslock,
+    // xkb only exposes an aggregate Mod1 mask, so left and right Alt are
+    // tracked per-keysym from key events to let the frontend tell them apart
+    pub left_alt_down: bool,
+    pub right_alt_down: bool,
     // TODO: Can the other updates to `modifiers` be removed so that this is unnecessary?
     // capslock logic was done analog to modifiers
     pub last_modifiers_changed_event: Modifiers,
@@ -473,6 +477,8 @@ impl X11Client {
         Ok(X11Client(Rc::new(RefCell::new(X11ClientState {
             modifiers: Modifiers::default(),
             capslock: Capslock::default(),
+            left_alt_down: false,
+            right_alt_down: false,
             last_modifiers_changed_event: Modifiers::default(),
             last_capslock_changed_event: Capslock::default(),
             event_loop: Some(event_loop),
@@ -958,8 +964,12 @@ impl X11Client {
                     event.latched_group as u32,
                     event.locked_group.into(),
                 );
-                let modifiers = Modifiers::from_xkb(&state.xkb);
+                let mut modifiers = Modifiers::from_xkb(&state.xkb);
                 let capslock = Capslock::from_xkb(&state.xkb);
+                // Re-apply the per-keysym Alt tracking (xkb only exposes an
+                // aggregate Mod1 mask)
+                modifiers.left_alt = state.left_alt_down;
+                modifiers.right_alt = state.right_alt_down;
                 if state.last_modifiers_changed_event == modifiers
                     && state.last_capslock_changed_event == capslock
                 {
@@ -996,6 +1006,23 @@ impl X11Client {
                     let code = event.detail.into();
                     let mut keystroke = crate::Keystroke::from_xkb(&state.xkb, modifiers, code);
                     let keysym = state.xkb.key_get_one_sym(code);
+
+                    // xkb only exposes an aggregate Mod1 mask, so left and
+                    // right Alt are tracked per-keysym here to let the
+                    // frontend tell them apart
+                    if matches!(keysym, xkbc::Keysym::Alt_L | xkbc::Keysym::Alt_R) {
+                        state.left_alt_down = keysym == xkbc::Keysym::Alt_L;
+                        state.right_alt_down = keysym == xkbc::Keysym::Alt_R;
+                        state.modifiers.left_alt = state.left_alt_down;
+                        state.modifiers.right_alt = state.right_alt_down;
+                        let input = PlatformInput::ModifiersChanged(ModifiersChangedEvent {
+                            modifiers: state.modifiers,
+                            capslock: state.capslock,
+                        });
+                        drop(state);
+                        window.handle_input(input);
+                        return Some(());
+                    }
 
                     if keysym.is_modifier_key() {
                         return Some(());
@@ -1060,6 +1087,23 @@ impl X11Client {
                     let code = event.detail.into();
                     let keystroke = crate::Keystroke::from_xkb(&state.xkb, modifiers, code);
                     let keysym = state.xkb.key_get_one_sym(code);
+
+                    // xkb only exposes an aggregate Mod1 mask, so left and
+                    // right Alt are tracked per-keysym here to let the
+                    // frontend tell them apart
+                    if matches!(keysym, xkbc::Keysym::Alt_L | xkbc::Keysym::Alt_R) {
+                        state.left_alt_down = keysym == xkbc::Keysym::Alt_L;
+                        state.right_alt_down = keysym == xkbc::Keysym::Alt_R;
+                        state.modifiers.left_alt = state.left_alt_down;
+                        state.modifiers.right_alt = state.right_alt_down;
+                        let input = PlatformInput::ModifiersChanged(ModifiersChangedEvent {
+                            modifiers: state.modifiers,
+                            capslock: state.capslock,
+                        });
+                        drop(state);
+                        window.handle_input(input);
+                        return Some(());
+                    }
 
                     if keysym.is_modifier_key() {
                         return Some(());

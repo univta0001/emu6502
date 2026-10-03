@@ -2472,7 +2472,7 @@ fn get_version_string() -> &'static String {
 }
 
 fn render_status_bar(fps: f32, mhz: f32, track_text: &str) -> impl IntoElement {
-    let version_text = get_version_string()
+    let version_text = get_version_string();
 
     div()
         .flex()
@@ -2845,11 +2845,11 @@ fn handle_key_up(emu: &Arc<Mutex<EmulatorCore>>, event: &KeyUpEvent) {
 fn handle_modifiers_changed(emu: &Arc<Mutex<EmulatorCore>>, event: &ModifiersChangedEvent) {
     let mut core = emu.lock().unwrap();
 
-    // The alt keys act as the paddle pushbuttons (gpui does not distinguish
-    // between the left and right alt keys, so both buttons are set)
-    let value = if event.modifiers.alt { 0x80 } else { 0x0 };
-    core.cpu.bus.pushbutton_latch[0] = value;
-    core.cpu.bus.pushbutton_latch[1] = value;
+    // The alt keys act as the paddle pushbuttons (left Alt -> button 0,
+    // right Alt -> button 1, matching the SDL frontend); gpui reports
+    // which side was pressed
+    core.cpu.bus.pushbutton_latch[0] = if event.modifiers.left_alt { 0x80 } else { 0x0 };
+    core.cpu.bus.pushbutton_latch[1] = if event.modifiers.right_alt { 0x80 } else { 0x0 };
 
     // The shift key maps to pushbutton 2 on the Apple //e platinum
     if core.cpu.is_apple2e() && core.input.shift_mod {

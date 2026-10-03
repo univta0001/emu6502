@@ -454,6 +454,14 @@ pub struct Modifiers {
     #[serde(default)]
     pub alt: bool,
 
+    /// The left alt key
+    #[serde(default)]
+    pub left_alt: bool,
+
+    /// The right alt key
+    #[serde(default)]
+    pub right_alt: bool,
+
     /// The shift key
     #[serde(default)]
     pub shift: bool,
@@ -609,6 +617,8 @@ impl std::ops::BitOrAssign for Modifiers {
     fn bitor_assign(&mut self, other: Self) {
         self.control |= other.control;
         self.alt |= other.alt;
+        self.left_alt |= other.left_alt;
+        self.right_alt |= other.right_alt;
         self.shift |= other.shift;
         self.platform |= other.platform;
         self.function |= other.function;
@@ -627,6 +637,8 @@ impl std::ops::BitXorAssign for Modifiers {
     fn bitxor_assign(&mut self, other: Self) {
         self.control ^= other.control;
         self.alt ^= other.alt;
+        self.left_alt ^= other.left_alt;
+        self.right_alt ^= other.right_alt;
         self.shift ^= other.shift;
         self.platform ^= other.platform;
         self.function ^= other.function;
@@ -645,6 +657,8 @@ impl std::ops::BitAndAssign for Modifiers {
     fn bitand_assign(&mut self, other: Self) {
         self.control &= other.control;
         self.alt &= other.alt;
+        self.left_alt &= other.left_alt;
+        self.right_alt &= other.right_alt;
         self.shift &= other.shift;
         self.platform &= other.platform;
         self.function &= other.function;

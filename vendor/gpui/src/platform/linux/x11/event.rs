@@ -36,6 +36,8 @@ pub(crate) fn modifiers_from_state(state: xproto::KeyButMask) -> Modifiers {
     Modifiers {
         control: state.contains(xproto::KeyButMask::CONTROL),
         alt: state.contains(xproto::KeyButMask::MOD1),
+        left_alt: false,
+        right_alt: false,
         shift: state.contains(xproto::KeyButMask::SHIFT),
         platform: state.contains(xproto::KeyButMask::MOD4),
         function: false,
@@ -47,6 +49,8 @@ pub(crate) fn modifiers_from_xinput_info(modifier_info: xinput::ModifierInfo) ->
         control: modifier_info.effective as u16 & ModMask::CONTROL.bits()
             == ModMask::CONTROL.bits(),
         alt: modifier_info.effective as u16 & ModMask::M1.bits() == ModMask::M1.bits(),
+        left_alt: false,
+        right_alt: false,
         shift: modifier_info.effective as u16 & ModMask::SHIFT.bits() == ModMask::SHIFT.bits(),
         platform: modifier_info.effective as u16 & ModMask::M4.bits() == ModMask::M4.bits(),
         function: false,

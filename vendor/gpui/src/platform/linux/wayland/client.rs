@@ -220,6 +220,10 @@ pub(crate) struct WaylandClientState {
     repeat: KeyRepeat,
     pub modifiers: Modifiers,
     pub capslock: Capslock,
+    // xkb only exposes an aggregate Mod1 mask, so left and right Alt are
+    // tracked per-keysym from key events to let the frontend tell them apart
+    pub left_alt_down: bool,
+    pub right_alt_down: bool,
     axis_source: AxisSource,
     pub mouse_location: Option<Point<Pixels>>,
     continuous_scroll_delta: Option<Point<Pixels>>,
@@ -595,9 +599,13 @@ impl WaylandClient {
                 shift: false,
                 control: false,
                 alt: false,
+                left_alt: false,
+                right_alt: false,
                 function: false,
                 platform: false,
             },
+            left_alt_down: false,
+            right_alt_down: false,
             capslock: Capslock { on: false },
             scroll_event_received: false,
             axis_source: AxisSource::Wheel,
@@ -1245,6 +1253,8 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for WaylandClientStatePtr {
                 let keyboard_focused_window = get_window(&mut state, &surface.id());
                 state.keyboard_focused_window = None;
                 state.enter_token.take();
+                state.left_alt_down = false;
+                state.right_alt_down = false;
                 // Prevent keyboard events from repeating after opening e.g. a file chooser and closing it quickly
                 state.repeat.current_id += 1;
 
@@ -1272,6 +1282,10 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for WaylandClientStatePtr {
                     keymap_state.serialize_layout(xkbcommon::xkb::STATE_LAYOUT_EFFECTIVE);
                 keymap_state.update_mask(mods_depressed, mods_latched, mods_locked, 0, 0, group);
                 state.modifiers = Modifiers::from_xkb(keymap_state);
+                // Re-apply the per-keysym Alt tracking (xkb only exposes an
+                // aggregate Mod1 mask)
+                state.modifiers.left_alt = state.left_alt_down;
+                state.modifiers.right_alt = state.right_alt_down;
                 let keymap_state = state.keymap_state.as_mut().unwrap();
                 state.capslock = Capslock::from_xkb(keymap_state);
 
@@ -1305,6 +1319,28 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for WaylandClientStatePtr {
                 let keymap_state = state.keymap_state.as_ref().unwrap();
                 let keycode = Keycode::from(key + MIN_KEYCODE);
                 let keysym = keymap_state.key_get_one_sym(keycode);
+
+                // xkb only exposes an aggregate Mod1 mask, so left and right
+                // Alt are tracked per-keysym here to let the frontend tell
+                // them apart
+                if matches!(keysym, xkbcommon::xkb::Keysym::Alt_L | xkbcommon::xkb::Keysym::Alt_R) {
+                    let pressed = key_state == wl_keyboard::KeyState::Pressed;
+                    if keysym == xkbcommon::xkb::Keysym::Alt_L {
+                        state.left_alt_down = pressed;
+                    } else {
+                        state.right_alt_down = pressed;
+                    }
+                    state.modifiers.left_alt = state.left_alt_down;
+                    state.modifiers.right_alt = state.right_alt_down;
+
+                    let input = PlatformInput::ModifiersChanged(ModifiersChangedEvent {
+                        modifiers: state.modifiers,
+                        capslock: state.capslock,
+                    });
+                    drop(state);
+                    focused_window.handle_input(input);
+                    return;
+                }
 
                 match key_state {
                     wl_keyboard::KeyState::Pressed if !keysym.is_modifier_key() => {

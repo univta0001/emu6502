@@ -1090,9 +1090,17 @@ impl PlatformWindow for MacWindow {
             let command = modifiers.contains(NSEventModifierFlags::NSCommandKeyMask);
             let function = modifiers.contains(NSEventModifierFlags::NSFunctionKeyMask);
 
+            // Device-dependent modifier flags (not exposed by the cocoa crate);
+            // NSLeftAlternateKeyMask = 1 << 5, NSRightAlternateKeyMask = 1 << 6
+            let modifier_bits = modifiers.bits();
+            let left_alt = modifier_bits & (1 << 5) != 0;
+            let right_alt = modifier_bits & (1 << 6) != 0;
+
             Modifiers {
                 control,
                 alt,
+                left_alt,
+                right_alt,
                 shift,
                 platform: command,
                 function,
