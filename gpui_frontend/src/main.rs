@@ -51,6 +51,7 @@ use gpui::Window;
 use gpui::WindowBounds;
 use gpui::WindowControlArea;
 use gpui::WindowControls;
+use gpui::WindowDecorations;
 use gpui::WindowOptions;
 use gpui::canvas;
 use gpui::deferred;
@@ -2611,6 +2612,23 @@ fn render_status_bar(fps: f32, mhz: f32, track_text: &str) -> impl IntoElement {
         .child(track_text.to_string())
 }
 
+/// True when running under WSLg. WSLg's Weston (RDP backend) provides neither
+/// the xdg-decoration protocol nor server-side decorations, so windows would
+/// otherwise end up without a titlebar or drag area.
+fn is_wslg() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        Path::new("/mnt/wslg").exists()
+            && (std::env::var_os("WSL_DISTRO_NAME").is_some()
+                || std::fs::read_to_string("/proc/sys/kernel/osrelease")
+                    .is_ok_and(|s| s.to_lowercase().contains("microsoft")))
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        false
+    }
+}
+
 /// One of the min/max/close buttons rendered at the right edge of the menu bar
 /// when the window uses client-side decorations (Linux).
 fn render_window_control_button(
@@ -3689,6 +3707,12 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     title: Some("Apple ][ emulator".into()),
                     ..Default::default()
                 }),
+                // WSLg's Weston advertises neither the xdg-decoration protocol
+                // nor server-side decorations, but gpui still assumes Server
+                // mode when this option is unset, leaving the window without a
+                // titlebar or drag area. Force client-side decorations so the
+                // menu bar doubles as a draggable titlebar.
+                window_decorations: is_wslg().then_some(WindowDecorations::Client),
                 // On Linux the window icon is not set by gpui; the WM/compositor
                 // resolves it from this app_id (WM_CLASS on X11) via a desktop
                 // file / icon theme entry.
