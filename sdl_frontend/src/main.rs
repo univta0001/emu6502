@@ -2665,9 +2665,12 @@ fn prepare_system_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState)
 
         ui.separator();
 
-        prepare_menu_for_state_management(cpu, ui, state);
+        #[cfg(feature = "serialization")]
+        {
+            prepare_menu_for_state_management(cpu, ui, state);
+            ui.separator();
+        }
 
-        ui.separator();
         // Add an "Exit" menu item
         let exit_key = if std::env::consts::OS == "macos" {
             "Option-F4"

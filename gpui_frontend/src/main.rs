@@ -1,6 +1,11 @@
 //#![windows_subsystem = "windows"]
 
 use chrono::Local;
+use cpal::BufferSize;
+use cpal::StreamConfig;
+use cpal::traits::DeviceTrait;
+use cpal::traits::HostTrait;
+use cpal::traits::StreamTrait;
 use emu6502::bus::Bus;
 use emu6502::bus::Dongle;
 use emu6502::bus::IODevice;
@@ -13,7 +18,12 @@ use emu6502::trace::disassemble_addr;
 use emu6502::video::DisplayMode;
 use emu6502::video::Video;
 use futures::StreamExt;
-use gpui::prelude::*;
+use gilrs::Axis;
+use gilrs::Button;
+use gilrs::Event;
+use gilrs::EventType;
+use gilrs::GamepadId;
+use gilrs::Gilrs;
 use gpui::App;
 use gpui::Application;
 use gpui::Bounds;
@@ -42,10 +52,11 @@ use gpui::WindowBounds;
 use gpui::WindowControlArea;
 use gpui::WindowControls;
 use gpui::WindowOptions;
-use gpui::deferred;
 use gpui::canvas;
+use gpui::deferred;
 use gpui::div;
 use gpui::img;
+use gpui::prelude::*;
 use gpui::px;
 use gpui::rgb;
 use gpui::size;
@@ -53,17 +64,6 @@ use image::ColorType;
 use image::ImageEncoder;
 use image::codecs::png::PngEncoder;
 use rfd::FileDialog;
-use cpal::BufferSize;
-use cpal::StreamConfig;
-use cpal::traits::DeviceTrait;
-use cpal::traits::HostTrait;
-use cpal::traits::StreamTrait;
-use gilrs::Axis;
-use gilrs::Button;
-use gilrs::Event;
-use gilrs::EventType;
-use gilrs::GamepadId;
-use gilrs::Gilrs;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::collections::VecDeque;
@@ -263,6 +263,10 @@ struct EmulatorCore {
     open_menu: Option<&'static str>,
     open_submenu: Option<&'static str>,
     open_combo: Option<usize>,
+    // Set when the user switches the machine model: the CPU is halted on
+    // purpose and the emulator thread reloads the machine instead of quitting
+    model_changed: bool,
+    reload_cpu: bool,
 }
 
 impl EmulatorCore {
@@ -284,6 +288,8 @@ impl EmulatorCore {
             open_menu: None,
             open_submenu: None,
             open_combo: None,
+            model_changed: false,
+            reload_cpu: false,
         }
     }
 
@@ -341,9 +347,8 @@ impl EmulatorCore {
         }
 
         // Update speed_index
-        let adj_ms = Duration::from_micros(
-            state.cpu_period * SPEED_FACTOR / SPEED[self.speed.speed_index],
-        );
+        let adj_ms =
+            Duration::from_micros(state.cpu_period * SPEED_FACTOR / SPEED[self.speed.speed_index]);
 
         state.adj_cpu_ms = adj_ms;
         self.cpu.bus.audio.update_cycles(video_50hz);
@@ -477,10 +482,8 @@ fn translate_key_to_apple_key(
 
     if shift_mode && ctrl_mode && key == "space" {
         value = ' ' as i16;
-    } else if key == "right_bracket" || key == "]" {
-        if ctrl_mode {
-            value = 29;
-        }
+    } else if (key == "right_bracket" || key == "]") && ctrl_mode {
+        value = 29;
     }
 
     (true, value)
@@ -512,6 +515,7 @@ fn emulator_thread(
 
     loop {
         // Step one frame worth of CPU cycles
+        let (mut reload, mut model_changed) = (false, false);
         {
             let mut core = core.lock().unwrap();
 
@@ -538,11 +542,56 @@ fn emulator_thread(
                 }
             }
 
-            if halted {
+            if halted && !core.reload_cpu {
                 eprintln!("CPU halted unexpectedly; stopping emulation");
                 let _ = notify.unbounded_send(NotifyMsg::Quit);
                 return;
             }
+
+            if halted {
+                // The CPU was halted on purpose (model change or state load);
+                // consume the one-shot halt and reload the machine below,
+                // outside the lock
+                reload = true;
+                model_changed = core.model_changed;
+                core.reload_cpu = false;
+                core.model_changed = false;
+            }
+        }
+
+        if reload {
+            if model_changed {
+                // Model change: reinitialize the machine (mirrors the
+                // sdl_frontend implementation)
+                let mut core = core.lock().unwrap();
+                core.cpu.bus.init_memory();
+                core.cpu.bus.set_apple2c(false);
+                core.cpu.bus.video.set_apple2c(false);
+                core.cpu.bus.set_iwm(false);
+                core.cpu.setup_emulator();
+                core.cpu.reset();
+            } else {
+                // State load: the file dialog runs without holding the lock so
+                // the UI stays responsive; only the swap takes the lock
+                #[cfg(feature = "serialization")]
+                match load_serialized_image() {
+                    Ok(mut new_cpu) => {
+                        let mut core = core.lock().unwrap();
+                        initialize_new_cpu(&mut new_cpu, &mut core);
+                        core.cpu = new_cpu;
+                        core.dcyc = 0;
+                    }
+                    Err(message) => {
+                        // Load failed or was cancelled: nothing is swapped and
+                        // the one-shot halt was already consumed by the step
+                        // loop, so the machine simply keeps running
+                        if !message.is_empty() {
+                            eprintln!("{message}")
+                        }
+                    }
+                }
+            }
+            continue;
         }
 
         // Update video, audio and stats at a multiple of 60Hz or 50Hz
@@ -586,8 +635,7 @@ fn emulator_thread(
         }
 
         let elapsed = t.elapsed().as_micros();
-        adj_ms_offset =
-            Duration::from_micros(elapsed.saturating_sub(adj_ms.as_micros()) as u64);
+        adj_ms_offset = Duration::from_micros(elapsed.saturating_sub(adj_ms.as_micros()) as u64);
 
         {
             let mut core = core.lock().unwrap();
@@ -653,7 +701,7 @@ fn make_frame_image(core: &mut EmulatorCore) -> Arc<RenderImage> {
     };
 
     let mut bgra = processed_frame.to_vec();
-    for chunk in bgra.chunks_exact_mut(4) {
+    for chunk in bgra.as_chunks_mut::<4>().0 {
         chunk.swap(0, 2);
     }
 
@@ -1095,24 +1143,6 @@ fn load_serialized_image() -> Result<CPU, String> {
     Ok(new_cpu)
 }
 
-/// Loads a serialized state on the UI thread. Emulation is blocked while the
-/// file dialog is open (the lock is held for the duration of the call).
-#[cfg(feature = "serialization")]
-fn load_serialized_state(core: &mut EmulatorCore) {
-    match load_serialized_image() {
-        Ok(mut new_cpu) => {
-            initialize_new_cpu(&mut new_cpu, core);
-            core.cpu = new_cpu;
-            core.dcyc = 0;
-        }
-        Err(message) => {
-            if !message.is_empty() {
-                eprintln!("{message}")
-            }
-        }
-    }
-}
-
 #[cfg(feature = "serialization")]
 fn initialize_new_cpu(cpu: &mut CPU, core: &mut EmulatorCore) {
     let mmu = &mut cpu.bus.mem;
@@ -1311,15 +1341,20 @@ fn system_menu(core: &mut EmulatorCore, emu: &Arc<Mutex<EmulatorCore>>) -> MenuE
             emu,
         ),
         MenuEntry::Separator,
+    ]);
+    // State management is only available when the serialization feature is
+    // enabled
+    #[cfg(feature = "serialization")]
+    entries.extend([
         action_entry(
             "load_state",
             "Load State",
             "Ctrl-F4",
             |core, _window, _cx| {
-                #[cfg(feature = "serialization")]
-                load_serialized_state(core);
-                #[cfg(not(feature = "serialization"))]
-                eprintln!("State loading requires the serialization feature");
+                // Halt the CPU; the emulator thread reloads the machine from
+                // the serialized image instead of quitting
+                core.reload_cpu = true;
+                core.cpu.halt_cpu();
             },
             emu,
         ),
@@ -1327,33 +1362,29 @@ fn system_menu(core: &mut EmulatorCore, emu: &Arc<Mutex<EmulatorCore>>) -> MenuE
             "save_state",
             "Save State",
             "Ctrl-F3",
-            |core, _window, _cx| {
-                #[cfg(feature = "serialization")]
-                save_serialized_image(&core.cpu);
-                #[cfg(not(feature = "serialization"))]
-                eprintln!("State saving requires the serialization feature");
-            },
+            |core, _window, _cx| save_serialized_image(&core.cpu),
             emu,
         ),
         MenuEntry::Separator,
-        {
-            let exit_key = if std::env::consts::OS == "macos" {
-                "Option-F4"
-            } else {
-                "Alt-F4"
-            };
-            MenuEntry::Item(MenuItem {
-                id: "exit".into(),
-                label: "Exit".into(),
-                shortcut: exit_key,
-                enabled: true,
-                selected: false,
-                action: Some(Box::new(move |_window, cx| {
-                    cx.quit();
-                })),
-            })
-        },
     ]);
+
+    entries.extend([{
+        let exit_key = if std::env::consts::OS == "macos" {
+            "Option-F4"
+        } else {
+            "Alt-F4"
+        };
+        MenuEntry::Item(MenuItem {
+            id: "exit".into(),
+            label: "Exit".into(),
+            shortcut: exit_key,
+            enabled: true,
+            selected: false,
+            action: Some(Box::new(move |_window, cx| {
+                cx.quit();
+            })),
+        })
+    }]);
 
     MenuEntry::Submenu {
         id: "system",
@@ -1384,6 +1415,9 @@ fn model_menu(core: &mut EmulatorCore, emu: &Arc<Mutex<EmulatorCore>>) -> MenuEn
                     initialize_apple_system(&mut core.cpu, APPLE2_ROM, 0xd000, false);
                     core.cpu.bus.mem.slotc3rom = true;
                     core.cpu.bus.mem.intcxrom = false;
+                    core.model_changed = true;
+                    core.reload_cpu = true;
+                    core.cpu.halt_cpu();
                 },
                 emu,
             ),
@@ -1397,6 +1431,9 @@ fn model_menu(core: &mut EmulatorCore, emu: &Arc<Mutex<EmulatorCore>>) -> MenuEn
                     initialize_apple_system(&mut core.cpu, APPLE2P_ROM, 0xd000, false);
                     core.cpu.bus.mem.slotc3rom = true;
                     core.cpu.bus.mem.intcxrom = false;
+                    core.model_changed = true;
+                    core.reload_cpu = true;
+                    core.cpu.halt_cpu();
                 },
                 emu,
             ),
@@ -1408,6 +1445,9 @@ fn model_menu(core: &mut EmulatorCore, emu: &Arc<Mutex<EmulatorCore>>) -> MenuEn
                 !is_2c && is_2e && !is_2e_enh,
                 |core, _| {
                     initialize_apple_system(&mut core.cpu, APPLE2E_ROM, 0xc000, false);
+                    core.model_changed = true;
+                    core.reload_cpu = true;
+                    core.cpu.halt_cpu();
                 },
                 emu,
             ),
@@ -1420,6 +1460,9 @@ fn model_menu(core: &mut EmulatorCore, emu: &Arc<Mutex<EmulatorCore>>) -> MenuEn
                 |core, _| {
                     initialize_apple_system(&mut core.cpu, APPLE2EE_ROM, 0xc000, false);
                     core.input.shift_mod = false;
+                    core.model_changed = true;
+                    core.reload_cpu = true;
+                    core.cpu.halt_cpu();
                 },
                 emu,
             ),
@@ -1432,6 +1475,9 @@ fn model_menu(core: &mut EmulatorCore, emu: &Arc<Mutex<EmulatorCore>>) -> MenuEn
                 |core, _| {
                     initialize_apple_system(&mut core.cpu, APPLE2EE_ROM, 0xc000, false);
                     core.input.shift_mod = true;
+                    core.model_changed = true;
+                    core.reload_cpu = true;
+                    core.cpu.halt_cpu();
                 },
                 emu,
             ),
@@ -1443,6 +1489,9 @@ fn model_menu(core: &mut EmulatorCore, emu: &Arc<Mutex<EmulatorCore>>) -> MenuEn
                 is_2c && rom_fbbf == 0xff,
                 |core, _| {
                     initialize_apple_system(&mut core.cpu, APPLE2C_ROM, 0xc000, false);
+                    core.model_changed = true;
+                    core.reload_cpu = true;
+                    core.cpu.halt_cpu();
                 },
                 emu,
             ),
@@ -1454,6 +1503,9 @@ fn model_menu(core: &mut EmulatorCore, emu: &Arc<Mutex<EmulatorCore>>) -> MenuEn
                 is_2c && rom_fbbf == 0x00,
                 |core, _| {
                     initialize_apple_system(&mut core.cpu, APPLE2C0_ROM, 0xc000, true);
+                    core.model_changed = true;
+                    core.reload_cpu = true;
+                    core.cpu.halt_cpu();
                 },
                 emu,
             ),
@@ -1465,6 +1517,9 @@ fn model_menu(core: &mut EmulatorCore, emu: &Arc<Mutex<EmulatorCore>>) -> MenuEn
                 is_2c && rom_fbbf == 0x03,
                 |core, _| {
                     initialize_apple_system(&mut core.cpu, APPLE2C3_ROM, 0xc000, true);
+                    core.model_changed = true;
+                    core.reload_cpu = true;
+                    core.cpu.halt_cpu();
                 },
                 emu,
             ),
@@ -1476,6 +1531,9 @@ fn model_menu(core: &mut EmulatorCore, emu: &Arc<Mutex<EmulatorCore>>) -> MenuEn
                 is_2c && rom_fbbf == 0x04,
                 |core, _| {
                     initialize_apple_system(&mut core.cpu, APPLE2C4_ROM, 0xc000, true);
+                    core.model_changed = true;
+                    core.reload_cpu = true;
+                    core.cpu.halt_cpu();
                 },
                 emu,
             ),
@@ -1487,6 +1545,9 @@ fn model_menu(core: &mut EmulatorCore, emu: &Arc<Mutex<EmulatorCore>>) -> MenuEn
                 is_2c && rom_fbbf == 0x05,
                 |core, _| {
                     initialize_apple_system(&mut core.cpu, APPLE2CP_ROM, 0xc000, true);
+                    core.model_changed = true;
+                    core.reload_cpu = true;
+                    core.cpu.halt_cpu();
                 },
                 emu,
             ),
@@ -1500,48 +1561,80 @@ fn disk_drive_menus(emu: &Arc<Mutex<EmulatorCore>>) -> Vec<MenuEntry> {
             id: "disk_drive_1",
             label: "Disk Drive 1".into(),
             entries: vec![
-                action_entry("disk1_open", "Open", "F1", |core, _w, _cx| {
-                    open_disk_dialog(&mut core.cpu, 0)
-                }, emu),
-                action_entry("disk1_eject", "Eject", "Ctrl-F1", |core, _w, _cx| {
-                    eject_disk(&mut core.cpu, 0)
-                }, emu),
+                action_entry(
+                    "disk1_open",
+                    "Open",
+                    "F1",
+                    |core, _w, _cx| open_disk_dialog(&mut core.cpu, 0),
+                    emu,
+                ),
+                action_entry(
+                    "disk1_eject",
+                    "Eject",
+                    "Ctrl-F1",
+                    |core, _w, _cx| eject_disk(&mut core.cpu, 0),
+                    emu,
+                ),
             ],
         },
         MenuEntry::Submenu {
             id: "disk_drive_2",
             label: "Disk Drive 2".into(),
             entries: vec![
-                action_entry("disk2_open", "Open", "F2", |core, _w, _cx| {
-                    open_disk_dialog(&mut core.cpu, 1)
-                }, emu),
-                action_entry("disk2_eject", "Eject", "Ctrl-F2", |core, _w, _cx| {
-                    eject_disk(&mut core.cpu, 1)
-                }, emu),
+                action_entry(
+                    "disk2_open",
+                    "Open",
+                    "F2",
+                    |core, _w, _cx| open_disk_dialog(&mut core.cpu, 1),
+                    emu,
+                ),
+                action_entry(
+                    "disk2_eject",
+                    "Eject",
+                    "Ctrl-F2",
+                    |core, _w, _cx| eject_disk(&mut core.cpu, 1),
+                    emu,
+                ),
             ],
         },
         MenuEntry::Submenu {
             id: "hard_drive_1",
             label: "Hard Drive 1".into(),
             entries: vec![
-                action_entry("hd1_open", "Open", "F10", |core, _w, _cx| {
-                    open_harddisk_dialog(&mut core.cpu, 0)
-                }, emu),
-                action_entry("hd1_eject", "Eject", "Ctrl-F10", |core, _w, _cx| {
-                    eject_harddisk(&mut core.cpu, 0)
-                }, emu),
+                action_entry(
+                    "hd1_open",
+                    "Open",
+                    "F10",
+                    |core, _w, _cx| open_harddisk_dialog(&mut core.cpu, 0),
+                    emu,
+                ),
+                action_entry(
+                    "hd1_eject",
+                    "Eject",
+                    "Ctrl-F10",
+                    |core, _w, _cx| eject_harddisk(&mut core.cpu, 0),
+                    emu,
+                ),
             ],
         },
         MenuEntry::Submenu {
             id: "hard_drive_2",
             label: "Hard Drive 2".into(),
             entries: vec![
-                action_entry("hd2_open", "Open", "F11", |core, _w, _cx| {
-                    open_harddisk_dialog(&mut core.cpu, 1)
-                }, emu),
-                action_entry("hd2_eject", "Eject", "Ctrl-F11", |core, _w, _cx| {
-                    eject_harddisk(&mut core.cpu, 1)
-                }, emu),
+                action_entry(
+                    "hd2_open",
+                    "Open",
+                    "F11",
+                    |core, _w, _cx| open_harddisk_dialog(&mut core.cpu, 1),
+                    emu,
+                ),
+                action_entry(
+                    "hd2_eject",
+                    "Eject",
+                    "Ctrl-F11",
+                    |core, _w, _cx| eject_harddisk(&mut core.cpu, 1),
+                    emu,
+                ),
             ],
         },
     ]
@@ -1936,13 +2029,10 @@ impl EmuView {
                     })
             })
             .children(menus.into_iter().map(|menu| match menu {
-                MenuEntry::Submenu {
-                    id,
-                    label,
-                    entries,
-                } => {
+                MenuEntry::Submenu { id, label, entries } => {
                     let is_open = open_menu == Some(id);
                     let emu2 = emu.clone();
+                    let emu3 = emu.clone();
                     div()
                         .id(id)
                         .px_2()
@@ -1956,20 +2046,33 @@ impl EmuView {
                             d.on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                         })
                         .child(label)
-                        .on_click(
-                            move |_: &ClickEvent, window: &mut Window, cx: &mut App| {
-                                {
-                                    let mut core = emu2.lock().unwrap();
-                                    core.open_menu = if is_open { None } else { Some(id) };
+                        .on_hover(move |hovered: &bool, window: &mut Window, _: &mut App| {
+                            // Standard menu bar behavior: when a menu is
+                            // already open, hovering another title switches
+                            // to it. Hover alone never opens a menu.
+                            if *hovered && !is_open {
+                                let mut core = emu3.lock().unwrap();
+                                if core.open_menu.is_some() {
+                                    core.open_menu = Some(id);
                                     core.open_submenu = None;
                                     core.open_combo = None;
+                                    drop(core);
+                                    window.refresh();
                                 }
-                                window.refresh();
-                                cx.stop_propagation();
-                            },
-                        )
+                            }
+                        })
+                        .on_click(move |_: &ClickEvent, window: &mut Window, cx: &mut App| {
+                            {
+                                let mut core = emu2.lock().unwrap();
+                                core.open_menu = if is_open { None } else { Some(id) };
+                                core.open_submenu = None;
+                                core.open_combo = None;
+                            }
+                            window.refresh();
+                            cx.stop_propagation();
+                        })
                         .when(is_open, |d| {
-                            d.child(deferred(render_dropdown(entries, emu, false)))
+                            d.child(deferred(render_dropdown(entries, emu, false, None)))
                         })
                         .into_any_element()
                 }
@@ -1978,14 +2081,20 @@ impl EmuView {
             .when(csd, |d| {
                 d.child(div().flex_1())
                     .when(controls.minimize, |d| {
-                        d.child(render_window_control_button("minimize", "–", false, |window| {
-                            window.minimize_window()
-                        }))
+                        d.child(render_window_control_button(
+                            "minimize",
+                            "–",
+                            false,
+                            |window| window.minimize_window(),
+                        ))
                     })
                     .when(controls.maximize, |d| {
-                        d.child(render_window_control_button("maximize", "□", false, |window| {
-                            window.zoom_window()
-                        }))
+                        d.child(render_window_control_button(
+                            "maximize",
+                            "□",
+                            false,
+                            |window| window.zoom_window(),
+                        ))
                     })
                     .child(render_window_control_button("close", "×", true, |window| {
                         window.remove_window()
@@ -2262,11 +2371,11 @@ fn settings_rows(core: &EmulatorCore) -> Vec<SettingsRow> {
         })
         .collect();
 
-    for i in 1..8 {
+    for (i, item) in core.current_settings.iter().enumerate().take(8).skip(1) {
         rows.push(SettingsRow {
             label: SharedString::from(format!("Slot {i}:")),
             options: device_items.clone(),
-            selected: core.current_settings[i],
+            selected: *item,
             settings_index: i,
         });
     }
@@ -2293,6 +2402,7 @@ fn render_dropdown(
     entries: Vec<MenuEntry>,
     emu: &Arc<Mutex<EmulatorCore>>,
     is_submenu: bool,
+    owner: Option<&'static str>,
 ) -> impl IntoElement {
     let open_submenu = emu.lock().unwrap().open_submenu;
 
@@ -2310,7 +2420,7 @@ fn render_dropdown(
         .children(
             entries
                 .into_iter()
-                .map(|entry| render_menu_entry(entry, emu, open_submenu)),
+                .map(|entry| render_menu_entry(entry, emu, open_submenu, owner)),
         );
 
     if is_submenu {
@@ -2337,11 +2447,15 @@ fn render_menu_entry(
     entry: MenuEntry,
     emu: &Arc<Mutex<EmulatorCore>>,
     open_submenu: Option<&'static str>,
+    owner: Option<&'static str>,
 ) -> gpui::AnyElement {
     match entry {
-        MenuEntry::Separator => {
-            div().h(px(1.0)).mx_1().my_1().bg(rgb(COLOR_MENU_BORDER)).into_any_element()
-        }
+        MenuEntry::Separator => div()
+            .h(px(1.0))
+            .mx_1()
+            .my_1()
+            .bg(rgb(COLOR_MENU_BORDER))
+            .into_any_element(),
 
         MenuEntry::Item(item) => {
             let emu_hover = emu.clone();
@@ -2361,10 +2475,18 @@ fn render_menu_entry(
                         .flex_row()
                         .items_center()
                         .gap_1()
-                        .child(div().w(px(14.0)).child(if item.selected { "✓" } else { "" }))
+                        .child(
+                            div()
+                                .w(px(14.0))
+                                .child(if item.selected { "✓" } else { "" }),
+                        )
                         .child(item.label),
                 )
-                .child(div().text_color(rgb(COLOR_MENU_SHORTCUT)).child(item.shortcut));
+                .child(
+                    div()
+                        .text_color(rgb(COLOR_MENU_SHORTCUT))
+                        .child(item.shortcut),
+                );
 
             if item.enabled {
                 entry_div = entry_div.hover(|d| d.bg(rgb(COLOR_MENU_HOVER)));
@@ -2372,24 +2494,26 @@ fn render_menu_entry(
                 entry_div = entry_div.opacity(0.4);
             }
 
-            entry_div = entry_div.on_hover(
-                move |hovered: &bool, window: &mut Window, _: &mut App| {
-                    // Hovering a plain item closes any open sibling submenu
+            entry_div =
+                entry_div.on_hover(move |hovered: &bool, window: &mut Window, _: &mut App| {
+                    // Hovering a plain item closes any open sibling submenu —
+                    // but never the submenu that contains this item
+                    // (`owner`), otherwise the submenu would be dismissed the
+                    // moment the cursor reaches its own entries
                     if *hovered {
                         let mut core = emu_hover.lock().unwrap();
-                        if core.open_submenu.is_some() {
+                        if core.open_submenu != owner {
                             core.open_submenu = None;
                             drop(core);
                             window.refresh();
                         }
                     }
-                },
-            );
+                });
 
             if let Some(action) = item.action {
                 let emu2 = emu.clone();
-                entry_div = entry_div.on_click(
-                    move |_: &ClickEvent, window: &mut Window, cx: &mut App| {
+                entry_div =
+                    entry_div.on_click(move |_: &ClickEvent, window: &mut Window, cx: &mut App| {
                         action(window, cx);
                         // Close the menus after activating an item
                         if let Ok(mut core) = emu2.try_lock() {
@@ -2397,18 +2521,13 @@ fn render_menu_entry(
                         }
                         window.refresh();
                         cx.stop_propagation();
-                    },
-                );
+                    });
             }
 
             entry_div.into_any_element()
         }
 
-        MenuEntry::Submenu {
-            id,
-            label,
-            entries,
-        } => {
+        MenuEntry::Submenu { id, label, entries } => {
             let is_open = open_submenu == Some(id);
             let emu2 = emu.clone();
             let mut entry_div = div()
@@ -2459,7 +2578,7 @@ fn render_menu_entry(
                 // Already painted inside the parent dropdown's deferred draw;
                 // a nested `deferred` panics in gpui 0.2.2 (defer_draw during
                 // deferred drawing)
-                entry_div = entry_div.child(render_dropdown(entries, emu, true));
+                entry_div = entry_div.child(render_dropdown(entries, emu, true, Some(id)));
             }
 
             entry_div.into_any_element()
@@ -2545,7 +2664,7 @@ impl Render for EmuView {
         // Check on the capslock state
         {
             let mut core = self.emu.lock().unwrap();
-            
+
             let capslock = window.capslock().on;
             if core.input.prev_caps != capslock {
                 core.input.key_caps = capslock;
@@ -2716,7 +2835,7 @@ impl Render for EmuView {
                     },
                 )
                 .absolute()
-                .size_full()
+                .size_full(),
             )
             .when(!fullscreen && menu_open, |d| {
                 d.child(
@@ -2853,19 +2972,11 @@ fn handle_modifiers_changed(emu: &Arc<Mutex<EmulatorCore>>, event: &ModifiersCha
 
     // The shift key maps to pushbutton 2 on the Apple //e platinum
     if core.cpu.is_apple2e() && core.input.shift_mod {
-        core.cpu.bus.pushbutton_latch[2] = if event.modifiers.shift {
-            0x80
-        } else {
-            0x0
-        };
+        core.cpu.bus.pushbutton_latch[2] = if event.modifiers.shift { 0x80 } else { 0x0 };
     }
 }
 
-fn handle_mouse_down(
-    emu: &Arc<Mutex<EmulatorCore>>,
-    event: &MouseDownEvent,
-    cx: &mut App,
-) {
+fn handle_mouse_down(emu: &Arc<Mutex<EmulatorCore>>, event: &MouseDownEvent, cx: &mut App) {
     let mut core = emu.lock().unwrap();
 
     match event.button {
@@ -3024,7 +3135,13 @@ fn function_key_processed(core: &mut EmulatorCore, key: &str, modifiers: Modifie
                     dump_disk_info(&core.cpu);
                 } else {
                     #[cfg(feature = "serialization")]
-                    load_serialized_state(core);
+                    {
+                        // Halt the CPU; the emulator thread reloads the
+                        // machine from the serialized image instead of
+                        // quitting
+                        core.reload_cpu = true;
+                        core.cpu.halt_cpu();
+                    }
                     #[cfg(not(feature = "serialization"))]
                     eprintln!("State loading requires the serialization feature");
                 }
@@ -3562,11 +3679,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
         let width = scale * Video::WIDTH as f32;
         let height = scale * Video::HEIGHT as f32 + MENU_BAR_HEIGHT + STATUS_BAR_HEIGHT;
-        let window_bounds = WindowBounds::Windowed(Bounds::centered(
-            None,
-            size(px(width), px(height)),
-            cx,
-        ));
+        let window_bounds =
+            WindowBounds::Windowed(Bounds::centered(None, size(px(width), px(height)), cx));
 
         cx.open_window(
             WindowOptions {
@@ -3582,9 +3696,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 window_min_size: Some(size(px(400.0), px(300.0))),
                 ..Default::default()
             },
-            |window, cx| {
-                cx.new(|cx| EmuView::new(core.clone(), gilrs, window, cx))
-            },
+            |window, cx| cx.new(|cx| EmuView::new(core.clone(), gilrs, window, cx)),
         )
         .unwrap();
     });
