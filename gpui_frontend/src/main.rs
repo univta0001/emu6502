@@ -45,8 +45,10 @@ use gpui::MouseDownEvent;
 use gpui::MouseMoveEvent;
 use gpui::MouseUpEvent;
 use gpui::ObjectFit;
+use gpui::Pixels;
 use gpui::RenderImage;
 use gpui::SharedString;
+use gpui::Size;
 use gpui::Window;
 use gpui::WindowBounds;
 use gpui::WindowControlArea;
@@ -1962,6 +1964,10 @@ struct EmuView {
     gilrs: Gilrs,
     // Paddle slot per connected gamepad (0 or 1; higher slots are ignored)
     gamepads: HashMap<GamepadId, usize>,
+    // Windowed size before entering fullscreen; restored on exit because
+    // WSLg's Weston sends a 0x0 configure when leaving fullscreen, which
+    // gpui ignores, leaving the window stuck at the fullscreen size.
+    windowed_size: Option<Size<Pixels>>,
 }
 
 impl EmuView {
@@ -1983,6 +1989,7 @@ impl EmuView {
             prev_image: None,
             gilrs,
             gamepads,
+            windowed_size: None,
         }
     }
 
@@ -2669,6 +2676,23 @@ impl Render for EmuView {
         }
 
         let fullscreen = window.is_fullscreen();
+
+        // Track fullscreen transitions: while fullscreen, remember the
+        // pre-fullscreen windowed size gpui itself keeps in
+        // WindowBounds::Fullscreen. When leaving, re-apply it if the window
+        // didn't get restored: WSLg's Weston sends a 0x0 configure on
+        // unset_fullscreen, which gpui ignores (size None), leaving the
+        // window stuck at the fullscreen size. On Windows the native restore
+        // already applied the right size, so this is a no-op there.
+        if fullscreen {
+            if let WindowBounds::Fullscreen(pre) = window.window_bounds() {
+                self.windowed_size = Some(pre.size);
+            }
+        } else if let Some(pre) = self.windowed_size.take() {
+            if window.viewport_size() != pre {
+                window.resize(pre);
+            }
+        }
 
         // When the compositor provides no server-side decorations (Wayland CSD),
         // gpui draws no titlebar at all; the menu bar then doubles as the

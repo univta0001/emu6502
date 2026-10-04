@@ -333,7 +333,17 @@ impl Element for Img {
                             }
 
                             let image_size = data.render_size(frame_index);
-                            style.aspect_ratio = Some(image_size.width / image_size.height);
+                            // Only let the aspect ratio drive the size when a
+                            // dimension is auto. When both dimensions are
+                            // definite (e.g. size_full), taffy's aspect-ratio
+                            // handling recomputes the height from the width,
+                            // inflating the element beyond its container and
+                            // breaking ObjectFit::Contain.
+                            if matches!(style.size.width, Length::Auto)
+                                || matches!(style.size.height, Length::Auto)
+                            {
+                                style.aspect_ratio = Some(image_size.width / image_size.height);
+                            }
 
                             if let Length::Auto = style.size.width {
                                 style.size.width = match style.size.height {
