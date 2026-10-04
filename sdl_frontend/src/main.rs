@@ -42,7 +42,7 @@ use sdl3::gpu::*;
 
 use std::fs;
 
-use parking_lot::Mutex;
+use parking_lot::{Condvar, Mutex};
 use std::fs::File;
 use std::path::Path;
 use std::sync::OnceLock;
@@ -205,6 +205,10 @@ struct EmuShared {
     clipboard_pending: AtomicBool,
     reload_cpu: AtomicBool,
     model_changed: AtomicBool,
+    // Set by the UI thread when it has consumed the reload flags; the
+    // emulator thread waits on reload_cv instead of polling
+    reload_done: Mutex<bool>,
+    reload_cv: Condvar,
     // Set by the emulator thread when the CPU halted and it waits for the
     // UI thread to reload the state, or when the emulator exits
     halted: AtomicBool,
@@ -2038,20 +2042,20 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
         }
 
         // The CPU halted: either the UI thread requested a reload, or quit
-        if shared.reload_cpu.load(Ordering::Acquire) || shared.model_changed.load(Ordering::Acquire)
-        {
-            shared.halted.store(true, Ordering::Release);
-
+        let reload_requested = || {
+            shared.reload_cpu.load(Ordering::Acquire) || shared.model_changed.load(Ordering::Acquire)
+        };
+        shared.halted.store(true, Ordering::Release);
+        if reload_requested() {
             // Wait for the UI thread to perform the reload
-            while shared.reload_cpu.load(Ordering::Acquire)
-                || shared.model_changed.load(Ordering::Acquire)
-            {
-                std::thread::sleep(std::time::Duration::from_millis(1));
+            let mut done = shared.reload_done.lock();
+            while !*done {
+                shared.reload_cv.wait(&mut done);
             }
+            *done = false;
 
             shared.halted.store(false, Ordering::Release);
         } else {
-            shared.halted.store(true, Ordering::Release);
             break 'emulator;
         }
     }
@@ -2273,6 +2277,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         clipboard_pending: AtomicBool::new(false),
         reload_cpu: AtomicBool::new(false),
         model_changed: AtomicBool::new(false),
+        reload_done: Mutex::new(false),
+        reload_cv: Condvar::new(),
         halted: AtomicBool::new(false),
     });
 
@@ -2310,6 +2316,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 update_video_state(&mut cpu, &shared.pacing);
                 drop(cpu);
                 shared.halted.store(false, Ordering::Release);
+                *shared.reload_done.lock() = true;
+                shared.reload_cv.notify_all();
             } else if shared.reload_cpu.swap(false, Ordering::AcqRel) {
                 #[cfg(feature = "serialization")]
                 {
@@ -2331,6 +2339,8 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     }
                 }
                 shared.halted.store(false, Ordering::Release);
+                *shared.reload_done.lock() = true;
+                shared.reload_cv.notify_all();
             } else {
                 break 'main_loop;
             }
