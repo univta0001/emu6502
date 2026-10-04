@@ -3,7 +3,21 @@ members = [
     "emulator",
     "sdl_frontend",
     "self_test",
+#    "gpui_frontend",
 ]
+
+# Patched vendored xkbcommon: GPUI enables the `xkbcommon` crate with the x11
+# feature on Linux, which links libxkbcommon-x11. The vendored copy reduces
+# the x11 feature to a no-op (GPUI's Wayland backend never uses `xkb::x11`).
+#[patch.crates-io]
+#xkbcommon = { path = "vendor/xkbcommon" }
+
+# Patched vendored gpui: WSLg's Weston 9 (RDP backend) only advertises
+# xdg_wm_base v1, while gpui 0.2.2 hard-requires v2..=5 and panics with
+# `UnsupportedVersion`. The vendored copy accepts v1 (gpui's Wayland code
+# only uses v1 requests on xdg_surface/xdg_toplevel).
+#[patch.crates-io]
+#gpui = { path = "vendor/gpui" }
 
 resolver = "3"
 
