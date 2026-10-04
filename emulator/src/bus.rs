@@ -1226,6 +1226,10 @@ impl Bus {
             0x60 | 0x68 => self.audio.tape_in(floating_bus | 0x80),
 
             0x61 | 0x69 => {
+                if !self.video.is_apple2e() && !self.joystick_flag {
+                    return 0xff;
+                }
+
                 let mut button_value = if !self.swap_button {
                     self.pushbutton_latch[0]
                 } else {
@@ -1245,6 +1249,10 @@ impl Bus {
             }
 
             0x62 | 0x6a => {
+                if !self.video.is_apple2e() && !self.joystick_flag {
+                    return 0xff;
+                }
+
                 let mut button_value = if !self.swap_button {
                     self.pushbutton_latch[1]
                 } else {

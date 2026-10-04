@@ -487,12 +487,12 @@ fn handle_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState, shared: 
         Event::KeyUp {
             keycode: Some(Keycode::LShift),
             ..
-        } if cpu.is_apple2e() => cpu.bus.pushbutton_latch[2] = 0x0,
+        } => cpu.bus.pushbutton_latch[2] = 0x0,
 
         Event::KeyUp {
             keycode: Some(Keycode::RShift),
             ..
-        } if cpu.is_apple2e() => cpu.bus.pushbutton_latch[2] = 0x0,
+        } => cpu.bus.pushbutton_latch[2] = 0x0,
 
         Event::KeyDown {
             keycode: Some(Keycode::Insert),
@@ -544,6 +544,13 @@ fn handle_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState, shared: 
             }
 
             if cpu.is_apple2e() && state.input.shift_mod {
+                let shift_mode = keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD);
+                if shift_mode {
+                    cpu.bus.pushbutton_latch[2] = 0x80;
+                } else {
+                    cpu.bus.pushbutton_latch[2] = 0x0;
+                }
+            } else if !cpu.is_apple2e() {
                 let shift_mode = keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD);
                 if shift_mode {
                     cpu.bus.pushbutton_latch[2] = 0x80;
@@ -2043,7 +2050,8 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
 
         // The CPU halted: either the UI thread requested a reload, or quit
         let reload_requested = || {
-            shared.reload_cpu.load(Ordering::Acquire) || shared.model_changed.load(Ordering::Acquire)
+            shared.reload_cpu.load(Ordering::Acquire)
+                || shared.model_changed.load(Ordering::Acquire)
         };
         shared.halted.store(true, Ordering::Release);
         if reload_requested() {
