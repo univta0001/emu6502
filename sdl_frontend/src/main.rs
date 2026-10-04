@@ -29,6 +29,9 @@ use sdl3::video::Window;
 use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsStr;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
+use std::thread;
 use strum::IntoEnumIterator;
 
 use chrono::Local;
@@ -39,6 +42,7 @@ use sdl3::gpu::*;
 
 use std::fs;
 
+use parking_lot::Mutex;
 use std::fs::File;
 use std::path::Path;
 use std::sync::OnceLock;
@@ -147,79 +151,109 @@ struct VideoState {
     menu_bar_height: f32,
     current_full_screen: bool,
     full_screen: bool,
-    cpu_cycles: usize,
-    cpu_period: u64,
-    adj_cpu_ms: std::time::Duration,
-    cpu_mhz: f32,
-    audio_sample_size: u32,
 }
 
 #[derive(Default)]
 struct SpeedState {
-    speed_index: usize,
     disk_mode_index: usize,
-    estimated_mhz: f32,
-    fps: f32,
 }
 
 #[derive(Default)]
 struct InputState {
     key_caps: bool,
     shift_mod: bool,
-    clipboard_text: String,
     want_capture_keyboard: bool,
     prev_x: i32,
     prev_y: i32,
 }
 
+// Timing state shared between the UI thread and the emulator thread.
+// Written by update_video_state (UI thread), read by the emulator thread.
+// Fields are plain scalars accessed via atomics: they are written only
+// while the `cpu` lock is held, and read either while it is held or as
+// lock-free fast-path loads, so `Relaxed` ordering is sufficient.
+#[derive(Default)]
+struct Pacing {
+    cpu_cycles: AtomicUsize,
+    cpu_period: AtomicU64,
+    adj_cpu_ms_us: AtomicU64,
+    // f32 stored as bits; convert with f32::from_bits / f32::to_bits
+    cpu_mhz: AtomicU32,
+    audio_sample_size: AtomicU32,
+    speed_index: AtomicUsize,
+}
+
+// Performance stats published by the emulator thread for the status bar.
+#[derive(Default)]
+struct Stats {
+    estimated_mhz: AtomicU32,
+    fps: AtomicU32,
+}
+
+// State shared between the UI thread and the emulator thread.
+//
+// Lock order: `cpu` first, then `stats` / `clipboard_text`.
+// `pacing` uses atomics instead of a lock; its writes happen while the
+// `cpu` lock is held.
+struct EmuShared {
+    cpu: Mutex<CPU>,
+    pacing: Pacing,
+    stats: Stats,
+    clipboard_text: Mutex<String>,
+    // Set by the UI thread when new clipboard text is available, so the
+    // emulator thread only takes the clipboard_text lock when needed.
+    clipboard_pending: AtomicBool,
+    reload_cpu: AtomicBool,
+    model_changed: AtomicBool,
+    // Set by the emulator thread when the CPU halted and it waits for the
+    // UI thread to reload the state, or when the emulator exits
+    halted: AtomicBool,
+}
+
+// Wrapper to move the SDL audio stream into the emulator thread.
+//
+// Safety: after the move the stream is used exclusively by the emulator
+// thread. SDL3 audio stream functions are thread-safe and the AudioSubsystem
+// held by AudioStreamOwner is a marker whose Drop only decrements an atomic
+// reference count.
+struct SendAudioStream(Option<AudioStreamOwner>);
+unsafe impl Send for SendAudioStream {}
+
 struct EmulatorState {
     video_subsystem: VideoSubsystem,
-    audio_stream: Option<AudioStreamOwner>,
     game_controller: GamepadSubsystem,
     gamepads: HashMap<u32, (u16, Gamepad)>,
     video: VideoState,
     speed: SpeedState,
     input: InputState,
-    reload_cpu: bool,
     save_screenshot: bool,
     file_dialog: OpenFileDialog,
     show_settings: bool,
-    model_changed: bool,
     prev_settings: Vec<usize>,
     current_settings: Vec<usize>,
-    dcyc: usize,
     previous_cycles: usize,
-    //audio_integral: f32,
-    audio_accumulator: u64,
     sampler: Sampler,
 }
 
 impl EmulatorState {
     fn new(
         video_subsystem: VideoSubsystem,
-        audio_stream: Option<AudioStreamOwner>,
         game_controller: GamepadSubsystem,
         sampler: Sampler,
     ) -> Self {
         Self {
             video_subsystem,
-            audio_stream,
             game_controller,
             gamepads: HashMap::new(),
             video: VideoState::default(),
             speed: SpeedState::default(),
             input: InputState::default(),
-            reload_cpu: false,
             save_screenshot: false,
             file_dialog: OpenFileDialog::None,
             show_settings: false,
-            model_changed: false,
             prev_settings: Vec::new(),
             current_settings: Vec::new(),
-            dcyc: 0,
             previous_cycles: 0,
-            //audio_integral: 0.0,
-            audio_accumulator: 0,
             sampler,
         }
     }
@@ -389,8 +423,8 @@ fn translate_key_to_apple_key(
     (true, value)
 }
 
-fn handle_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState) {
-    if function_key_processed(cpu, &event, state) {
+fn handle_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState, shared: &EmuShared) {
+    if function_key_processed(cpu, &event, state, shared) {
         return;
     }
 
@@ -460,22 +494,28 @@ fn handle_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState) {
             keycode: Some(Keycode::Insert),
             keymod,
             ..
-        } if (keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD))
-            && state.input.clipboard_text.is_empty() =>
-        {
-            let clipboard = state.video_subsystem.clipboard();
-            if let Ok(text) = clipboard.clipboard_text() {
-                state.input.clipboard_text = text.replace('\n', "");
+        } if (keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD)) => {
+            let mut clipboard_text = shared.clipboard_text.lock();
+            if clipboard_text.is_empty() {
+                let clipboard = state.video_subsystem.clipboard();
+                if let Ok(text) = clipboard.clipboard_text() {
+                    *clipboard_text = text.replace('\n', "");
+                    shared.clipboard_pending.store(true, Ordering::Release);
+                }
             }
         }
 
         Event::MouseButtonDown {
             mouse_btn: sdl3::mouse::MouseButton::Middle,
             ..
-        } if state.input.clipboard_text.is_empty() => {
-            let clipboard = state.video_subsystem.clipboard();
-            if let Ok(text) = clipboard.clipboard_text() {
-                state.input.clipboard_text = text.replace('\n', "");
+        } => {
+            let mut clipboard_text = shared.clipboard_text.lock();
+            if clipboard_text.is_empty() {
+                let clipboard = state.video_subsystem.clipboard();
+                if let Ok(text) = clipboard.clipboard_text() {
+                    *clipboard_text = text.replace('\n', "");
+                    shared.clipboard_pending.store(true, Ordering::Release);
+                }
             }
         }
 
@@ -1024,19 +1064,24 @@ pub fn set_stream_frequency_ratio(
 }
 */
 
-fn update_audio(cpu: &mut CPU, state: &mut EmulatorState) {
+fn update_audio(
+    cpu: &mut CPU,
+    audio_stream: &mut SendAudioStream,
+    audio_accumulator: &mut u64,
+    audio_sample_size: u32,
+    speed_index: usize,
+) {
     let snd = &mut cpu.bus.audio;
-    let audio_sample_size = state.video.audio_sample_size;
 
     if audio_sample_size == 0 {
         return;
     }
 
-    let Some(ref mut stream) = state.audio_stream else {
+    let Some(ref mut stream) = audio_stream.0 else {
         return;
     };
 
-    if state.speed.speed_index + 1 >= SPEED_RATIO.len() {
+    if speed_index + 1 >= SPEED_RATIO.len() {
         return;
     }
 
@@ -1045,16 +1090,21 @@ fn update_audio(cpu: &mut CPU, state: &mut EmulatorState) {
         return;
     }
 
-    let threshold = SPEED[state.speed.speed_index];
+    let threshold = SPEED[speed_index];
 
-    let mut output = Vec::with_capacity(snd_buffer.len());
-    for chunk in snd_buffer.as_chunks::<2>().0 {
-        state.audio_accumulator += SPEED_FACTOR;
-        if state.audio_accumulator >= threshold {
-            state.audio_accumulator -= threshold;
-            output.extend_from_slice(chunk);
+    let output = if speed_index != 0 {
+        let mut temp = Vec::with_capacity(snd_buffer.len());
+        for chunk in snd_buffer.as_chunks::<2>().0 {
+            *audio_accumulator += SPEED_FACTOR;
+            if *audio_accumulator >= threshold {
+                *audio_accumulator -= threshold;
+                temp.extend_from_slice(chunk);
+            }
         }
-    }
+        std::borrow::Cow::Owned(temp)
+    } else {
+        std::borrow::Cow::Borrowed(snd_buffer)
+    };
 
     if let Ok(queued_bytes) = stream.queued_bytes()
         && queued_bytes < audio_sample_size as i32 * 2 * 8
@@ -1119,14 +1169,14 @@ fn save_emulator_screenshot(cpu: &mut CPU) {
     }
 }
 
-fn update_gpu_texture(
+// Prepares the blended frame from the emulator video buffer.
+// Must be called while holding the CPU lock.
+fn prepare_video_frame(
     cpu: &mut CPU,
-    imgui: &mut imgui_sdl3::ImGuiSdl3,
-    device: &Device,
     blend_buffer: &mut [u8],
     barrel_buffer: &mut [u8],
     state: &EmulatorState,
-) -> Result<imgui::TextureId, Box<dyn Error>> {
+) -> bool {
     // Check if 80 column enabled, if enabled, refresh the video
     if cpu.bus.is_80_column_enabled() {
         cpu.bus.videoterm.refresh(&mut cpu.bus.video);
@@ -1134,18 +1184,34 @@ fn update_gpu_texture(
 
     let video = &mut cpu.bus.video;
 
-    let processed_frame: &[u8] = {
-        if state.video.vertical_blend {
-            video.write_vertical_blend_frame(&video.frame, video.get_scanline(), blend_buffer);
-        } else {
-            blend_buffer.copy_from_slice(&video.frame);
-        }
-        if state.video.barrel_distortion {
-            video.write_barrel_distorted_frame(blend_buffer, 0.015, barrel_buffer);
-            barrel_buffer
-        } else {
-            blend_buffer
-        }
+    if state.video.vertical_blend {
+        video.write_vertical_blend_frame(&video.frame, video.get_scanline(), blend_buffer);
+    } else {
+        blend_buffer.copy_from_slice(&video.frame);
+    }
+
+    if state.video.barrel_distortion {
+        video.write_barrel_distorted_frame(blend_buffer, 0.015, barrel_buffer);
+        true
+    } else {
+        false
+    }
+}
+
+// Uploads the prepared frame to the GPU as an imgui texture.
+// Must not be called while holding the CPU lock.
+fn upload_gpu_texture(
+    imgui: &mut imgui_sdl3::ImGuiSdl3,
+    device: &Device,
+    blend_buffer: &[u8],
+    barrel_buffer: &[u8],
+    barrel_distortion: bool,
+    state: &EmulatorState,
+) -> Result<imgui::TextureId, Box<dyn Error>> {
+    let processed_frame: &[u8] = if barrel_distortion {
+        barrel_buffer
+    } else {
+        blend_buffer
     };
 
     let upload_command_buffer = device.acquire_command_buffer()?;
@@ -1200,7 +1266,7 @@ fn update_gpu_harddisk_status(
 }
 
 #[cfg(feature = "serialization")]
-fn initialize_new_cpu(cpu: &mut CPU, state: &mut EmulatorState) {
+fn initialize_new_cpu(cpu: &mut CPU, state: &mut EmulatorState, pacing: &Pacing) {
     let mmu = &mut cpu.bus.mem;
     let disp = &mut cpu.bus.video;
     disp.video_main[0x400..0xc00].clone_from_slice(&mmu.cpu_memory[0x400..0xc00]);
@@ -1221,11 +1287,11 @@ fn initialize_new_cpu(cpu: &mut CPU, state: &mut EmulatorState) {
 
     // Restore speed
     match cpu.full_speed {
-        CpuSpeed::SPEED_FASTEST => state.speed.speed_index = 4,
-        CpuSpeed::SPEED_2_8MHZ => state.speed.speed_index = 1,
-        CpuSpeed::SPEED_4MHZ => state.speed.speed_index = 2,
-        CpuSpeed::SPEED_8MHZ => state.speed.speed_index = 3,
-        _ => state.speed.speed_index = 0,
+        CpuSpeed::SPEED_FASTEST => pacing.speed_index.store(4, Ordering::Relaxed),
+        CpuSpeed::SPEED_2_8MHZ => pacing.speed_index.store(1, Ordering::Relaxed),
+        CpuSpeed::SPEED_4MHZ => pacing.speed_index.store(2, Ordering::Relaxed),
+        CpuSpeed::SPEED_8MHZ => pacing.speed_index.store(3, Ordering::Relaxed),
+        _ => pacing.speed_index.store(0, Ordering::Relaxed),
     }
 
     // Restore disk mode
@@ -1301,7 +1367,12 @@ fn process_clipboard(cpu: &mut CPU, clipboard_text: &mut String) {
     }
 }
 
-fn function_key_processed(cpu: &mut CPU, event: &Event, state: &mut EmulatorState) -> bool {
+fn function_key_processed(
+    cpu: &mut CPU,
+    event: &Event,
+    state: &mut EmulatorState,
+    shared: &EmuShared,
+) -> bool {
     match event {
         Event::KeyDown {
             keycode: Some(Keycode::F1),
@@ -1310,10 +1381,13 @@ fn function_key_processed(cpu: &mut CPU, event: &Event, state: &mut EmulatorStat
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
+                    let estimated_mhz =
+                        f32::from_bits(shared.stats.estimated_mhz.load(Ordering::Relaxed));
+                    let fps = f32::from_bits(shared.stats.fps.load(Ordering::Relaxed));
                     eprintln!(
                         "MHz: {:.3} FPS: {:.2} Cycles: {}",
-                        state.speed.estimated_mhz,
-                        state.speed.fps,
+                        estimated_mhz,
+                        fps,
                         cpu.bus.get_cycles()
                     );
                 } else {
@@ -1388,7 +1462,7 @@ fn function_key_processed(cpu: &mut CPU, event: &Event, state: &mut EmulatorStat
                 if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
                     dump_disk_info(cpu);
                 } else {
-                    state.reload_cpu = true;
+                    shared.reload_cpu.store(true, Ordering::Release);
                     cpu.halt_cpu();
                 }
                 return true;
@@ -1481,16 +1555,20 @@ fn function_key_processed(cpu: &mut CPU, event: &Event, state: &mut EmulatorStat
             keymod,
             ..
         } => {
+            let mut speed_index = shared.pacing.speed_index.load(Ordering::Relaxed);
             if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
-                state.speed.speed_index =
-                    (state.speed.speed_index + SPEED_MODES.len() - 1) % SPEED_MODES.len();
+                speed_index = (speed_index + SPEED_MODES.len() - 1) % SPEED_MODES.len();
             } else if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 cpu.bus.audio.eject_tape();
             } else {
-                state.speed.speed_index = (state.speed.speed_index + 1) % SPEED_MODES.len();
+                speed_index = (speed_index + 1) % SPEED_MODES.len();
             }
-            cpu.set_speed(SPEED_MODES[state.speed.speed_index]);
-            update_video_state(cpu, state);
+            shared
+                .pacing
+                .speed_index
+                .store(speed_index, Ordering::Relaxed);
+            cpu.set_speed(SPEED_MODES[speed_index]);
+            update_video_state(cpu, &shared.pacing);
             return true;
         }
 
@@ -1727,7 +1805,7 @@ fn handle_gamepad_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState) 
 }
 
 fn render_frame(
-    cpu: &mut CPU,
+    shared: &EmuShared,
     ctx: (&mut sdl3::Sdl, &Device, &Window),
     imgui: &mut ImGuiSdl3,
     event_pump: &mut sdl3::EventPump,
@@ -1752,6 +1830,10 @@ fn render_frame(
         .with_load_op(LoadOp::LOAD)
         .with_store_op(StoreOp::STORE)];
 
+    // Lock the CPU only while rendering the menus, not while waiting for the
+    // swapchain texture, so the emulator thread keeps running
+    let mut cpu_guard = shared.cpu.lock();
+
     imgui.render(
         sdl,
         device,
@@ -1760,6 +1842,7 @@ fn render_frame(
         &mut cmd_buf,
         &color_targets,
         |ui| {
+            let cpu = &mut *cpu_guard;
             {
                 let io = ui.io();
                 state.input.want_capture_keyboard = io.want_capture_keyboard;
@@ -1784,7 +1867,7 @@ fn render_frame(
             update_emulator_graphics(cpu, ui, window, state, image_texture_id);
 
             if !state.video.current_full_screen {
-                prepare_main_menu(cpu, ui, state);
+                prepare_main_menu(cpu, ui, state, shared);
                 if state.show_settings {
                     state.show_settings = false;
                     ui.open_popup("Settings##settings");
@@ -1794,10 +1877,12 @@ fn render_frame(
 
             if state.video.menu_bar_height > 0.0 {
                 let (w, h) = window.size();
-                prepare_statusbar(cpu, ui, state, w, h);
+                prepare_statusbar(cpu, ui, state, shared, w, h);
             }
         },
     );
+
+    drop(cpu_guard);
 
     let _ = cmd_buf.submit();
 }
@@ -1852,18 +1937,129 @@ fn update_mouse_state(cpu: &mut CPU, event_pump: &sdl3::EventPump, state: &mut E
     }
 }
 
+// Runs the CPU emulation and audio generation on a separate thread so that
+// audio keeps playing while the UI thread is blocked (e.g. while the window
+// is being moved or a file dialog is open).
+//
+// The thread steps one frame worth of CPU cycles, feeds the generated samples
+// into the SDL audio stream, then releases the CPU lock and sleeps for the
+// remainder of the video period, so the UI thread can access the emulator.
+fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mut dcyc: usize) {
+    let mut audio_accumulator: u64 = 0;
+    let mut t = Instant::now();
+    let mut adj_ms_offset = std::time::Duration::from_micros(0);
+
+    'emulator: loop {
+        'break_loop: loop {
+            let (halted, cpu_cycles, cpu_mhz, adj_ms, normal_cpu_speed) = {
+                let mut cpu = shared.cpu.lock();
+
+                let pacing = &shared.pacing;
+                let pacing_cycles = pacing.cpu_cycles.load(Ordering::Relaxed);
+                let adj_us = pacing.adj_cpu_ms_us.load(Ordering::Relaxed);
+                let audio_sample_size = pacing.audio_sample_size.load(Ordering::Relaxed);
+                let speed_index = pacing.speed_index.load(Ordering::Relaxed);
+                let pacing_mhz = f32::from_bits(pacing.cpu_mhz.load(Ordering::Relaxed));
+                let cpu_cycles = pacing_cycles;
+                let cpu_mhz = pacing_mhz;
+                let adj_ms = std::time::Duration::from_micros(adj_us);
+
+                let normal_disk_speed = cpu.bus.is_normal_speed();
+                let normal_cpu_speed =
+                    normal_disk_speed && cpu.full_speed != CpuSpeed::SPEED_FASTEST;
+
+                let mut halted = false;
+                while dcyc < cpu_cycles {
+                    let prev_cycle = cpu.bus.get_cycles();
+                    if !cpu.step_with_callback(|_| {}) {
+                        halted = true;
+                        break;
+                    }
+
+                    {
+                        // Lock-free fast path: skip the lock unless new
+                        // clipboard text is pending
+                        if shared.clipboard_pending.load(Ordering::Acquire) {
+                            let mut clipboard_text = shared.clipboard_text.lock();
+                            process_clipboard(&mut cpu, &mut clipboard_text);
+                            if clipboard_text.is_empty() {
+                                shared.clipboard_pending.store(false, Ordering::Release);
+                            }
+                        }
+                    }
+
+                    let cycle = cpu.bus.get_cycles() - prev_cycle;
+                    dcyc += cycle;
+                }
+
+                update_audio(
+                    &mut cpu,
+                    &mut audio_stream,
+                    &mut audio_accumulator,
+                    audio_sample_size,
+                    speed_index,
+                );
+                cpu.bus.audio.clear_buffer();
+
+                // The display update happens on the UI thread; skip the
+                // internal video refresh for frames that are not displayed
+                cpu.bus.video.skip_update = true;
+
+                (halted, cpu_cycles, cpu_mhz, adj_ms, normal_cpu_speed)
+            };
+
+            // Pace the emulator to the video refresh period while the CPU lock
+            // is released, so the UI thread can access the emulator
+            if normal_cpu_speed {
+                let video_cpu_update = t.elapsed() + adj_ms_offset;
+                if adj_ms > video_cpu_update {
+                    spin_sleep::sleep(adj_ms - video_cpu_update);
+                }
+            }
+
+            let elapsed = t.elapsed().as_micros();
+            adj_ms_offset =
+                std::time::Duration::from_micros(elapsed.saturating_sub(adj_ms.as_micros()) as u64);
+
+            let estimated_mhz_val = (dcyc as f32) / elapsed as f32;
+            let fps_val = cpu_mhz / dcyc as f32;
+            shared
+                .stats
+                .estimated_mhz
+                .store(estimated_mhz_val.to_bits(), Ordering::Relaxed);
+            shared.stats.fps.store(fps_val.to_bits(), Ordering::Relaxed);
+
+            dcyc = dcyc.saturating_sub(cpu_cycles);
+            t = Instant::now();
+
+            if halted {
+                break 'break_loop;
+            }
+        }
+
+        // The CPU halted: either the UI thread requested a reload, or quit
+        if shared.reload_cpu.load(Ordering::Acquire) || shared.model_changed.load(Ordering::Acquire)
+        {
+            shared.halted.store(true, Ordering::Release);
+
+            // Wait for the UI thread to perform the reload
+            while shared.reload_cpu.load(Ordering::Acquire)
+                || shared.model_changed.load(Ordering::Acquire)
+            {
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+
+            shared.halted.store(false, Ordering::Release);
+        } else {
+            shared.halted.store(true, Ordering::Release);
+            break 'emulator;
+        }
+    }
+}
+
 //#[tokio::main]
 //async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
-    /*
-    #[cfg(target_os = "windows")]
-    {
-        use winapi::um::wincon::{AttachConsole, ATTACH_PARENT_PROCESS};
-        unsafe {
-            AttachConsole(ATTACH_PARENT_PROCESS);
-        }
-    }
-    */
     #[cfg(target_os = "windows")]
     #[cfg(feature = "pcap")]
     {
@@ -2045,7 +2241,6 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut event_pump = sdl_context.event_pump()?;
     //_event_pump.enable_event(DropFile);
 
-    let mut t = Instant::now();
     let mut video_time = Instant::now();
     let previous_cycles = 0;
 
@@ -2059,165 +2254,179 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         CPU_CYCLES_PER_FRAME_60HZ - 65 * 192
     };
 
-    let mut emulator_state =
-        EmulatorState::new(video_subsystem, audio_stream, game_controller, sampler);
+    let mut emulator_state = EmulatorState::new(video_subsystem, game_controller, sampler);
 
     emulator_state.video.scale = scale;
     emulator_state.video.prev_scale = scale;
     emulator_state.input.key_caps = key_caps;
     emulator_state.input.shift_mod = shift_mod;
-    emulator_state.dcyc = dcyc;
     emulator_state.previous_cycles = previous_cycles;
     emulator_state.prev_settings = get_slot_settings(&cpu);
     emulator_state.current_settings = emulator_state.prev_settings.clone();
 
-    update_video_state(&mut cpu, &mut emulator_state);
+    // State shared between the UI thread and the emulator thread
+    let shared = Arc::new(EmuShared {
+        cpu: Mutex::new(cpu),
+        pacing: Pacing::default(),
+        stats: Stats::default(),
+        clipboard_text: Mutex::new(String::new()),
+        clipboard_pending: AtomicBool::new(false),
+        reload_cpu: AtomicBool::new(false),
+        model_changed: AtomicBool::new(false),
+        halted: AtomicBool::new(false),
+    });
 
-    let mut adj_ms_offset = std::time::Duration::from_micros(0);
+    {
+        let mut cpu = shared.cpu.lock();
+        update_video_state(&mut cpu, &shared.pacing);
+    }
 
-    loop {
-        if emulator_state.reload_cpu {
-            emulator_state.reload_cpu = false;
+    // Run the emulator on a separate thread so that audio keeps playing while
+    // the UI thread is blocked (e.g. while the window is being moved)
+    let emu_shared = Arc::clone(&shared);
+    let audio_stream = SendAudioStream(audio_stream);
+    let emu_handle = thread::Builder::new()
+        .name("emulator".to_string())
+        .spawn(move || {
+            emulator_thread(emu_shared, audio_stream, dcyc);
+        })?;
+
+    'main_loop: loop {
+        // Stop when the emulator thread exited (or crashed)
+        if emu_handle.is_finished() {
+            break 'main_loop;
         }
 
-        'break_loop: loop {
-            while emulator_state.dcyc < emulator_state.video.cpu_cycles {
-                let prev_cycle = cpu.bus.get_cycles();
-                if !cpu.step_with_callback(|_| {}) {
-                    break 'break_loop;
-                }
-
-                process_clipboard(&mut cpu, &mut emulator_state.input.clipboard_text);
-
-                let cycle = cpu.bus.get_cycles() - prev_cycle;
-                emulator_state.dcyc += cycle;
-            }
-
-            let normal_disk_speed = cpu.bus.is_normal_speed();
-            let normal_cpu_speed = normal_disk_speed && cpu.full_speed != CpuSpeed::SPEED_FASTEST;
-
-            // Update video, audio and events at multiple of 60Hz or 50Hz
-            let video_time_elapsed = video_time.elapsed().as_micros();
-            if video_time_elapsed >= emulator_state.video.cpu_period as u128 {
-                video_time = Instant::now();
-
-                if emulator_state.save_screenshot {
-                    save_emulator_screenshot(&mut cpu);
-                    emulator_state.save_screenshot = false;
-                }
-
-                cpu.bus.video.skip_update = false;
-
-                if !window.is_minimized() {
-                    let image_texture_id = update_gpu_texture(
-                        &mut cpu,
-                        &mut imgui,
-                        &device,
-                        &mut blend_buffer,
-                        &mut barrel_buffer,
-                        &emulator_state,
-                    );
-
-                    if emulator_state.video.prev_scale != emulator_state.video.scale {
-                        emulator_state.video.prev_scale = emulator_state.video.scale;
-                        let width = (emulator_state.video.scale * Video::WIDTH as f32) as u32;
-                        let height = (emulator_state.video.scale * Video::HEIGHT as f32) as u32
-                            + 2 * MENUBAR_HEIGHT;
-                        let _ = window.set_size(width, height);
-                    }
-
-                    if let Ok(texture_id) = image_texture_id {
-                        render_frame(
-                            &mut cpu,
-                            (&mut sdl_context, &device, &window),
-                            &mut imgui,
-                            &mut event_pump,
-                            &mut emulator_state,
-                            texture_id,
-                        );
-                    }
-                }
-
-                for event_value in event_pump.poll_iter() {
-                    imgui.handle_event(&event_value);
-                    if !emulator_state.input.want_capture_keyboard {
-                        handle_event(&mut cpu, event_value, &mut emulator_state);
-                    }
-                }
-
-                // Update keyboard akd state
-                cpu.bus.any_key_down = event_pump
-                    .keyboard_state()
-                    .pressed_scancodes()
-                    .next()
-                    .is_some();
-
-                // Update mouse state
-                update_mouse_state(&mut cpu, &event_pump, &mut emulator_state);
-
-                // Check the full_screen state is not change
-                handle_fullscreen_toggle(
-                    &mut cpu,
-                    &mut window,
-                    &sdl_context,
-                    &mut emulator_state.video,
-                );
-            } else {
-                cpu.bus.video.skip_update = true;
-            }
-
-            update_audio(&mut cpu, &mut emulator_state);
-            cpu.bus.audio.clear_buffer();
-
-            let adj_ms = emulator_state.video.adj_cpu_ms;
-
-            if normal_cpu_speed {
-                let video_cpu_update = t.elapsed() + adj_ms_offset;
-                if adj_ms > video_cpu_update {
-                    spin_sleep::sleep(adj_ms - video_cpu_update);
-                }
-            }
-
-            let elapsed = t.elapsed().as_micros();
-            adj_ms_offset =
-                std::time::Duration::from_micros(elapsed.saturating_sub(adj_ms.as_micros()) as u64);
-
-            emulator_state.speed.estimated_mhz = (emulator_state.dcyc as f32) / elapsed as f32;
-            emulator_state.speed.fps = emulator_state.video.cpu_mhz / emulator_state.dcyc as f32;
-            emulator_state.dcyc = emulator_state
-                .dcyc
-                .saturating_sub(emulator_state.video.cpu_cycles);
-            t = Instant::now();
-        }
-
-        if !emulator_state.reload_cpu {
-            break;
-        } else if emulator_state.model_changed {
-            emulator_state.model_changed = false;
-            cpu.bus.init_memory();
-            cpu.bus.set_apple2c(false);
-            cpu.bus.video.set_apple2c(false);
-            cpu.bus.set_iwm(false);
-            cpu.setup_emulator();
-            cpu.reset();
-        } else {
-            #[cfg(feature = "serialization")]
-            {
-                let result = load_serialized_image();
-                match result {
-                    Ok(mut new_cpu) => {
-                        emulator_state.previous_cycles = new_cpu.bus.get_cycles();
-                        initialize_new_cpu(&mut new_cpu, &mut emulator_state);
-                        cpu = new_cpu
-                    }
-                    Err(message) => {
-                        if !message.is_empty() {
-                            eprintln!("{message}")
+        // The CPU halted: reload the state / model, or exit
+        if shared.halted.load(Ordering::Acquire) {
+            if shared.model_changed.swap(false, Ordering::AcqRel) {
+                let mut cpu = shared.cpu.lock();
+                cpu.bus.init_memory();
+                cpu.bus.set_apple2c(false);
+                cpu.bus.video.set_apple2c(false);
+                cpu.bus.set_iwm(false);
+                cpu.setup_emulator();
+                cpu.reset();
+                update_video_state(&mut cpu, &shared.pacing);
+                drop(cpu);
+                shared.halted.store(false, Ordering::Release);
+            } else if shared.reload_cpu.swap(false, Ordering::AcqRel) {
+                #[cfg(feature = "serialization")]
+                {
+                    let result = load_serialized_image();
+                    match result {
+                        Ok(mut new_cpu) => {
+                            emulator_state.previous_cycles = new_cpu.bus.get_cycles();
+                            let mut cpu = shared.cpu.lock();
+                            initialize_new_cpu(&mut new_cpu, &mut emulator_state, &shared.pacing);
+                            update_video_state(&mut new_cpu, &shared.pacing);
+                            *cpu = new_cpu;
+                            drop(cpu);
+                        }
+                        Err(message) => {
+                            if !message.is_empty() {
+                                eprintln!("{message}")
+                            }
                         }
                     }
                 }
+                shared.halted.store(false, Ordering::Release);
+            } else {
+                break 'main_loop;
             }
         }
+
+        // Update video and events at multiple of 60Hz or 50Hz
+        let video_time_elapsed = video_time.elapsed().as_micros();
+        if video_time_elapsed >= shared.pacing.cpu_period.load(Ordering::Relaxed) as u128 {
+            video_time = Instant::now();
+
+            if emulator_state.save_screenshot {
+                let mut cpu = shared.cpu.lock();
+                save_emulator_screenshot(&mut cpu);
+                emulator_state.save_screenshot = false;
+            }
+
+            if !window.is_minimized() {
+                // Read and blend the emulator frame (short CPU lock)
+                let barrel_distortion = {
+                    let mut cpu = shared.cpu.lock();
+                    cpu.bus.video.skip_update = false;
+                    prepare_video_frame(
+                        &mut cpu,
+                        &mut blend_buffer,
+                        &mut barrel_buffer,
+                        &emulator_state,
+                    )
+                };
+
+                if emulator_state.video.prev_scale != emulator_state.video.scale {
+                    emulator_state.video.prev_scale = emulator_state.video.scale;
+                    let width = (emulator_state.video.scale * Video::WIDTH as f32) as u32;
+                    let height = (emulator_state.video.scale * Video::HEIGHT as f32) as u32
+                        + 2 * MENUBAR_HEIGHT;
+                    let _ = window.set_size(width, height);
+                }
+
+                // Upload the texture to the GPU without holding the CPU lock
+                let image_texture_id = upload_gpu_texture(
+                    &mut imgui,
+                    &device,
+                    &blend_buffer,
+                    &barrel_buffer,
+                    barrel_distortion,
+                    &emulator_state,
+                );
+
+                if let Ok(texture_id) = image_texture_id {
+                    render_frame(
+                        &shared,
+                        (&mut sdl_context, &device, &window),
+                        &mut imgui,
+                        &mut event_pump,
+                        &mut emulator_state,
+                        texture_id,
+                    );
+                }
+            }
+
+            let mut cpu = shared.cpu.lock();
+            for event_value in event_pump.poll_iter() {
+                imgui.handle_event(&event_value);
+                if !emulator_state.input.want_capture_keyboard {
+                    handle_event(&mut cpu, event_value, &mut emulator_state, &shared);
+                }
+            }
+
+            // Update keyboard akd state
+            cpu.bus.any_key_down = event_pump
+                .keyboard_state()
+                .pressed_scancodes()
+                .next()
+                .is_some();
+
+            // Update mouse state
+            update_mouse_state(&mut cpu, &event_pump, &mut emulator_state);
+
+            // Check the full_screen state is not change
+            handle_fullscreen_toggle(
+                &mut cpu,
+                &mut window,
+                &sdl_context,
+                &mut emulator_state.video,
+            );
+        }
+
+        // Sleep until the next video period to avoid busy-waiting
+        let remaining = (shared.pacing.cpu_period.load(Ordering::Relaxed) as u128)
+            .saturating_sub(video_time.elapsed().as_micros());
+        if remaining > 0 {
+            spin_sleep::sleep(std::time::Duration::from_micros(remaining as u64));
+        }
+    }
+
+    if let Err(payload) = emu_handle.join() {
+        std::panic::resume_unwind(payload);
     }
 
     /*
@@ -2629,28 +2838,33 @@ fn update_emulator_graphics(
     update_gpu_harddisk_status(cpu, &bg_draw_list, window, state);
 }
 
-fn prepare_main_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) {
+fn prepare_main_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState, shared: &EmuShared) {
     ui.main_menu_bar(|| {
         // System menu
-        prepare_system_menu(cpu, ui, state);
+        prepare_system_menu(cpu, ui, state, shared);
 
         // Speed menu
-        prepare_speed_menu(cpu, ui, state);
+        prepare_speed_menu(cpu, ui, shared);
 
         // Video menu
-        prepare_video_menu(cpu, ui, state);
+        prepare_video_menu(cpu, ui, state, shared);
 
         // Audio menu
         prepare_audio_menu(cpu, ui);
 
         // Input menu
-        prepare_input_menu(cpu, ui, state);
+        prepare_input_menu(cpu, ui, state, shared);
     });
 }
 
-fn prepare_system_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) {
+fn prepare_system_menu(
+    cpu: &mut CPU,
+    ui: &imgui::Ui,
+    state: &mut EmulatorState,
+    shared: &EmuShared,
+) {
     ui.menu("System", || {
-        prepare_menu_for_model(cpu, ui, state);
+        prepare_menu_for_model(cpu, ui, state, shared);
 
         if ui.menu_item("Slot Settings...") {
             state.show_settings = true;
@@ -2667,7 +2881,7 @@ fn prepare_system_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState)
 
         #[cfg(feature = "serialization")]
         {
-            prepare_menu_for_state_management(cpu, ui, state);
+            prepare_menu_for_state_management(cpu, ui, shared);
             ui.separator();
         }
 
@@ -2686,23 +2900,23 @@ fn prepare_system_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState)
 fn prepare_speed_menu_item(
     cpu: &mut CPU,
     ui: &imgui::Ui,
-    state: &mut EmulatorState,
+    shared: &EmuShared,
     label: &str,
     shortcut: &str,
     index: usize,
 ) {
-    let speed_index = state.speed.speed_index;
+    let speed_index = shared.pacing.speed_index.load(Ordering::Relaxed);
     build_toggle_menu_item(ui, label, shortcut, speed_index == index, |_| {
-        state.speed.speed_index = index;
-        cpu.set_speed(SPEED_MODES[state.speed.speed_index]);
-        update_video_state(cpu, state);
+        shared.pacing.speed_index.store(index, Ordering::Relaxed);
+        cpu.set_speed(SPEED_MODES[index]);
+        update_video_state(cpu, &shared.pacing);
     });
 }
 
-fn prepare_speed_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) {
+fn prepare_speed_menu(cpu: &mut CPU, ui: &imgui::Ui, shared: &EmuShared) {
     ui.menu("Speed", || {
         for (index, item) in SPEED_NAMES.iter().enumerate() {
-            prepare_speed_menu_item(cpu, ui, state, item, "F9, Shift-F9", index)
+            prepare_speed_menu_item(cpu, ui, shared, item, "F9, Shift-F9", index)
         }
     })
 }
@@ -2725,7 +2939,12 @@ fn prepare_toggle_video_menu_item(
     });
 }
 
-fn prepare_video_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) {
+fn prepare_video_menu(
+    cpu: &mut CPU,
+    ui: &imgui::Ui,
+    state: &mut EmulatorState,
+    shared: &EmuShared,
+) {
     ui.menu("Video", || {
         ui.text("Window scale");
         ui.same_line();
@@ -2749,7 +2968,7 @@ fn prepare_video_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) 
             cpu.bus.video.is_video_50hz(),
             |setting| {
                 cpu.bus.video.set_video_50hz(setting);
-                update_video_state(cpu, state);
+                update_video_state(cpu, &shared.pacing);
             },
         );
 
@@ -2849,15 +3068,19 @@ fn build_enable_toggle_menu_item<F>(
     }
 }
 
-fn prepare_menu_for_model(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) {
+fn prepare_menu_for_model(
+    cpu: &mut CPU,
+    ui: &imgui::Ui,
+    state: &mut EmulatorState,
+    shared: &EmuShared,
+) {
     ui.menu("Model", || {
         let rom_value = cpu.bus.mem.mem_read(0xfbb3);
         build_toggle_menu_item(ui, "Apple ][", "", rom_value == 0x38, |_| {
             initialize_apple_system(cpu, APPLE2_ROM, 0xd000, false);
             cpu.bus.mem.slotc3rom = true;
             cpu.bus.mem.intcxrom = false;
-            state.model_changed = true;
-            state.reload_cpu = true;
+            change_model(shared);
             cpu.halt_cpu();
         });
 
@@ -2865,8 +3088,7 @@ fn prepare_menu_for_model(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorSta
             initialize_apple_system(cpu, APPLE2P_ROM, 0xd000, false);
             cpu.bus.mem.slotc3rom = true;
             cpu.bus.mem.intcxrom = false;
-            state.model_changed = true;
-            state.reload_cpu = true;
+            change_model(shared);
             cpu.halt_cpu();
         });
 
@@ -2877,8 +3099,7 @@ fn prepare_menu_for_model(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorSta
             !cpu.is_apple2c() && cpu.is_apple2e() && !cpu.is_apple2e_enh(),
             |_| {
                 initialize_apple_system(cpu, APPLE2E_ROM, 0xc000, false);
-                state.model_changed = true;
-                state.reload_cpu = true;
+                change_model(shared);
                 cpu.halt_cpu();
             },
         );
@@ -2891,8 +3112,7 @@ fn prepare_menu_for_model(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorSta
             |_| {
                 initialize_apple_system(cpu, APPLE2EE_ROM, 0xc000, false);
                 state.input.shift_mod = false;
-                state.model_changed = true;
-                state.reload_cpu = true;
+                change_model(shared);
                 cpu.halt_cpu();
             },
         );
@@ -2905,8 +3125,7 @@ fn prepare_menu_for_model(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorSta
             |_| {
                 initialize_apple_system(cpu, APPLE2EE_ROM, 0xc000, false);
                 state.input.shift_mod = true;
-                state.model_changed = true;
-                state.reload_cpu = true;
+                change_model(shared);
                 cpu.halt_cpu();
             },
         );
@@ -2919,8 +3138,7 @@ fn prepare_menu_for_model(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorSta
             cpu.is_apple2c() && rom_value == 0xff,
             |_| {
                 initialize_apple_system(cpu, APPLE2C_ROM, 0xc000, false);
-                state.model_changed = true;
-                state.reload_cpu = true;
+                change_model(shared);
                 cpu.halt_cpu();
             },
         );
@@ -2932,8 +3150,7 @@ fn prepare_menu_for_model(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorSta
             cpu.is_apple2c() && rom_value == 0x00,
             |_| {
                 initialize_apple_system(cpu, APPLE2C0_ROM, 0xc000, true);
-                state.model_changed = true;
-                state.reload_cpu = true;
+                change_model(shared);
                 cpu.halt_cpu();
             },
         );
@@ -2945,8 +3162,7 @@ fn prepare_menu_for_model(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorSta
             cpu.is_apple2c() && rom_value == 0x03,
             |_| {
                 initialize_apple_system(cpu, APPLE2C3_ROM, 0xc000, true);
-                state.model_changed = true;
-                state.reload_cpu = true;
+                change_model(shared);
                 cpu.halt_cpu();
             },
         );
@@ -2958,8 +3174,7 @@ fn prepare_menu_for_model(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorSta
             cpu.is_apple2c() && rom_value == 0x04,
             |_| {
                 initialize_apple_system(cpu, APPLE2C4_ROM, 0xc000, true);
-                state.model_changed = true;
-                state.reload_cpu = true;
+                change_model(shared);
                 cpu.halt_cpu();
             },
         );
@@ -2971,15 +3186,25 @@ fn prepare_menu_for_model(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorSta
             cpu.is_apple2c() && rom_value == 0x05,
             |_| {
                 initialize_apple_system(cpu, APPLE2CP_ROM, 0xc000, true);
-                state.model_changed = true;
-                state.reload_cpu = true;
+                change_model(shared);
                 cpu.halt_cpu();
             },
         );
     });
 }
 
-fn prepare_input_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) {
+// Marks the emulator for a model change on the next halt
+fn change_model(shared: &EmuShared) {
+    shared.model_changed.store(true, Ordering::Release);
+    shared.reload_cpu.store(true, Ordering::Release);
+}
+
+fn prepare_input_menu(
+    cpu: &mut CPU,
+    ui: &imgui::Ui,
+    state: &mut EmulatorState,
+    shared: &EmuShared,
+) {
     ui.menu("Input", || {
         let fast_disk = !cpu.bus.disk.get_disable_fast_disk();
         build_toggle_menu_item(ui, "Fast Disk", "F5", fast_disk, |new_state| {
@@ -3005,7 +3230,9 @@ fn prepare_input_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) 
         {
             let clipboard = state.video_subsystem.clipboard();
             if let Ok(text) = clipboard.clipboard_text() {
-                state.input.clipboard_text = text.replace('\n', "");
+                let mut clipboard_text = shared.clipboard_text.lock();
+                *clipboard_text = text.replace('\n', "");
+                shared.clipboard_pending.store(true, Ordering::Release);
             }
         }
 
@@ -3093,13 +3320,13 @@ fn prepare_menu_for_disk(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorStat
     });
 }
 
-fn prepare_menu_for_state_management(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) {
+fn prepare_menu_for_state_management(cpu: &mut CPU, ui: &imgui::Ui, shared: &EmuShared) {
     if ui
         .menu_item_config("Load State")
         .shortcut("Ctrl-F4")
         .build()
     {
-        state.reload_cpu = true;
+        shared.reload_cpu.store(true, Ordering::Release);
         cpu.halt_cpu();
     }
     if ui
@@ -3315,7 +3542,14 @@ fn prepare_settings(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) {
         });
 }
 
-fn prepare_statusbar(cpu: &CPU, ui: &imgui::Ui, state: &EmulatorState, width: u32, height: u32) {
+fn prepare_statusbar(
+    cpu: &CPU,
+    ui: &imgui::Ui,
+    state: &EmulatorState,
+    shared: &EmuShared,
+    width: u32,
+    height: u32,
+) {
     const PADDING_X: f32 = 13.0;
     const PADDING_Y: f32 = 2.0;
     let style_token = ui.push_style_var(StyleVar::WindowMinSize([
@@ -3346,11 +3580,15 @@ fn prepare_statusbar(cpu: &CPU, ui: &imgui::Ui, state: &EmulatorState, width: u3
                     imgui::dear_imgui_version()
                 )
             });
+
+            let estimated_mhz = f32::from_bits(shared.stats.estimated_mhz.load(Ordering::Relaxed));
+            let fps = f32::from_bits(shared.stats.fps.load(Ordering::Relaxed));
+
             ui.text(version_text);
             ui.same_line();
-            ui.text(format!("FPS: {:.2}", state.speed.fps));
+            ui.text(format!("FPS: {:.2}", fps));
             ui.same_line();
-            ui.text(format!("MHz: {:.3}", state.speed.estimated_mhz));
+            ui.text(format!("MHz: {:.3}", estimated_mhz));
 
             let track_info = cpu.bus.disk.get_track_info();
             ui.same_line();
@@ -3364,27 +3602,40 @@ fn prepare_statusbar(cpu: &CPU, ui: &imgui::Ui, state: &EmulatorState, width: u3
     style_token.pop();
 }
 
-fn update_video_state(cpu: &mut CPU, emulator_state: &mut EmulatorState) {
-    let state = &mut emulator_state.video;
+fn update_video_state(cpu: &mut CPU, pacing: &Pacing) {
     let video_50hz = cpu.bus.video.is_video_50hz();
     if video_50hz {
-        state.cpu_cycles = CPU_CYCLES_PER_FRAME_50HZ;
-        state.cpu_period = 19_968;
-        state.cpu_mhz = 1015625.0;
-        state.audio_sample_size = AUDIO_SAMPLE_SIZE_50HZ;
+        pacing
+            .cpu_cycles
+            .store(CPU_CYCLES_PER_FRAME_50HZ, Ordering::Relaxed);
+        pacing.cpu_period.store(19_968, Ordering::Relaxed);
+        pacing
+            .cpu_mhz
+            .store(1015625.0_f32.to_bits(), Ordering::Relaxed);
+        pacing
+            .audio_sample_size
+            .store(AUDIO_SAMPLE_SIZE_50HZ, Ordering::Relaxed);
     } else {
-        state.cpu_cycles = CPU_CYCLES_PER_FRAME_60HZ;
-        state.cpu_period = 16_688;
-        state.cpu_mhz = 1020484.0;
-        state.audio_sample_size = AUDIO_SAMPLE_SIZE;
+        pacing
+            .cpu_cycles
+            .store(CPU_CYCLES_PER_FRAME_60HZ, Ordering::Relaxed);
+        pacing.cpu_period.store(16_688, Ordering::Relaxed);
+        pacing
+            .cpu_mhz
+            .store(1020484.0_f32.to_bits(), Ordering::Relaxed);
+        pacing
+            .audio_sample_size
+            .store(AUDIO_SAMPLE_SIZE, Ordering::Relaxed);
     }
 
     // Update speed_index
-    let adj_ms = std::time::Duration::from_micros(
-        state.cpu_period * SPEED_FACTOR / SPEED[emulator_state.speed.speed_index],
+    let cpu_period = pacing.cpu_period.load(Ordering::Relaxed);
+    let speed_index = pacing.speed_index.load(Ordering::Relaxed);
+    pacing.adj_cpu_ms_us.store(
+        cpu_period * SPEED_FACTOR / SPEED[speed_index],
+        Ordering::Relaxed,
     );
 
-    state.adj_cpu_ms = adj_ms;
     cpu.bus.audio.update_cycles(video_50hz);
 }
 
