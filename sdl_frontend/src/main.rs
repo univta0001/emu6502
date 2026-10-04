@@ -2408,13 +2408,19 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 }
             }
 
-            let mut cpu = shared.cpu.lock();
-            for event_value in event_pump.poll_iter() {
-                imgui.handle_event(&event_value);
-                if !emulator_state.input.want_capture_keyboard {
+            let events: Vec<_> = event_pump.poll_iter().collect();
+            for event_value in &events {
+                imgui.handle_event(event_value);
+            }
+
+            if !emulator_state.input.want_capture_keyboard {
+                let mut cpu = shared.cpu.lock();
+                for event_value in events {
                     handle_event(&mut cpu, event_value, &mut emulator_state, &shared);
                 }
             }
+
+            let mut cpu = shared.cpu.lock();
 
             // Update keyboard akd state
             cpu.bus.any_key_down = event_pump
