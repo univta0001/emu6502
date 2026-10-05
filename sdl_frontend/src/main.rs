@@ -543,14 +543,7 @@ fn handle_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState, shared: 
                 cpu.bus.set_keyboard_latch((value + 128) as u8);
             }
 
-            if cpu.is_apple2e() && state.input.shift_mod {
-                let shift_mode = keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD);
-                if shift_mode {
-                    cpu.bus.pushbutton_latch[2] = 0x80;
-                } else {
-                    cpu.bus.pushbutton_latch[2] = 0x0;
-                }
-            } else if !cpu.is_apple2e() {
+            if (cpu.is_apple2e() && state.input.shift_mod) || !cpu.is_apple2e {
                 let shift_mode = keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD);
                 if shift_mode {
                     cpu.bus.pushbutton_latch[2] = 0x80;
