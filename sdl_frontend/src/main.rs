@@ -543,7 +543,7 @@ fn handle_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState, shared: 
                 cpu.bus.set_keyboard_latch((value + 128) as u8);
             }
 
-            if (cpu.is_apple2e() && state.input.shift_mod) || !cpu.is_apple2e {
+            if (cpu.is_apple2e() && state.input.shift_mod) || !cpu.is_apple2e() {
                 let shift_mode = keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD);
                 if shift_mode {
                     cpu.bus.pushbutton_latch[2] = 0x80;
@@ -1974,26 +1974,23 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
 
                 let mut halted = false;
                 while dcyc < cpu_cycles {
-                    let prev_cycle = cpu.bus.get_cycles();
-                    if !cpu.step_with_callback(|_| {}) {
+                    let Some(cycles) = cpu.step() else {
                         halted = true;
                         break;
-                    }
+                    };
+                    dcyc += cycles;
+                }
 
-                    {
-                        // Lock-free fast path: skip the lock unless new
-                        // clipboard text is pending
-                        if shared.clipboard_pending.load(Ordering::Acquire) {
-                            let mut clipboard_text = shared.clipboard_text.lock();
-                            process_clipboard(&mut cpu, &mut clipboard_text);
-                            if clipboard_text.is_empty() {
-                                shared.clipboard_pending.store(false, Ordering::Release);
-                            }
+                {
+                    // Lock-free fast path: skip the lock unless new
+                    // clipboard text is pending
+                    if shared.clipboard_pending.load(Ordering::Acquire) {
+                        let mut clipboard_text = shared.clipboard_text.lock();
+                        process_clipboard(&mut cpu, &mut clipboard_text);
+                        if clipboard_text.is_empty() {
+                            shared.clipboard_pending.store(false, Ordering::Release);
                         }
                     }
-
-                    let cycle = cpu.bus.get_cycles() - prev_cycle;
-                    dcyc += cycle;
                 }
 
                 update_audio(

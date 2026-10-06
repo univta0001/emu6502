@@ -1842,6 +1842,18 @@ impl CPU {
         self.m65c02 = self.is_apple2e_enh() || self.is_apple2c();
     }
 
+    /// Executes a single instruction without a per-instruction callback and
+    /// returns the number of CPU cycles it consumed, or `None` when the CPU
+    /// has halted. This is the hot path for frontends that do not need to
+    /// observe every instruction.
+    pub fn step(&mut self) -> Option<usize> {
+        let prev_cycle = self.bus.get_cycles();
+        if !self.step_with_callback(|_| {}) {
+            return None;
+        }
+        Some(self.bus.get_cycles() - prev_cycle)
+    }
+
     pub fn run_with_callback<F>(&mut self, mut callback: F)
     where
         F: FnMut(&mut Self),
