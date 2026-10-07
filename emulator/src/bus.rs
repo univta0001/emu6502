@@ -368,6 +368,7 @@ impl Bus {
         if !self.disable_disk {
             self.disk.reset();
             self.harddisk.reset();
+            self.harddisk.set_apple2(!self.video.is_apple2e());
         }
     }
 

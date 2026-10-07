@@ -167,6 +167,9 @@ pub struct HardDisk {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     fifo_index: u8,
+
+    #[cfg_attr(feature = "serde_support", serde(default))]
+    is_apple2: bool,
 }
 
 #[repr(u8)]
@@ -191,6 +194,7 @@ impl HardDisk {
             status_code: 0,
             smartport: false,
             fifo_index: 0,
+            is_apple2: false,
         }
     }
 
@@ -198,6 +202,14 @@ impl HardDisk {
         for disk in &mut self.drive {
             disk.error = 0;
         }
+    }
+
+    pub fn set_apple2(&mut self, flag: bool) {
+        self.is_apple2 = flag
+    }
+
+    pub fn get_apple2(&self) -> bool {
+        self.is_apple2
     }
 
     pub fn is_busy(&self) -> bool {
@@ -774,6 +786,11 @@ impl Card for HardDisk {
                     0x3c
                 }
             }
+
+            // Patch for apple 2 and apple 2+ to use shift-key mode
+            0x4b if self.is_apple2 => 0x63,
+            0x4d if self.is_apple2 => 0x10,
+
             _ => ROM[addr],
         }
     }
