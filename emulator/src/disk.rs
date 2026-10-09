@@ -2936,7 +2936,9 @@ impl Card for DiskDrive {
                         1 => {
                             let mut status = self.is_write_protected() as u8 & 0x1;
 
-                            // Return status = 1 for Disk 3.5 or Internal Drive
+                            // Return status = 1 for internal or external Disk 3.5
+                            // In this state, the status is the iwm general status line
+                            // Setting status = 1 is to disable 3.5 support
                             if mem.get_mig_state() & 3 != 0 {
                                 status = 1;
                             }
