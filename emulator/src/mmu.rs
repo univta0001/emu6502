@@ -310,14 +310,7 @@ impl Mmu {
         self.cpu_memory[addr as usize] = data
     }
 
-    fn mig_change_state(&mut self, drive: &mut DiskDrive, new_state: usize) {
-        let motor_on = drive.is_motor_on();
-        let invert = new_state != 0 && motor_on;
-        let old_invert = self.mig_state != 0 && motor_on;
-        if invert != old_invert {
-            let drive_select = drive.drive_selected();
-            drive.drive_select(drive_select ^ 1);
-        }
+    fn mig_change_state(&mut self, new_state: usize) {
         self.mig_state = new_state;
     }
 
@@ -335,9 +328,9 @@ impl Mmu {
         match map_addr {
             0xc40..=0xc5f if write_flag => drive.reset(),
 
-            0xc80..=0xc9f if write_flag => self.mig_change_state(drive, self.mig_state | 2),
+            0xc80..=0xc9f if write_flag => self.mig_change_state(self.mig_state | 2),
 
-            0xcc0..=0xcdf if write_flag => self.mig_change_state(drive, self.mig_state & !2),
+            0xcc0..=0xcdf if write_flag => self.mig_change_state(self.mig_state & !2),
 
             0xe00..=0xe1f => {
                 if write_flag {
@@ -360,11 +353,11 @@ impl Mmu {
                 }
             }
 
-            0xe40..=0xe5f if write_flag => self.mig_change_state(drive, self.mig_state | 1),
-            0xe40..=0xe5f => self.mig_change_state(drive, self.mig_state & !0x80),
+            0xe40..=0xe5f if write_flag => self.mig_change_state(self.mig_state | 1),
+            0xe40..=0xe5f => self.mig_change_state(self.mig_state & !0x80),
 
-            0xe60..=0xe7f if write_flag => self.mig_change_state(drive, self.mig_state & !1),
-            0xe60..=0xe7f => self.mig_change_state(drive, self.mig_state | 0x80),
+            0xe60..=0xe7f if write_flag => self.mig_change_state(self.mig_state & !1),
+            0xe60..=0xe7f => self.mig_change_state(self.mig_state | 0x80),
 
             0xea0 => self.mig_bank = 0,
 
