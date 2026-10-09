@@ -443,7 +443,9 @@ fn requires_cpu(event: &Event) -> bool {
     )
 }
 
-fn handle_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState, shared: &EmuShared) {
+fn handle_event(event: Event, state: &mut EmulatorState, shared: &EmuShared) {
+    let cpu = &mut shared.cpu.lock();
+
     if function_key_processed(cpu, &event, state, shared) {
         return;
     }
@@ -2422,12 +2424,12 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 }
             }
 
-            let mut cpu = shared.cpu.lock();
             for event_value in cpu_events {
-                handle_event(&mut cpu, event_value, &mut emulator_state, &shared);
+                handle_event(event_value, &mut emulator_state, &shared);
             }
 
             // Update keyboard akd state
+            let mut cpu = shared.cpu.lock();
             cpu.bus.any_key_down = event_pump
                 .keyboard_state()
                 .pressed_scancodes()
