@@ -34,12 +34,14 @@ windows-sys = { version="0.61.2", features = ['Win32_System_LibraryLoader'] }
 
 [target.'cfg(any(target_os="windows", target_os="linux"))'.dependencies]
 #sdl2 = { version = "0.38.0", features = ['bundled', 'static-link'] }
-sdl3 = { version = "0.18.4", features = ['build-from-source-static', 'static-link'] }
+sdl3 = { version = "0.18.4", features = ['build-from-source-static', 'static-link', 'main'] }
+sdl3-main = { version = "0.6.4", features = ['use-parking-lot-v0-12'] }
 #sdl3-sys = { version = "0.6.8", features = ['build-from-source-static'] }
 
 [target.'cfg(not(any(target_os="windows", target_os="linux")))'.dependencies]
 #sdl2 = "0.38.0"
-sdl3 = "0.18.4"
+sdl3 = { version = "0.18.4", features = ['main'] }
+sdl3-main = { version = "0.6.4", features = ['use-parking-lot-v0-12'] }
 #sdl3-sys = "0.6.8"
 
 #[target.x86_64-pc-windows-msvc.dependencies]

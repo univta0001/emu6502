@@ -39,6 +39,7 @@ use chrono::Local;
 use imgui::{SliderFlags, StyleVar};
 use imgui_sdl3::ImGuiSdl3;
 use sdl3::gpu::*;
+use sdl3_main::{AppResult, AppResultWithState, MainThreadData, app_impl};
 
 use std::fs;
 
@@ -1454,11 +1455,7 @@ fn process_clipboard(cpu: &mut CPU, clipboard_text: &mut String) {
     }
 }
 
-fn function_key_processed(
-    event: &Event,
-    state: &mut EmulatorState,
-    shared: &EmuShared,
-) -> bool {
+fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &EmuShared) -> bool {
     match event {
         Event::KeyDown {
             keycode: Some(Keycode::F1),
@@ -2179,246 +2176,54 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
     }
 }
 
-//#[tokio::main]
-//async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
-fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
-    #[cfg(target_os = "windows")]
-    #[cfg(feature = "pcap")]
-    {
-        use windows_sys::Win32::System::LibraryLoader::{
-            LOAD_LIBRARY_SEARCH_SYSTEM32, SetDefaultDllDirectories,
-        };
-        unsafe {
-            SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32);
-        }
-    }
+// SDL objects that must only be touched on the main thread. Wrapped in
+// MainThreadData so the App state stays Send + Sync.
+struct AppMain {
+    event_pump: sdl3::EventPump,
+    emulator_state: EmulatorState,
+    imgui: ImGuiSdl3,
+    device: Device,
+    window: Window,
+    blend_buffer: Vec<u8>,
+    barrel_buffer: Vec<u8>,
+    sdl_context: sdl3::Sdl,
+}
 
-    let mut pargs = pico_args::Arguments::from_env();
+// App state for the SDL3 main callbacks (app_init / app_iterate / app_event /
+// app_quit). All callbacks run on the main thread; the emulator thread only
+// touches `shared` and its atomics.
+struct App {
+    main: MainThreadData<AppMain>,
+    shared: Arc<EmuShared>,
+    video_time: Instant,
+    emu_handle: Option<thread::JoinHandle<()>>,
+}
 
-    if pargs.contains(["-h", "--help"]) {
-        print_help();
-        return Ok(());
-    }
-
-    if pargs.contains(["-V", "--version"]) {
-        print_version();
-        return Ok(());
-    }
-
-    //let _function_test: Vec<u8> = std::fs::read("6502_functional_test.bin").unwrap();
-    //let _function_test: Vec<u8> = std::fs::read("65C02_extended_opcodes_test.bin").unwrap();
-    //let apple2_rom: Vec<u8> = std::fs::read("Apple2_Plus.rom").unwrap();
-
-    // Create bus
-    let bus = Bus::default();
-
-    let mut cpu = CPU::new(bus);
-    let mut _cpu_stats = CpuStats::new();
-
-    // Enable save for disk
-    cpu.bus.disk.set_enable_save_disk(true);
-
-    // Enable save for hard disk
-    cpu.bus.harddisk.set_enable_save_disk(true);
-
-    // Enable save for cassette
-    cpu.bus.audio.set_enable_save_tape(true);
-
-    //cpu.load(apple2_rom, 0xd000);
-    //cpu.load(apple2e_rom, 0xc000);
-    //cpu.load(&apple2ee_rom, 0xc000);
-    //cpu.load(_function_test, 0x0);
-    //cpu.program_counter = 0x0400;
-    //cpu.self_test = true;
-    //cpu.m65c02 = true;
-
-    let mut key_caps = true;
-    let mut scale = 1.5;
-    let mut shift_mod = false;
-    let exit_flag = parse_args(
-        &mut cpu,
-        &mut pargs,
-        &mut key_caps,
-        &mut scale,
-        &mut shift_mod,
-    )?;
-
-    if exit_flag {
-        return Ok(());
-    }
-
-    let remaining = pargs.finish();
-
-    // Check that there are no more flags in the remaining arguments
-    for item in &remaining {
-        let path = Path::new(item);
-
-        if path.display().to_string().starts_with('-') {
-            eprintln!("Unrecognized option: {}", path.display());
-            eprintln!();
-            print_help();
-            return Ok(());
-        }
-    }
-
-    if !remaining.is_empty() {
-        // Load dsk image in drive 1
-        let path = Path::new(&remaining[0]);
-        let mut loaded_device = Vec::new();
-        let result = load_image(&mut cpu, path, &mut loaded_device);
-        if let Err(e) = result {
-            eprintln!("Unable to load disk {} : {e}", path.display());
-        }
-
-        if remaining.len() > 1 {
-            // Load dsk image in drive 2
-            let path2 = Path::new(&remaining[1]);
-            let result = load_image(&mut cpu, path2, &mut loaded_device);
-            if let Err(e) = result {
-                eprintln!("Unable to load disk {} : {e}", path2.display());
+#[app_impl]
+impl App {
+    // Called once by SDL at program start on the main thread
+    fn app_init() -> AppResultWithState<Box<Mutex<App>>> {
+        match App::create() {
+            Ok(Some(app)) => AppResultWithState::Continue(Box::new(Mutex::new(app))),
+            Ok(None) => AppResultWithState::Success(None),
+            Err(err) => {
+                eprintln!("Unable to initialize the emulator : {err}");
+                AppResultWithState::Failure(None)
             }
         }
     }
 
-    // Create the SDL3 context
-    let mut sdl_context = sdl3::init()?;
+    // Called once per video period by SDL on the main thread. Replaces the old
+    // main loop; events are delivered through app_event instead of being polled
+    fn app_iterate(&mut self) -> AppResult {
+        let main = self.main.assert_get_mut();
+        let shared = &*self.shared;
 
-    // Create window
-    let width = (scale * Video::WIDTH as f32) as u32;
-    let height = (scale * Video::HEIGHT as f32) as u32;
-    let video_subsystem = sdl_context.video()?;
-
-    eprintln!("emu6502 v{}", VERSION);
-    eprintln!("Detected Video Drivers");
-    for (i, driver) in sdl3::video::drivers().enumerate() {
-        eprintln!("-- Driver #{}: {}", i, driver);
-    }
-    eprintln!(
-        "Using video driver: {}",
-        video_subsystem.current_video_driver()
-    );
-
-    let mut window = video_subsystem
-        .window("Apple ][ emulator", width, height + 2 * MENUBAR_HEIGHT)
-        .position_centered()
-        .high_pixel_density()
-        .metal_view()
-        .build()?;
-
-    video_subsystem.text_input().start(&window);
-
-    let device = Device::new(ShaderFormat::SPIRV, false)?.with_window(&window)?;
-
-    let sampler = device.create_sampler(
-        SamplerCreateInfo::new()
-            .with_min_filter(Filter::Linear)
-            .with_mag_filter(Filter::Linear)
-            .with_mipmap_mode(SamplerMipmapMode::Linear)
-            .with_address_mode_u(SamplerAddressMode::ClampToEdge)
-            .with_address_mode_v(SamplerAddressMode::ClampToEdge)
-            .with_address_mode_w(SamplerAddressMode::ClampToEdge),
-    )?;
-
-    // create platform and renderer
-    let mut imgui = ImGuiSdl3::new(&device, &window, |ctx| {
-        // disable creation of files on disc
-        ctx.set_ini_filename(None);
-        ctx.set_log_filename(None);
-        // setup platform and renderer, and fonts to imgui
-        ctx.fonts().clear();
-        ctx.fonts()
-            .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
-    });
-
-    // Create the game controller
-    let game_controller = sdl_context.gamepad()?;
-
-    const FRAME_BYTES: usize = Video::WIDTH * Video::HEIGHT * 4;
-    let mut blend_buffer = vec![0xff_u8; FRAME_BYTES];
-    let mut barrel_buffer = vec![0xff_u8; FRAME_BYTES];
-
-    // Set apple2 icon
-    /*
-    let apple2_icon = Surface::from_file("apple2.png")?;
-    window.set_icon(apple2_icon);
-    */
-
-    // Create audio
-    let audio_subsystem = sdl_context.audio();
-    let desired_spec = AudioSpec {
-        freq: Some(AUDIO_SAMPLE_RATE as i32),
-        channels: Some(2),
-        format: Some(AudioFormat::s16_sys()),
-    };
-
-    // Init audio stream
-    let audio_stream = if let Ok(audio) = &audio_subsystem {
-        init_audio_stream(audio, &desired_spec)
-    } else {
-        eprintln!("No audio device detected!");
-        None
-    };
-
-    // Create SDL event pump
-    let mut event_pump = sdl_context.event_pump()?;
-    //_event_pump.enable_event(DropFile);
-
-    let mut video_time = Instant::now();
-    let previous_cycles = 0;
-
-    cpu.setup_emulator();
-    cpu.reset();
-
-    // Change the refresh video to the start of the VBL instead of end of the VBL
-    let dcyc = if cpu.bus.video.is_video_50hz() {
-        CPU_CYCLES_PER_FRAME_50HZ - 65 * 192
-    } else {
-        CPU_CYCLES_PER_FRAME_60HZ - 65 * 192
-    };
-
-    let mut emulator_state = EmulatorState::new(video_subsystem, game_controller, sampler);
-
-    emulator_state.video.scale = scale;
-    emulator_state.video.prev_scale = scale;
-    emulator_state.input.key_caps = key_caps;
-    emulator_state.input.shift_mod = shift_mod;
-    emulator_state.previous_cycles = previous_cycles;
-    emulator_state.prev_settings = get_slot_settings(&cpu);
-    emulator_state.current_settings = emulator_state.prev_settings.clone();
-
-    // State shared between the UI thread and the emulator thread
-    let shared = Arc::new(EmuShared {
-        cpu: Mutex::new(cpu),
-        pacing: Pacing::default(),
-        stats: Stats::default(),
-        clipboard_text: Mutex::new(String::new()),
-        clipboard_pending: AtomicBool::new(false),
-        reload_cpu: AtomicBool::new(false),
-        model_changed: AtomicBool::new(false),
-        reload_done: Mutex::new(false),
-        reload_cv: Condvar::new(),
-        halted: AtomicBool::new(false),
-    });
-
-    {
-        let mut cpu = shared.cpu.lock();
-        update_video_state(&mut cpu, &shared.pacing);
-    }
-
-    // Run the emulator on a separate thread so that audio keeps playing while
-    // the UI thread is blocked (e.g. while the window is being moved)
-    let emu_shared = Arc::clone(&shared);
-    let audio_stream = SendAudioStream(audio_stream);
-    let emu_handle = thread::Builder::new()
-        .name("emulator".to_string())
-        .spawn(move || {
-            emulator_thread(emu_shared, audio_stream, dcyc);
-        })?;
-
-    'main_loop: loop {
         // Stop when the emulator thread exited (or crashed)
-        if emu_handle.is_finished() {
-            break 'main_loop;
+        if let Some(handle) = &self.emu_handle
+            && handle.is_finished()
+        {
+            return AppResult::Success;
         }
 
         // The CPU halted: reload the state / model, or exit
@@ -2446,14 +2251,19 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     // The file was picked and deserialized before the halt
                     // (see `request_load_state`), so no dialog runs while the
                     // emulator thread is parked here and audio does not stop.
-                    let result = emulator_state.pending_state.take().ok_or_else(|| {
-                        "Load state requested without a pending state".to_string()
-                    });
+                    let result =
+                        main.emulator_state.pending_state.take().ok_or_else(|| {
+                            "Load state requested without a pending state".to_string()
+                        });
                     match result {
                         Ok(mut new_cpu) => {
-                            emulator_state.previous_cycles = new_cpu.bus.get_cycles();
+                            main.emulator_state.previous_cycles = new_cpu.bus.get_cycles();
                             let mut cpu = shared.cpu.lock();
-                            initialize_new_cpu(&mut new_cpu, &mut emulator_state, &shared.pacing);
+                            initialize_new_cpu(
+                                &mut new_cpu,
+                                &mut main.emulator_state,
+                                &shared.pacing,
+                            );
                             update_video_state(&mut new_cpu, &shared.pacing);
                             *cpu = new_cpu;
                             drop(cpu);
@@ -2467,14 +2277,18 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 *shared.reload_done.lock() = true;
                 shared.reload_cv.notify_all();
             } else {
-                break 'main_loop;
+                return AppResult::Success;
             }
         }
 
-        // Update video and events at multiple of 60Hz or 50Hz
-        let video_time_elapsed = video_time.elapsed().as_micros();
+        // Update video at multiple of 60Hz or 50Hz (events are delivered
+        // through the app_event callback)
+        let video_time_elapsed = self.video_time.elapsed().as_micros();
         if video_time_elapsed >= shared.pacing.cpu_period.load(Ordering::Relaxed) as u128 {
-            video_time = Instant::now();
+            self.video_time = Instant::now();
+
+            let window = &mut main.window;
+            let emulator_state = &mut main.emulator_state;
 
             if emulator_state.save_screenshot {
                 let mut cpu = shared.cpu.lock();
@@ -2489,9 +2303,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                     cpu.bus.video.skip_update = false;
                     prepare_video_frame(
                         &mut cpu,
-                        &mut blend_buffer,
-                        &mut barrel_buffer,
-                        &emulator_state,
+                        &mut main.blend_buffer,
+                        &mut main.barrel_buffer,
+                        emulator_state,
                     )
                 };
 
@@ -2505,83 +2319,341 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
                 // Upload the texture to the GPU without holding the CPU lock
                 let image_texture_id = upload_gpu_texture(
-                    &mut imgui,
-                    &device,
-                    &blend_buffer,
-                    &barrel_buffer,
+                    &mut main.imgui,
+                    &main.device,
+                    &main.blend_buffer,
+                    &main.barrel_buffer,
                     barrel_distortion,
-                    &emulator_state,
+                    emulator_state,
                 );
 
                 if let Ok(texture_id) = image_texture_id {
                     render_frame(
-                        &shared,
-                        (&mut sdl_context, &device, &window),
-                        &mut imgui,
-                        &mut event_pump,
-                        &mut emulator_state,
+                        shared,
+                        (&mut main.sdl_context, &main.device, window),
+                        &mut main.imgui,
+                        &mut main.event_pump,
+                        emulator_state,
                         texture_id,
                     );
                 }
             }
 
-            let mut cpu_events = Vec::new();
-            for event_value in event_pump.poll_iter() {
-                imgui.handle_event(&event_value);
-                if !emulator_state.input.want_capture_keyboard && requires_cpu(&event_value) {
-                    cpu_events.push(event_value)
-                }
-            }
-
-            for event_value in cpu_events {
-                handle_event(event_value, &mut emulator_state, &shared);
-            }
+            let mut cpu = shared.cpu.lock();
 
             // Update keyboard akd state
-            let mut cpu = shared.cpu.lock();
-            cpu.bus.any_key_down = event_pump
+            cpu.bus.any_key_down = main
+                .event_pump
                 .keyboard_state()
                 .pressed_scancodes()
                 .next()
                 .is_some();
 
             // Update mouse state
-            update_mouse_state(&mut cpu, &event_pump, &mut emulator_state);
+            update_mouse_state(&mut cpu, &main.event_pump, emulator_state);
 
             // Check the full_screen state is not change
             handle_fullscreen_toggle(
                 &mut cpu,
-                &mut window,
-                &sdl_context,
+                window,
+                &main.sdl_context,
                 &mut emulator_state.video,
             );
         }
 
         // Sleep until the next video period to avoid busy-waiting
+        /*
         let remaining = (shared.pacing.cpu_period.load(Ordering::Relaxed) as u128)
-            .saturating_sub(video_time.elapsed().as_micros());
+            .saturating_sub(self.video_time.elapsed().as_micros());
         if remaining > 0 {
             spin_sleep::sleep(std::time::Duration::from_micros(remaining as u64));
         }
+        */
+
+        AppResult::Continue
     }
 
-    if let Err(payload) = emu_handle.join() {
-        std::panic::resume_unwind(payload);
+    // Called by SDL on the main thread for each delivered event. Replaces the
+    // old event_pump.poll_iter() loop
+    fn app_event(&mut self, event: &Event) -> AppResult {
+        let main = self.main.assert_get_mut();
+        main.imgui.handle_event(event);
+
+        if !main.emulator_state.input.want_capture_keyboard && requires_cpu(event) {
+            handle_event(event.clone(), &mut main.emulator_state, &self.shared);
+        }
+        AppResult::Continue
     }
 
-    /*
-    #[cfg(target_os = "windows")]
-    {
-        use winapi::um::wincon::{FreeConsole};
-        unsafe {
-            FreeConsole();
+    // Called once by SDL on the main thread when the app quits. Joins the
+    // emulator thread; the app state is dropped afterwards
+    fn app_quit(state: Option<&mut App>) {
+        let Some(app) = state else { return };
+
+        if let Some(handle) = app.emu_handle.take()
+            && let Err(payload) = handle.join()
+        {
+            std::panic::resume_unwind(payload);
         }
     }
-    */
-
-    Ok(())
 }
 
+impl App {
+    // Creates the emulator, the SDL window and the GPU device, then starts the
+    // emulator thread. Returns None for a clean exit (help / version / bad
+    // command-line arguments)
+    fn create() -> Result<Option<App>, Box<dyn Error + Send + Sync>> {
+        #[cfg(target_os = "windows")]
+        #[cfg(feature = "pcap")]
+        {
+            use windows_sys::Win32::System::LibraryLoader::{
+                LOAD_LIBRARY_SEARCH_SYSTEM32, SetDefaultDllDirectories,
+            };
+            unsafe {
+                SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32);
+            }
+        }
+
+        let mut pargs = pico_args::Arguments::from_env();
+
+        if pargs.contains(["-h", "--help"]) {
+            print_help();
+            return Ok(None);
+        }
+
+        if pargs.contains(["-V", "--version"]) {
+            print_version();
+            return Ok(None);
+        }
+
+        //let _function_test: Vec<u8> = std::fs::read("6502_functional_test.bin").unwrap();
+        //let _function_test: Vec<u8> = std::fs::read("65C02_extended_opcodes_test.bin").unwrap();
+        //let apple2_rom: Vec<u8> = std::fs::read("Apple2_Plus.rom").unwrap();
+
+        // Create bus
+        let bus = Bus::default();
+
+        let mut cpu = CPU::new(bus);
+        let mut _cpu_stats = CpuStats::new();
+
+        // Enable save for disk
+        cpu.bus.disk.set_enable_save_disk(true);
+
+        // Enable save for hard disk
+        cpu.bus.harddisk.set_enable_save_disk(true);
+
+        // Enable save for cassette
+        cpu.bus.audio.set_enable_save_tape(true);
+
+        //cpu.load(apple2_rom, 0xd000);
+        //cpu.load(apple2e_rom, 0xc000);
+        //cpu.load(&apple2ee_rom, 0xc000);
+        //cpu.load(_function_test, 0x0);
+        //cpu.program_counter = 0x0400;
+        //cpu.self_test = true;
+        //cpu.m65c02 = true;
+
+        let mut key_caps = true;
+        let mut scale = 1.5;
+        let mut shift_mod = false;
+        let exit_flag = parse_args(
+            &mut cpu,
+            &mut pargs,
+            &mut key_caps,
+            &mut scale,
+            &mut shift_mod,
+        )?;
+
+        if exit_flag {
+            return Ok(None);
+        }
+
+        let remaining = pargs.finish();
+
+        // Check that there are no more flags in the remaining arguments
+        for item in &remaining {
+            let path = Path::new(item);
+
+            if path.display().to_string().starts_with('-') {
+                eprintln!("Unrecognized option: {}", path.display());
+                eprintln!();
+                print_help();
+                return Ok(None);
+            }
+        }
+
+        if !remaining.is_empty() {
+            // Load dsk image in drive 1
+            let path = Path::new(&remaining[0]);
+            let mut loaded_device = Vec::new();
+            let result = load_image(&mut cpu, path, &mut loaded_device);
+            if let Err(e) = result {
+                eprintln!("Unable to load disk {} : {e}", path.display());
+            }
+
+            if remaining.len() > 1 {
+                // Load dsk image in drive 2
+                let path2 = Path::new(&remaining[1]);
+                let result = load_image(&mut cpu, path2, &mut loaded_device);
+                if let Err(e) = result {
+                    eprintln!("Unable to load disk {} : {e}", path2.display());
+                }
+            }
+        }
+
+        // Create the SDL3 context
+        let sdl_context = sdl3::init()?;
+
+        // Create window
+        let width = (scale * Video::WIDTH as f32) as u32;
+        let height = (scale * Video::HEIGHT as f32) as u32;
+        let video_subsystem = sdl_context.video()?;
+
+        eprintln!("emu6502 v{}", VERSION);
+        eprintln!("Detected Video Drivers");
+        for (i, driver) in sdl3::video::drivers().enumerate() {
+            eprintln!("-- Driver #{}: {}", i, driver);
+        }
+        eprintln!(
+            "Using video driver: {}",
+            video_subsystem.current_video_driver()
+        );
+
+        let window = video_subsystem
+            .window("Apple ][ emulator", width, height + 2 * MENUBAR_HEIGHT)
+            .position_centered()
+            .high_pixel_density()
+            .metal_view()
+            .build()?;
+
+        video_subsystem.text_input().start(&window);
+
+        let device = Device::new(ShaderFormat::SPIRV, false)?.with_window(&window)?;
+
+        let sampler = device.create_sampler(
+            SamplerCreateInfo::new()
+                .with_min_filter(Filter::Linear)
+                .with_mag_filter(Filter::Linear)
+                .with_mipmap_mode(SamplerMipmapMode::Linear)
+                .with_address_mode_u(SamplerAddressMode::ClampToEdge)
+                .with_address_mode_v(SamplerAddressMode::ClampToEdge)
+                .with_address_mode_w(SamplerAddressMode::ClampToEdge),
+        )?;
+
+        // create platform and renderer
+        let imgui = ImGuiSdl3::new(&device, &window, |ctx| {
+            // disable creation of files on disc
+            ctx.set_ini_filename(None);
+            ctx.set_log_filename(None);
+            // setup platform and renderer, and fonts to imgui
+            ctx.fonts().clear();
+            ctx.fonts()
+                .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+        });
+
+        // Create the game controller
+        let game_controller = sdl_context.gamepad()?;
+
+        const FRAME_BYTES: usize = Video::WIDTH * Video::HEIGHT * 4;
+        let blend_buffer = vec![0xff_u8; FRAME_BYTES];
+        let barrel_buffer = vec![0xff_u8; FRAME_BYTES];
+
+        // Set apple2 icon
+        /*
+        let apple2_icon = Surface::from_file("apple2.png")?;
+        window.set_icon(apple2_icon);
+        */
+
+        // Create audio
+        let audio_subsystem = sdl_context.audio();
+        let desired_spec = AudioSpec {
+            freq: Some(AUDIO_SAMPLE_RATE as i32),
+            channels: Some(2),
+            format: Some(AudioFormat::s16_sys()),
+        };
+
+        // Init audio callback
+        let audio_stream = if let Ok(audio) = &audio_subsystem {
+            init_audio_stream(audio, &desired_spec)
+        } else {
+            eprintln!("No audio device detected!");
+            None
+        };
+
+        // Create SDL event pump. SDL delivers events through the app_event
+        // callback; the pump is only used for the current mouse / keyboard state
+        // and by imgui
+        let event_pump = sdl_context.event_pump()?;
+
+        let video_time = Instant::now();
+        let previous_cycles = 0;
+
+        cpu.setup_emulator();
+        cpu.reset();
+
+        // Change the refresh video to the start of the VBL instead of end of the VBL
+        let dcyc = if cpu.bus.video.is_video_50hz() {
+            CPU_CYCLES_PER_FRAME_50HZ - 65 * 192
+        } else {
+            CPU_CYCLES_PER_FRAME_60HZ - 65 * 192
+        };
+
+        let mut emulator_state = EmulatorState::new(video_subsystem, game_controller, sampler);
+
+        emulator_state.video.scale = scale;
+        emulator_state.video.prev_scale = scale;
+        emulator_state.input.key_caps = key_caps;
+        emulator_state.input.shift_mod = shift_mod;
+        emulator_state.previous_cycles = previous_cycles;
+        emulator_state.prev_settings = get_slot_settings(&cpu);
+        emulator_state.current_settings = emulator_state.prev_settings.clone();
+
+        // State shared between the UI thread and the emulator thread
+        let shared = Arc::new(EmuShared {
+            cpu: Mutex::new(cpu),
+            pacing: Pacing::default(),
+            stats: Stats::default(),
+            clipboard_text: Mutex::new(String::new()),
+            clipboard_pending: AtomicBool::new(false),
+            reload_cpu: AtomicBool::new(false),
+            model_changed: AtomicBool::new(false),
+            reload_done: Mutex::new(false),
+            reload_cv: Condvar::new(),
+            halted: AtomicBool::new(false),
+        });
+
+        {
+            let mut cpu = shared.cpu.lock();
+            update_video_state(&mut cpu, &shared.pacing);
+        }
+
+        // Run the emulator on a separate thread so that audio keeps playing while
+        // the UI thread is blocked (e.g. while the window is being moved)
+        let emu_shared = Arc::clone(&shared);
+        let audio_stream = SendAudioStream(audio_stream);
+        let emu_handle = thread::Builder::new()
+            .name("emulator".to_string())
+            .spawn(move || {
+                emulator_thread(emu_shared, audio_stream, dcyc);
+            })?;
+
+        Ok(Some(App {
+            main: MainThreadData::assert_new(AppMain {
+                event_pump,
+                emulator_state,
+                imgui,
+                device,
+                window,
+                blend_buffer,
+                barrel_buffer,
+                sdl_context,
+            }),
+            shared,
+            video_time,
+            emu_handle: Some(emu_handle),
+        }))
+    }
+}
 fn parse_args(
     cpu: &mut CPU,
     pargs: &mut pico_args::Arguments,
@@ -2997,11 +3069,7 @@ fn prepare_main_menu(ui: &imgui::Ui, state: &mut EmulatorState, shared: &EmuShar
     });
 }
 
-fn prepare_system_menu(
-    ui: &imgui::Ui,
-    state: &mut EmulatorState,
-    shared: &EmuShared,
-) {
+fn prepare_system_menu(ui: &imgui::Ui, state: &mut EmulatorState, shared: &EmuShared) {
     ui.menu("System", || {
         prepare_menu_for_model(ui, state, shared);
 
@@ -3082,11 +3150,7 @@ fn prepare_toggle_video_menu_item(
     });
 }
 
-fn prepare_video_menu(
-    ui: &imgui::Ui,
-    state: &mut EmulatorState,
-    shared: &EmuShared,
-) {
+fn prepare_video_menu(ui: &imgui::Ui, state: &mut EmulatorState, shared: &EmuShared) {
     ui.menu("Video", || {
         let cpu = &mut shared.cpu.lock();
         ui.text("Window scale");
@@ -3212,11 +3276,7 @@ fn build_enable_toggle_menu_item<F>(
     }
 }
 
-fn prepare_menu_for_model(
-    ui: &imgui::Ui,
-    state: &mut EmulatorState,
-    shared: &EmuShared,
-) {
+fn prepare_menu_for_model(ui: &imgui::Ui, state: &mut EmulatorState, shared: &EmuShared) {
     ui.menu("Model", || {
         let cpu = &mut shared.cpu.lock();
         let rom_value = cpu.bus.mem.mem_read(0xfbb3);
@@ -3343,11 +3403,7 @@ fn change_model(shared: &EmuShared) {
     shared.reload_cpu.store(true, Ordering::Release);
 }
 
-fn prepare_input_menu(
-    ui: &imgui::Ui,
-    state: &mut EmulatorState,
-    shared: &EmuShared,
-) {
+fn prepare_input_menu(ui: &imgui::Ui, state: &mut EmulatorState, shared: &EmuShared) {
     ui.menu("Input", || {
         let cpu = &mut shared.cpu.lock();
         let fast_disk = !cpu.bus.disk.get_disable_fast_disk();
