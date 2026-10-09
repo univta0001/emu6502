@@ -139,6 +139,11 @@ enum OpenFileDialog {
     Disk(u8),
     HardDisk(u8),
     Tape,
+    // Deserialize a state file and hand it to the reload path in the main
+    // loop; the file is picked before the emulator is halted (see
+    // `request_load_state`).
+    #[cfg(feature = "serialization")]
+    LoadState,
 }
 
 #[derive(Default)]
@@ -195,6 +200,20 @@ struct Stats {
 // Lock order: `cpu` first, then `stats` / `clipboard_text`.
 // `pacing` uses atomics instead of a lock; its writes happen while the
 // `cpu` lock is held.
+//
+// Invariants for `cpu`:
+//
+// - Never hold it across a blocking or OS-modal call (an rfd file dialog,
+//   unbounded file I/O). A modal dialog blocks the UI thread for as long as
+//   it stays open, while the emulator thread needs `cpu` once per video
+//   period to keep feeding the SDL audio stream; a lock held that long
+//   drains the stream and stalls audio.
+// - `parking_lot::Mutex` is not reentrant, so a function that locks `cpu`
+//   itself (the dialog helpers, `save_serialized_image`, the menu helpers)
+//   must only be called from a scope that does not already hold the guard.
+//   Keep guards scoped to a single helper call, and defer anything that
+//   might block through `EmulatorState::file_dialog`, which is dispatched
+//   from `render_frame` before any guard is taken.
 struct EmuShared {
     cpu: Mutex<CPU>,
     pacing: Pacing,
@@ -232,6 +251,16 @@ struct EmulatorState {
     input: InputState,
     save_screenshot: bool,
     file_dialog: OpenFileDialog,
+    // Whether a pending file dialog may be dispatched on the next frame.
+    // Recorded at the end of render_frame's imgui closure: false while an
+    // item is hovered (i.e. while a menu is still open).
+    dialog_allowed: bool,
+    // State picked and deserialized by `request_load_state` before the
+    // emulator is halted. Consumed by the reload branch of the main loop, so
+    // no file dialog runs while the emulator thread parks on `reload_cv`
+    // (which would stop audio for the duration of the dialog).
+    #[cfg(feature = "serialization")]
+    pending_state: Option<CPU>,
     show_settings: bool,
     prev_settings: Vec<usize>,
     current_settings: Vec<usize>,
@@ -254,6 +283,9 @@ impl EmulatorState {
             input: InputState::default(),
             save_screenshot: false,
             file_dialog: OpenFileDialog::None,
+            dialog_allowed: true,
+            #[cfg(feature = "serialization")]
+            pending_state: None,
             show_settings: false,
             prev_settings: Vec::new(),
             current_settings: Vec::new(),
@@ -444,12 +476,11 @@ fn requires_cpu(event: &Event) -> bool {
 }
 
 fn handle_event(event: Event, state: &mut EmulatorState, shared: &EmuShared) {
-    let cpu = &mut shared.cpu.lock();
-
-    if function_key_processed(cpu, &event, state, shared) {
+    if function_key_processed(&event, state, shared) {
         return;
     }
 
+    let cpu = &mut shared.cpu.lock();
     if numpad_key_processed(cpu, &event) {
         return;
     }
@@ -755,7 +786,7 @@ where
     Ok(())
 }
 
-fn open_disk_dialog(cpu: &mut CPU, drive: usize) {
+fn open_disk_dialog(shared: &EmuShared, drive: usize) {
     let result = FileDialog::new()
         .add_filter(
             "Disk image",
@@ -767,18 +798,20 @@ fn open_disk_dialog(cpu: &mut CPU, drive: usize) {
         .pick_file();
 
     let Some(file_path) = result else { return };
+    let cpu = &mut shared.cpu.lock();
     let result = load_disk(cpu, &file_path, drive);
     if let Err(e) = result {
         eprintln!("Unable to load disk {} : {e}", file_path.display());
     }
 }
 
-fn mount_tape(cpu: &mut CPU) {
+fn mount_tape(shared: &EmuShared) {
     let result = FileDialog::new()
         .add_filter("Tape image", &["wav"])
         .save_file();
 
     let Some(file_path) = result else { return };
+    let cpu = &mut shared.cpu.lock();
     let result = cpu.bus.audio.load_tape(&file_path);
     if let Err(e) = result {
         eprintln!("Unable to mount tape {} : {e}", file_path.display());
@@ -804,12 +837,13 @@ where
     Ok(())
 }
 
-fn open_harddisk_dialog(cpu: &mut CPU, drive: usize) {
+fn open_harddisk_dialog(shared: &EmuShared, drive: usize) {
     let result = FileDialog::new()
         .add_filter("Disk image", &["hdv", "2mg", "po"])
         .pick_file();
 
     let Some(file_path) = result else { return };
+    let cpu = &mut shared.cpu.lock();
     let result = load_harddisk(cpu, &file_path, drive);
     if let Err(e) = result {
         eprintln!("Unable to load hard disk {} : {e}", file_path.display());
@@ -911,12 +945,15 @@ fn replace_quoted_hex_values(string: &str) -> String {
 }
 
 #[cfg(feature = "serialization")]
-fn save_serialized_image(cpu: &CPU) {
+fn save_serialized_image(shared: &EmuShared) {
     #[cfg(feature = "serde_support")]
     {
         use serde_saphyr::ser_options;
         let options = ser_options! { prefer_block_scalars: false };
-        let serialized_result = serde_saphyr::to_string_with_options(&cpu, options);
+        let serialized_result = {
+            let cpu: &CPU = &shared.cpu.lock();
+            serde_saphyr::to_string_with_options(cpu, options)
+        };
         match serialized_result {
             Err(err) => eprintln!("Unable to serialize the data : {err}"),
 
@@ -999,6 +1036,30 @@ fn load_serialized_image() -> Result<CPU, String> {
     }
 
     Ok(new_cpu)
+}
+
+// Load state: show the dialog and deserialize the file *before* the emulator
+// is halted. The dialog and the file I/O run with no `cpu` guard held, so the
+// emulator thread keeps running and feeding the audio stream while the dialog
+// is open; only once the new state is ready does the emulator halt, and the
+// main loop then swaps it in from `EmulatorState::pending_state` without
+// showing a second dialog.
+#[cfg(feature = "serialization")]
+fn request_load_state(shared: &EmuShared, state: &mut EmulatorState) {
+    match load_serialized_image() {
+        Ok(new_cpu) => {
+            state.pending_state = Some(new_cpu);
+            shared.reload_cpu.store(true, Ordering::Release);
+            let cpu = &mut shared.cpu.lock();
+            cpu.halt_cpu();
+        }
+        // Cancelled (empty message) or failed: report and keep running.
+        Err(message) => {
+            if !message.is_empty() {
+                eprintln!("{message}");
+            }
+        }
+    }
 }
 
 fn dump_disk_info(cpu: &CPU) {
@@ -1390,7 +1451,6 @@ fn process_clipboard(cpu: &mut CPU, clipboard_text: &mut String) {
 }
 
 fn function_key_processed(
-    cpu: &mut CPU,
     event: &Event,
     state: &mut EmulatorState,
     shared: &EmuShared,
@@ -1403,6 +1463,7 @@ fn function_key_processed(
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
+                    let cpu = &shared.cpu.lock();
                     let estimated_mhz =
                         f32::from_bits(shared.stats.estimated_mhz.load(Ordering::Relaxed));
                     let fps = f32::from_bits(shared.stats.fps.load(Ordering::Relaxed));
@@ -1413,11 +1474,12 @@ fn function_key_processed(
                         cpu.bus.get_cycles()
                     );
                 } else {
+                    let cpu = &mut shared.cpu.lock();
                     eject_disk(cpu, 0);
                 }
                 return true;
             } else {
-                open_disk_dialog(cpu, 0);
+                open_disk_dialog(shared, 0);
                 return true;
             }
         }
@@ -1429,8 +1491,10 @@ fn function_key_processed(
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
+                    let cpu = &mut shared.cpu.lock();
                     let mut output = String::new();
-                    let addr = adjust_disassemble_addr(&mut cpu.bus, cpu.program_counter, -10);
+                    let program_counter = cpu.program_counter;
+                    let addr = adjust_disassemble_addr(&mut cpu.bus, program_counter, -10);
                     disassemble_addr(&mut output, cpu, addr, 20);
                     let track_info = cpu.bus.disk.get_track_info();
                     eprintln!(
@@ -1448,11 +1512,12 @@ fn function_key_processed(
                         output
                     );
                 } else {
+                    let cpu = &mut shared.cpu.lock();
                     eject_disk(cpu, 1);
                 }
                 return true;
             } else {
-                open_disk_dialog(cpu, 1);
+                open_disk_dialog(shared, 1);
                 return true;
             }
         }
@@ -1464,13 +1529,15 @@ fn function_key_processed(
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
+                    let cpu = &shared.cpu.lock();
                     dump_track_sector_info(cpu);
                 } else {
                     #[cfg(feature = "serialization")]
-                    save_serialized_image(cpu);
+                    save_serialized_image(shared);
                 }
                 return true;
             } else {
+                let cpu = &mut shared.cpu.lock();
                 cpu.bus.disk.swap_drive();
                 return true;
             }
@@ -1482,13 +1549,21 @@ fn function_key_processed(
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
+                    let cpu = &shared.cpu.lock();
                     dump_disk_info(cpu);
                 } else {
-                    shared.reload_cpu.store(true, Ordering::Release);
-                    cpu.halt_cpu();
+                    // Load state: pick the file and deserialize it *before*
+                    // halting (see `request_load_state`), so audio keeps
+                    // playing while the dialog is open. Safe to call here:
+                    // no `cpu` guard is held yet and we are outside any frame.
+                    // Without the `serialization` feature there is nothing to
+                    // load, so Ctrl-F4 becomes a no-op.
+                    #[cfg(feature = "serialization")]
+                    request_load_state(shared, state);
                 }
                 return true;
             } else {
+                let cpu = &mut shared.cpu.lock();
                 cpu.bus.toggle_joystick();
                 return true;
             }
@@ -1499,10 +1574,12 @@ fn function_key_processed(
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                let cpu = &mut shared.cpu.lock();
                 let mode = !cpu.bus.video.get_scanline();
                 cpu.bus.video.set_scanline(mode);
                 return true;
             } else {
+                let cpu = &mut shared.cpu.lock();
                 state.speed.disk_mode_index = (state.speed.disk_mode_index + 1) % 3;
                 match state.speed.disk_mode_index {
                     0 => {
@@ -1529,6 +1606,7 @@ fn function_key_processed(
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                let cpu = &mut shared.cpu.lock();
                 let mode = !cpu.bus.audio.get_filter_enabled();
                 cpu.bus.audio.set_filter_enabled(mode);
                 return true;
@@ -1540,6 +1618,7 @@ fn function_key_processed(
                     state.video.display_index =
                         (state.video.display_index + 1) % DISPLAY_MODES.len();
                 }
+                let cpu = &mut shared.cpu.lock();
                 cpu.bus
                     .video
                     .set_display_mode(DISPLAY_MODES[state.video.display_index]);
@@ -1552,9 +1631,11 @@ fn function_key_processed(
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                let cpu = &mut shared.cpu.lock();
                 let color_burst = cpu.bus.video.get_text_color_burst();
                 cpu.bus.video.set_text_color_burst(!color_burst);
             } else {
+                let cpu = &mut shared.cpu.lock();
                 cpu.bus.toggle_video_freq();
             }
             return true;
@@ -1565,8 +1646,9 @@ fn function_key_processed(
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                mount_tape(cpu);
+                mount_tape(shared);
             } else {
+                let cpu = &mut shared.cpu.lock();
                 cpu.bus.toggle_joystick_jitter();
             }
             return true;
@@ -1581,6 +1663,7 @@ fn function_key_processed(
             if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
                 speed_index = (speed_index + SPEED_MODES.len() - 1) % SPEED_MODES.len();
             } else if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                let cpu = &mut shared.cpu.lock();
                 cpu.bus.audio.eject_tape();
             } else {
                 speed_index = (speed_index + 1) % SPEED_MODES.len();
@@ -1589,6 +1672,7 @@ fn function_key_processed(
                 .pacing
                 .speed_index
                 .store(speed_index, Ordering::Relaxed);
+            let cpu = &mut shared.cpu.lock();
             cpu.set_speed(SPEED_MODES[speed_index]);
             update_video_state(cpu, &shared.pacing);
             return true;
@@ -1600,9 +1684,10 @@ fn function_key_processed(
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                let cpu = &mut shared.cpu.lock();
                 eject_harddisk(cpu, 0);
             } else {
-                open_harddisk_dialog(cpu, 0);
+                open_harddisk_dialog(shared, 0);
             }
             return true;
         }
@@ -1613,9 +1698,10 @@ fn function_key_processed(
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                let cpu = &mut shared.cpu.lock();
                 eject_harddisk(cpu, 1);
             } else {
-                open_harddisk_dialog(cpu, 1);
+                open_harddisk_dialog(shared, 1);
             }
             return true;
         }
@@ -1626,6 +1712,7 @@ fn function_key_processed(
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                let cpu = &mut shared.cpu.lock();
                 cpu.set_reset(true);
                 return true;
             }
@@ -1638,6 +1725,7 @@ fn function_key_processed(
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
+                let cpu = &mut shared.cpu.lock();
                 cpu.interrupt_reset();
                 return true;
             }
@@ -1835,6 +1923,25 @@ fn render_frame(
     image_texture_id: imgui::TextureId,
 ) {
     let (sdl, device, window) = (ctx.0, ctx.1, ctx.2);
+
+    // Dispatch any pending file dialog before acquiring GPU resources, so a
+    // modal dialog never holds a command buffer or a swapchain image open.
+    // `dialog_allowed` was recorded at the end of the previous frame: no
+    // dialog is opened while a menu item is hovered.
+    //
+    // No `cpu` guard is held here (see the EmuShared invariants): the
+    // helpers lock only for the short apply step, after the dialog returns.
+    if state.dialog_allowed {
+        match std::mem::replace(&mut state.file_dialog, OpenFileDialog::None) {
+            OpenFileDialog::Disk(disk) => open_disk_dialog(shared, disk.into()),
+            OpenFileDialog::HardDisk(disk) => open_harddisk_dialog(shared, disk.into()),
+            OpenFileDialog::Tape => mount_tape(shared),
+            #[cfg(feature = "serialization")]
+            OpenFileDialog::LoadState => request_load_state(shared, state),
+            OpenFileDialog::None => {}
+        }
+    }
+
     let Ok(mut cmd_buf) = device.acquire_command_buffer() else {
         return;
     };
@@ -1852,10 +1959,6 @@ fn render_frame(
         .with_load_op(LoadOp::LOAD)
         .with_store_op(StoreOp::STORE)];
 
-    // Lock the CPU only while rendering the menus, not while waiting for the
-    // swapchain texture, so the emulator thread keeps running
-    let mut cpu_guard = shared.cpu.lock();
-
     imgui.render(
         sdl,
         device,
@@ -1864,21 +1967,8 @@ fn render_frame(
         &mut cmd_buf,
         &color_targets,
         |ui| {
-            let cpu = &mut *cpu_guard;
-            {
-                let io = ui.io();
-                state.input.want_capture_keyboard = io.want_capture_keyboard;
-            }
-
-            // Process deferred file-dialog results
-            if !ui.is_any_item_hovered() {
-                match std::mem::replace(&mut state.file_dialog, OpenFileDialog::None) {
-                    OpenFileDialog::Disk(disk) => open_disk_dialog(cpu, disk.into()),
-                    OpenFileDialog::HardDisk(disk) => open_harddisk_dialog(cpu, disk.into()),
-                    OpenFileDialog::Tape => mount_tape(cpu),
-                    OpenFileDialog::None => {}
-                }
-            }
+            let io = ui.io();
+            state.input.want_capture_keyboard = io.want_capture_keyboard;
 
             state.video.menu_bar_height = if state.video.current_full_screen {
                 0.0
@@ -1886,25 +1976,33 @@ fn render_frame(
                 ui.frame_height()
             };
 
-            update_emulator_graphics(cpu, ui, window, state, image_texture_id);
+            {
+                let cpu = &mut shared.cpu.lock();
+                update_emulator_graphics(cpu, ui, window, state, image_texture_id);
+            }
 
             if !state.video.current_full_screen {
-                prepare_main_menu(cpu, ui, state, shared);
+                prepare_main_menu(ui, state, shared);
                 if state.show_settings {
                     state.show_settings = false;
                     ui.open_popup("Settings##settings");
                 }
+                let cpu = &mut shared.cpu.lock();
                 prepare_settings(cpu, ui, state);
             }
 
             if state.video.menu_bar_height > 0.0 {
                 let (w, h) = window.size();
+                let cpu = &mut shared.cpu.lock();
                 prepare_statusbar(cpu, ui, state, shared, w, h);
             }
+
+            // Recorded after the menus were built, so a dialog requested by a
+            // menu is dispatched on the next frame only once nothing is
+            // hovered anymore (menus close after a click).
+            state.dialog_allowed = !ui.is_any_item_hovered();
         },
     );
-
-    drop(cpu_guard);
 
     let _ = cmd_buf.submit();
 }
@@ -2322,6 +2420,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         // The CPU halted: reload the state / model, or exit
         if shared.halted.load(Ordering::Acquire) {
             if shared.model_changed.swap(false, Ordering::AcqRel) {
+                // A model change performs its own reload; drop any stale
+                // load-state request so a later halt (Exit, Ctrl-F4) does not
+                // fall into the reload branch below.
+                shared.reload_cpu.store(false, Ordering::Release);
                 let mut cpu = shared.cpu.lock();
                 cpu.bus.init_memory();
                 cpu.bus.set_apple2c(false);
@@ -2337,7 +2439,12 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             } else if shared.reload_cpu.swap(false, Ordering::AcqRel) {
                 #[cfg(feature = "serialization")]
                 {
-                    let result = load_serialized_image();
+                    // The file was picked and deserialized before the halt
+                    // (see `request_load_state`), so no dialog runs while the
+                    // emulator thread is parked here and audio does not stop.
+                    let result = emulator_state.pending_state.take().ok_or_else(|| {
+                        "Load state requested without a pending state".to_string()
+                    });
                     match result {
                         Ok(mut new_cpu) => {
                             emulator_state.previous_cycles = new_cpu.bus.get_cycles();
@@ -2348,9 +2455,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                             drop(cpu);
                         }
                         Err(message) => {
-                            if !message.is_empty() {
-                                eprintln!("{message}")
-                            }
+                            eprintln!("{message}")
                         }
                     }
                 }
@@ -2869,50 +2974,52 @@ fn update_emulator_graphics(
     update_gpu_harddisk_status(cpu, &bg_draw_list, window, state);
 }
 
-fn prepare_main_menu(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState, shared: &EmuShared) {
+fn prepare_main_menu(ui: &imgui::Ui, state: &mut EmulatorState, shared: &EmuShared) {
     ui.main_menu_bar(|| {
         // System menu
-        prepare_system_menu(cpu, ui, state, shared);
+        prepare_system_menu(ui, state, shared);
 
         // Speed menu
-        prepare_speed_menu(cpu, ui, shared);
+        prepare_speed_menu(ui, shared);
 
         // Video menu
-        prepare_video_menu(cpu, ui, state, shared);
+        prepare_video_menu(ui, state, shared);
 
         // Audio menu
-        prepare_audio_menu(cpu, ui);
+        prepare_audio_menu(ui, shared);
 
         // Input menu
-        prepare_input_menu(cpu, ui, state, shared);
+        prepare_input_menu(ui, state, shared);
     });
 }
 
 fn prepare_system_menu(
-    cpu: &mut CPU,
     ui: &imgui::Ui,
     state: &mut EmulatorState,
     shared: &EmuShared,
 ) {
     ui.menu("System", || {
-        prepare_menu_for_model(cpu, ui, state, shared);
+        prepare_menu_for_model(ui, state, shared);
 
         if ui.menu_item("Slot Settings...") {
             state.show_settings = true;
         }
 
-        prepare_menu_for_disk(cpu, ui, state);
+        prepare_menu_for_disk(ui, state, shared);
 
-        let noslot_clock = cpu.bus.get_noslot_clock();
-        build_toggle_menu_item(ui, "Enable NoSlot Clock", "", noslot_clock, |_| {
-            cpu.bus.set_noslot_clock(!noslot_clock);
-        });
+        {
+            let cpu = &mut shared.cpu.lock();
+            let noslot_clock = cpu.bus.get_noslot_clock();
+            build_toggle_menu_item(ui, "Enable NoSlot Clock", "", noslot_clock, |_| {
+                cpu.bus.set_noslot_clock(!noslot_clock);
+            });
+        }
 
         ui.separator();
 
         #[cfg(feature = "serialization")]
         {
-            prepare_menu_for_state_management(cpu, ui, shared);
+            prepare_menu_for_state_management(ui, state, shared);
             ui.separator();
         }
 
@@ -2923,19 +3030,20 @@ fn prepare_system_menu(
             "Alt-F4"
         };
         if ui.menu_item_config("Exit").shortcut(exit_key).build() {
+            let cpu = &mut shared.cpu.lock();
             cpu.halt_cpu();
         }
     });
 }
 
 fn prepare_speed_menu_item(
-    cpu: &mut CPU,
     ui: &imgui::Ui,
     shared: &EmuShared,
     label: &str,
     shortcut: &str,
     index: usize,
 ) {
+    let cpu = &mut shared.cpu.lock();
     let speed_index = shared.pacing.speed_index.load(Ordering::Relaxed);
     build_toggle_menu_item(ui, label, shortcut, speed_index == index, |_| {
         shared.pacing.speed_index.store(index, Ordering::Relaxed);
@@ -2944,10 +3052,10 @@ fn prepare_speed_menu_item(
     });
 }
 
-fn prepare_speed_menu(cpu: &mut CPU, ui: &imgui::Ui, shared: &EmuShared) {
+fn prepare_speed_menu(ui: &imgui::Ui, shared: &EmuShared) {
     ui.menu("Speed", || {
         for (index, item) in SPEED_NAMES.iter().enumerate() {
-            prepare_speed_menu_item(cpu, ui, shared, item, "F9, Shift-F9", index)
+            prepare_speed_menu_item(ui, shared, item, "F9, Shift-F9", index)
         }
     })
 }
@@ -2971,12 +3079,12 @@ fn prepare_toggle_video_menu_item(
 }
 
 fn prepare_video_menu(
-    cpu: &mut CPU,
     ui: &imgui::Ui,
     state: &mut EmulatorState,
     shared: &EmuShared,
 ) {
     ui.menu("Video", || {
+        let cpu = &mut shared.cpu.lock();
         ui.text("Window scale");
         ui.same_line();
         let width = ui.push_item_width(-1.0);
@@ -3046,8 +3154,9 @@ fn prepare_video_menu(
     })
 }
 
-fn prepare_audio_menu(cpu: &mut CPU, ui: &imgui::Ui) {
+fn prepare_audio_menu(ui: &imgui::Ui, shared: &EmuShared) {
     ui.menu("Audio", || {
+        let cpu = &mut shared.cpu.lock();
         let enable_audio = !cpu.bus.disable_audio;
         build_toggle_menu_item(ui, "Enable Audio", "", enable_audio, |new_state| {
             cpu.bus.disable_audio = !new_state;
@@ -3100,12 +3209,12 @@ fn build_enable_toggle_menu_item<F>(
 }
 
 fn prepare_menu_for_model(
-    cpu: &mut CPU,
     ui: &imgui::Ui,
     state: &mut EmulatorState,
     shared: &EmuShared,
 ) {
     ui.menu("Model", || {
+        let cpu = &mut shared.cpu.lock();
         let rom_value = cpu.bus.mem.mem_read(0xfbb3);
         build_toggle_menu_item(ui, "Apple ][", "", rom_value == 0x38, |_| {
             initialize_apple_system(cpu, APPLE2_ROM, 0xd000, false);
@@ -3231,12 +3340,12 @@ fn change_model(shared: &EmuShared) {
 }
 
 fn prepare_input_menu(
-    cpu: &mut CPU,
     ui: &imgui::Ui,
     state: &mut EmulatorState,
     shared: &EmuShared,
 ) {
     ui.menu("Input", || {
+        let cpu = &mut shared.cpu.lock();
         let fast_disk = !cpu.bus.disk.get_disable_fast_disk();
         build_toggle_menu_item(ui, "Fast Disk", "F5", fast_disk, |new_state| {
             cpu.bus.disk.set_disable_fast_disk(!new_state);
@@ -3313,12 +3422,13 @@ fn prepare_input_menu(
     })
 }
 
-fn prepare_menu_for_disk(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) {
+fn prepare_menu_for_disk(ui: &imgui::Ui, state: &mut EmulatorState, shared: &EmuShared) {
     ui.menu("Disk Drive 1", || {
         if ui.menu_item_config("Open").shortcut("F1").build() {
             state.file_dialog = OpenFileDialog::Disk(0);
         }
         if ui.menu_item_config("Eject").shortcut("Ctrl-F1").build() {
+            let cpu = &mut shared.cpu.lock();
             eject_disk(cpu, 0);
         }
     });
@@ -3328,6 +3438,7 @@ fn prepare_menu_for_disk(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorStat
             state.file_dialog = OpenFileDialog::Disk(1);
         }
         if ui.menu_item_config("Eject").shortcut("Ctrl-F2").build() {
+            let cpu = &mut shared.cpu.lock();
             eject_disk(cpu, 1);
         }
     });
@@ -3337,6 +3448,7 @@ fn prepare_menu_for_disk(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorStat
             state.file_dialog = OpenFileDialog::HardDisk(0);
         }
         if ui.menu_item_config("Eject").shortcut("Ctrl-F10").build() {
+            let cpu = &mut shared.cpu.lock();
             eject_harddisk(cpu, 0);
         }
     });
@@ -3346,27 +3458,35 @@ fn prepare_menu_for_disk(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorStat
             state.file_dialog = OpenFileDialog::HardDisk(1);
         }
         if ui.menu_item_config("Eject").shortcut("Ctrl-F11").build() {
+            let cpu = &mut shared.cpu.lock();
             eject_harddisk(cpu, 1);
         }
     });
 }
 
-fn prepare_menu_for_state_management(cpu: &mut CPU, ui: &imgui::Ui, shared: &EmuShared) {
+// Rendered from the `serialization`-gated part of the System menu.
+#[cfg(feature = "serialization")]
+fn prepare_menu_for_state_management(
+    ui: &imgui::Ui,
+    state: &mut EmulatorState,
+    shared: &EmuShared,
+) {
     if ui
         .menu_item_config("Load State")
         .shortcut("Ctrl-F4")
         .build()
     {
-        shared.reload_cpu.store(true, Ordering::Release);
-        cpu.halt_cpu();
+        // Deferred: dispatched from `render_frame` before any `cpu` guard is
+        // taken, and the file is picked before the emulator is halted so
+        // audio keeps playing while the dialog is open.
+        state.file_dialog = OpenFileDialog::LoadState;
     }
     if ui
         .menu_item_config("Save State")
         .shortcut("Ctrl-F3")
         .build()
     {
-        #[cfg(feature = "serialization")]
-        save_serialized_image(cpu);
+        save_serialized_image(shared);
     }
 }
 
