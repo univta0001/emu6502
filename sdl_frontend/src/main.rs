@@ -427,6 +427,22 @@ fn translate_key_to_apple_key(
     (true, value)
 }
 
+fn requires_cpu(event: &Event) -> bool {
+    matches!(
+        event,
+        Event::Quit { .. }
+            | Event::KeyDown { .. }
+            | Event::KeyUp { .. }
+            | Event::DropFile { .. }
+            | Event::MouseButtonDown { .. }
+            | Event::ControllerAxisMotion { .. }
+            | Event::ControllerButtonDown { .. }
+            | Event::ControllerButtonUp { .. }
+            | Event::ControllerDeviceAdded { .. }
+            | Event::ControllerDeviceRemoved { .. }
+    )
+}
+
 fn handle_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState, shared: &EmuShared) {
     if function_key_processed(cpu, &event, state, shared) {
         return;
@@ -2398,19 +2414,18 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 }
             }
 
-            let events: Vec<_> = event_pump.poll_iter().collect();
-            for event_value in &events {
-                imgui.handle_event(event_value);
-            }
-
-            if !emulator_state.input.want_capture_keyboard {
-                let mut cpu = shared.cpu.lock();
-                for event_value in events {
-                    handle_event(&mut cpu, event_value, &mut emulator_state, &shared);
+            let mut cpu_events = Vec::new();
+            for event_value in event_pump.poll_iter() {
+                imgui.handle_event(&event_value);
+                if !emulator_state.input.want_capture_keyboard && requires_cpu(&event_value) {
+                    cpu_events.push(event_value)
                 }
             }
 
             let mut cpu = shared.cpu.lock();
+            for event_value in cpu_events {
+                handle_event(&mut cpu, event_value, &mut emulator_state, &shared);
+            }
 
             // Update keyboard akd state
             cpu.bus.any_key_down = event_pump
