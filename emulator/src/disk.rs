@@ -575,8 +575,8 @@ where
             && let Ok(mut archive) = ZipArchive::new(file)
             && let Some(index) = zip_file_index(&mut archive)
             && let Ok(file_in_zip) = archive.by_index(index)
+            && let Ok(filename) = file_in_zip.name()
         {
-            let filename = file_in_zip.name();
             let file_ext = format!(".{ext}");
             return filename.to_lowercase().ends_with(&file_ext);
         }
@@ -907,7 +907,7 @@ fn write_disk_content_to_disk(disk: &Disk, disk_content: &[u8]) -> io::Result<()
                         let mut archive = ZipArchive::new(file)?;
                         if let Some(index) = zip_file_index(&mut archive) {
                             let file_in_zip = archive.by_index(index)?;
-                            file_in_zip.name().to_string()
+                            file_in_zip.name()?.to_string()
                         } else {
                             return Err(std::io::Error::new(
                                 io::ErrorKind::InvalidInput,
@@ -917,7 +917,7 @@ fn write_disk_content_to_disk(disk: &Disk, disk_content: &[u8]) -> io::Result<()
                     };
                     let file = File::create(filename)?;
                     let mut zip = ZipWriter::new(file);
-                    let mut options: FileOptions<'_, ()> =
+                    let mut options: FileOptions<'_,'_, ()> =
                         FileOptions::default().compression_method(CompressionMethod::Deflated);
 
                     if let Ok(local_offset) = time::OffsetDateTime::now_local() {
@@ -1816,7 +1816,7 @@ impl DiskDrive {
         let cursor = std::io::Cursor::new(dsk);
         let mut archive = ZipArchive::new(cursor)?;
         let mut file_in_zip = archive.by_index(0)?;
-        let file_in_zip_name = file_in_zip.name();
+        let file_in_zip_name = file_in_zip.name()?;
         let po_mode = file_in_zip_name.to_lowercase().ends_with(".po");
         let nib_mode = file_in_zip_name.to_lowercase().ends_with(".nib");
         let woz_mode = file_in_zip_name.to_lowercase().ends_with(".woz");

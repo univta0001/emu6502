@@ -31,6 +31,7 @@ use std::error::Error;
 use std::ffi::OsStr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
+use std::sync::mpsc::Receiver;
 use std::thread;
 use strum::IntoEnumIterator;
 
@@ -45,7 +46,7 @@ use std::fs;
 
 use parking_lot::{Condvar, Mutex};
 use std::fs::File;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use std::time::Instant;
 
@@ -135,16 +136,46 @@ const SUPPORTED_DONGLES: &[StrToDongle] = &[
 
 const MENUBAR_HEIGHT: u32 = 19;
 
+// A file dialog requested by a menu item or a hotkey. The request itself never
+// opens a dialog: it is picked up by `spawn_dialog` (called from `app_iterate`)
+// which shows it on a worker thread, so the UI loop keeps rendering while the
+// dialog is on screen.
+//
+// `Clone` rather than `Copy`: the SaveState variant carries the state snapshot.
+#[derive(Clone)]
 enum OpenFileDialog {
     None,
     Disk(u8),
     HardDisk(u8),
     Tape,
-    // Deserialize a state file and hand it to the reload path in the main
-    // loop; the file is picked before the emulator is halted (see
-    // `request_load_state`).
+    // Pick a state file, deserialize it on the worker thread and hand it to the
+    // reload path in the main loop; the emulator is halted only once the new
+    // state is ready (see `apply_dialog_outcome`).
     #[cfg(feature = "serialization")]
     LoadState,
+    // Show a save dialog and write this snapshot on the worker thread. The YAML
+    // is serialized at request time (by the hotkey / menu handler, with a short
+    // `cpu` lock) so `spawn_dialog` never has to touch the emulator.
+    #[cfg(feature = "serialization")]
+    SaveState(String),
+}
+
+// What a file dialog running on a worker thread sends back to the UI thread.
+// The worker only ever talks to this channel: no SDL, GPU or imgui call may
+// happen off the main thread.
+enum DialogOutcome {
+    // The dialog was dismissed (or the worker exited without an answer)
+    Cancelled,
+    // A path was picked; apply it with a short `cpu` lock
+    Picked(PathBuf),
+    // The state file was read and deserialized on the worker thread. The CPU
+    // is boxed so the enum stays small (clippy large_enum_variant); the path
+    // is kept so the next dialog can open in the same directory.
+    #[cfg(feature = "serialization")]
+    StateLoaded(PathBuf, Result<Box<CPU>, String>),
+    // The state file was written on the worker thread
+    #[cfg(feature = "serialization")]
+    StateSaved(PathBuf, Result<(), String>),
 }
 
 #[derive(Default)]
@@ -210,11 +241,12 @@ struct Stats {
 //   period to keep feeding the SDL audio stream; a lock held that long
 //   drains the stream and stalls audio.
 // - `parking_lot::Mutex` is not reentrant, so a function that locks `cpu`
-//   itself (the dialog helpers, `save_serialized_image`, the menu helpers)
+//   itself (the dialog helpers, `serialize_state`, the menu helpers)
 //   must only be called from a scope that does not already hold the guard.
 //   Keep guards scoped to a single helper call, and defer anything that
-//   might block through `EmulatorState::file_dialog`, which is dispatched
-//   from `render_frame` before any guard is taken.
+//   might block through `EmulatorState::file_dialog`: `spawn_dialog` shows
+//   the dialog on a worker thread from `app_iterate` (before any guard is
+//   taken) and `poll_dialog` applies the answer from the main loop.
 struct EmuShared {
     cpu: Mutex<CPU>,
     pacing: Pacing,
@@ -251,14 +283,19 @@ struct EmulatorState {
     speed: SpeedState,
     input: InputState,
     save_screenshot: bool,
+    // Request for a file dialog, set by a menu item or a hotkey. Consumed by
+    // `spawn_dialog` in `app_iterate`.
     file_dialog: OpenFileDialog,
-    // Whether a pending file dialog may be dispatched on the next frame.
-    // Recorded at the end of render_frame's imgui closure: false while an
-    // item is hovered (i.e. while a menu is still open).
-    dialog_allowed: bool,
-    // State picked and deserialized by `request_load_state` before the
+    // The dialog spawned for `file_dialog`, running on a worker thread until
+    // the user answers. Polling it (never waiting) keeps rendering and audio
+    // alive while the dialog is on screen, so at most one dialog is open.
+    active_dialog: Option<(OpenFileDialog, Receiver<DialogOutcome>)>,
+    // Directory of the last file picked or written by a dialog, so the next
+    // one opens there instead of in the process working directory.
+    last_dialog_dir: Option<PathBuf>,
+    // State picked and deserialized by the LoadState dialog worker before the
     // emulator is halted. Consumed by the reload branch of the main loop, so
-    // no file dialog runs while the emulator thread parks on `reload_cv`
+    // the emulator thread never parks on `reload_cv` while a dialog is open
     // (which would stop audio for the duration of the dialog).
     #[cfg(feature = "serialization")]
     pending_state: Option<CPU>,
@@ -284,7 +321,8 @@ impl EmulatorState {
             input: InputState::default(),
             save_screenshot: false,
             file_dialog: OpenFileDialog::None,
-            dialog_allowed: true,
+            active_dialog: None,
+            last_dialog_dir: None,
             #[cfg(feature = "serialization")]
             pending_state: None,
             show_settings: false,
@@ -787,35 +825,226 @@ where
     Ok(())
 }
 
-fn open_disk_dialog(shared: &EmuShared, drive: usize) {
-    let result = FileDialog::new()
-        .add_filter(
-            "Disk image",
-            &[
-                "dsk", "do", "po", "nib", "woz", "nib.gz", "dsk.gz", "do.gz", "po.gz", "woz.gz",
-                "zip",
-            ],
-        )
-        .pick_file();
+// Builds the rfd dialog for a pending request: a title saying what is being
+// opened, the directory of the last file picked or written, and (for SaveState)
+// a timestamped default file name. `OpenFileDialog::None` never reaches here:
+// `spawn_dialog` returns before building the dialog when nothing is pending.
+fn dialog_builder(kind: &OpenFileDialog, last_dir: Option<&Path>) -> FileDialog {
+    let dialog = match kind {
+        OpenFileDialog::None => FileDialog::new(),
+        OpenFileDialog::Disk(drive) => FileDialog::new()
+            .add_filter(
+                "Disk image",
+                &[
+                    "dsk", "do", "po", "nib", "woz", "nib.gz", "dsk.gz", "do.gz", "po.gz",
+                    "woz.gz", "zip",
+                ],
+            )
+            .set_title(format!("Open Disk Image - Drive {}", drive + 1)),
+        OpenFileDialog::HardDisk(drive) => FileDialog::new()
+            .add_filter("Disk image", &["hdv", "2mg", "po"])
+            .set_title(format!("Open Hard Drive Image - Drive {}", drive + 1)),
+        OpenFileDialog::Tape => FileDialog::new()
+            .add_filter("Tape image", &["wav"])
+            .set_title("Mount Tape Image"),
+        #[cfg(feature = "serialization")]
+        OpenFileDialog::LoadState => FileDialog::new()
+            .add_filter("Load state", &["yaml"])
+            .set_title("Load State"),
+        #[cfg(feature = "serialization")]
+        OpenFileDialog::SaveState(_) => FileDialog::new()
+            .add_filter("Save state", &["yaml"])
+            .set_title("Save State")
+            .set_file_name(format!("state-{}.yaml", Local::now().format("%Y%m%d-%H%M%S"))),
+    };
 
-    let Some(file_path) = result else { return };
-    let cpu = &mut shared.cpu.lock();
-    let result = load_disk(cpu, &file_path, drive);
-    if let Err(e) = result {
-        eprintln!("Unable to load disk {} : {e}", file_path.display());
+    match last_dir {
+        Some(dir) if dir.is_dir() => dialog.set_directory(dir),
+        _ => dialog,
     }
 }
 
-fn mount_tape(shared: &EmuShared) {
-    let result = FileDialog::new()
-        .add_filter("Tape image", &["wav"])
-        .save_file();
+// Shows the requested file dialog on a worker thread and remembers it in
+// `state.active_dialog`. Never blocks: the native dialog runs its own modal
+// loop on that thread while the main thread keeps rendering and the emulator
+// thread keeps feeding audio. (`rfd::FileDialog` is `Send`; on Windows it
+// initializes COM inside `pick_file`, exactly like rfd's own async API does.)
+//
+// Called from `app_iterate`, next to `poll_dialog`, before any `cpu` guard is
+// taken and before GPU resources are acquired, so a request is picked up even
+// while the window is minimized or a texture upload is failing.
+fn spawn_dialog(state: &mut EmulatorState, window: &Window) {
+    // At most one dialog is ever open. Input is gated while one is on screen
+    // (see `app_event`), so a request made behind it is defensive: drop it
+    // instead of queueing a surprise second dialog after this one closes.
+    if state.active_dialog.is_some() {
+        state.file_dialog = OpenFileDialog::None;
+        return;
+    }
 
-    let Some(file_path) = result else { return };
-    let cpu = &mut shared.cpu.lock();
-    let result = cpu.bus.audio.load_tape(&file_path);
-    if let Err(e) = result {
-        eprintln!("Unable to mount tape {} : {e}", file_path.display());
+    let kind = std::mem::replace(&mut state.file_dialog, OpenFileDialog::None);
+    if matches!(kind, OpenFileDialog::None) {
+        return;
+    }
+
+    // Parent the dialog to the emulator window so it stays above it, is
+    // centered on it and disables it (no input to the emulator while it is
+    // open). The window handles are read here, on the main thread, before the
+    // dialog is handed to `run_dialog`.
+    let dialog = dialog_builder(&kind, state.last_dialog_dir.as_deref()).set_parent(window);
+
+    // macOS: NSOpenPanel must be shown from the main thread, so run the
+    // blocking dialog here (video pauses while it is open, as before) and
+    // queue the answer for `poll_dialog`, which applies it on the next
+    // iteration of the main loop.
+    #[cfg(target_os = "macos")]
+    {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let _ = tx.send(run_dialog(kind.clone(), dialog));
+        state.active_dialog = Some((kind, rx));
+    }
+
+    // Windows / Linux: the dialog gets its own thread (it runs its own modal
+    // loop there) and the answer is applied later by `poll_dialog`, so this
+    // loop keeps rendering while the dialog is open.
+    #[cfg(not(target_os = "macos"))]
+    {
+        let active_kind = kind.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        thread::spawn(move || {
+            let _ = tx.send(run_dialog(kind, dialog));
+        });
+        state.active_dialog = Some((active_kind, rx));
+    }
+}
+
+// Shows the dialog and performs the heavy follow-up work (state
+// deserialization, state file write). On Windows / Linux this runs on the
+// worker thread, on macOS inline on the main thread; either way it must not
+// touch SDL, the GPU or imgui.
+fn run_dialog(kind: OpenFileDialog, dialog: FileDialog) -> DialogOutcome {
+    match kind {
+        OpenFileDialog::Disk(_) | OpenFileDialog::HardDisk(_) => dialog
+            .pick_file()
+            .map(DialogOutcome::Picked)
+            .unwrap_or(DialogOutcome::Cancelled),
+        // Mounting a tape uses a save dialog, as before
+        OpenFileDialog::Tape => dialog
+            .save_file()
+            .map(DialogOutcome::Picked)
+            .unwrap_or(DialogOutcome::Cancelled),
+        OpenFileDialog::None => DialogOutcome::Cancelled,
+        #[cfg(feature = "serialization")]
+        OpenFileDialog::LoadState => {
+            let Some(path) = dialog.pick_file() else {
+                return DialogOutcome::Cancelled;
+            };
+            let result = load_state_file(&path).map(Box::new);
+            DialogOutcome::StateLoaded(path, result)
+        }
+        #[cfg(feature = "serialization")]
+        OpenFileDialog::SaveState(state_yaml) => {
+            let Some(path) = dialog.save_file() else {
+                return DialogOutcome::Cancelled;
+            };
+            let result = fs::write(&path, state_yaml).map_err(|e| e.to_string());
+            DialogOutcome::StateSaved(path, result)
+        }
+    }
+}
+
+// Applies the answer of a dialog on the UI thread. Only this step touches the
+// emulator, and only for as long as the work takes (a short `cpu` lock).
+fn apply_dialog_outcome(
+    state: &mut EmulatorState,
+    shared: &EmuShared,
+    kind: OpenFileDialog,
+    outcome: DialogOutcome,
+) {
+    // Remember where the user picked or wrote the file so the next dialog
+    // opens there instead of in the process working directory.
+    let picked = match &outcome {
+        DialogOutcome::Picked(path) => Some(path),
+        #[cfg(feature = "serialization")]
+        DialogOutcome::StateLoaded(path, _) => Some(path),
+        #[cfg(feature = "serialization")]
+        DialogOutcome::StateSaved(path, _) => Some(path),
+        DialogOutcome::Cancelled => None,
+    };
+    if let Some(dir) = picked
+        .and_then(|path| path.parent())
+        .filter(|dir| !dir.as_os_str().is_empty() && dir.is_dir())
+    {
+        state.last_dialog_dir = Some(dir.to_path_buf());
+    }
+
+    match outcome {
+        DialogOutcome::Cancelled => {}
+        DialogOutcome::Picked(path) => {
+            let what = match kind {
+                OpenFileDialog::Disk(_) => "load disk",
+                OpenFileDialog::HardDisk(_) => "load hard disk",
+                OpenFileDialog::Tape => "mount tape",
+                _ => return,
+            };
+            let result = {
+                let cpu = &mut shared.cpu.lock();
+                match kind {
+                    OpenFileDialog::Disk(drive) => {
+                        load_disk(cpu, &path, drive.into()).map_err(|e| e.to_string())
+                    }
+                    OpenFileDialog::HardDisk(drive) => {
+                        load_harddisk(cpu, &path, drive.into()).map_err(|e| e.to_string())
+                    }
+                    OpenFileDialog::Tape => {
+                        cpu.bus.audio.load_tape(&path).map_err(|e| e.to_string())
+                    }
+                    _ => Ok(()),
+                }
+            };
+            if let Err(e) = result {
+                eprintln!("Unable to {what} {} : {e}", path.display());
+            }
+        }
+        #[cfg(feature = "serialization")]
+        DialogOutcome::StateLoaded(_, result) => match result {
+            Ok(new_cpu) => {
+                state.pending_state = Some(*new_cpu);
+                shared.reload_cpu.store(true, Ordering::Release);
+                let cpu = &mut shared.cpu.lock();
+                cpu.halt_cpu();
+            }
+            // Cancelled (empty message) or failed: report and keep running
+            Err(message) => {
+                if !message.is_empty() {
+                    eprintln!("{message}");
+                }
+            }
+        },
+        #[cfg(feature = "serialization")]
+        DialogOutcome::StateSaved(path, result) => {
+            if let Err(e) = result {
+                eprintln!("Unable to write to file {} : {e}", path.display());
+            }
+        }
+    }
+}
+
+// Applies the answer of a dialog spawned by `spawn_dialog`. `try_recv` never
+// blocks: as long as it returns Empty the dialog is still open and this loop
+// keeps rendering, so the video does not freeze behind the dialog.
+fn poll_dialog(state: &mut EmulatorState, shared: &EmuShared) {
+    let Some((kind, rx)) = state.active_dialog.take() else {
+        return;
+    };
+    match rx.try_recv() {
+        Ok(outcome) => apply_dialog_outcome(state, shared, kind, outcome),
+        Err(std::sync::mpsc::TryRecvError::Empty) => {
+            // Still open: put it back and try again on the next iteration
+            state.active_dialog = Some((kind, rx));
+        }
+        // The worker panicked or exited without answering: drop the dialog
+        Err(std::sync::mpsc::TryRecvError::Disconnected) => {}
     }
 }
 
@@ -836,19 +1065,6 @@ where
     drv.set_loaded(true);
     drv.drive_select(drive_selected);
     Ok(())
-}
-
-fn open_harddisk_dialog(shared: &EmuShared, drive: usize) {
-    let result = FileDialog::new()
-        .add_filter("Disk image", &["hdv", "2mg", "po"])
-        .pick_file();
-
-    let Some(file_path) = result else { return };
-    let cpu = &mut shared.cpu.lock();
-    let result = load_harddisk(cpu, &file_path, drive);
-    if let Err(e) = result {
-        eprintln!("Unable to load hard disk {} : {e}", file_path.display());
-    }
 }
 
 fn eject_harddisk(cpu: &mut CPU, drive: usize) {
@@ -949,8 +1165,18 @@ fn replace_quoted_hex_values(string: &str) -> String {
     result
 }
 
+// Serializes the current emulator state. Runs on the UI thread with a short
+// `cpu` lock, at the moment the save request is made (a hotkey or a menu
+// click), so the dialog request carries its snapshot and `spawn_dialog` never
+// has to touch the emulator.
 #[cfg(feature = "serialization")]
-fn save_serialized_image(shared: &EmuShared) {
+fn serialize_state(shared: &EmuShared) -> Option<String> {
+    #[cfg(not(feature = "serde_support"))]
+    {
+        let _ = shared;
+        return None;
+    }
+
     #[cfg(feature = "serde_support")]
     {
         use serde_saphyr::ser_options;
@@ -960,7 +1186,10 @@ fn save_serialized_image(shared: &EmuShared) {
             serde_saphyr::to_string_with_options(cpu, options)
         };
         match serialized_result {
-            Err(err) => eprintln!("Unable to serialize the data : {err}"),
+            Err(err) => {
+                eprintln!("Unable to serialize the data : {err}");
+                None
+            }
 
             Ok(output) => {
                 let output = output.replace("\"\"", "''").replace(['"', '\''], "");
@@ -974,25 +1203,17 @@ fn save_serialized_image(shared: &EmuShared) {
                     .to_string();
                 */
 
-                let output = replace_quoted_hex_values(&output);
-
-                let result = FileDialog::new()
-                    .add_filter("Save state", &["yaml"])
-                    .save_file();
-
-                if let Some(file_path) = result {
-                    let write_result = fs::write(&file_path, output);
-                    if let Err(e) = write_result {
-                        eprintln!("Unable to write to file {} : {}", file_path.display(), e);
-                    }
-                }
+                Some(replace_quoted_hex_values(&output))
             }
         }
     }
 }
 
+// Reads and deserializes a state file, then re-loads the disks it references.
+// Runs on the dialog worker thread, so the UI loop keeps rendering while the
+// file is processed. An empty error message means "the user cancelled".
 #[cfg(feature = "serialization")]
-fn load_serialized_image() -> Result<CPU, String> {
+fn load_state_file(file_path: &Path) -> Result<CPU, String> {
     #[cfg(not(feature = "serde_support"))]
     {
         return Err(format!(
@@ -1000,15 +1221,7 @@ fn load_serialized_image() -> Result<CPU, String> {
         ));
     }
 
-    let result = FileDialog::new()
-        .add_filter("Load state", &["yaml"])
-        .pick_file();
-
-    let Some(file_path) = result else {
-        return Err("".to_string());
-    };
-
-    let result = fs::read_to_string(&file_path);
+    let result = fs::read_to_string(file_path);
     let Ok(input) = result else {
         return Err(format!("Unable to restore the image : {result:?}"));
     };
@@ -1041,30 +1254,6 @@ fn load_serialized_image() -> Result<CPU, String> {
     }
 
     Ok(new_cpu)
-}
-
-// Load state: show the dialog and deserialize the file *before* the emulator
-// is halted. The dialog and the file I/O run with no `cpu` guard held, so the
-// emulator thread keeps running and feeding the audio stream while the dialog
-// is open; only once the new state is ready does the emulator halt, and the
-// main loop then swaps it in from `EmulatorState::pending_state` without
-// showing a second dialog.
-#[cfg(feature = "serialization")]
-fn request_load_state(shared: &EmuShared, state: &mut EmulatorState) {
-    match load_serialized_image() {
-        Ok(new_cpu) => {
-            state.pending_state = Some(new_cpu);
-            shared.reload_cpu.store(true, Ordering::Release);
-            let cpu = &mut shared.cpu.lock();
-            cpu.halt_cpu();
-        }
-        // Cancelled (empty message) or failed: report and keep running.
-        Err(message) => {
-            if !message.is_empty() {
-                eprintln!("{message}");
-            }
-        }
-    }
 }
 
 fn dump_disk_info(cpu: &CPU) {
@@ -1480,7 +1669,9 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
                 }
                 return true;
             } else {
-                open_disk_dialog(shared, 0);
+                // Deferred: spawned by `app_iterate` on a worker thread, so
+                // the video keeps rendering while the dialog is open.
+                state.file_dialog = OpenFileDialog::Disk(0);
                 return true;
             }
         }
@@ -1518,7 +1709,8 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
                 }
                 return true;
             } else {
-                open_disk_dialog(shared, 1);
+                // Deferred: see the F1 comment
+                state.file_dialog = OpenFileDialog::Disk(1);
                 return true;
             }
         }
@@ -1533,8 +1725,15 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
                     let cpu = &shared.cpu.lock();
                     dump_track_sector_info(cpu);
                 } else {
+                    // Snapshot the state now (short `cpu` lock) and hand it to
+                    // the dialog request: the worker only shows the dialog and
+                    // writes the file, so no dialog ever blocks this thread.
                     #[cfg(feature = "serialization")]
-                    save_serialized_image(shared);
+                    {
+                        if let Some(state_yaml) = serialize_state(shared) {
+                            state.file_dialog = OpenFileDialog::SaveState(state_yaml);
+                        }
+                    }
                 }
                 return true;
             } else {
@@ -1553,14 +1752,18 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
                     let cpu = &shared.cpu.lock();
                     dump_disk_info(cpu);
                 } else {
-                    // Load state: pick the file and deserialize it *before*
-                    // halting (see `request_load_state`), so audio keeps
-                    // playing while the dialog is open. Safe to call here:
-                    // no `cpu` guard is held yet and we are outside any frame.
+                    // Load state: the file is picked and deserialized on the
+                    // dialog worker thread *before* the emulator is halted
+                    // (`apply_dialog_outcome` stores it in `pending_state`),
+                    // so video and audio keep running while the dialog is
+                    // open, and the main loop swaps it in from its reload
+                    // branch without showing a second dialog.
                     // Without the `serialization` feature there is nothing to
                     // load, so Ctrl-F4 becomes a no-op.
                     #[cfg(feature = "serialization")]
-                    request_load_state(shared, state);
+                    {
+                        state.file_dialog = OpenFileDialog::LoadState;
+                    }
                 }
                 return true;
             } else {
@@ -1647,7 +1850,8 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                mount_tape(shared);
+                // Deferred: shown by `spawn_dialog` on a worker thread
+                state.file_dialog = OpenFileDialog::Tape;
             } else {
                 let cpu = &mut shared.cpu.lock();
                 cpu.bus.toggle_joystick_jitter();
@@ -1688,7 +1892,8 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
                 let cpu = &mut shared.cpu.lock();
                 eject_harddisk(cpu, 0);
             } else {
-                open_harddisk_dialog(shared, 0);
+                // Deferred: shown by `spawn_dialog` on a worker thread
+                state.file_dialog = OpenFileDialog::HardDisk(0);
             }
             return true;
         }
@@ -1702,7 +1907,8 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
                 let cpu = &mut shared.cpu.lock();
                 eject_harddisk(cpu, 1);
             } else {
-                open_harddisk_dialog(shared, 1);
+                // Deferred: shown by `spawn_dialog` on a worker thread
+                state.file_dialog = OpenFileDialog::HardDisk(1);
             }
             return true;
         }
@@ -1925,24 +2131,6 @@ fn render_frame(
 ) {
     let (sdl, device, window) = (ctx.0, ctx.1, ctx.2);
 
-    // Dispatch any pending file dialog before acquiring GPU resources, so a
-    // modal dialog never holds a command buffer or a swapchain image open.
-    // `dialog_allowed` was recorded at the end of the previous frame: no
-    // dialog is opened while a menu item is hovered.
-    //
-    // No `cpu` guard is held here (see the EmuShared invariants): the
-    // helpers lock only for the short apply step, after the dialog returns.
-    if state.dialog_allowed {
-        match std::mem::replace(&mut state.file_dialog, OpenFileDialog::None) {
-            OpenFileDialog::Disk(disk) => open_disk_dialog(shared, disk.into()),
-            OpenFileDialog::HardDisk(disk) => open_harddisk_dialog(shared, disk.into()),
-            OpenFileDialog::Tape => mount_tape(shared),
-            #[cfg(feature = "serialization")]
-            OpenFileDialog::LoadState => request_load_state(shared, state),
-            OpenFileDialog::None => {}
-        }
-    }
-
     let Ok(mut cmd_buf) = device.acquire_command_buffer() else {
         return;
     };
@@ -1997,11 +2185,6 @@ fn render_frame(
                 let cpu = &mut shared.cpu.lock();
                 prepare_statusbar(cpu, ui, state, shared, w, h);
             }
-
-            // Recorded after the menus were built, so a dialog requested by a
-            // menu is dispatched on the next frame only once nothing is
-            // hovered anymore (menus close after a click).
-            state.dialog_allowed = !ui.is_any_item_hovered();
         },
     );
 
@@ -2248,9 +2431,10 @@ impl App {
             } else if shared.reload_cpu.swap(false, Ordering::AcqRel) {
                 #[cfg(feature = "serialization")]
                 {
-                    // The file was picked and deserialized before the halt
-                    // (see `request_load_state`), so no dialog runs while the
-                    // emulator thread is parked here and audio does not stop.
+                    // The file was picked and deserialized on the dialog
+                    // worker thread before the halt (see `apply_dialog_outcome`),
+                    // so no dialog runs while the emulator thread is parked
+                    // here and audio does not stop.
                     let result =
                         main.emulator_state.pending_state.take().ok_or_else(|| {
                             "Load state requested without a pending state".to_string()
@@ -2280,6 +2464,24 @@ impl App {
                 return AppResult::Success;
             }
         }
+
+        // Apply the answer of a file dialog running on a worker thread, if the
+        // user has answered. Placed after the reload handling above so a
+        // reload already in progress completes first; `poll_dialog` never
+        // blocks, so this loop keeps rendering while a dialog is open.
+        poll_dialog(&mut main.emulator_state, shared);
+
+        // Spawn any pending file dialog right after polling: an answer from
+        // the previous dialog frees the slot within the same iteration, and
+        // running before the video block means a request is picked up even
+        // while the window is minimized or a texture upload is failing. The
+        // dialog never blocks this loop (it runs its own modal loop on a
+        // worker thread), so rendering and the emulator thread's audio keep
+        // going while it is on screen, and no command buffer or swapchain
+        // image is ever held open across it.
+        //
+        // No `cpu` guard is held here (see the EmuShared invariants).
+        spawn_dialog(&mut main.emulator_state, &main.window);
 
         // Update video at multiple of 60Hz or 50Hz (events are delivered
         // through the app_event callback)
@@ -2341,16 +2543,33 @@ impl App {
 
             let mut cpu = shared.cpu.lock();
 
+            // While a file dialog is open the emulator must not see input: the
+            // dialog is modal by intent. Windows enforces that at the OS level
+            // (rfd disables the owner window), but the Linux portal dialog
+            // leaves this window usable, so gate input here as well.
+            let dialog_open = emulator_state.active_dialog.is_some();
+
             // Update keyboard akd state
-            cpu.bus.any_key_down = main
-                .event_pump
-                .keyboard_state()
-                .pressed_scancodes()
-                .next()
-                .is_some();
+            cpu.bus.any_key_down = !dialog_open
+                && main
+                    .event_pump
+                    .keyboard_state()
+                    .pressed_scancodes()
+                    .next()
+                    .is_some();
 
             // Update mouse state
-            update_mouse_state(&mut cpu, &main.event_pump, emulator_state);
+            if dialog_open {
+                // Keep the delta baseline moving so the first frame after the
+                // dialog closes does not inject the whole move made while it
+                // was open, but report no motion and both buttons released.
+                let mouse = main.event_pump.mouse_state();
+                emulator_state.input.prev_x = mouse.x() as i32;
+                emulator_state.input.prev_y = mouse.y() as i32;
+                cpu.bus.set_mouse_state(0, 0, &[false, false]);
+            } else {
+                update_mouse_state(&mut cpu, &main.event_pump, emulator_state);
+            }
 
             // Check the full_screen state is not change
             handle_fullscreen_toggle(
@@ -2361,14 +2580,20 @@ impl App {
             );
         }
 
-        // Sleep until the next video period to avoid busy-waiting
-        /*
+        // Sleep until the next video period to avoid busy-waiting. SDL's
+        // callback loop does not pace itself by default (SDL_MAIN_CALLBACK_RATE
+        // is unset), so the frame rate normally comes from waiting on the
+        // swapchain present: `remaining` is then ~0 and this returns at once.
+        // It matters when nothing blocks - the window is minimized or a
+        // texture upload failed - where the loop would otherwise spin a core,
+        // and on displays faster than the emulated rate, where it restores the
+        // correct frame pacing. `remaining` can never exceed one cpu_period,
+        // so this cannot overshoot.
         let remaining = (shared.pacing.cpu_period.load(Ordering::Relaxed) as u128)
             .saturating_sub(self.video_time.elapsed().as_micros());
         if remaining > 0 {
             spin_sleep::sleep(std::time::Duration::from_micros(remaining as u64));
         }
-        */
 
         AppResult::Continue
     }
@@ -2378,6 +2603,15 @@ impl App {
     fn app_event(&mut self, event: &Event) -> AppResult {
         let main = self.main.assert_get_mut();
         main.imgui.handle_event(event);
+
+        // Input is gated while a file dialog is open: the dialog is modal by
+        // intent. Windows enforces that at the OS level (rfd disables the
+        // owner window), on Linux the portal dialog leaves this window usable.
+        // Quit still reaches the emulator so closing the window exits; the
+        // dialog worker thread dies with the process.
+        if main.emulator_state.active_dialog.is_some() && !matches!(event, Event::Quit { .. }) {
+            return AppResult::Continue;
+        }
 
         if !main.emulator_state.input.want_capture_keyboard && requires_cpu(event) {
             handle_event(event.clone(), &mut main.emulator_state, &self.shared);
@@ -3536,9 +3770,10 @@ fn prepare_menu_for_state_management(
         .shortcut("Ctrl-F4")
         .build()
     {
-        // Deferred: dispatched from `render_frame` before any `cpu` guard is
-        // taken, and the file is picked before the emulator is halted so
-        // audio keeps playing while the dialog is open.
+        // Deferred: spawned from `app_iterate` on a worker thread before any
+        // `cpu` guard is taken, and the file is picked and deserialized before
+        // the emulator is halted, so video and audio keep running while the
+        // dialog is open.
         state.file_dialog = OpenFileDialog::LoadState;
     }
     if ui
@@ -3546,7 +3781,12 @@ fn prepare_menu_for_state_management(
         .shortcut("Ctrl-F3")
         .build()
     {
-        save_serialized_image(shared);
+        // Snapshot the state now (short `cpu` lock; no guard is held in this
+        // scope) and hand it to the dialog request: the worker thread only
+        // shows the dialog and writes the file.
+        if let Some(state_yaml) = serialize_state(shared) {
+            state.file_dialog = OpenFileDialog::SaveState(state_yaml);
+        }
     }
 }
 
