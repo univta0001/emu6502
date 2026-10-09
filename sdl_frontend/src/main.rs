@@ -858,18 +858,22 @@ fn eject_disk(cpu: &mut CPU, drive: usize) {
     cpu.bus.disk.eject(drive);
 }
 
+#[cfg(feature = "serialization")]
 fn is_disk_loaded(cpu: &CPU, drive: usize) -> bool {
     cpu.bus.disk.is_loaded(drive)
 }
 
+#[cfg(feature = "serialization")]
 fn is_harddisk_loaded(cpu: &CPU, drive: usize) -> bool {
     cpu.bus.harddisk.is_loaded(drive)
 }
 
+#[cfg(feature = "serialization")]
 fn get_disk_filename(cpu: &CPU, drive: usize) -> Option<String> {
     cpu.bus.disk.get_disk_filename(drive)
 }
 
+#[cfg(feature = "serialization")]
 fn get_harddisk_filename(cpu: &CPU, drive: usize) -> Option<String> {
     cpu.bus.harddisk.get_disk_filename(drive)
 }
