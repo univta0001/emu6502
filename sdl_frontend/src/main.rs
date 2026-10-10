@@ -1982,21 +1982,7 @@ fn handle_gamepad_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState) 
                                 } else {
                                     entry.1.axis(Axis::RightY) as f32 / 32768.0
                                 };
-
-                                // Squaring a circle algorithm
-                                let mut x = u;
-                                if u * v != 0.0 {
-                                    let ratio = (v * v) / (u * u);
-                                    let c = f32::min(ratio, 1.0 / ratio);
-                                    let coeff = f32::sqrt(1.0 + c);
-                                    x *= coeff;
-                                }
-                                x = x.clamp(-1.0, 1.0);
-                                let x = (x * 32768.0) as i32;
-                                let mut pvalue = ((x + 32768) / 257) as u16;
-                                if pvalue >= 255 {
-                                    pvalue = PADDLE_MAX_VALUE;
-                                }
+                                let pvalue = adjust_gamepad_value(u, u, v);
                                 cpu.bus.paddle_latch[2 * joystick_id as usize] = pvalue
                             }
                         }
@@ -2010,22 +1996,7 @@ fn handle_gamepad_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState) 
                                 } else {
                                     entry.1.axis(Axis::RightX) as f32 / 32768.0
                                 };
-
-                                // Squaring a circle algorithm
-                                let mut y = v;
-                                if u * v != 0.0 {
-                                    let ratio = (v * v) / (u * u);
-                                    let c = f32::min(ratio, 1.0 / ratio);
-                                    let coeff = f32::sqrt(1.0 + c);
-                                    y *= coeff;
-                                }
-
-                                y = y.clamp(-1.0, 1.0);
-                                let y = (y * 32768.0) as i32;
-                                let mut pvalue = ((y + 32768) / 257) as u16;
-                                if pvalue >= 255 {
-                                    pvalue = PADDLE_MAX_VALUE;
-                                }
+                                let pvalue = adjust_gamepad_value(v, u, v);
                                 cpu.bus.paddle_latch[2 * joystick_id as usize + 1] = pvalue
                             }
                         }
@@ -2107,6 +2078,25 @@ fn handle_gamepad_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState) 
 
         _ => {}
     }
+}
+
+// Squaring a circle algorithm for the gamepad value
+fn adjust_gamepad_value(input: f32, u: f32, v: f32) -> u16 {
+    let mut x = input;
+    let m = u.abs().max(v.abs());
+    let scale = if m > 0.0 {
+        (u * u + v * v).sqrt() / m
+    } else {
+        1.0
+    };
+    x *= scale;
+    x = x.clamp(-1.0, 1.0);
+    let x = (x * 32768.0) as i32;
+    let mut pvalue = ((x + 32768) / 257) as u16;
+    if pvalue >= 255 {
+        pvalue = PADDLE_MAX_VALUE;
+    }
+    pvalue
 }
 
 fn render_frame(
