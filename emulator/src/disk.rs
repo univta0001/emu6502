@@ -917,7 +917,7 @@ fn write_disk_content_to_disk(disk: &Disk, disk_content: &[u8]) -> io::Result<()
                     };
                     let file = File::create(filename)?;
                     let mut zip = ZipWriter::new(file);
-                    let mut options: FileOptions<'_,'_, ()> =
+                    let mut options: FileOptions<'_, '_, ()> =
                         FileOptions::default().compression_method(CompressionMethod::Deflated);
 
                     if let Ok(local_offset) = time::OffsetDateTime::now_local() {

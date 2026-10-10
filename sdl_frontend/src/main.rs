@@ -855,7 +855,10 @@ fn dialog_builder(kind: &OpenFileDialog, last_dir: Option<&Path>) -> FileDialog 
         OpenFileDialog::SaveState(_) => FileDialog::new()
             .add_filter("Save state", &["yaml"])
             .set_title("Save State")
-            .set_file_name(format!("state-{}.yaml", Local::now().format("%Y%m%d-%H%M%S"))),
+            .set_file_name(format!(
+                "state-{}.yaml",
+                Local::now().format("%Y%m%d-%H%M%S")
+            )),
     };
 
     match last_dir {
@@ -1409,9 +1412,7 @@ fn update_audio(
     */
 }
 
-fn save_emulator_screenshot(cpu: &mut CPU) {
-    let disp = &mut cpu.bus.video;
-
+fn save_emulator_screenshot(frame: &[u8]) {
     /*
     // Get current time using only the standard library
     let now = std::time::SystemTime::now()
@@ -1431,7 +1432,7 @@ fn save_emulator_screenshot(cpu: &mut CPU) {
     if let Ok(output) = File::create(&filename) {
         let encoder = PngEncoder::new(output);
         let result = encoder.write_image(
-            &disp.frame,
+            frame,
             Video::WIDTH as u32,
             Video::HEIGHT as u32,
             ColorType::Rgba8.into(),
@@ -1448,12 +1449,12 @@ fn save_emulator_screenshot(cpu: &mut CPU) {
 
 // Prepares the blended frame from the emulator video buffer.
 // Must be called while holding the CPU lock.
-fn prepare_video_frame(
+fn prepare_video_frame<'a>(
     cpu: &mut CPU,
-    blend_buffer: &mut [u8],
-    barrel_buffer: &mut [u8],
+    blend_buffer: &'a mut [u8],
+    barrel_buffer: &'a mut [u8],
     state: &EmulatorState,
-) -> bool {
+) -> &'a mut [u8] {
     // Check if 80 column enabled, if enabled, refresh the video
     if cpu.bus.is_80_column_enabled() {
         cpu.bus.videoterm.refresh(&mut cpu.bus.video);
@@ -1469,9 +1470,9 @@ fn prepare_video_frame(
 
     if state.video.barrel_distortion {
         video.write_barrel_distorted_frame(blend_buffer, 0.015, barrel_buffer);
-        true
+        barrel_buffer
     } else {
-        false
+        blend_buffer
     }
 }
 
@@ -1480,17 +1481,9 @@ fn prepare_video_frame(
 fn upload_gpu_texture(
     imgui: &mut imgui_sdl3::ImGuiSdl3,
     device: &Device,
-    blend_buffer: &[u8],
-    barrel_buffer: &[u8],
-    barrel_distortion: bool,
+    processed_frame: &[u8],
     state: &EmulatorState,
 ) -> Result<imgui::TextureId, Box<dyn Error>> {
-    let processed_frame: &[u8] = if barrel_distortion {
-        barrel_buffer
-    } else {
-        blend_buffer
-    };
-
     let upload_command_buffer = device.acquire_command_buffer()?;
     let copy_pass = device.begin_copy_pass(&upload_command_buffer)?;
     let texture = imgui_sdl3::utils::create_texture(
@@ -1841,6 +1834,7 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
             } else {
                 let cpu = &mut shared.cpu.lock();
                 cpu.bus.toggle_video_freq();
+                update_video_state(cpu, &shared.pacing);
             }
             return true;
         }
@@ -2353,6 +2347,8 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
             *done = false;
 
             shared.halted.store(false, Ordering::Release);
+            t = Instant::now();
+            adj_ms_offset = std::time::Duration::ZERO;
         } else {
             break 'emulator;
         }
@@ -2493,14 +2489,22 @@ impl App {
             let emulator_state = &mut main.emulator_state;
 
             if emulator_state.save_screenshot {
-                let mut cpu = shared.cpu.lock();
-                save_emulator_screenshot(&mut cpu);
                 emulator_state.save_screenshot = false;
+                let frame = {
+                    let mut cpu = shared.cpu.lock();
+                    prepare_video_frame(
+                        &mut cpu,
+                        &mut main.blend_buffer,
+                        &mut main.barrel_buffer,
+                        emulator_state,
+                    )
+                };
+                save_emulator_screenshot(frame);
             }
 
             if !window.is_minimized() {
                 // Read and blend the emulator frame (short CPU lock)
-                let barrel_distortion = {
+                let processed_frame = {
                     let mut cpu = shared.cpu.lock();
                     cpu.bus.video.skip_update = false;
                     prepare_video_frame(
@@ -2523,9 +2527,7 @@ impl App {
                 let image_texture_id = upload_gpu_texture(
                     &mut main.imgui,
                     &main.device,
-                    &main.blend_buffer,
-                    &main.barrel_buffer,
-                    barrel_distortion,
+                    processed_frame,
                     emulator_state,
                 );
 
@@ -4082,10 +4084,10 @@ fn update_video_state(cpu: &mut CPU, pacing: &Pacing) {
     // Update speed_index
     let cpu_period = pacing.cpu_period.load(Ordering::Relaxed);
     let speed_index = pacing.speed_index.load(Ordering::Relaxed);
-    pacing.adj_cpu_ms_us.store(
-        cpu_period * SPEED_FACTOR / SPEED[speed_index],
-        Ordering::Relaxed,
-    );
+    let speed = SPEED.get(speed_index).copied().unwrap_or(SPEED_FACTOR);
+    pacing
+        .adj_cpu_ms_us
+        .store(cpu_period * SPEED_FACTOR / speed, Ordering::Relaxed);
 
     cpu.bus.audio.update_cycles(video_50hz);
 }
