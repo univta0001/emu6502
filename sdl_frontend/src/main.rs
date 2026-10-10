@@ -7,7 +7,8 @@ use emu6502::mmu::AuxType;
 use emu6502::video::{DisplayMode, Video};
 //use emu6502::bus::Mem;
 //use emu6502::trace::trace;
-use emu6502::cpu::{CPU, CpuSpeed, CpuStats};
+//use emu6502::cpu::CpuStats;
+use emu6502::cpu::{CPU, CpuSpeed};
 use emu6502::mockingboard::Mockingboard;
 use emu6502::trace::{adjust_disassemble_addr, disassemble_addr};
 use image::ColorType;
@@ -302,7 +303,6 @@ struct EmulatorState {
     show_settings: bool,
     prev_settings: Vec<usize>,
     current_settings: Vec<usize>,
-    previous_cycles: usize,
     sampler: Sampler,
 }
 
@@ -328,7 +328,6 @@ impl EmulatorState {
             show_settings: false,
             prev_settings: Vec::new(),
             current_settings: Vec::new(),
-            previous_cycles: 0,
             sampler,
         }
     }
@@ -675,7 +674,7 @@ FLAGS:
     --xtrim            Set joystick x-trim value
     --ytrim            Set joystick y-trim value
     --swapbuttons      Swap the paddle 0 and paddle 1 buttons
-    -r no of pages     Emulate RAMworks III card with 1 to 127 pages
+    -r no of pages     Emulate RAMworks III card with 1 to 255 pages
     --rf size          Ramfactor memory size in KB
     -m, --model MODEL  Set apple 2 model.
                        Valid value: apple2p,apple2e,apple2ee,apple2ep,apple2c,
@@ -729,6 +728,7 @@ FLAGS:
     --exact_write      Enable exact track writing (No write to neighbor tracks)
     --noslot_clock off Disable noslot clock 
     --disable_jitter   Disable disk jitter
+    --disksound off    Disable disk sound
 
 ARGS:
     [disk 1]           Disk 1 file (woz, dsk, do, po file). Can be in gz format
@@ -1216,14 +1216,8 @@ fn serialize_state(shared: &EmuShared) -> Option<String> {
 // Runs on the dialog worker thread, so the UI loop keeps rendering while the
 // file is processed. An empty error message means "the user cancelled".
 #[cfg(feature = "serialization")]
+#[cfg(feature = "serde_support")]
 fn load_state_file(file_path: &Path) -> Result<CPU, String> {
-    #[cfg(not(feature = "serde_support"))]
-    {
-        return Err(format!(
-            "Load serialized image called when serde feature not enabled"
-        ));
-    }
-
     let result = fs::read_to_string(file_path);
     let Ok(input) = result else {
         return Err(format!("Unable to restore the image : {result:?}"));
@@ -1243,7 +1237,7 @@ fn load_state_file(file_path: &Path) -> Result<CPU, String> {
         {
             let result = load_disk(&mut new_cpu, &disk_filename, drive);
             if let Err(e) = result {
-                eprintln!(".display()Unable to load disk {} : {e}", disk_filename);
+                eprintln!("Unable to load disk {} : {e}", disk_filename);
             }
         }
         if is_harddisk_loaded(&new_cpu, drive)
@@ -2437,7 +2431,6 @@ impl App {
                         });
                     match result {
                         Ok(mut new_cpu) => {
-                            main.emulator_state.previous_cycles = new_cpu.bus.get_cycles();
                             let mut cpu = shared.cpu.lock();
                             initialize_new_cpu(
                                 &mut new_cpu,
@@ -2670,7 +2663,7 @@ impl App {
         let bus = Bus::default();
 
         let mut cpu = CPU::new(bus);
-        let mut _cpu_stats = CpuStats::new();
+        //let mut _cpu_stats = CpuStats::new();
 
         // Enable save for disk
         cpu.bus.disk.set_enable_save_disk(true);
@@ -2822,7 +2815,6 @@ impl App {
         let event_pump = sdl_context.event_pump()?;
 
         let video_time = Instant::now();
-        let previous_cycles = 0;
 
         cpu.setup_emulator();
         cpu.reset();
@@ -2840,7 +2832,6 @@ impl App {
         emulator_state.video.prev_scale = scale;
         emulator_state.input.key_caps = key_caps;
         emulator_state.input.shift_mod = shift_mod;
-        emulator_state.previous_cycles = previous_cycles;
         emulator_state.prev_settings = get_slot_settings(&cpu);
         emulator_state.current_settings = emulator_state.prev_settings.clone();
 
@@ -3143,7 +3134,9 @@ fn parse_args(
         return Ok(true);
     }
 
-    if pargs.contains("--disk_sound") {
+    if let Some(disksound) = pargs.opt_value_from_str::<_, String>("--disksound")?
+        && disksound == "off"
+    {
         cpu.bus.disk.set_disk_sound_enable(false);
     }
 
