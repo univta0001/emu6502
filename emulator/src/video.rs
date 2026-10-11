@@ -2048,7 +2048,7 @@ impl Video {
                 || self.is_display_mode_mono()
                 || self.mono_mode
                 || self.text_color_burst
-                || self.video_50hz && self.mixed_mode && y1 >= 20)
+                || self.video_50hz)
             {
                 let mut data = bitmap.reverse_bits() & 0x7f;
                 if !self.apple2e {
@@ -2091,7 +2091,7 @@ impl Video {
                 || self.is_display_mode_mono()
                 || self.mono_mode
                 || self.text_color_burst
-                || self.video_50hz && self.mixed_mode && y1 >= 20)
+                || self.video_50hz)
             {
                 let mut data = bitmap.reverse_bits();
                 if flash {
