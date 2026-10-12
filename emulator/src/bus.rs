@@ -1197,7 +1197,7 @@ impl Bus {
                     || self.is_apple2c
                 {
                     self.video.enable_dhires(true);
-                    self.video.update_previous_column_graphics(false);
+                    self.video.update_previous_column_graphics();
                     self.video.update_video();
                 }
 
@@ -1214,7 +1214,7 @@ impl Bus {
                     || self.is_apple2c
                 {
                     self.video.enable_dhires(false);
-                    self.video.update_previous_column_graphics(false);
+                    self.video.update_previous_column_graphics();
                     self.video.update_video();
                 }
 

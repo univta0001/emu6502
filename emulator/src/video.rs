@@ -948,17 +948,13 @@ impl Video {
         }
     }
 
-    pub fn update_previous_column_graphics(&mut self, prev_vid80_mode: bool) {
+    pub fn update_previous_column_graphics(&mut self) {
         let row = self.cycles / 65;
         let col = self.cycles % 65;
 
         if !self.is_graphics() {
             if row < 192 && col >= 26 {
                 let prev_ch = self.read_text_memory(col - 26, row);
-                if prev_vid80_mode && self.vid80_mode {
-                    let prev_ch_2 = self.read_aux_text_memory(col - 26, row);
-                    self.draw_char_a2_y(col - 26, row / 8, prev_ch_2, row % 8, 0);
-                }
                 self.draw_char_a2_y(col - 26, row / 8, prev_ch, row % 8, 7);
             }
         } else {
@@ -967,10 +963,6 @@ impl Video {
 
                 if self.lores_mode {
                     let video_value = self.read_video_data(self.cycles - 1, row);
-                    let video_aux_latch = self.read_aux_video_data(self.cycles - 1, row);
-                    if prev_vid80_mode && self.vid80_mode {
-                        self.draw_lores_a2_y(visible_col, row, video_aux_latch, 0, true);
-                    }
                     self.draw_lores_a2_y(visible_col, row, video_value, 7, false);
                 } else {
                     let video_value = self.read_video_data(self.cycles - 1, row);
@@ -990,7 +982,7 @@ impl Video {
                 let prev_mode = self.vid80_mode;
                 self.vid80_mode = false;
                 if prev_mode {
-                    self.update_previous_column_graphics(prev_mode);
+                    self.update_previous_column_graphics();
                 }
                 self.update_video();
             }
@@ -999,7 +991,7 @@ impl Video {
                 self.vid80_mode = true;
                 if !prev_mode {
                     self.skip_dhires_first_half = true;
-                    self.update_previous_column_graphics(prev_mode);
+                    self.update_previous_column_graphics();
                 }
                 self.update_video();
             }
@@ -1010,7 +1002,7 @@ impl Video {
                     self.skip_dhires_first_half = true;
                 }
                 if prev_mode {
-                    self.update_previous_column_graphics(false);
+                    self.update_previous_column_graphics();
                 }
                 self.update_video();
             }
@@ -1021,7 +1013,7 @@ impl Video {
                     self.skip_dhires_first_half = true;
                 }
                 if !prev_mode {
-                    self.update_previous_column_graphics(false);
+                    self.update_previous_column_graphics();
                 }
                 self.update_video();
             }
