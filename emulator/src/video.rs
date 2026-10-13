@@ -196,9 +196,6 @@ pub struct Video {
 
     #[cfg_attr(feature = "serde_support", serde(default))]
     text_color_burst: bool,
-
-    #[cfg_attr(feature = "serde_support", serde(default))]
-    skip_dhires_first_half: bool,
 }
 
 impl Tick for Video {
@@ -806,7 +803,6 @@ impl Video {
             shr_mode: false,
             shr_linear_mode: false,
             disable_aux: false,
-            skip_dhires_first_half: false,
         }
     }
 
@@ -881,12 +877,18 @@ impl Video {
                 self.draw_super_hires_a2_row_col(row, visible_col);
             } else if !self.graphics_mode || (self.mixed_mode && row >= 160) {
                 if self.vid80_mode {
-                    self.draw_char_a2_y(visible_col, row / 8, video_aux_latch, row % 8, 0);
+                    self.draw_char_a2_y(visible_col, row / 8, video_aux_latch, row % 8, 0, false);
                 }
-                self.draw_char_a2_y(visible_col, row / 8, video_value, row % 8, 7);
+                self.draw_char_a2_y(visible_col, row / 8, video_value, row % 8, 7, false);
             } else if !self.lores_mode {
                 if self.vid80_mode && self.dhires_mode {
-                    self.draw_raw_dhires_a2_row_col(row, visible_col, video_value, video_aux_latch);
+                    self.draw_raw_dhires_a2_row_col(
+                        row,
+                        visible_col,
+                        video_value,
+                        video_aux_latch,
+                        false,
+                    );
                 } else {
                     self.draw_raw_hires_a2_row_col(row, visible_col, video_value);
                 }
@@ -955,17 +957,17 @@ impl Video {
         if !self.is_graphics() {
             if row < 192 && col >= 26 {
                 let prev_ch = self.read_text_memory(col - 26, row);
-                self.draw_char_a2_y(col - 26, row / 8, prev_ch, row % 8, 7);
+                self.draw_char_a2_y(col - 26, row / 8, prev_ch, row % 8, 7, true);
             }
         } else {
             if row < 192 && col >= 26 {
                 let visible_col = col - 26;
 
                 if self.lores_mode {
-                    let video_value = self.read_video_data(self.cycles - 1, row);
+                    let video_value = self.read_text_memory(visible_col, row);
                     self.draw_lores_a2_y(visible_col, row, video_value, 7, false);
                 } else {
-                    let video_value = self.read_video_data(self.cycles - 1, row);
+                    let video_value = self.read_hires_memory(visible_col, row);
                     if !self.vid80_mode {
                         self.draw_raw_hires_a2_row_col(row, visible_col, video_value);
                     }
@@ -990,7 +992,6 @@ impl Video {
                 let prev_mode = self.vid80_mode;
                 self.vid80_mode = true;
                 if !prev_mode {
-                    self.skip_dhires_first_half = true;
                     self.update_previous_column_graphics();
                 }
                 self.update_video();
@@ -998,9 +999,6 @@ impl Video {
             0x0e if self.apple2e && write_flag => {
                 let prev_mode = self.altchar;
                 self.altchar = false;
-                if self.vid80_mode {
-                    self.skip_dhires_first_half = true;
-                }
                 if prev_mode {
                     self.update_previous_column_graphics();
                 }
@@ -1009,9 +1007,6 @@ impl Video {
             0x0f if (self.apple2e_enh || self.apple2c) && write_flag => {
                 let prev_mode = self.altchar;
                 self.altchar = true;
-                if self.vid80_mode {
-                    self.skip_dhires_first_half = true;
-                }
                 if !prev_mode {
                     self.update_previous_column_graphics();
                 }
@@ -1958,7 +1953,7 @@ impl Video {
         }
 
         for yindex in 0..8 {
-            self.draw_char_a2_y(x1, y1, ch, yindex, 0);
+            self.draw_char_a2_y(x1, y1, ch, yindex, 0, false);
         }
     }
 
@@ -2017,7 +2012,15 @@ impl Video {
         }
     }
 
-    fn draw_char_a2_y(&mut self, x1: usize, y1: usize, ch: u8, yindex: usize, offset: usize) {
+    fn draw_char_a2_y(
+        &mut self,
+        x1: usize,
+        y1: usize,
+        ch: u8,
+        yindex: usize,
+        offset: usize,
+        partial: bool,
+    ) {
         let val = self.get_normalized_char(ch);
         let bitmap = self.get_font_bitmap(val, yindex);
         let (flash, mut back_color, mut fore_color) = self.get_font_flash_mono_color(ch);
@@ -2095,7 +2098,7 @@ impl Video {
                 if flash {
                     alt_data ^= 0x7f;
                 }
-                self.draw_raw_dhires_a2_row_col(y1 * 8 + yindex, x1, data, alt_data);
+                self.draw_raw_dhires_a2_row_col(y1 * 8 + yindex, x1, data, alt_data, partial);
             } else {
                 if x1 == 39 {
                     self.set_pixel_count(560, y1offset, COLOR_BLACK, 7);
@@ -3115,7 +3118,14 @@ impl Video {
         }
     }
 
-    fn draw_raw_dhires_a2_row_col(&mut self, row: usize, col: usize, value: u8, aux_value: u8) {
+    fn draw_raw_dhires_a2_row_col(
+        &mut self,
+        row: usize,
+        col: usize,
+        value: u8,
+        aux_value: u8,
+        partial: bool,
+    ) {
         if col == 39 {
             self.set_pixel_count(560, row * 2, COLOR_BLACK, 7);
         }
@@ -3134,7 +3144,7 @@ impl Video {
         }
 
         if self.display_mode == DisplayMode::NTSC || self.display_mode == DisplayMode::MONO_NTSC {
-            self.draw_raw_dhires_ntsc_a2_row_col(row, col, value, aux_value);
+            self.draw_raw_dhires_ntsc_a2_row_col(row, col, value, aux_value, partial);
             return;
         }
 
@@ -3198,7 +3208,15 @@ impl Video {
                         color_index &= (1 << index) ^ 0xf;
                     }
 
-                    self.set_pixel_count(offset, row * 2, DHIRES_COLORS[color_index as usize], 1);
+                    if !partial {
+                        self.set_pixel_count(
+                            offset,
+                            row * 2,
+                            DHIRES_COLORS[color_index as usize],
+                            1,
+                        );
+                    }
+
                     mask <<= 1;
                     offset += 1;
                 }
@@ -3431,6 +3449,7 @@ impl Video {
         col: usize,
         value: u8,
         aux_value: u8,
+        partial: bool,
     ) {
         if row < 192 && col < 40 {
             let mut luma = [0u8; 14 + 2 * NTSC_PIXEL_NEIGHBOR + 1];
@@ -3526,7 +3545,7 @@ impl Video {
             }
 
             let x = col * 14;
-            let offset = if self.skip_dhires_first_half { 7 } else { 0 };
+            let offset = if partial { 7 } else { 0 };
 
             for i in offset..14 {
                 let pos = (x + i) % 4;
@@ -3542,8 +3561,6 @@ impl Video {
                 //let color = chroma_ntsc_color(&luma, x + i, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR, true, &self.ntsc_decoder);
                 self.set_pixel_count(x + i, 2 * row, color, 1);
             }
-
-            self.skip_dhires_first_half = false;
         }
     }
 
