@@ -26,6 +26,7 @@ use sdl3::gamepad::Button;
 use sdl3::gamepad::Gamepad;
 use sdl3::keyboard::Keycode;
 use sdl3::keyboard::Mod;
+use sdl3::joystick::JoystickId;
 use sdl3::video::Window;
 use std::collections::HashMap;
 use std::error::Error;
@@ -279,7 +280,7 @@ unsafe impl Send for SendAudioStream {}
 struct EmulatorState {
     video_subsystem: VideoSubsystem,
     game_controller: GamepadSubsystem,
-    gamepads: HashMap<u32, (u16, Gamepad)>,
+    gamepads: HashMap<JoystickId, (u16, Gamepad)>,
     video: VideoState,
     speed: SpeedState,
     input: InputState,
@@ -505,11 +506,11 @@ fn requires_cpu(event: &Event) -> bool {
             | Event::KeyUp { .. }
             | Event::DropFile { .. }
             | Event::MouseButtonDown { .. }
-            | Event::ControllerAxisMotion { .. }
-            | Event::ControllerButtonDown { .. }
-            | Event::ControllerButtonUp { .. }
-            | Event::ControllerDeviceAdded { .. }
-            | Event::ControllerDeviceRemoved { .. }
+            | Event::GamepadAxisMotion { .. }
+            | Event::GamepadButtonDown { .. }
+            | Event::GamepadButtonUp { .. }
+            | Event::GamepadAdded { .. }
+            | Event::GamepadRemoved { .. }
     )
 }
 
@@ -527,11 +528,11 @@ fn handle_event(event: Event, state: &mut EmulatorState, shared: &EmuShared) {
         Event::Quit { .. } => cpu.halt_cpu(),
 
         // Gamepad
-        Event::ControllerAxisMotion { .. }
-        | Event::ControllerButtonDown { .. }
-        | Event::ControllerButtonUp { .. }
-        | Event::ControllerDeviceAdded { .. }
-        | Event::ControllerDeviceRemoved { .. } => {
+        Event::GamepadAxisMotion { .. }
+        | Event::GamepadButtonDown { .. }
+        | Event::GamepadButtonUp { .. }
+        | Event::GamepadAdded { .. }
+        | Event::GamepadRemoved { .. } => {
             handle_gamepad_event(cpu, event, state);
         }
 
@@ -1962,7 +1963,7 @@ fn handle_file_drop(cpu: &mut CPU, filename: &str) {
 
 fn handle_gamepad_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState) {
     match event {
-        Event::ControllerAxisMotion {
+        Event::GamepadAxisMotion {
             which, axis, value, ..
         } => {
             if let Some(entry) = state.gamepads.get(&which) {
@@ -2006,7 +2007,7 @@ fn handle_gamepad_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState) 
             }
         }
 
-        Event::ControllerButtonDown { which, button, .. } => {
+        Event::GamepadButtonDown { which, button, .. } => {
             if let Some(entry) = state.gamepads.get(&which) {
                 let joystick_id = entry.0;
                 if joystick_id < 2 {
@@ -2035,7 +2036,7 @@ fn handle_gamepad_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState) 
             }
         }
 
-        Event::ControllerButtonUp { which, button, .. } => {
+        Event::GamepadButtonUp { which, button, .. } => {
             if let Some(entry) = state.gamepads.get(&which) {
                 let joystick_id = entry.0;
                 if joystick_id < 2 {
@@ -2058,10 +2059,10 @@ fn handle_gamepad_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState) 
             }
         }
 
-        Event::ControllerDeviceAdded { which, .. } => {
+        Event::GamepadAdded { which, .. } => {
             // Which refers to joystick device index and is u32
             // Game controller accepts JoystickId
-            let joy_id = sdl3::joystick::JoystickId::new(which);
+            let joy_id = sdl3::joystick::JoystickId::new(which.into());
             if let Ok(controller) = state.game_controller.open(joy_id)
                 && let Some(player_index) = controller.player_index()
             {
@@ -2070,7 +2071,7 @@ fn handle_gamepad_event(cpu: &mut CPU, event: Event, state: &mut EmulatorState) 
             cpu.bus.update_joystick_count(state.gamepads.len());
         }
 
-        Event::ControllerDeviceRemoved { which, .. } => {
+        Event::GamepadRemoved { which, .. } => {
             // Which refers to instance id
             state.gamepads.remove(&which);
             cpu.bus.update_joystick_count(state.gamepads.len());
@@ -2116,10 +2117,10 @@ fn render_frame(
         cmd_buf.cancel();
         return;
     };
-    if swapchain.raw() as usize == 0 {
+    let Some(swapchain) = swapchain else {
         cmd_buf.cancel();
         return;
-    }
+    };
 
     let color_targets = [ColorTargetInfo::default()
         .with_texture(&swapchain)
