@@ -24,9 +24,9 @@ use sdl3::event::Event;
 use sdl3::gamepad::Axis;
 use sdl3::gamepad::Button;
 use sdl3::gamepad::Gamepad;
+use sdl3::joystick::JoystickId;
 use sdl3::keyboard::Keycode;
 use sdl3::keyboard::Mod;
-use sdl3::joystick::JoystickId;
 use sdl3::video::Window;
 use std::collections::HashMap;
 use std::error::Error;
@@ -51,6 +51,9 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use std::time::Instant;
+
+#[cfg(feature = "mcp")]
+mod mcp;
 
 //use sdl2::surface::Surface;
 //use sdl2::image::LoadSurface;
@@ -249,10 +252,165 @@ struct Stats {
 //   might block through `EmulatorState::file_dialog`: `spawn_dialog` shows
 //   the dialog on a worker thread from `app_iterate` (before any guard is
 //   taken) and `poll_dialog` applies the answer from the main loop.
+// ---------------------------------------------------------------------------
+// MCP control plane (feature = "mcp")
+//
+// Shared between the MCP server thread and the emulator / UI threads. `paused`
+// gates the emulator run loop; the step budget, run-until target and breakpoint
+// list are polled by the step loop. The screenshot channel hands work to the UI
+// thread, which is the only thread allowed to touch SDL / the GPU.
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "mcp")]
+const MCP_NO_BUDGET: usize = usize::MAX;
+#[cfg(feature = "mcp")]
+const MCP_NO_PC: u32 = u32::MAX;
+
+#[cfg(feature = "mcp")]
+struct ScreenshotChannel {
+    requested: AtomicBool,
+    result: Mutex<Option<Vec<u8>>>,
+    ready: Condvar,
+}
+
+#[cfg(feature = "mcp")]
+impl ScreenshotChannel {
+    fn new() -> Self {
+        Self {
+            requested: AtomicBool::new(false),
+            result: Mutex::new(None),
+            ready: Condvar::new(),
+        }
+    }
+
+    // MCP thread: ask the UI thread for a frame and block until it arrives.
+    fn request(&self) -> Option<Vec<u8>> {
+        self.requested.store(true, Ordering::Release);
+        let mut guard = self.result.lock();
+        loop {
+            if let Some(bytes) = guard.take() {
+                return Some(bytes);
+            }
+            if self
+                .ready
+                .wait_for(&mut guard, std::time::Duration::from_secs(5))
+                .timed_out()
+            {
+                return None;
+            }
+        }
+    }
+
+    // UI thread: returns true once per request.
+    fn take_request(&self) -> bool {
+        self.requested.swap(false, Ordering::AcqRel)
+    }
+
+    fn serve(&self, bytes: Vec<u8>) {
+        *self.result.lock() = Some(bytes);
+        self.ready.notify_all();
+    }
+}
+
+#[cfg(feature = "mcp")]
+struct McpControl {
+    paused: Mutex<bool>,
+    resume_cv: Condvar,
+    step_budget: AtomicUsize,
+    run_until_pc: AtomicU32,
+    breakpoints: Mutex<Vec<u16>>,
+    has_breakpoints: AtomicBool,
+    screenshot: ScreenshotChannel,
+}
+
+#[cfg(feature = "mcp")]
+impl McpControl {
+    fn new() -> Self {
+        Self {
+            paused: Mutex::new(false),
+            resume_cv: Condvar::new(),
+            step_budget: AtomicUsize::new(MCP_NO_BUDGET),
+            run_until_pc: AtomicU32::new(MCP_NO_PC),
+            breakpoints: Mutex::new(Vec::new()),
+            has_breakpoints: AtomicBool::new(false),
+            screenshot: ScreenshotChannel::new(),
+        }
+    }
+
+    fn pause(&self) {
+        *self.paused.lock() = true;
+    }
+
+    fn resume(&self) {
+        self.step_budget.store(MCP_NO_BUDGET, Ordering::Release);
+        self.run_until_pc.store(MCP_NO_PC, Ordering::Release);
+        *self.paused.lock() = false;
+        self.resume_cv.notify_all();
+    }
+
+    fn is_paused(&self) -> bool {
+        *self.paused.lock()
+    }
+
+    fn step(&self, instructions: usize) {
+        self.run_until_pc.store(MCP_NO_PC, Ordering::Release);
+        self.step_budget
+            .store(instructions.max(1), Ordering::Release);
+        *self.paused.lock() = false;
+        self.resume_cv.notify_all();
+    }
+
+    fn run_until(&self, pc: u16) {
+        self.step_budget.store(MCP_NO_BUDGET, Ordering::Release);
+        self.run_until_pc.store(pc as u32, Ordering::Release);
+        *self.paused.lock() = false;
+        self.resume_cv.notify_all();
+    }
+
+    // Emulator thread: park while paused.
+    fn wait_if_paused(&self) {
+        let mut guard = self.paused.lock();
+        while *guard {
+            self.resume_cv.wait(&mut guard);
+        }
+    }
+
+    // Emulator thread: re-park after a step budget / breakpoint hit.
+    fn park(&self) {
+        *self.paused.lock() = true;
+    }
+
+    fn bp_add(&self, addr: u16) {
+        let mut list = self.breakpoints.lock();
+        if !list.contains(&addr) {
+            list.push(addr);
+        }
+        self.has_breakpoints.store(true, Ordering::Release);
+    }
+
+    fn bp_remove(&self, addr: u16) {
+        let mut list = self.breakpoints.lock();
+        list.retain(|&value| value != addr);
+        self.has_breakpoints
+            .store(!list.is_empty(), Ordering::Release);
+    }
+
+    fn bp_list(&self) -> Vec<u16> {
+        self.breakpoints.lock().clone()
+    }
+
+    fn bp_clear(&self) {
+        self.breakpoints.lock().clear();
+        self.has_breakpoints.store(false, Ordering::Release);
+    }
+}
+
 struct EmuShared {
     cpu: Mutex<CPU>,
     pacing: Pacing,
     stats: Stats,
+    #[cfg(feature = "mcp")]
+    mcp: McpControl,
     clipboard_text: Mutex<String>,
     // Set by the UI thread when new clipboard text is available, so the
     // emulator thread only takes the clipboard_text lock when needed.
@@ -671,6 +829,7 @@ FLAGS:
     -h, --help         Prints help information
     -V, --version      Prints version information
     --50hz             Enable 50 Hz emulation
+    --mcp              Start the MCP (Model Context Protocol) stdio server
     --nojoystick       Disable joystick
     --xtrim            Set joystick x-trim value
     --ytrim            Set joystick y-trim value
@@ -1439,6 +1598,26 @@ fn save_emulator_screenshot(frame: &[u8]) {
         }
     } else {
         eprintln!("Unable to create {filename}");
+    }
+}
+
+// Encodes a prepared RGBA frame as PNG in memory (used by the MCP screenshot
+// tool, which returns the bytes to the caller instead of writing a file).
+#[cfg(feature = "mcp")]
+fn encode_png_bytes(frame: &[u8]) -> Option<Vec<u8>> {
+    let mut buffer = Vec::new();
+    let encoder = PngEncoder::new(&mut buffer);
+    match encoder.write_image(
+        frame,
+        Video::WIDTH as u32,
+        Video::HEIGHT as u32,
+        ColorType::Rgba8.into(),
+    ) {
+        Ok(()) => Some(buffer),
+        Err(err) => {
+            eprintln!("Unable to encode screenshot: {err}");
+            None
+        }
     }
 }
 
@@ -2233,6 +2412,12 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
     let mut adj_ms_offset = std::time::Duration::from_micros(0);
 
     'emulator: loop {
+        // MCP: park while paused. Resumed by resume() / step() / run_until().
+        #[cfg(feature = "mcp")]
+        shared.mcp.wait_if_paused();
+        #[cfg(feature = "mcp")]
+        let mut pause_now = false;
+
         'break_loop: loop {
             let (halted, cpu_cycles, cpu_mhz, adj_ms, normal_cpu_speed) = {
                 let mut cpu = shared.cpu.lock();
@@ -2252,12 +2437,43 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
                     normal_disk_speed && cpu.full_speed != CpuSpeed::SPEED_FASTEST;
 
                 let mut halted = false;
+                #[cfg(feature = "mcp")]
+                let mut executed: usize = 0;
                 while dcyc < cpu_cycles {
+                    #[cfg(feature = "mcp")]
+                    {
+                        let budget = shared.mcp.step_budget.load(Ordering::Relaxed);
+                        if budget != MCP_NO_BUDGET && executed >= budget {
+                            shared
+                                .mcp
+                                .step_budget
+                                .store(MCP_NO_BUDGET, Ordering::Relaxed);
+                            pause_now = true;
+                            break;
+                        }
+                    }
                     let Some(cycles) = cpu.step() else {
                         halted = true;
                         break;
                     };
                     dcyc += cycles;
+
+                    #[cfg(feature = "mcp")]
+                    {
+                        executed += 1;
+                        if shared.mcp.has_breakpoints.load(Ordering::Relaxed)
+                            && shared.mcp.breakpoints.lock().contains(&cpu.program_counter)
+                        {
+                            pause_now = true;
+                            break;
+                        }
+                        let target = shared.mcp.run_until_pc.load(Ordering::Relaxed);
+                        if target != MCP_NO_PC && cpu.program_counter as u32 == target {
+                            shared.mcp.run_until_pc.store(MCP_NO_PC, Ordering::Relaxed);
+                            pause_now = true;
+                            break;
+                        }
+                    }
                 }
 
                 {
@@ -2287,6 +2503,16 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
 
                 (halted, cpu_cycles, cpu_mhz, adj_ms, normal_cpu_speed)
             };
+
+            // MCP: a step budget or breakpoint paused the emulator mid-frame.
+            // Re-park and restart the run loop; `dcyc` keeps the partial frame
+            // so the next resume continues where this stopped.
+            #[cfg(feature = "mcp")]
+            if pause_now {
+                shared.mcp.park();
+                t = Instant::now();
+                continue 'emulator;
+            }
 
             // Pace the emulator to the video refresh period while the CPU lock
             // is released, so the UI thread can access the emulator
@@ -2486,6 +2712,24 @@ impl App {
                 save_emulator_screenshot(frame);
             }
 
+            // MCP screenshot request: produced here on the UI thread (which
+            // owns the blend buffers) and handed back to the waiting caller.
+            #[cfg(feature = "mcp")]
+            if shared.mcp.screenshot.take_request() {
+                let frame = {
+                    let mut cpu = shared.cpu.lock();
+                    prepare_video_frame(
+                        &mut cpu,
+                        &mut main.blend_buffer,
+                        &mut main.barrel_buffer,
+                        emulator_state,
+                    )
+                };
+                if let Some(bytes) = encode_png_bytes(frame) {
+                    shared.mcp.screenshot.serve(bytes);
+                }
+            }
+
             if !window.is_minimized() {
                 // Read and blend the emulator frame (short CPU lock)
                 let processed_frame = {
@@ -2643,6 +2887,17 @@ impl App {
 
         if pargs.contains(["-V", "--version"]) {
             print_version();
+            return Ok(None);
+        }
+
+        // Enable the Model Context Protocol stdio server (see the `mcp`
+        // feature). The window still opens; the server is an extra control
+        // surface for automation.
+        let _mcp_enabled = pargs.contains("--mcp");
+
+        #[cfg(not(feature = "mcp"))]
+        if _mcp_enabled {
+            eprintln!("--mcp requires a build with the `mcp` feature enabled");
             return Ok(None);
         }
 
@@ -2831,6 +3086,8 @@ impl App {
             cpu: Mutex::new(cpu),
             pacing: Pacing::default(),
             stats: Stats::default(),
+            #[cfg(feature = "mcp")]
+            mcp: McpControl::new(),
             clipboard_text: Mutex::new(String::new()),
             clipboard_pending: AtomicBool::new(false),
             reload_cpu: AtomicBool::new(false),
@@ -2854,6 +3111,13 @@ impl App {
             .spawn(move || {
                 emulator_thread(emu_shared, audio_stream, dcyc);
             })?;
+
+        // Start the MCP server (detached: it ends when the client closes
+        // stdin, and is killed when the process exits).
+        #[cfg(feature = "mcp")]
+        if _mcp_enabled {
+            mcp::spawn(Arc::clone(&shared))?;
+        }
 
         Ok(Some(App {
             main: MainThreadData::assert_new(AppMain {
