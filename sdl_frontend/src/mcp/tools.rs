@@ -11,8 +11,8 @@ use emu6502::trace::disassemble_addr;
 use serde_json::{Value, json};
 
 use crate::{
-    APPLE2C0_ROM, APPLE2C3_ROM, APPLE2C4_ROM, APPLE2CP_ROM, APPLE2C_ROM, APPLE2E_ROM, APPLE2EE_ROM,
-    APPLE2P_ROM, APPLE2_ROM, DISPLAY_MODES, EmuShared, SPEED_MODES, SPEED_NAMES, change_model,
+    APPLE2_ROM, APPLE2C_ROM, APPLE2C0_ROM, APPLE2C3_ROM, APPLE2C4_ROM, APPLE2CP_ROM, APPLE2E_ROM,
+    APPLE2EE_ROM, APPLE2P_ROM, DISPLAY_MODES, EmuShared, SPEED_MODES, SPEED_NAMES, change_model,
     eject_disk, eject_harddisk, initialize_apple_system, load_disk, load_harddisk,
     update_video_state,
 };
@@ -658,7 +658,9 @@ fn mem_aux_write(shared: &EmuShared, args: &Value) -> Result<Value, String> {
 
     let mut cpu = shared.cpu.lock();
     for (i, byte) in bytes.iter().enumerate() {
-        cpu.bus.mem.mem_aux_write(addr.wrapping_add(i as u16), *byte);
+        cpu.bus
+            .mem
+            .mem_aux_write(addr.wrapping_add(i as u16), *byte);
     }
 
     Ok(json!({
@@ -939,9 +941,11 @@ mod tests {
 
     #[test]
     fn addresses_are_range_checked() {
-        assert_eq!(arg_addr(&json!({ "addr": "0x0300" }), "addr").unwrap(), 0x0300);
+        assert_eq!(
+            arg_addr(&json!({ "addr": "0x0300" }), "addr").unwrap(),
+            0x0300
+        );
         assert!(arg_addr(&json!({ "addr": "0x10000" }), "addr").is_err());
         assert!(arg_addr(&json!({}), "addr").is_err());
     }
 }
-

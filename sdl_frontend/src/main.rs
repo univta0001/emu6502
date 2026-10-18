@@ -683,7 +683,19 @@ fn handle_event(event: Event, state: &mut EmulatorState, shared: &EmuShared) {
     }
 
     match event {
-        Event::Quit { .. } => cpu.halt_cpu(),
+        Event::Quit { .. } => {
+            cpu.halt_cpu();
+            // If the emulator is parked on an MCP pause, a halt alone is not
+            // observed (it only takes effect once the CPU steps). Resume the
+            // pause so the thread wakes, sees the halt, exits the run loop and
+            // can be joined by `app_quit`; otherwise the app would spin (or
+            // hang on the join) after the window closes. Mirrors the MCP
+            // `quit` tool. `mcp.resume()` only locks `mcp.paused`, so taking
+            // it under the held `cpu` guard keeps the existing `cpu -> paused`
+            // ordering (see `status` in mcp/tools.rs).
+            #[cfg(feature = "mcp")]
+            shared.mcp.resume();
+        }
 
         // Gamepad
         Event::GamepadAxisMotion { .. }
