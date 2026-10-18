@@ -380,6 +380,15 @@ impl Videoterm {
         }
     }
 
+    /// Returns the character stored at a cell of the 80x24 screen (row 0-23,
+    /// column 0-79). The Videx Videoterm keeps its own video RAM, so callers
+    /// that want the visible text must read it from here rather than from the
+    /// Apple text page.
+    pub fn char_at(&self, row: usize, col: usize) -> u8 {
+        let address = self.get_start_pos() as usize + row * 80 + col;
+        self.vram[address & 0x7ff]
+    }
+
     pub fn refresh(&mut self, video: &mut Video) {
         for line in 0..24 {
             if self.dirty_lines[line] {
