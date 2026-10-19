@@ -226,6 +226,20 @@ pub fn list() -> Value {
             })
         ),
         tool(
+            "mem_shadow_write",
+            "Write bytes into the video shadow RAM (the display's copy of video memory) so the screen updates without the CPU writing. Provide `bytes` (array of integers) or `hex` (string of hex pairs). `aux` selects the auxiliary shadow bank (default false = main).",
+            json!({
+                "type": "object",
+                "properties": {
+                    "addr": { "type": "string" },
+                    "bytes": { "type": "array", "items": { "type": "integer" } },
+                    "hex": { "type": "string" },
+                    "aux": { "type": "boolean", "description": "Write the auxiliary shadow bank (default false = main)." }
+                },
+                "required": ["addr"]
+            })
+        ),
+        tool(
             "cpu_registers",
             "Read the CPU registers and status flags.",
             json!({ "type": "object", "properties": {} })
@@ -431,6 +445,7 @@ pub fn call(shared: &EmuShared, name: &str, args: &Value) -> Result<Value, Strin
         "mem_write" => mem_write(shared, args),
         "mem_aux_read" => mem_aux_read(shared, args),
         "mem_aux_write" => mem_aux_write(shared, args),
+        "mem_shadow_write" => mem_shadow_write(shared, args),
         "cpu_registers" => cpu_registers(shared),
         "disassemble" => disassemble(shared, args),
         "pc_set" => {
@@ -670,6 +685,29 @@ fn mem_aux_write(shared: &EmuShared, args: &Value) -> Result<Value, String> {
         "length": bytes.len(),
         "aux_bank": cpu.bus.mem.aux_bank(),
     }))
+}
+
+/// Raw write to the video shadow banks (`video_main` / `video_aux`), the
+/// display's copy of the text/graphics pages. Unlike `mem_write` the change
+/// becomes visible on screen right away: the same path the CPU bus uses when
+/// it shadows a memory write (`Bus::shadow_memory_to_vram`) marks the
+/// affected rows for reparse. CPU memory is not touched.
+fn mem_shadow_write(shared: &EmuShared, args: &Value) -> Result<Value, String> {
+    let addr = arg_addr(args, "addr")?;
+    let bytes = parse_bytes(args)?;
+    if bytes.is_empty() {
+        return Err("no bytes supplied (use `bytes` or `hex`)".to_string());
+    }
+    let aux = args.get("aux").and_then(Value::as_bool).unwrap_or(false);
+
+    let mut cpu = shared.cpu.lock();
+    for (i, byte) in bytes.iter().enumerate() {
+        cpu.bus
+            .video
+            .update_shadow_memory(aux, addr.wrapping_add(i as u16), *byte);
+    }
+
+    Ok(json!({ "ok": true, "addr": addr, "length": bytes.len(), "aux": aux }))
 }
 
 fn cpu_registers(shared: &EmuShared) -> Result<Value, String> {
