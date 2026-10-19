@@ -79,9 +79,16 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(feature = "mcp")]
+use std::sync::atomic::{AtomicU32, AtomicUsize};
+#[cfg(feature = "mcp")]
+use std::sync::Condvar;
 use std::time::Duration;
 use std::time::Instant;
 use strum::IntoEnumIterator;
+
+#[cfg(feature = "mcp")]
+mod mcp;
 
 static APPLE2_ROM: &[u8] = include_bytes!("../../resource/Apple2.rom");
 static APPLE2P_ROM: &[u8] = include_bytes!("../../resource/Apple2_Plus.rom");
@@ -358,6 +365,129 @@ impl EmulatorCore {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Shared state & MCP control plane
+//
+// `EmuShared` is what the emulator thread, the MCP server thread and the UI
+// thread all point at: `core` holds the CPU plus the per-frame UI state, and
+// the MCP control plane (`feature = "mcp"`) sits outside of it so the server
+// thread can pause / step the emulator without taking the core lock.
+//
+// Lock ordering: `core` may be taken together with an MCP lock (the `status`
+// tool reads the paused flag under the core lock), so a tool that needs both
+// must take `core` first and release it before calling back into `McpControl`
+// where possible. `McpControl` never takes `core`.
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "mcp")]
+const MCP_NO_BUDGET: usize = usize::MAX;
+#[cfg(feature = "mcp")]
+const MCP_NO_PC: u32 = u32::MAX;
+
+#[cfg(feature = "mcp")]
+struct McpControl {
+    paused: Mutex<bool>,
+    resume_cv: Condvar,
+    step_budget: AtomicUsize,
+    run_until_pc: AtomicU32,
+    breakpoints: Mutex<Vec<u16>>,
+    has_breakpoints: AtomicBool,
+}
+
+#[cfg(feature = "mcp")]
+impl McpControl {
+    fn new() -> Self {
+        Self {
+            paused: Mutex::new(false),
+            resume_cv: Condvar::new(),
+            step_budget: AtomicUsize::new(MCP_NO_BUDGET),
+            run_until_pc: AtomicU32::new(MCP_NO_PC),
+            breakpoints: Mutex::new(Vec::new()),
+            has_breakpoints: AtomicBool::new(false),
+        }
+    }
+
+    fn pause(&self) {
+        *self.paused.lock().unwrap() = true;
+    }
+
+    fn resume(&self) {
+        self.step_budget.store(MCP_NO_BUDGET, Ordering::Release);
+        self.run_until_pc.store(MCP_NO_PC, Ordering::Release);
+        *self.paused.lock().unwrap() = false;
+        self.resume_cv.notify_all();
+    }
+
+    fn is_paused(&self) -> bool {
+        *self.paused.lock().unwrap()
+    }
+
+    fn step(&self, instructions: usize) {
+        self.run_until_pc.store(MCP_NO_PC, Ordering::Release);
+        self.step_budget
+            .store(instructions.max(1), Ordering::Release);
+        *self.paused.lock().unwrap() = false;
+        self.resume_cv.notify_all();
+    }
+
+    fn run_until(&self, pc: u16) {
+        self.step_budget.store(MCP_NO_BUDGET, Ordering::Release);
+        self.run_until_pc.store(pc as u32, Ordering::Release);
+        *self.paused.lock().unwrap() = false;
+        self.resume_cv.notify_all();
+    }
+
+    // Emulator thread: park while paused.
+    fn wait_if_paused(&self) {
+        let mut guard = self.paused.lock().unwrap();
+        while *guard {
+            guard = self.resume_cv.wait(guard).unwrap();
+        }
+    }
+
+    // Emulator thread: re-park after a step budget / breakpoint hit.
+    fn park(&self) {
+        *self.paused.lock().unwrap() = true;
+    }
+
+    fn bp_add(&self, addr: u16) {
+        let mut list = self.breakpoints.lock().unwrap();
+        if !list.contains(&addr) {
+            list.push(addr);
+        }
+        self.has_breakpoints.store(true, Ordering::Release);
+    }
+
+    fn bp_remove(&self, addr: u16) {
+        let mut list = self.breakpoints.lock().unwrap();
+        list.retain(|&value| value != addr);
+        self.has_breakpoints
+            .store(!list.is_empty(), Ordering::Release);
+    }
+
+    fn bp_list(&self) -> Vec<u16> {
+        self.breakpoints.lock().unwrap().clone()
+    }
+
+    fn bp_clear(&self) {
+        self.breakpoints.lock().unwrap().clear();
+        self.has_breakpoints.store(false, Ordering::Release);
+    }
+}
+
+/// Emulator state shared between the UI thread, the emulator thread and (with
+/// the `mcp` feature) the MCP server thread.
+struct EmuShared {
+    core: Arc<Mutex<EmulatorCore>>,
+    #[cfg(feature = "mcp")]
+    mcp: McpControl,
+    // Set by the main thread just before it joins the emulator thread, so a
+    // thread parked on an MCP pause can never block the join forever - the
+    // thread checks the flag at the top of its run loop, and `resume` unblocks
+    // the pause wait so it can observe it.
+    shutdown: AtomicBool,
+}
+
 struct NumpadKeyMapping {
     key: &'static str,
     paddle0: Option<u16>,
@@ -504,11 +634,11 @@ fn square_to_circle(u: f32, v: f32) -> f32 {
     x.clamp(-1.0, 1.0)
 }
 
-/// The emulator stepping loop. Runs on its own thread; the UI thread accesses
-/// the shared state through short-lived locks. The UI is notified whenever a
-/// new video frame is available.
+/// The emulator stepping loop. Runs on its own thread; the UI thread and the
+/// MCP server thread access the shared state through short-lived locks. The UI
+/// is notified whenever a new video frame is available.
 fn emulator_thread(
-    core: Arc<Mutex<EmulatorCore>>,
+    shared: Arc<EmuShared>,
     audio_queue: AudioQueue,
     notify: futures::channel::mpsc::UnboundedSender<NotifyMsg>,
 ) {
@@ -517,10 +647,24 @@ fn emulator_thread(
     let mut adj_ms_offset = Duration::from_micros(0);
 
     loop {
+        // Exit promptly once the main thread is quitting (see `main`), even if
+        // no halt was requested through the CPU
+        if shared.shutdown.load(Ordering::Acquire) {
+            return;
+        }
+
+        // MCP: park while paused. Resumed by resume() / step() / run_until().
+        #[cfg(feature = "mcp")]
+        shared.mcp.wait_if_paused();
+        #[cfg(feature = "mcp")]
+        let mut pause_now = false;
+        #[cfg(feature = "mcp")]
+        let mut executed: usize = 0;
+
         // Step one frame worth of CPU cycles
         let (mut reload, mut model_changed) = (false, false);
         {
-            let mut core = core.lock().unwrap();
+            let mut core = shared.core.lock().unwrap();
 
             let mut halted = false;
             {
@@ -532,6 +676,19 @@ fn emulator_thread(
                     ..
                 } = &mut *core;
                 while *dcyc < video.cpu_cycles {
+                    #[cfg(feature = "mcp")]
+                    {
+                        let budget = shared.mcp.step_budget.load(Ordering::Relaxed);
+                        if budget != MCP_NO_BUDGET && executed >= budget {
+                            shared
+                                .mcp
+                                .step_budget
+                                .store(MCP_NO_BUDGET, Ordering::Relaxed);
+                            pause_now = true;
+                            break;
+                        }
+                    }
+
                     let prev_cycle = cpu.bus.get_cycles();
                     if !cpu.step_with_callback(|_| {}) {
                         halted = true;
@@ -539,6 +696,28 @@ fn emulator_thread(
                     }
 
                     process_clipboard(cpu, &mut input.clipboard_text);
+
+                    #[cfg(feature = "mcp")]
+                    {
+                        executed += 1;
+                        if shared.mcp.has_breakpoints.load(Ordering::Relaxed)
+                            && shared
+                                .mcp
+                                .breakpoints
+                                .lock()
+                                .unwrap()
+                                .contains(&cpu.program_counter)
+                        {
+                            pause_now = true;
+                            break;
+                        }
+                        let target = shared.mcp.run_until_pc.load(Ordering::Relaxed);
+                        if target != MCP_NO_PC && cpu.program_counter as u32 == target {
+                            shared.mcp.run_until_pc.store(MCP_NO_PC, Ordering::Relaxed);
+                            pause_now = true;
+                            break;
+                        }
+                    }
 
                     let cycle = cpu.bus.get_cycles() - prev_cycle;
                     *dcyc += cycle;
@@ -562,11 +741,21 @@ fn emulator_thread(
             }
         }
 
+        // MCP: a step budget or breakpoint paused the emulator mid-frame.
+        // Re-park and restart the run loop; `dcyc` keeps the partial frame so
+        // the next resume continues where this stopped.
+        #[cfg(feature = "mcp")]
+        if pause_now {
+            shared.mcp.park();
+            t = Instant::now();
+            continue;
+        }
+
         if reload {
             if model_changed {
                 // Model change: reinitialize the machine (mirrors the
                 // sdl_frontend implementation)
-                let mut core = core.lock().unwrap();
+                let mut core = shared.core.lock().unwrap();
                 core.cpu.bus.init_memory();
                 core.cpu.bus.set_apple2c(false);
                 core.cpu.bus.video.set_apple2c(false);
@@ -579,7 +768,7 @@ fn emulator_thread(
                 #[cfg(feature = "serialization")]
                 match load_serialized_image() {
                     Ok(mut new_cpu) => {
-                        let mut core = core.lock().unwrap();
+                        let mut core = shared.core.lock().unwrap();
                         initialize_new_cpu(&mut new_cpu, &mut core);
                         core.cpu = new_cpu;
                         core.dcyc = 0;
@@ -599,7 +788,7 @@ fn emulator_thread(
 
         // Update video, audio and stats at a multiple of 60Hz or 50Hz
         let (normal_cpu_speed, adj_ms) = {
-            let mut core = core.lock().unwrap();
+            let mut core = shared.core.lock().unwrap();
 
             let video_time_elapsed = video_time.elapsed().as_micros();
             if video_time_elapsed >= core.video.cpu_period as u128 {
@@ -641,7 +830,7 @@ fn emulator_thread(
         adj_ms_offset = Duration::from_micros(elapsed.saturating_sub(adj_ms.as_micros()) as u64);
 
         {
-            let mut core = core.lock().unwrap();
+            let mut core = shared.core.lock().unwrap();
             core.speed.estimated_mhz = (core.dcyc as f32) / elapsed as f32;
             core.speed.fps = core.video.cpu_mhz / core.dcyc as f32;
             core.dcyc = core.dcyc.saturating_sub(core.video.cpu_cycles);
@@ -755,6 +944,10 @@ FLAGS:
     -h, --help         Prints help information
     -V, --version      Prints version information
     --50hz             Enable 50 Hz emulation
+    --headless         Disable video and audio output (no window is shown and
+                       no sound is played). Intended for automation, e.g. with
+                       --mcp. Quit with Ctrl-C, or when the MCP client exits
+    --mcp              Start the MCP (Model Context Protocol) stdio server
     --nojoystick       Disable joystick
     --xtrim            Set joystick x-trim value
     --ytrim            Set joystick y-trim value
@@ -3563,6 +3756,23 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         return Ok(());
     }
 
+    // Enable the Model Context Protocol stdio server (see the `mcp` feature).
+    // The window still opens (unless `--headless` is given); the server is an
+    // extra control surface for automation.
+    let _mcp_enabled = pargs.contains("--mcp");
+
+    #[cfg(not(feature = "mcp"))]
+    if _mcp_enabled {
+        eprintln!("--mcp requires a build with the `mcp` feature enabled");
+        return Ok(());
+    }
+
+    // Headless mode: run without a window, audio output or gamepad support.
+    // GPUI needs a display to run its event loop, so the main thread never
+    // enters it here: it only serves the MCP client (if any) and shuts the
+    // emulator down once the client is gone.
+    let headless = pargs.contains("--headless");
+
     // Create bus
     let bus = Bus::default();
 
@@ -3632,12 +3842,14 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     // Create the audio output stream; the cpal callback pulls samples from
     // the queue and the stream stays alive on the main thread
-    // Held for the app's lifetime; dropping the stream stops audio playback
-    let _audio_stream = init_audio_stream(audio_queue.clone());
-
-    // Create the gamepad manager
-    let gilrs =
-        Gilrs::new().map_err(|err| format!("Unable to initialize gamepad support: {err}"))?;
+    // Held for the app's lifetime; dropping the stream stops audio playback.
+    // Headless mode opens no audio device at all: there is nothing to play to.
+    let _audio_stream = if headless {
+        eprintln!("Headless mode: video and audio output disabled");
+        None
+    } else {
+        init_audio_stream(audio_queue.clone())
+    };
 
     cpu.setup_emulator();
     cpu.reset();
@@ -3672,6 +3884,16 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         core_guard.update_video_state();
     }
 
+    // State shared between the UI thread, the emulator thread and the MCP
+    // server thread; the UI keeps its own handle to the core
+    let shared = Arc::new(EmuShared {
+        core,
+        #[cfg(feature = "mcp")]
+        mcp: McpControl::new(),
+        shutdown: AtomicBool::new(false),
+    });
+    let core = shared.core.clone();
+
     // Channel used to notify the UI when a new video frame is available
     let (notify_tx, mut notify_rx) = futures::channel::mpsc::unbounded::<NotifyMsg>();
 
@@ -3684,13 +3906,69 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
 
     // Emulator thread (produces audio into the shared queue)
-    {
-        let core = core.clone();
-        let audio_queue = audio_queue.clone();
-        std::thread::Builder::new()
-            .name("emulator".into())
-            .spawn(move || emulator_thread(core, audio_queue, notify_tx))?;
+    let emu_shared = Arc::clone(&shared);
+    let emu_handle = std::thread::Builder::new()
+        .name("emulator".into())
+        .spawn(move || emulator_thread(emu_shared, audio_queue, notify_tx))?;
+
+    // Start the MCP server (it ends when the client closes stdin, and is
+    // killed when the process exits). The handle is kept so a headless app -
+    // which has no window to close - can exit once the client is gone;
+    // windowed mode ignores it and runs on as before.
+    #[cfg(feature = "mcp")]
+    let mcp_handle = if _mcp_enabled {
+        Some(mcp::spawn(Arc::clone(&shared))?)
+    } else {
+        None
+    };
+
+    // Headless: no window and no UI event loop. The main thread only watches
+    // the MCP server thread (which ends when its client closes stdin), the
+    // emulator thread and OS termination requests (Ctrl-C / SIGINT / SIGTERM),
+    // and shuts everything down as soon as any of them is gone. There is no
+    // UI consuming `NotifyMsg::Quit`, so the terminate watcher's message is
+    // not observable here - the loop polls the flag the handlers set instead.
+    if headless {
+        // No UI ever consumes the frame notifications, and the receiver would
+        // otherwise queue one message per video period for the process
+        // lifetime
+        drop(notify_rx);
+
+        loop {
+            if TERMINATE_REQUESTED.load(Ordering::SeqCst) {
+                break;
+            }
+            if emu_handle.is_finished() {
+                break;
+            }
+            #[cfg(feature = "mcp")]
+            if mcp_handle.as_ref().is_some_and(|handle| handle.is_finished()) {
+                break;
+            }
+            spin_sleep::sleep(Duration::from_millis(50));
+        }
+
+        shared.shutdown.store(true, Ordering::Release);
+        #[cfg(feature = "mcp")]
+        shared.mcp.resume();
+
+        // Join the MCP thread only when it is the thread that ended. On an OS
+        // termination request (or an emulator crash) it may still be parked on
+        // `read_line(stdin)`, and joining it would block the very exit path
+        // that was supposed to be prompt; the thread dies with the process.
+        #[cfg(feature = "mcp")]
+        if let Some(handle) = mcp_handle
+            && handle.is_finished()
+        {
+            let _ = handle.join();
+        }
+        let _ = emu_handle.join();
+        return Ok(());
     }
+
+    // Create the gamepad manager (only exists in windowed mode)
+    let gilrs =
+        Gilrs::new().map_err(|err| format!("Unable to initialize gamepad support: {err}"))?;
 
     // GPUI application
     Application::new().run(move |cx: &mut App| {
@@ -3748,6 +4026,14 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         )
         .unwrap();
     });
+
+    // Wake the emulator thread so the join below cannot block forever, even
+    // if it is parked on an MCP pause, then join it before exiting.
+    shared.shutdown.store(true, Ordering::Release);
+    #[cfg(feature = "mcp")]
+    shared.mcp.resume();
+
+    let _ = emu_handle.join();
 
     Ok(())
 }
