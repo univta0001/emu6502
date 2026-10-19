@@ -469,15 +469,10 @@ struct EmulatorState {
     show_settings: bool,
     prev_settings: Vec<usize>,
     current_settings: Vec<usize>,
-    sampler: Sampler,
 }
 
 impl EmulatorState {
-    fn new(
-        video_subsystem: VideoSubsystem,
-        game_controller: GamepadSubsystem,
-        sampler: Sampler,
-    ) -> Self {
+    fn new(video_subsystem: VideoSubsystem, game_controller: GamepadSubsystem) -> Self {
         Self {
             video_subsystem,
             game_controller,
@@ -494,7 +489,6 @@ impl EmulatorState {
             show_settings: false,
             prev_settings: Vec::new(),
             current_settings: Vec::new(),
-            sampler,
         }
     }
 }
@@ -861,6 +855,10 @@ FLAGS:
     -h, --help         Prints help information
     -V, --version      Prints version information
     --50hz             Enable 50 Hz emulation
+    --headless         Disable video and audio output (SDL runs on the dummy
+                       video and audio drivers, no window is shown and no
+                       sound is played). Intended for automation, e.g. with
+                       --mcp
     --mcp              Start the MCP (Model Context Protocol) stdio server
     --nojoystick       Disable joystick
     --xtrim            Set joystick x-trim value
@@ -1068,7 +1066,11 @@ fn dialog_builder(kind: &OpenFileDialog, last_dir: Option<&Path>) -> FileDialog 
 // Called from `app_iterate`, next to `poll_dialog`, before any `cpu` guard is
 // taken and before GPU resources are acquired, so a request is picked up even
 // while the window is minimized or a texture upload is failing.
-fn spawn_dialog(state: &mut EmulatorState, window: &Window) {
+//
+// `window` is `None` in headless mode, where there is no window to parent a
+// dialog to (and nothing that could have requested one); the dialog is then
+// shown unparented.
+fn spawn_dialog(state: &mut EmulatorState, window: Option<&Window>) {
     // At most one dialog is ever open. Input is gated while one is on screen
     // (see `app_event`), so a request made behind it is defensive: drop it
     // instead of queueing a surprise second dialog after this one closes.
@@ -1086,7 +1088,11 @@ fn spawn_dialog(state: &mut EmulatorState, window: &Window) {
     // centered on it and disables it (no input to the emulator while it is
     // open). The window handles are read here, on the main thread, before the
     // dialog is handed to `run_dialog`.
-    let dialog = dialog_builder(&kind, state.last_dialog_dir.as_deref()).set_parent(window);
+    let dialog = dialog_builder(&kind, state.last_dialog_dir.as_deref());
+    let dialog = match window {
+        Some(window) => dialog.set_parent(window),
+        None => dialog,
+    };
 
     // macOS: NSOpenPanel must be shown from the main thread, so run the
     // blocking dialog here (video pauses while it is open, as before) and
@@ -1687,8 +1693,8 @@ fn prepare_video_frame<'a>(
 fn upload_gpu_texture(
     imgui: &mut imgui_sdl3::ImGuiSdl3,
     device: &Device,
+    sampler: &Sampler,
     processed_frame: &[u8],
-    state: &EmulatorState,
 ) -> Result<imgui::TextureId, Box<dyn Error>> {
     let upload_command_buffer = device.acquire_command_buffer()?;
     let copy_pass = device.begin_copy_pass(&upload_command_buffer)?;
@@ -1701,7 +1707,7 @@ fn upload_gpu_texture(
     )?;
     device.end_copy_pass(copy_pass);
     upload_command_buffer.submit()?;
-    let image_texture_id = imgui.push_texture(texture, state.sampler.clone());
+    let image_texture_id = imgui.push_texture(texture, sampler.clone());
     Ok(image_texture_id)
 }
 
@@ -2628,14 +2634,27 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
     }
 }
 
+// Everything that presents the emulated screen: the window, the GPU device
+// driving its swapchain, the imgui context drawn on top of it and the sampler
+// used for the emulated screen texture. `None` in headless mode (`--headless`),
+// where the SDL video hint put SDL on the dummy video driver: there is no
+// screen to present to, so none of these objects are created.
+//
+// Field order is the drop order: the imgui context and the sampler must be
+// released before the GPU device they were created from.
+struct VideoOutput {
+    imgui: ImGuiSdl3,
+    sampler: Sampler,
+    device: Device,
+    window: Window,
+}
+
 // SDL objects that must only be touched on the main thread. Wrapped in
 // MainThreadData so the App state stays Send + Sync.
 struct AppMain {
     event_pump: sdl3::EventPump,
     emulator_state: EmulatorState,
-    imgui: ImGuiSdl3,
-    device: Device,
-    window: Window,
+    video: Option<VideoOutput>,
     blend_buffer: Vec<u8>,
     barrel_buffer: Vec<u8>,
     sdl_context: sdl3::Sdl,
@@ -2649,6 +2668,12 @@ struct App {
     shared: Arc<EmuShared>,
     video_time: Instant,
     emu_handle: Option<thread::JoinHandle<()>>,
+    // Set by `--headless`: no window can be closed, so the process also ends
+    // when the MCP server thread stops (its client closed stdin) - otherwise
+    // nothing would ever drive the emulator and it would linger forever.
+    headless: bool,
+    #[cfg(feature = "mcp")]
+    mcp_handle: Option<thread::JoinHandle<()>>,
 }
 
 #[app_impl]
@@ -2676,6 +2701,31 @@ impl App {
             && handle.is_finished()
         {
             return AppResult::Success;
+        }
+
+        // Headless has no window to close, so nothing can stop the emulator
+        // once the MCP server thread is gone (its client closed stdin): no
+        // `Event::Quit` will arrive and no client can send `quit`. Halt the
+        // CPU the way a window close does, and let the normal paths finish
+        // the job - the reload handling below (if a reload was in flight) or
+        // `emu_handle` finishing at the top of the next call, which ends the
+        // app. Without this the process would keep emulating in the
+        // background forever, since `app_quit` can only observe `shutdown`
+        // once the run loop leaves the CPU halted.
+        #[cfg(feature = "mcp")]
+        if self.headless
+            && let Some(handle) = &self.mcp_handle
+            && handle.is_finished()
+            && !shared.halted.load(Ordering::Acquire)
+        {
+            let mut cpu = shared.cpu.lock();
+            cpu.halt_cpu();
+            // Wake the emulator if it is parked on a pause (the MCP client is
+            // gone, so it would never be resumed otherwise). `mcp.resume()`
+            // only locks `mcp.paused`, taken here under the held `cpu` guard
+            // to keep the `cpu -> paused` ordering (see `Event::Quit`).
+            shared.mcp.resume();
+            drop(cpu);
         }
 
         // The CPU halted: reload the state / model, or exit
@@ -2749,7 +2799,10 @@ impl App {
         // image is ever held open across it.
         //
         // No `cpu` guard is held here (see the EmuShared invariants).
-        spawn_dialog(&mut main.emulator_state, &main.window);
+        spawn_dialog(
+            &mut main.emulator_state,
+            main.video.as_ref().map(|video| &video.window),
+        );
 
         // Update video at multiple of 60Hz or 50Hz (events are delivered
         // through the app_event callback)
@@ -2757,7 +2810,6 @@ impl App {
         if video_time_elapsed >= shared.pacing.cpu_period.load(Ordering::Relaxed) as u128 {
             self.video_time = Instant::now();
 
-            let window = &mut main.window;
             let emulator_state = &mut main.emulator_state;
 
             if emulator_state.save_screenshot {
@@ -2792,7 +2844,19 @@ impl App {
                 }
             }
 
-            if !window.is_minimized() {
+            // Headless: there is no window, GPU device or imgui context, so
+            // nothing is presented below. The emulated frame still has to be
+            // refreshed for the screenshot requests above: `video.frame` is
+            // only written while `skip_update` is clear, and that flag is
+            // re-armed every period by the render path when a window exists.
+            if self.headless {
+                let mut cpu = shared.cpu.lock();
+                cpu.bus.video.skip_update = false;
+            }
+
+            if let Some(video) = main.video.as_mut()
+                && !video.window.is_minimized()
+            {
                 // Read and blend the emulator frame (short CPU lock)
                 let processed_frame = {
                     let mut cpu = shared.cpu.lock();
@@ -2810,22 +2874,22 @@ impl App {
                     let width = (emulator_state.video.scale * Video::WIDTH as f32) as u32;
                     let height = (emulator_state.video.scale * Video::HEIGHT as f32) as u32
                         + 2 * MENUBAR_HEIGHT;
-                    let _ = window.set_size(width, height);
+                    let _ = video.window.set_size(width, height);
                 }
 
                 // Upload the texture to the GPU without holding the CPU lock
                 let image_texture_id = upload_gpu_texture(
-                    &mut main.imgui,
-                    &main.device,
+                    &mut video.imgui,
+                    &video.device,
+                    &video.sampler,
                     processed_frame,
-                    emulator_state,
                 );
 
                 if let Ok(texture_id) = image_texture_id {
                     render_frame(
                         shared,
-                        (&mut main.sdl_context, &main.device, window),
-                        &mut main.imgui,
+                        (&mut main.sdl_context, &video.device, &video.window),
+                        &mut video.imgui,
                         &mut main.event_pump,
                         emulator_state,
                         texture_id,
@@ -2874,7 +2938,13 @@ impl App {
             // are potentially blocking, so they run with the `cpu` lock already
             // released; only the video-cache invalidation (when the mode
             // actually changed) takes it again, briefly.
-            if handle_fullscreen_toggle(window, &main.sdl_context, &mut emulator_state.video) {
+            if let Some(video) = main.video.as_mut()
+                && handle_fullscreen_toggle(
+                    &mut video.window,
+                    &main.sdl_context,
+                    &mut emulator_state.video,
+                )
+            {
                 let mut cpu = shared.cpu.lock();
                 cpu.bus.video.invalidate_video_cache();
             }
@@ -2902,7 +2972,9 @@ impl App {
     // old event_pump.poll_iter() loop
     fn app_event(&mut self, event: &Event) -> AppResult {
         let main = self.main.assert_get_mut();
-        main.imgui.handle_event(event);
+        if let Some(video) = main.video.as_mut() {
+            video.imgui.handle_event(event);
+        }
 
         // Input is gated while a file dialog is open: the dialog is modal by
         // intent. Windows enforces that at the OS level (rfd disables the
@@ -2972,14 +3044,36 @@ impl App {
         }
 
         // Enable the Model Context Protocol stdio server (see the `mcp`
-        // feature). The window still opens; the server is an extra control
-        // surface for automation.
+        // feature). The window still opens (unless `--headless` is given);
+        // the server is an extra control surface for automation.
         let _mcp_enabled = pargs.contains("--mcp");
 
         #[cfg(not(feature = "mcp"))]
         if _mcp_enabled {
             eprintln!("--mcp requires a build with the `mcp` feature enabled");
             return Ok(None);
+        }
+
+        // Headless mode: force SDL onto its dummy video and audio drivers.
+        // The hints must be set before `sdl3::init()` (SDL reads them while
+        // probing the drivers), so they are handled here instead of in
+        // `parse_args`. `Override` priority makes the switch win over an
+        // ambient SDL_VIDEO_DRIVER / SDL_AUDIO_DRIVER environment variable.
+        // Everything else - window, GPU device, imgui, audio stream - is then
+        // skipped below, since a dummy video driver cannot back a swapchain
+        // and there is nothing to present or play in the first place.
+        let headless = pargs.contains("--headless");
+        if headless {
+            sdl3::hint::set_with_priority(
+                sdl3::hint::names::VIDEO_DRIVER,
+                "dummy",
+                &sdl3::hint::Hint::Override,
+            );
+            sdl3::hint::set_with_priority(
+                sdl3::hint::names::AUDIO_DRIVER,
+                "dummy",
+                &sdl3::hint::Hint::Override,
+            );
         }
 
         //let _function_test: Vec<u8> = std::fs::read("6502_functional_test.bin").unwrap();
@@ -3060,7 +3154,11 @@ impl App {
         // Create the SDL3 context
         let sdl_context = sdl3::init()?;
 
-        // Create window
+        // Create window, GPU device, sampler and imgui context. In headless
+        // mode none of them exist: the SDL video hint put SDL on the dummy
+        // video driver, which cannot back a swapchain, and there is no screen
+        // to present to in the first place. SDL itself (video subsystem,
+        // event pump) is still initialized, it just drives nothing.
         let width = (scale * Video::WIDTH as f32) as u32;
         let height = (scale * Video::HEIGHT as f32) as u32;
         let video_subsystem = sdl_context.video()?;
@@ -3075,37 +3173,49 @@ impl App {
             video_subsystem.current_video_driver()
         );
 
-        let window = video_subsystem
-            .window("Apple ][ emulator", width, height + 2 * MENUBAR_HEIGHT)
-            .position_centered()
-            .high_pixel_density()
-            .metal_view()
-            .build()?;
+        let video_output = if headless {
+            eprintln!("Headless mode: video output disabled");
+            None
+        } else {
+            let window = video_subsystem
+                .window("Apple ][ emulator", width, height + 2 * MENUBAR_HEIGHT)
+                .position_centered()
+                .high_pixel_density()
+                .metal_view()
+                .build()?;
 
-        video_subsystem.text_input().start(&window);
+            video_subsystem.text_input().start(&window);
 
-        let device = Device::new(ShaderFormat::SPIRV, false)?.with_window(&window)?;
+            let device = Device::new(ShaderFormat::SPIRV, false)?.with_window(&window)?;
 
-        let sampler = device.create_sampler(
-            SamplerCreateInfo::new()
-                .with_min_filter(Filter::Linear)
-                .with_mag_filter(Filter::Linear)
-                .with_mipmap_mode(SamplerMipmapMode::Linear)
-                .with_address_mode_u(SamplerAddressMode::ClampToEdge)
-                .with_address_mode_v(SamplerAddressMode::ClampToEdge)
-                .with_address_mode_w(SamplerAddressMode::ClampToEdge),
-        )?;
+            let sampler = device.create_sampler(
+                SamplerCreateInfo::new()
+                    .with_min_filter(Filter::Linear)
+                    .with_mag_filter(Filter::Linear)
+                    .with_mipmap_mode(SamplerMipmapMode::Linear)
+                    .with_address_mode_u(SamplerAddressMode::ClampToEdge)
+                    .with_address_mode_v(SamplerAddressMode::ClampToEdge)
+                    .with_address_mode_w(SamplerAddressMode::ClampToEdge),
+            )?;
 
-        // create platform and renderer
-        let imgui = ImGuiSdl3::new(&device, &window, |ctx| {
-            // disable creation of files on disc
-            ctx.set_ini_filename(None);
-            ctx.set_log_filename(None);
-            // setup platform and renderer, and fonts to imgui
-            ctx.fonts().clear();
-            ctx.fonts()
-                .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
-        });
+            // create platform and renderer
+            let imgui = ImGuiSdl3::new(&device, &window, |ctx| {
+                // disable creation of files on disc
+                ctx.set_ini_filename(None);
+                ctx.set_log_filename(None);
+                // setup platform and renderer, and fonts to imgui
+                ctx.fonts().clear();
+                ctx.fonts()
+                    .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
+            });
+
+            Some(VideoOutput {
+                imgui,
+                sampler,
+                device,
+                window,
+            })
+        };
 
         // Create the game controller
         let game_controller = sdl_context.gamepad()?;
@@ -3128,8 +3238,19 @@ impl App {
             format: Some(AudioFormat::s16_sys()),
         };
 
-        // Init audio callback
-        let audio_stream = if let Ok(audio) = &audio_subsystem {
+        // Init audio callback. In headless mode the SDL audio hint has
+        // selected the dummy audio driver: the subsystem is initialized (and
+        // reports the driver below) but no playback device stream is opened,
+        // so no sample ever reaches an output device.
+        let audio_stream = if headless {
+            if let Ok(audio) = &audio_subsystem {
+                eprintln!(
+                    "Headless mode: audio output disabled (driver: {})",
+                    audio.current_audio_driver()
+                );
+            }
+            None
+        } else if let Ok(audio) = &audio_subsystem {
             init_audio_stream(audio, &desired_spec)
         } else {
             eprintln!("No audio device detected!");
@@ -3153,7 +3274,7 @@ impl App {
             CPU_CYCLES_PER_FRAME_60HZ - 65 * 192
         };
 
-        let mut emulator_state = EmulatorState::new(video_subsystem, game_controller, sampler);
+        let mut emulator_state = EmulatorState::new(video_subsystem, game_controller);
 
         emulator_state.video.scale = scale;
         emulator_state.video.prev_scale = scale;
@@ -3194,20 +3315,22 @@ impl App {
                 emulator_thread(emu_shared, audio_stream, dcyc);
             })?;
 
-        // Start the MCP server (detached: it ends when the client closes
-        // stdin, and is killed when the process exits).
+        // Start the MCP server (it ends when the client closes stdin, and is
+        // killed when the process exits). The handle is kept so a headless
+        // app - which has no window to close - can exit once the client is
+        // gone; windowed mode ignores it and runs on as before.
         #[cfg(feature = "mcp")]
-        if _mcp_enabled {
-            mcp::spawn(Arc::clone(&shared))?;
-        }
+        let mcp_handle = if _mcp_enabled {
+            Some(mcp::spawn(Arc::clone(&shared))?)
+        } else {
+            None
+        };
 
         Ok(Some(App {
             main: MainThreadData::assert_new(AppMain {
                 event_pump,
                 emulator_state,
-                imgui,
-                device,
-                window,
+                video: video_output,
                 blend_buffer,
                 barrel_buffer,
                 sdl_context,
@@ -3215,6 +3338,9 @@ impl App {
             shared,
             video_time,
             emu_handle: Some(emu_handle),
+            headless,
+            #[cfg(feature = "mcp")]
+            mcp_handle,
         }))
     }
 }

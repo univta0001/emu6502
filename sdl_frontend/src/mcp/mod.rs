@@ -22,11 +22,11 @@ pub const PROTOCOL_VERSION: &str = "2024-11-05";
 
 /// Spawns the detached MCP server thread. The thread ends when stdin is closed
 /// (the client exits) or on the first stdout write error.
-pub fn spawn(shared: Arc<EmuShared>) -> std::io::Result<()> {
-    thread::Builder::new()
+pub fn spawn(shared: Arc<EmuShared>) -> std::io::Result<std::thread::JoinHandle<()>> {
+    let join_handle = thread::Builder::new()
         .name("mcp".to_string())
         .spawn(move || run(shared))?;
-    Ok(())
+    Ok(join_handle)
 }
 
 fn run(shared: Arc<EmuShared>) {

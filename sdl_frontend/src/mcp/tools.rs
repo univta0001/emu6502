@@ -6,6 +6,7 @@
 
 use std::sync::atomic::Ordering;
 
+use emu6502::bus::Mem;
 use emu6502::cpu::CPU;
 use emu6502::trace::disassemble_addr;
 use serde_json::{Value, json};
@@ -240,6 +241,31 @@ pub fn list() -> Value {
             })
         ),
         tool(
+            "mem_bus_read",
+            "Read a block of RAM through the bus.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "addr": { "type": "string", "description": "Start address, e.g. 0x0300 or $0300." },
+                    "length": { "type": "integer", "minimum": 1, "maximum": 4096, "description": "Bytes to read (default 1)." }
+                },
+                "required": ["addr"]
+            })
+        ),
+        tool(
+            "mem_bus_write",
+            "Write bytes to RAM through the bus. Provide `bytes` (array of integers) or `hex` (string of hex pairs).",
+            json!({
+                "type": "object",
+                "properties": {
+                    "addr": { "type": "string" },
+                    "bytes": { "type": "array", "items": { "type": "integer" } },
+                    "hex": { "type": "string" }
+                },
+                "required": ["addr"]
+            })
+        ),
+        tool(
             "cpu_registers",
             "Read the CPU registers and status flags.",
             json!({ "type": "object", "properties": {} })
@@ -446,6 +472,8 @@ pub fn call(shared: &EmuShared, name: &str, args: &Value) -> Result<Value, Strin
         "mem_aux_read" => mem_aux_read(shared, args),
         "mem_aux_write" => mem_aux_write(shared, args),
         "mem_shadow_write" => mem_shadow_write(shared, args),
+        "mem_bus_read" => mem_bus_read(shared, args),
+        "mem_bus_write" => mem_bus_write(shared, args),
         "cpu_registers" => cpu_registers(shared),
         "disassemble" => disassemble(shared, args),
         "pc_set" => {
@@ -607,6 +635,40 @@ fn disk_list(shared: &EmuShared) -> Result<Value, String> {
 // Debug
 // ---------------------------------------------------------------------------
 
+fn mem_bus_read(shared: &EmuShared, args: &Value) -> Result<Value, String> {
+    let addr = arg_addr(args, "addr")?;
+    let length = arg_int(args, "length").unwrap_or(1).clamp(1, 4096) as usize;
+
+    let mut cpu = shared.cpu.lock();
+    let mut bytes = Vec::with_capacity(length);
+    for i in 0..length {
+        bytes.push(cpu.bus.unclocked_addr_read(addr.wrapping_add(i as u16)));
+    }
+
+    Ok(json!({
+        "addr": addr,
+        "length": length,
+        "bytes": bytes,
+        "hex": hex_string(&bytes),
+    }))
+}
+
+fn mem_bus_write(shared: &EmuShared, args: &Value) -> Result<Value, String> {
+    let addr = arg_addr(args, "addr")?;
+    let bytes = parse_bytes(args)?;
+    if bytes.is_empty() {
+        return Err("no bytes supplied (use `bytes` or `hex`)".to_string());
+    }
+
+    let mut cpu = shared.cpu.lock();
+    for (i, byte) in bytes.iter().enumerate() {
+        cpu.bus
+            .unclocked_addr_write(addr.wrapping_add(i as u16), *byte);
+    }
+
+    Ok(json!({ "ok": true, "addr": addr, "length": bytes.len() }))
+}
+
 fn mem_read(shared: &EmuShared, args: &Value) -> Result<Value, String> {
     let addr = arg_addr(args, "addr")?;
     let length = arg_int(args, "length").unwrap_or(1).clamp(1, 4096) as usize;
@@ -730,6 +792,7 @@ fn cpu_registers(shared: &EmuShared) -> Result<Value, String> {
             "overflow": p & 0x40 != 0,
             "negative": p & 0x80 != 0,
         },
+        "cycles": cpu.bus.get_cycles(),
     }))
 }
 
