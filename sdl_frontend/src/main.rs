@@ -424,6 +424,13 @@ struct EmuShared {
     // Set by the emulator thread when the CPU halted and it waits for the
     // UI thread to reload the state, or when the emulator exits
     halted: AtomicBool,
+    // Set by `app_quit` on the main thread just before it joins the emulator
+    // thread. The emulator checks it at the top of its run loop and inside the
+    // reload wait, so a thread parked on a pending reload (or an MCP pause) can
+    // never outlive the request and block the join forever - even if the UI
+    // loop stopped pumping `app_iterate`, which is what normally services the
+    // reload.
+    shutdown: AtomicBool,
 }
 
 // Wrapper to move the SDL audio stream into the emulator thread.
@@ -672,8 +679,50 @@ fn requires_cpu(event: &Event) -> bool {
     )
 }
 
+// Handles the two clipboard-paste gestures: Shift-Insert and middle-click.
+// Reading the system clipboard is a potentially blocking OS call (on Windows
+// it can block if another process holds the clipboard open), so this runs
+// before the `cpu` lock is taken in `handle_event`. It only takes the
+// `clipboard_text` lock, which is never held while acquiring `cpu` anywhere,
+// so the lock ordering is preserved. Returns true if the event was a paste
+// gesture and was consumed.
+fn handle_clipboard_paste(event: &Event, state: &EmulatorState, shared: &EmuShared) -> bool {
+    let is_paste = match event {
+        Event::KeyDown {
+            keycode: Some(Keycode::Insert),
+            keymod,
+            ..
+        } => keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD),
+        Event::MouseButtonDown {
+            mouse_btn: sdl3::mouse::MouseButton::Middle,
+            ..
+        } => true,
+        _ => false,
+    };
+    if !is_paste {
+        return false;
+    }
+
+    let mut clipboard_text = shared.clipboard_text.lock();
+    if clipboard_text.is_empty() {
+        let clipboard = state.video_subsystem.clipboard();
+        if let Ok(text) = clipboard.clipboard_text() {
+            *clipboard_text = text.replace('\n', "");
+            shared.clipboard_pending.store(true, Ordering::Release);
+        }
+    }
+    true
+}
+
 fn handle_event(event: Event, state: &mut EmulatorState, shared: &EmuShared) {
     if function_key_processed(&event, state, shared) {
+        return;
+    }
+
+    // Clipboard paste (Shift-Insert / middle-click) reads the system clipboard,
+    // a potentially blocking OS call, so it runs before the `cpu` lock is taken
+    // (see the EmuShared invariants: never hold `cpu` across a blocking call).
+    if handle_clipboard_paste(&event, state, shared) {
         return;
     }
 
@@ -751,35 +800,6 @@ fn handle_event(event: Event, state: &mut EmulatorState, shared: &EmuShared) {
             keycode: Some(Keycode::RShift),
             ..
         } => cpu.bus.pushbutton_latch[2] = 0x0,
-
-        Event::KeyDown {
-            keycode: Some(Keycode::Insert),
-            keymod,
-            ..
-        } if (keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD)) => {
-            let mut clipboard_text = shared.clipboard_text.lock();
-            if clipboard_text.is_empty() {
-                let clipboard = state.video_subsystem.clipboard();
-                if let Ok(text) = clipboard.clipboard_text() {
-                    *clipboard_text = text.replace('\n', "");
-                    shared.clipboard_pending.store(true, Ordering::Release);
-                }
-            }
-        }
-
-        Event::MouseButtonDown {
-            mouse_btn: sdl3::mouse::MouseButton::Middle,
-            ..
-        } => {
-            let mut clipboard_text = shared.clipboard_text.lock();
-            if clipboard_text.is_empty() {
-                let clipboard = state.video_subsystem.clipboard();
-                if let Ok(text) = clipboard.clipboard_text() {
-                    *clipboard_text = text.replace('\n', "");
-                    shared.clipboard_pending.store(true, Ordering::Release);
-                }
-            }
-        }
 
         Event::KeyDown {
             keycode: Some(value),
@@ -2308,6 +2328,7 @@ fn render_frame(
         cmd_buf.cancel();
         return;
     };
+
     let Some(swapchain) = swapchain else {
         cmd_buf.cancel();
         return;
@@ -2361,18 +2382,24 @@ fn render_frame(
     let _ = cmd_buf.submit();
 }
 
+// Toggles the window fullscreen state. The SDL calls here (set_fullscreen,
+// show_cursor, restore) are potentially blocking OS calls and must not run
+// while the `cpu` guard is held (see the EmuShared invariants), so this
+// function takes no `cpu` borrow. It returns true when the emulated video
+// cache must be invalidated, which the caller then does under a short `cpu`
+// lock.
 fn handle_fullscreen_toggle(
-    cpu: &mut CPU,
     window: &mut Window,
     sdl_context: &sdl3::Sdl,
     state: &mut VideoState,
-) {
+) -> bool {
     if state.full_screen == state.current_full_screen {
-        return;
+        return false;
     }
 
     let previous = state.current_full_screen;
     state.current_full_screen = state.full_screen;
+    let mut invalidate_video = false;
 
     if state.current_full_screen {
         if let Err(e) = window.set_fullscreen(true) {
@@ -2381,7 +2408,7 @@ fn handle_fullscreen_toggle(
             state.full_screen = previous;
         } else {
             sdl_context.mouse().show_cursor(false);
-            cpu.bus.video.invalidate_video_cache();
+            invalidate_video = true;
         }
     } else if let Err(e) = window.set_fullscreen(false) {
         eprintln!("Unable to restore from full_screen = {e}");
@@ -2390,8 +2417,10 @@ fn handle_fullscreen_toggle(
     } else {
         window.restore();
         sdl_context.mouse().show_cursor(true);
-        cpu.bus.video.invalidate_video_cache();
+        invalidate_video = true;
     }
+
+    invalidate_video
 }
 
 fn update_mouse_state(cpu: &mut CPU, event_pump: &sdl3::EventPump, state: &mut EmulatorState) {
@@ -2424,6 +2453,13 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
     let mut adj_ms_offset = std::time::Duration::from_micros(0);
 
     'emulator: loop {
+        // Exit promptly once the app is quitting (see `app_quit`), even if no
+        // halt was requested through the CPU. This complements the reload-wait
+        // and MCP-pause paths, which are woken separately by `app_quit`.
+        if shared.shutdown.load(Ordering::Acquire) {
+            break 'emulator;
+        }
+
         // MCP: park while paused. Resumed by resume() / step() / run_until().
         #[cfg(feature = "mcp")]
         shared.mcp.wait_if_paused();
@@ -2562,12 +2598,26 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
         };
         shared.halted.store(true, Ordering::Release);
         if reload_requested() {
-            // Wait for the UI thread to perform the reload
+            // Wait (bounded) for the UI thread to perform the reload. Re-check
+            // the shutdown flag on a timeout so a quit request can always break
+            // the wait - even if the UI loop stopped pumping `app_iterate`,
+            // which is what normally services the reload - keeping `app_quit`'s
+            // join from blocking forever. The timeout also covers the tiny race
+            // where `app_quit` notifies between the check below and `wait_for`.
             let mut done = shared.reload_done.lock();
-            while !*done {
-                shared.reload_cv.wait(&mut done);
+            while !*done && !shared.shutdown.load(Ordering::Acquire) {
+                shared
+                    .reload_cv
+                    .wait_for(&mut done, std::time::Duration::from_millis(100));
             }
+            let reloaded = *done;
             *done = false;
+
+            if !reloaded {
+                // Shutdown arrived before the UI performed the reload: exit so
+                // the thread can be joined.
+                break 'emulator;
+            }
 
             shared.halted.store(false, Ordering::Release);
             t = Instant::now();
@@ -2783,43 +2833,51 @@ impl App {
                 }
             }
 
-            let mut cpu = shared.cpu.lock();
+            // Update keyboard / mouse state under a short `cpu` lock. The lock
+            // is released before the fullscreen toggle below, whose SDL calls
+            // are potentially blocking (see the EmuShared invariants).
+            {
+                let mut cpu = shared.cpu.lock();
 
-            // While a file dialog is open the emulator must not see input: the
-            // dialog is modal by intent. Windows enforces that at the OS level
-            // (rfd disables the owner window), but the Linux portal dialog
-            // leaves this window usable, so gate input here as well.
-            let dialog_open = emulator_state.active_dialog.is_some();
+                // While a file dialog is open the emulator must not see input:
+                // the dialog is modal by intent. Windows enforces that at the
+                // OS level (rfd disables the owner window), but the Linux
+                // portal dialog leaves this window usable, so gate input here
+                // as well.
+                let dialog_open = emulator_state.active_dialog.is_some();
 
-            // Update keyboard akd state
-            cpu.bus.any_key_down = !dialog_open
-                && main
-                    .event_pump
-                    .keyboard_state()
-                    .pressed_scancodes()
-                    .next()
-                    .is_some();
+                // Update keyboard akd state
+                cpu.bus.any_key_down = !dialog_open
+                    && main
+                        .event_pump
+                        .keyboard_state()
+                        .pressed_scancodes()
+                        .next()
+                        .is_some();
 
-            // Update mouse state
-            if dialog_open {
-                // Keep the delta baseline moving so the first frame after the
-                // dialog closes does not inject the whole move made while it
-                // was open, but report no motion and both buttons released.
-                let mouse = main.event_pump.mouse_state();
-                emulator_state.input.prev_x = mouse.x() as i32;
-                emulator_state.input.prev_y = mouse.y() as i32;
-                cpu.bus.set_mouse_state(0, 0, &[false, false]);
-            } else {
-                update_mouse_state(&mut cpu, &main.event_pump, emulator_state);
+                // Update mouse state
+                if dialog_open {
+                    // Keep the delta baseline moving so the first frame after
+                    // the dialog closes does not inject the whole move made
+                    // while it was open, but report no motion and both buttons
+                    // released.
+                    let mouse = main.event_pump.mouse_state();
+                    emulator_state.input.prev_x = mouse.x() as i32;
+                    emulator_state.input.prev_y = mouse.y() as i32;
+                    cpu.bus.set_mouse_state(0, 0, &[false, false]);
+                } else {
+                    update_mouse_state(&mut cpu, &main.event_pump, emulator_state);
+                }
             }
 
-            // Check the full_screen state is not change
-            handle_fullscreen_toggle(
-                &mut cpu,
-                window,
-                &main.sdl_context,
-                &mut emulator_state.video,
-            );
+            // Check the full_screen state is not change. The SDL calls inside
+            // are potentially blocking, so they run with the `cpu` lock already
+            // released; only the video-cache invalidation (when the mode
+            // actually changed) takes it again, briefly.
+            if handle_fullscreen_toggle(window, &main.sdl_context, &mut emulator_state.video) {
+                let mut cpu = shared.cpu.lock();
+                cpu.bus.video.invalidate_video_cache();
+            }
         }
 
         // Sleep until the next video period to avoid busy-waiting. SDL's
@@ -2865,6 +2923,17 @@ impl App {
     // emulator thread; the app state is dropped afterwards
     fn app_quit(state: Option<&mut App>) {
         let Some(app) = state else { return };
+
+        // Signal shutdown and wake the emulator thread so the join below cannot
+        // block forever, even if it is parked on a pending reload (which is only
+        // serviced while the UI loop keeps pumping `app_iterate`) or on an MCP
+        // pause. The thread checks `shutdown` at the top of its run loop and in
+        // its reload wait; `notify_all` / `resume` unblock the two condvar
+        // waits so it can observe the flag promptly.
+        app.shared.shutdown.store(true, Ordering::Release);
+        app.shared.reload_cv.notify_all();
+        #[cfg(feature = "mcp")]
+        app.shared.mcp.resume();
 
         if let Some(handle) = app.emu_handle.take()
             && let Err(payload) = handle.join()
@@ -3107,6 +3176,7 @@ impl App {
             reload_done: Mutex::new(false),
             reload_cv: Condvar::new(),
             halted: AtomicBool::new(false),
+            shutdown: AtomicBool::new(false),
         });
 
         {
@@ -3900,6 +3970,10 @@ fn change_model(shared: &EmuShared) {
 }
 
 fn prepare_input_menu(ui: &imgui::Ui, state: &mut EmulatorState, shared: &EmuShared) {
+    // Deferred so the (potentially blocking) clipboard read happens after the
+    // `cpu` guard inside the menu closure is dropped, per the EmuShared
+    // invariants.
+    let mut paste_requested = false;
     ui.menu("Input", || {
         let cpu = &mut shared.cpu.lock();
         let fast_disk = !cpu.bus.disk.get_disable_fast_disk();
@@ -3924,12 +3998,7 @@ fn prepare_input_menu(ui: &imgui::Ui, state: &mut EmulatorState, shared: &EmuSha
             .shortcut("Shift-Insert")
             .build()
         {
-            let clipboard = state.video_subsystem.clipboard();
-            if let Ok(text) = clipboard.clipboard_text() {
-                let mut clipboard_text = shared.clipboard_text.lock();
-                *clipboard_text = text.replace('\n', "");
-                shared.clipboard_pending.store(true, Ordering::Release);
-            }
+            paste_requested = true;
         }
 
         ui.separator();
@@ -3975,7 +4044,19 @@ fn prepare_input_menu(ui: &imgui::Ui, state: &mut EmulatorState, shared: &EmuSha
         {
             cpu.bus.audio.eject_tape();
         }
-    })
+    });
+
+    // Deferred clipboard read (see `paste_requested`): the `cpu` guard held by
+    // the menu closure above is released once `ui.menu` returns, so the
+    // potentially blocking clipboard access happens with no `cpu` lock held.
+    if paste_requested {
+        let clipboard = state.video_subsystem.clipboard();
+        if let Ok(text) = clipboard.clipboard_text() {
+            let mut clipboard_text = shared.clipboard_text.lock();
+            *clipboard_text = text.replace('\n', "");
+            shared.clipboard_pending.store(true, Ordering::Release);
+        }
+    }
 }
 
 fn prepare_menu_for_disk(ui: &imgui::Ui, state: &mut EmulatorState, shared: &EmuShared) {

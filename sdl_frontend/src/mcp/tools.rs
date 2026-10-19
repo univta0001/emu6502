@@ -386,6 +386,7 @@ pub fn call(shared: &EmuShared, name: &str, args: &Value) -> Result<Value, Strin
 
         "input_type_text" => {
             let mut text = arg_str(args, "text")?;
+            text = text.replace("\r\n", "\n");
             text = text.replace("\n", "\r");
             let queued = text.chars().count();
             *shared.clipboard_text.lock() = text;
