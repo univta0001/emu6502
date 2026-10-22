@@ -887,6 +887,16 @@ fn print_version() {
     } else {
         eprintln!("emu6502 {VERSION}");
     }
+
+    #[cfg(feature = "use-parking-lot")]
+    {
+        eprintln!("Using parking-lot Mutex")
+    }
+
+    #[cfg(not(feature = "use-parking-lot"))]
+    {
+        eprintln!("Using standard Mutex")
+    }
 }
 
 fn print_help() {
@@ -2628,6 +2638,27 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
                 if adj_ms > video_cpu_update {
                     spin_sleep::sleep(adj_ms - video_cpu_update);
                 }
+            } else {
+                // Fastest speed: the emulator is unthrottled, so it releases
+                // `cpu` and immediately re-acquires it, leaving only a
+                // nanosecond window between frames. The UI thread blocks on
+                // `cpu` for every key event (`handle_event`) and every frame
+                // (`app_iterate`). `parking_lot::Mutex` has an internal
+                // hand-off that hands the lock to the parked waiter at release,
+                // but `std::sync::Mutex` (SRWLOCK on Windows, futex on Linux) is
+                // strictly unfair: the still-running emulator thread barges back
+                // in and re-takes the lock before the OS can wake and schedule
+                // the blocked UI thread, starving it and lagging key input.
+                //
+                // `std::thread::yield_now()` is not enough: it only hints and
+                // returns almost at once, so the emulator re-locks long before
+                // the UI thread is actually scheduled. Sleeping here keeps the
+                // lock free for a real duration - long enough for the OS to wake
+                // and run the waiting UI thread, which then grabs the lock,
+                // reproducing `parking_lot`'s hand-off. 10us clears the wake-up
+                // latency on Windows/Linux with negligible cost to top speed;
+                // raise it slightly if a heavily loaded machine still shows lag.
+                spin_sleep::sleep(std::time::Duration::from_micros(10));
             }
 
             let elapsed = t.elapsed().as_micros();

@@ -38,13 +38,13 @@ windows-sys = { version="0.61.2", features = ['Win32_System_LibraryLoader'] }
 [target.'cfg(any(target_os="windows", target_os="linux"))'.dependencies]
 #sdl2 = { version = "0.38.0", features = ['bundled', 'static-link'] }
 sdl3 = { version = "0.20.0", features = ['build-from-source-static', 'main', 'raw-window-handle', 'static-link'] }
-sdl3-main = { version = "0.7.0", features = ['use-parking-lot-v0-12'] }
+sdl3-main = "0.7.0"
 #sdl3-sys = { version = "0.6.8", features = ['build-from-source-static'] }
 
 [target.'cfg(not(any(target_os="windows", target_os="linux")))'.dependencies]
 #sdl2 = "0.38.0"
 sdl3 = { version = "0.20.0", features = ['main', 'raw-window-handle'] }
-sdl3-main = { version = "0.7.0", features = ['use-parking-lot-v0-12'] }
+sdl3-main = "0.7.0"
 #sdl3-sys = "0.6.8"
 
 #[target.x86_64-pc-windows-msvc.dependencies]
@@ -55,7 +55,7 @@ embed-resource = "3.0.12"
 
 [features]
 #default = [ ]
-default = ["serialization", "serde_support", "z80", "flate", "zip", "use-parking-lot"]
+default = ["serialization", "serde_support", "z80", "flate", "zip"]
 
 serialization = []
 #default = ["serde_support", "z80", "flate", "regex"]
@@ -69,7 +69,7 @@ zip = ["emu6502/zip"]
 pcap = ["emu6502/pcap"]
 # Model Context Protocol server over stdio (--mcp)
 mcp = ["dep:serde", "dep:serde_json"]
-use-parking-lot = ["dep:parking_lot"]
+use-parking-lot = ["dep:parking_lot", "sdl3-main/use-parking-lot-v0-12"]
 
 [[bin]]
 name = "emu6502"
