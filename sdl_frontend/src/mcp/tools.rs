@@ -440,10 +440,10 @@ pub fn call(shared: &EmuShared, name: &str, args: &Value) -> Result<Value, Strin
         }
         "input_joystick" => {
             let mut cpu = shared.cpu.lock();
-            if let Some(v) = arg_int(args, "paddle0").ok() {
+            if let Ok(v) = arg_int(args, "paddle0") {
                 cpu.bus.paddle_latch[0] = v.min(288) as u16;
             }
-            if let Some(v) = arg_int(args, "paddle1").ok() {
+            if let Ok(v) = arg_int(args, "paddle1") {
                 cpu.bus.paddle_latch[1] = v.min(288) as u16;
             }
             if let Some(b) = args.get("button0").and_then(Value::as_bool) {
@@ -977,7 +977,7 @@ fn parse_bytes(args: &Value) -> Result<Vec<u8>, String> {
 
     if let Some(Value::String(hex)) = args.get("hex") {
         let cleaned: String = hex.chars().filter(|c| !c.is_whitespace()).collect();
-        if cleaned.len() % 2 != 0 {
+        if !cleaned.len().is_multiple_of(2) {
             return Err("`hex` must contain an even number of digits".to_string());
         }
         return (0..cleaned.len())
