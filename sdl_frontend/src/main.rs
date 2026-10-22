@@ -46,11 +46,35 @@ use sdl3_main::{AppResult, AppResultWithState, MainThreadData, app_impl};
 
 use std::fs;
 
-use parking_lot::{Condvar, Mutex};
+#[cfg(feature = "use-parking-lot")]
+use parking_lot::{Condvar, Mutex, MutexGuard};
+
+#[cfg(not(feature = "use-parking-lot"))]
+use std::sync::{Condvar, Mutex, MutexGuard};
+
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use std::time::Instant;
+
+trait MutexExt<T: ?Sized> {
+    fn lock_unpoisoned(&self) -> MutexGuard<'_, T>;
+}
+
+impl<T: ?Sized> MutexExt<T> for Mutex<T> {
+    #[inline]
+    fn lock_unpoisoned(&self) -> MutexGuard<'_, T> {
+        #[cfg(feature = "use-parking-lot")]
+        {
+            self.lock()
+        }
+
+        #[cfg(not(feature = "use-parking-lot"))]
+        {
+            self.lock().unwrap_or_else(|e| e.into_inner())
+        }
+    }
+}
 
 #[cfg(feature = "mcp")]
 mod mcp;
@@ -286,17 +310,32 @@ impl ScreenshotChannel {
     // MCP thread: ask the UI thread for a frame and block until it arrives.
     fn request(&self) -> Option<Vec<u8>> {
         self.requested.store(true, Ordering::Release);
-        let mut guard = self.result.lock();
+        let mut guard = self.result.lock_unpoisoned();
         loop {
             if let Some(bytes) = guard.take() {
                 return Some(bytes);
             }
-            if self
-                .ready
-                .wait_for(&mut guard, std::time::Duration::from_secs(5))
-                .timed_out()
+            #[cfg(feature = "use-parking-lot")]
             {
-                return None;
+                if self
+                    .ready
+                    .wait_for(&mut guard, std::time::Duration::from_secs(5))
+                    .timed_out()
+                {
+                    return None;
+                }
+            }
+
+            #[cfg(not(feature = "use-parking-lot"))]
+            {
+                let (g, timed_out) = self
+                    .ready
+                    .wait_timeout(guard, std::time::Duration::from_secs(5))
+                    .unwrap_or_else(|e| e.into_inner());
+                guard = g;
+                if timed_out.timed_out() {
+                    return None;
+                }
             }
         }
     }
@@ -307,7 +346,7 @@ impl ScreenshotChannel {
     }
 
     fn serve(&self, bytes: Vec<u8>) {
-        *self.result.lock() = Some(bytes);
+        *self.result.lock_unpoisoned() = Some(bytes);
         self.ready.notify_all();
     }
 }
@@ -338,50 +377,60 @@ impl McpControl {
     }
 
     fn pause(&self) {
-        *self.paused.lock() = true;
+        *self.paused.lock_unpoisoned() = true;
     }
 
     fn resume(&self) {
         self.step_budget.store(MCP_NO_BUDGET, Ordering::Release);
         self.run_until_pc.store(MCP_NO_PC, Ordering::Release);
-        *self.paused.lock() = false;
+        *self.paused.lock_unpoisoned() = false;
         self.resume_cv.notify_all();
     }
 
     fn is_paused(&self) -> bool {
-        *self.paused.lock()
+        *self.paused.lock_unpoisoned()
     }
 
     fn step(&self, instructions: usize) {
         self.run_until_pc.store(MCP_NO_PC, Ordering::Release);
         self.step_budget
             .store(instructions.max(1), Ordering::Release);
-        *self.paused.lock() = false;
+        *self.paused.lock_unpoisoned() = false;
         self.resume_cv.notify_all();
     }
 
     fn run_until(&self, pc: u16) {
         self.step_budget.store(MCP_NO_BUDGET, Ordering::Release);
         self.run_until_pc.store(pc as u32, Ordering::Release);
-        *self.paused.lock() = false;
+        *self.paused.lock_unpoisoned() = false;
         self.resume_cv.notify_all();
     }
 
     // Emulator thread: park while paused.
     fn wait_if_paused(&self) {
-        let mut guard = self.paused.lock();
+        let mut guard = self.paused.lock_unpoisoned();
         while *guard {
-            self.resume_cv.wait(&mut guard);
+            #[cfg(feature = "use-parking-lot")]
+            {
+                self.resume_cv.wait(&mut guard);
+            }
+            #[cfg(not(feature = "use-parking-lot"))]
+            {
+                guard = self
+                    .resume_cv
+                    .wait(guard)
+                    .unwrap_or_else(|e| e.into_inner());
+            };
         }
     }
 
     // Emulator thread: re-park after a step budget / breakpoint hit.
     fn park(&self) {
-        *self.paused.lock() = true;
+        *self.paused.lock_unpoisoned() = true;
     }
 
     fn bp_add(&self, addr: u16) {
-        let mut list = self.breakpoints.lock();
+        let mut list = self.breakpoints.lock_unpoisoned();
         if !list.contains(&addr) {
             list.push(addr);
         }
@@ -389,18 +438,18 @@ impl McpControl {
     }
 
     fn bp_remove(&self, addr: u16) {
-        let mut list = self.breakpoints.lock();
+        let mut list = self.breakpoints.lock_unpoisoned();
         list.retain(|&value| value != addr);
         self.has_breakpoints
             .store(!list.is_empty(), Ordering::Release);
     }
 
     fn bp_list(&self) -> Vec<u16> {
-        self.breakpoints.lock().clone()
+        self.breakpoints.lock_unpoisoned().clone()
     }
 
     fn bp_clear(&self) {
-        self.breakpoints.lock().clear();
+        self.breakpoints.lock_unpoisoned().clear();
         self.has_breakpoints.store(false, Ordering::Release);
     }
 }
@@ -697,7 +746,7 @@ fn handle_clipboard_paste(event: &Event, state: &EmulatorState, shared: &EmuShar
         return false;
     }
 
-    let mut clipboard_text = shared.clipboard_text.lock();
+    let mut clipboard_text = shared.clipboard_text.lock_unpoisoned();
     if clipboard_text.is_empty() {
         let clipboard = state.video_subsystem.clipboard();
         if let Ok(text) = clipboard.clipboard_text() {
@@ -720,7 +769,7 @@ fn handle_event(event: Event, state: &mut EmulatorState, shared: &EmuShared) {
         return;
     }
 
-    let cpu = &mut shared.cpu.lock();
+    let cpu = &mut shared.cpu.lock_unpoisoned();
     if numpad_key_processed(cpu, &event) {
         return;
     }
@@ -1189,7 +1238,7 @@ fn apply_dialog_outcome(
                 _ => return,
             };
             let result = {
-                let cpu = &mut shared.cpu.lock();
+                let cpu = &mut shared.cpu.lock_unpoisoned();
                 match kind {
                     OpenFileDialog::Disk(drive) => {
                         load_disk(cpu, &path, drive.into()).map_err(|e| e.to_string())
@@ -1212,7 +1261,7 @@ fn apply_dialog_outcome(
             Ok(new_cpu) => {
                 state.pending_state = Some(*new_cpu);
                 shared.reload_cpu.store(true, Ordering::Release);
-                let cpu = &mut shared.cpu.lock();
+                let cpu = &mut shared.cpu.lock_unpoisoned();
                 cpu.halt_cpu();
             }
             // Cancelled (empty message) or failed: report and keep running
@@ -1383,7 +1432,7 @@ fn serialize_state(shared: &EmuShared) -> Option<String> {
         use serde_saphyr::ser_options;
         let options = ser_options! { prefer_block_scalars: false };
         let serialized_result = {
-            let cpu: &CPU = &shared.cpu.lock();
+            let cpu: &CPU = &shared.cpu.lock_unpoisoned();
             serde_saphyr::to_string_with_options(cpu, options)
         };
         match serialized_result {
@@ -1858,7 +1907,7 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
-                    let cpu = &shared.cpu.lock();
+                    let cpu = &shared.cpu.lock_unpoisoned();
                     let estimated_mhz =
                         f32::from_bits(shared.stats.estimated_mhz.load(Ordering::Relaxed));
                     let fps = f32::from_bits(shared.stats.fps.load(Ordering::Relaxed));
@@ -1869,7 +1918,7 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
                         cpu.bus.get_cycles()
                     );
                 } else {
-                    let cpu = &mut shared.cpu.lock();
+                    let cpu = &mut shared.cpu.lock_unpoisoned();
                     eject_disk(cpu, 0);
                 }
                 return true;
@@ -1888,7 +1937,7 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
-                    let cpu = &mut shared.cpu.lock();
+                    let cpu = &mut shared.cpu.lock_unpoisoned();
                     let mut output = String::new();
                     let program_counter = cpu.program_counter;
                     let addr = adjust_disassemble_addr(&mut cpu.bus, program_counter, -10);
@@ -1909,7 +1958,7 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
                         output
                     );
                 } else {
-                    let cpu = &mut shared.cpu.lock();
+                    let cpu = &mut shared.cpu.lock_unpoisoned();
                     eject_disk(cpu, 1);
                 }
                 return true;
@@ -1927,7 +1976,7 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
-                    let cpu = &shared.cpu.lock();
+                    let cpu = &shared.cpu.lock_unpoisoned();
                     dump_track_sector_info(cpu);
                 } else {
                     // Snapshot the state now (short `cpu` lock) and hand it to
@@ -1942,7 +1991,7 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
                 }
                 return true;
             } else {
-                let cpu = &mut shared.cpu.lock();
+                let cpu = &mut shared.cpu.lock_unpoisoned();
                 cpu.bus.disk.swap_drive();
                 return true;
             }
@@ -1954,7 +2003,7 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
-                    let cpu = &shared.cpu.lock();
+                    let cpu = &shared.cpu.lock_unpoisoned();
                     dump_disk_info(cpu);
                 } else {
                     // Load state: the file is picked and deserialized on the
@@ -1972,7 +2021,7 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
                 }
                 return true;
             } else {
-                let cpu = &mut shared.cpu.lock();
+                let cpu = &mut shared.cpu.lock_unpoisoned();
                 cpu.bus.toggle_joystick();
                 return true;
             }
@@ -1983,12 +2032,12 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                let cpu = &mut shared.cpu.lock();
+                let cpu = &mut shared.cpu.lock_unpoisoned();
                 let mode = !cpu.bus.video.get_scanline();
                 cpu.bus.video.set_scanline(mode);
                 return true;
             } else {
-                let cpu = &mut shared.cpu.lock();
+                let cpu = &mut shared.cpu.lock_unpoisoned();
                 state.speed.disk_mode_index = (state.speed.disk_mode_index + 1) % 3;
                 match state.speed.disk_mode_index {
                     0 => {
@@ -2015,7 +2064,7 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                let cpu = &mut shared.cpu.lock();
+                let cpu = &mut shared.cpu.lock_unpoisoned();
                 let mode = !cpu.bus.audio.get_filter_enabled();
                 cpu.bus.audio.set_filter_enabled(mode);
                 return true;
@@ -2027,7 +2076,7 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
                     state.video.display_index =
                         (state.video.display_index + 1) % DISPLAY_MODES.len();
                 }
-                let cpu = &mut shared.cpu.lock();
+                let cpu = &mut shared.cpu.lock_unpoisoned();
                 cpu.bus
                     .video
                     .set_display_mode(DISPLAY_MODES[state.video.display_index]);
@@ -2040,11 +2089,11 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                let cpu = &mut shared.cpu.lock();
+                let cpu = &mut shared.cpu.lock_unpoisoned();
                 let color_burst = cpu.bus.video.get_text_color_burst();
                 cpu.bus.video.set_text_color_burst(!color_burst);
             } else {
-                let cpu = &mut shared.cpu.lock();
+                let cpu = &mut shared.cpu.lock_unpoisoned();
                 cpu.bus.toggle_video_freq();
                 update_video_state(cpu, &shared.pacing);
             }
@@ -2059,7 +2108,7 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
                 // Deferred: shown by `spawn_dialog` on a worker thread
                 state.file_dialog = OpenFileDialog::Tape;
             } else {
-                let cpu = &mut shared.cpu.lock();
+                let cpu = &mut shared.cpu.lock_unpoisoned();
                 cpu.bus.toggle_joystick_jitter();
             }
             return true;
@@ -2074,7 +2123,7 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
             if keymod.contains(Mod::LSHIFTMOD) || keymod.contains(Mod::RSHIFTMOD) {
                 speed_index = (speed_index + SPEED_MODES.len() - 1) % SPEED_MODES.len();
             } else if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                let cpu = &mut shared.cpu.lock();
+                let cpu = &mut shared.cpu.lock_unpoisoned();
                 cpu.bus.audio.eject_tape();
             } else {
                 speed_index = (speed_index + 1) % SPEED_MODES.len();
@@ -2083,7 +2132,7 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
                 .pacing
                 .speed_index
                 .store(speed_index, Ordering::Relaxed);
-            let cpu = &mut shared.cpu.lock();
+            let cpu = &mut shared.cpu.lock_unpoisoned();
             cpu.set_speed(SPEED_MODES[speed_index]);
             update_video_state(cpu, &shared.pacing);
             return true;
@@ -2095,7 +2144,7 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                let cpu = &mut shared.cpu.lock();
+                let cpu = &mut shared.cpu.lock_unpoisoned();
                 eject_harddisk(cpu, 0);
             } else {
                 // Deferred: shown by `spawn_dialog` on a worker thread
@@ -2110,7 +2159,7 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                let cpu = &mut shared.cpu.lock();
+                let cpu = &mut shared.cpu.lock_unpoisoned();
                 eject_harddisk(cpu, 1);
             } else {
                 // Deferred: shown by `spawn_dialog` on a worker thread
@@ -2125,7 +2174,7 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                let cpu = &mut shared.cpu.lock();
+                let cpu = &mut shared.cpu.lock_unpoisoned();
                 cpu.set_reset(true);
                 return true;
             }
@@ -2138,7 +2187,7 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
             ..
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
-                let cpu = &mut shared.cpu.lock();
+                let cpu = &mut shared.cpu.lock_unpoisoned();
                 cpu.interrupt_reset();
                 return true;
             }
@@ -2363,7 +2412,7 @@ fn render_frame(
             };
 
             {
-                let cpu = &mut shared.cpu.lock();
+                let cpu = &mut shared.cpu.lock_unpoisoned();
                 update_emulator_graphics(cpu, ui, window, state, image_texture_id);
             }
 
@@ -2373,13 +2422,13 @@ fn render_frame(
                     state.show_settings = false;
                     ui.open_popup("Settings##settings");
                 }
-                let cpu = &mut shared.cpu.lock();
+                let cpu = &mut shared.cpu.lock_unpoisoned();
                 prepare_settings(cpu, ui, state);
             }
 
             if state.video.menu_bar_height > 0.0 {
                 let (w, h) = window.size();
-                let cpu = &mut shared.cpu.lock();
+                let cpu = &mut shared.cpu.lock_unpoisoned();
                 prepare_statusbar(cpu, ui, state, shared, w, h);
             }
         },
@@ -2474,7 +2523,7 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
 
         'break_loop: loop {
             let (halted, cpu_cycles, cpu_mhz, adj_ms, normal_cpu_speed) = {
-                let mut cpu = shared.cpu.lock();
+                let mut cpu = shared.cpu.lock_unpoisoned();
 
                 let pacing = &shared.pacing;
                 let pacing_cycles = pacing.cpu_cycles.load(Ordering::Relaxed);
@@ -2516,7 +2565,11 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
                     {
                         executed += 1;
                         if shared.mcp.has_breakpoints.load(Ordering::Relaxed)
-                            && shared.mcp.breakpoints.lock().contains(&cpu.program_counter)
+                            && shared
+                                .mcp
+                                .breakpoints
+                                .lock_unpoisoned()
+                                .contains(&cpu.program_counter)
                         {
                             pause_now = true;
                             break;
@@ -2534,7 +2587,7 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
                     // Lock-free fast path: skip the lock unless new
                     // clipboard text is pending
                     if shared.clipboard_pending.load(Ordering::Acquire) {
-                        let mut clipboard_text = shared.clipboard_text.lock();
+                        let mut clipboard_text = shared.clipboard_text.lock_unpoisoned();
                         process_clipboard(&mut cpu, &mut clipboard_text);
                         if clipboard_text.is_empty() {
                             shared.clipboard_pending.store(false, Ordering::Release);
@@ -2610,11 +2663,23 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
             // which is what normally services the reload - keeping `app_quit`'s
             // join from blocking forever. The timeout also covers the tiny race
             // where `app_quit` notifies between the check below and `wait_for`.
-            let mut done = shared.reload_done.lock();
+            let mut done = shared.reload_done.lock_unpoisoned();
             while !*done && !shared.shutdown.load(Ordering::Acquire) {
-                shared
-                    .reload_cv
-                    .wait_for(&mut done, std::time::Duration::from_millis(100));
+                #[cfg(feature = "use-parking-lot")]
+                {
+                    shared
+                        .reload_cv
+                        .wait_for(&mut done, std::time::Duration::from_millis(100));
+                }
+
+                #[cfg(not(feature = "use-parking-lot"))]
+                {
+                    let (g, _) = shared
+                        .reload_cv
+                        .wait_timeout(done, std::time::Duration::from_millis(100))
+                        .unwrap_or_else(|e| e.into_inner());
+                    done = g;
+                }
             }
             let reloaded = *done;
             *done = false;
@@ -2718,7 +2783,7 @@ impl App {
             && handle.is_finished()
             && !shared.halted.load(Ordering::Acquire)
         {
-            let mut cpu = shared.cpu.lock();
+            let mut cpu = shared.cpu.lock_unpoisoned();
             cpu.halt_cpu();
             // Wake the emulator if it is parked on a pause (the MCP client is
             // gone, so it would never be resumed otherwise). `mcp.resume()`
@@ -2735,7 +2800,7 @@ impl App {
                 // load-state request so a later halt (Exit, Ctrl-F4) does not
                 // fall into the reload branch below.
                 shared.reload_cpu.store(false, Ordering::Release);
-                let mut cpu = shared.cpu.lock();
+                let mut cpu = shared.cpu.lock_unpoisoned();
                 cpu.bus.init_memory();
                 cpu.bus.set_apple2c(false);
                 cpu.bus.video.set_apple2c(false);
@@ -2745,7 +2810,7 @@ impl App {
                 update_video_state(&mut cpu, &shared.pacing);
                 drop(cpu);
                 shared.halted.store(false, Ordering::Release);
-                *shared.reload_done.lock() = true;
+                *shared.reload_done.lock_unpoisoned() = true;
                 shared.reload_cv.notify_all();
             } else if shared.reload_cpu.swap(false, Ordering::AcqRel) {
                 #[cfg(feature = "serialization")]
@@ -2760,7 +2825,7 @@ impl App {
                         });
                     match result {
                         Ok(mut new_cpu) => {
-                            let mut cpu = shared.cpu.lock();
+                            let mut cpu = shared.cpu.lock_unpoisoned();
                             initialize_new_cpu(
                                 &mut new_cpu,
                                 &mut main.emulator_state,
@@ -2776,7 +2841,7 @@ impl App {
                     }
                 }
                 shared.halted.store(false, Ordering::Release);
-                *shared.reload_done.lock() = true;
+                *shared.reload_done.lock_unpoisoned() = true;
                 shared.reload_cv.notify_all();
             } else {
                 return AppResult::Success;
@@ -2815,7 +2880,7 @@ impl App {
             if emulator_state.save_screenshot {
                 emulator_state.save_screenshot = false;
                 let frame = {
-                    let mut cpu = shared.cpu.lock();
+                    let mut cpu = shared.cpu.lock_unpoisoned();
                     prepare_video_frame(
                         &mut cpu,
                         &mut main.blend_buffer,
@@ -2831,7 +2896,7 @@ impl App {
             #[cfg(feature = "mcp")]
             if shared.mcp.screenshot.take_request() {
                 let frame = {
-                    let mut cpu = shared.cpu.lock();
+                    let mut cpu = shared.cpu.lock_unpoisoned();
                     prepare_video_frame(
                         &mut cpu,
                         &mut main.blend_buffer,
@@ -2850,7 +2915,7 @@ impl App {
             // only written while `skip_update` is clear, and that flag is
             // re-armed every period by the render path when a window exists.
             if self.headless {
-                let mut cpu = shared.cpu.lock();
+                let mut cpu = shared.cpu.lock_unpoisoned();
                 cpu.bus.video.skip_update = false;
             }
 
@@ -2859,7 +2924,7 @@ impl App {
             {
                 // Read and blend the emulator frame (short CPU lock)
                 let processed_frame = {
-                    let mut cpu = shared.cpu.lock();
+                    let mut cpu = shared.cpu.lock_unpoisoned();
                     cpu.bus.video.skip_update = false;
                     prepare_video_frame(
                         &mut cpu,
@@ -2901,7 +2966,7 @@ impl App {
             // is released before the fullscreen toggle below, whose SDL calls
             // are potentially blocking (see the EmuShared invariants).
             {
-                let mut cpu = shared.cpu.lock();
+                let mut cpu = shared.cpu.lock_unpoisoned();
 
                 // While a file dialog is open the emulator must not see input:
                 // the dialog is modal by intent. Windows enforces that at the
@@ -2945,7 +3010,7 @@ impl App {
                     &mut emulator_state.video,
                 )
             {
-                let mut cpu = shared.cpu.lock();
+                let mut cpu = shared.cpu.lock_unpoisoned();
                 cpu.bus.video.invalidate_video_cache();
             }
         }
@@ -3163,7 +3228,7 @@ impl App {
         let height = (scale * Video::HEIGHT as f32) as u32;
         let video_subsystem = sdl_context.video()?;
 
-        eprintln!("emu6502 v{}", VERSION);
+        print_version();
         eprintln!("Detected Video Drivers");
         for (i, driver) in sdl3::video::drivers().enumerate() {
             eprintln!("-- Driver #{}: {}", i, driver);
@@ -3301,7 +3366,7 @@ impl App {
         });
 
         {
-            let mut cpu = shared.cpu.lock();
+            let mut cpu = shared.cpu.lock_unpoisoned();
             update_video_state(&mut cpu, &shared.pacing);
         }
 
@@ -3772,7 +3837,7 @@ fn prepare_system_menu(ui: &imgui::Ui, state: &mut EmulatorState, shared: &EmuSh
         prepare_menu_for_disk(ui, state, shared);
 
         {
-            let cpu = &mut shared.cpu.lock();
+            let cpu = &mut shared.cpu.lock_unpoisoned();
             let noslot_clock = cpu.bus.get_noslot_clock();
             build_toggle_menu_item(ui, "Enable NoSlot Clock", "", noslot_clock, |_| {
                 cpu.bus.set_noslot_clock(!noslot_clock);
@@ -3794,7 +3859,7 @@ fn prepare_system_menu(ui: &imgui::Ui, state: &mut EmulatorState, shared: &EmuSh
             "Alt-F4"
         };
         if ui.menu_item_config("Exit").shortcut(exit_key).build() {
-            let cpu = &mut shared.cpu.lock();
+            let cpu = &mut shared.cpu.lock_unpoisoned();
             cpu.halt_cpu();
         }
     });
@@ -3807,7 +3872,7 @@ fn prepare_speed_menu_item(
     shortcut: &str,
     index: usize,
 ) {
-    let cpu = &mut shared.cpu.lock();
+    let cpu = &mut shared.cpu.lock_unpoisoned();
     let speed_index = shared.pacing.speed_index.load(Ordering::Relaxed);
     build_toggle_menu_item(ui, label, shortcut, speed_index == index, |_| {
         shared.pacing.speed_index.store(index, Ordering::Relaxed);
@@ -3844,7 +3909,7 @@ fn prepare_toggle_video_menu_item(
 
 fn prepare_video_menu(ui: &imgui::Ui, state: &mut EmulatorState, shared: &EmuShared) {
     ui.menu("Video", || {
-        let cpu = &mut shared.cpu.lock();
+        let cpu = &mut shared.cpu.lock_unpoisoned();
         ui.text("Window scale");
         ui.same_line();
         let width = ui.push_item_width(-1.0);
@@ -3916,7 +3981,7 @@ fn prepare_video_menu(ui: &imgui::Ui, state: &mut EmulatorState, shared: &EmuSha
 
 fn prepare_audio_menu(ui: &imgui::Ui, shared: &EmuShared) {
     ui.menu("Audio", || {
-        let cpu = &mut shared.cpu.lock();
+        let cpu = &mut shared.cpu.lock_unpoisoned();
         let enable_audio = !cpu.bus.disable_audio;
         build_toggle_menu_item(ui, "Enable Audio", "", enable_audio, |new_state| {
             cpu.bus.disable_audio = !new_state;
@@ -3970,7 +4035,7 @@ fn build_enable_toggle_menu_item<F>(
 
 fn prepare_menu_for_model(ui: &imgui::Ui, state: &mut EmulatorState, shared: &EmuShared) {
     ui.menu("Model", || {
-        let cpu = &mut shared.cpu.lock();
+        let cpu = &mut shared.cpu.lock_unpoisoned();
         let rom_value = cpu.bus.mem.mem_read(0xfbb3);
         build_toggle_menu_item(ui, "Apple ][", "", rom_value == 0x38, |_| {
             initialize_apple_system(cpu, APPLE2_ROM, 0xd000, false);
@@ -4101,7 +4166,7 @@ fn prepare_input_menu(ui: &imgui::Ui, state: &mut EmulatorState, shared: &EmuSha
     // invariants.
     let mut paste_requested = false;
     ui.menu("Input", || {
-        let cpu = &mut shared.cpu.lock();
+        let cpu = &mut shared.cpu.lock_unpoisoned();
         let fast_disk = !cpu.bus.disk.get_disable_fast_disk();
         build_toggle_menu_item(ui, "Fast Disk", "F5", fast_disk, |new_state| {
             cpu.bus.disk.set_disable_fast_disk(!new_state);
@@ -4178,7 +4243,7 @@ fn prepare_input_menu(ui: &imgui::Ui, state: &mut EmulatorState, shared: &EmuSha
     if paste_requested {
         let clipboard = state.video_subsystem.clipboard();
         if let Ok(text) = clipboard.clipboard_text() {
-            let mut clipboard_text = shared.clipboard_text.lock();
+            let mut clipboard_text = shared.clipboard_text.lock_unpoisoned();
             *clipboard_text = text.replace('\n', "");
             shared.clipboard_pending.store(true, Ordering::Release);
         }
@@ -4191,7 +4256,7 @@ fn prepare_menu_for_disk(ui: &imgui::Ui, state: &mut EmulatorState, shared: &Emu
             state.file_dialog = OpenFileDialog::Disk(0);
         }
         if ui.menu_item_config("Eject").shortcut("Ctrl-F1").build() {
-            let cpu = &mut shared.cpu.lock();
+            let cpu = &mut shared.cpu.lock_unpoisoned();
             eject_disk(cpu, 0);
         }
     });
@@ -4201,7 +4266,7 @@ fn prepare_menu_for_disk(ui: &imgui::Ui, state: &mut EmulatorState, shared: &Emu
             state.file_dialog = OpenFileDialog::Disk(1);
         }
         if ui.menu_item_config("Eject").shortcut("Ctrl-F2").build() {
-            let cpu = &mut shared.cpu.lock();
+            let cpu = &mut shared.cpu.lock_unpoisoned();
             eject_disk(cpu, 1);
         }
     });
@@ -4211,7 +4276,7 @@ fn prepare_menu_for_disk(ui: &imgui::Ui, state: &mut EmulatorState, shared: &Emu
             state.file_dialog = OpenFileDialog::HardDisk(0);
         }
         if ui.menu_item_config("Eject").shortcut("Ctrl-F10").build() {
-            let cpu = &mut shared.cpu.lock();
+            let cpu = &mut shared.cpu.lock_unpoisoned();
             eject_harddisk(cpu, 0);
         }
     });
@@ -4221,7 +4286,7 @@ fn prepare_menu_for_disk(ui: &imgui::Ui, state: &mut EmulatorState, shared: &Emu
             state.file_dialog = OpenFileDialog::HardDisk(1);
         }
         if ui.menu_item_config("Eject").shortcut("Ctrl-F11").build() {
-            let cpu = &mut shared.cpu.lock();
+            let cpu = &mut shared.cpu.lock_unpoisoned();
             eject_harddisk(cpu, 1);
         }
     });

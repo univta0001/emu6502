@@ -13,8 +13,8 @@ use serde_json::{Value, json};
 
 use crate::{
     APPLE2_ROM, APPLE2C_ROM, APPLE2C0_ROM, APPLE2C3_ROM, APPLE2C4_ROM, APPLE2CP_ROM, APPLE2E_ROM,
-    APPLE2EE_ROM, APPLE2P_ROM, DISPLAY_MODES, EmuShared, SPEED_MODES, SPEED_NAMES, change_model,
-    eject_disk, eject_harddisk, initialize_apple_system, load_disk, load_harddisk,
+    APPLE2EE_ROM, APPLE2P_ROM, DISPLAY_MODES, EmuShared, MutexExt, SPEED_MODES, SPEED_NAMES,
+    change_model, eject_disk, eject_harddisk, initialize_apple_system, load_disk, load_harddisk,
     update_video_state,
 };
 
@@ -368,7 +368,7 @@ pub fn call(shared: &EmuShared, name: &str, args: &Value) -> Result<Value, Strin
     match name {
         "status" => status(shared),
         "reset" => {
-            shared.cpu.lock().reset();
+            shared.cpu.lock_unpoisoned().reset();
             Ok(json!({ "ok": true }))
         }
         "pause" => {
@@ -392,7 +392,7 @@ pub fn call(shared: &EmuShared, name: &str, args: &Value) -> Result<Value, Strin
         "set_speed" => set_speed(shared, args),
         "set_model" => set_model(shared, args),
         "quit" => {
-            shared.cpu.lock().halt_cpu();
+            shared.cpu.lock_unpoisoned().halt_cpu();
             // Wake the emulator if it was parked on a pause so it sees the halt.
             shared.mcp.resume();
             Ok(json!({ "ok": true }))
@@ -402,25 +402,25 @@ pub fn call(shared: &EmuShared, name: &str, args: &Value) -> Result<Value, Strin
         "disk_insert" => {
             let path = arg_str(args, "path")?;
             let drive = arg_int(args, "drive").unwrap_or(0);
-            let mut cpu = shared.cpu.lock();
+            let mut cpu = shared.cpu.lock_unpoisoned();
             load_disk(&mut cpu, &path, drive as usize).map_err(|e| e.to_string())?;
             Ok(json!({ "ok": true, "drive": drive, "path": path }))
         }
         "disk_eject" => {
             let drive = arg_int(args, "drive").unwrap_or(0);
-            eject_disk(&mut shared.cpu.lock(), drive as usize);
+            eject_disk(&mut shared.cpu.lock_unpoisoned(), drive as usize);
             Ok(json!({ "ok": true, "drive": drive }))
         }
         "harddisk_insert" => {
             let path = arg_str(args, "path")?;
             let drive = arg_int(args, "drive").unwrap_or(0);
-            let mut cpu = shared.cpu.lock();
+            let mut cpu = shared.cpu.lock_unpoisoned();
             load_harddisk(&mut cpu, &path, drive as usize).map_err(|e| e.to_string())?;
             Ok(json!({ "ok": true, "drive": drive, "path": path }))
         }
         "harddisk_eject" => {
             let drive = arg_int(args, "drive").unwrap_or(0);
-            eject_harddisk(&mut shared.cpu.lock(), drive as usize);
+            eject_harddisk(&mut shared.cpu.lock_unpoisoned(), drive as usize);
             Ok(json!({ "ok": true, "drive": drive }))
         }
 
@@ -429,17 +429,17 @@ pub fn call(shared: &EmuShared, name: &str, args: &Value) -> Result<Value, Strin
             text = text.replace("\r\n", "\n");
             text = text.replace("\n", "\r");
             let queued = text.chars().count();
-            *shared.clipboard_text.lock() = text;
+            *shared.clipboard_text.lock_unpoisoned() = text;
             shared.clipboard_pending.store(true, Ordering::Release);
             Ok(json!({ "ok": true, "queued": queued }))
         }
         "input_key" => {
             let latch = arg_int(args, "latch")? as u8;
-            shared.cpu.lock().bus.set_keyboard_latch(latch);
+            shared.cpu.lock_unpoisoned().bus.set_keyboard_latch(latch);
             Ok(json!({ "ok": true, "latch": latch }))
         }
         "input_joystick" => {
-            let mut cpu = shared.cpu.lock();
+            let mut cpu = shared.cpu.lock_unpoisoned();
             if let Ok(v) = arg_int(args, "paddle0") {
                 cpu.bus.paddle_latch[0] = v.min(288) as u16;
             }
@@ -461,7 +461,7 @@ pub fn call(shared: &EmuShared, name: &str, args: &Value) -> Result<Value, Strin
             let right = args.get("right").and_then(Value::as_bool).unwrap_or(false);
             shared
                 .cpu
-                .lock()
+                .lock_unpoisoned()
                 .bus
                 .set_mouse_state(dx, dy, &[left, right]);
             Ok(json!({ "ok": true }))
@@ -478,7 +478,7 @@ pub fn call(shared: &EmuShared, name: &str, args: &Value) -> Result<Value, Strin
         "disassemble" => disassemble(shared, args),
         "pc_set" => {
             let addr = arg_addr(args, "addr")?;
-            shared.cpu.lock().program_counter = addr;
+            shared.cpu.lock_unpoisoned().program_counter = addr;
             Ok(json!({ "ok": true, "pc": addr }))
         }
         "bp_add" => {
@@ -531,7 +531,7 @@ fn model_name(cpu: &CPU) -> &'static str {
 }
 
 fn status(shared: &EmuShared) -> Result<Value, String> {
-    let cpu = shared.cpu.lock();
+    let cpu = shared.cpu.lock_unpoisoned();
     let speed_index = shared.pacing.speed_index.load(Ordering::Relaxed);
     let fps = f32::from_bits(shared.stats.fps.load(Ordering::Relaxed));
     let estimated_mhz = f32::from_bits(shared.stats.estimated_mhz.load(Ordering::Relaxed));
@@ -554,7 +554,7 @@ fn set_speed(shared: &EmuShared, args: &Value) -> Result<Value, String> {
     let speed = *SPEED_MODES
         .get(index)
         .ok_or_else(|| format!("speed index {index} out of range (0-4)"))?;
-    let mut cpu = shared.cpu.lock();
+    let mut cpu = shared.cpu.lock_unpoisoned();
     shared.pacing.speed_index.store(index, Ordering::Relaxed);
     cpu.set_speed(speed);
     update_video_state(&mut cpu, &shared.pacing);
@@ -563,7 +563,7 @@ fn set_speed(shared: &EmuShared, args: &Value) -> Result<Value, String> {
 
 fn set_model(shared: &EmuShared, args: &Value) -> Result<Value, String> {
     let model = arg_str(args, "model")?.to_ascii_lowercase();
-    let mut cpu = shared.cpu.lock();
+    let mut cpu = shared.cpu.lock_unpoisoned();
 
     match model.as_str() {
         "apple2" | "2" => {
@@ -602,7 +602,7 @@ fn set_model(shared: &EmuShared, args: &Value) -> Result<Value, String> {
 // ---------------------------------------------------------------------------
 
 fn disk_list(shared: &EmuShared) -> Result<Value, String> {
-    let cpu = shared.cpu.lock();
+    let cpu = shared.cpu.lock_unpoisoned();
 
     let mut floppy = Vec::new();
     for drive in 0..2 {
@@ -639,7 +639,7 @@ fn mem_bus_read(shared: &EmuShared, args: &Value) -> Result<Value, String> {
     let addr = arg_addr(args, "addr")?;
     let length = arg_int(args, "length").unwrap_or(1).clamp(1, 4096) as usize;
 
-    let mut cpu = shared.cpu.lock();
+    let mut cpu = shared.cpu.lock_unpoisoned();
     let mut bytes = Vec::with_capacity(length);
     for i in 0..length {
         bytes.push(cpu.bus.unclocked_addr_read(addr.wrapping_add(i as u16)));
@@ -660,7 +660,7 @@ fn mem_bus_write(shared: &EmuShared, args: &Value) -> Result<Value, String> {
         return Err("no bytes supplied (use `bytes` or `hex`)".to_string());
     }
 
-    let mut cpu = shared.cpu.lock();
+    let mut cpu = shared.cpu.lock_unpoisoned();
     for (i, byte) in bytes.iter().enumerate() {
         cpu.bus
             .unclocked_addr_write(addr.wrapping_add(i as u16), *byte);
@@ -673,7 +673,7 @@ fn mem_read(shared: &EmuShared, args: &Value) -> Result<Value, String> {
     let addr = arg_addr(args, "addr")?;
     let length = arg_int(args, "length").unwrap_or(1).clamp(1, 4096) as usize;
 
-    let cpu = shared.cpu.lock();
+    let cpu = shared.cpu.lock_unpoisoned();
     let mut bytes = Vec::with_capacity(length);
     for i in 0..length {
         bytes.push(cpu.bus.mem.mem_read(addr.wrapping_add(i as u16)));
@@ -694,7 +694,7 @@ fn mem_write(shared: &EmuShared, args: &Value) -> Result<Value, String> {
         return Err("no bytes supplied (use `bytes` or `hex`)".to_string());
     }
 
-    let mut cpu = shared.cpu.lock();
+    let mut cpu = shared.cpu.lock_unpoisoned();
     for (i, byte) in bytes.iter().enumerate() {
         cpu.bus.mem.mem_write(addr.wrapping_add(i as u16), *byte);
     }
@@ -709,7 +709,7 @@ fn mem_aux_read(shared: &EmuShared, args: &Value) -> Result<Value, String> {
     let addr = arg_addr(args, "addr")?;
     let length = arg_int(args, "length").unwrap_or(1).clamp(1, 4096) as usize;
 
-    let cpu = shared.cpu.lock();
+    let cpu = shared.cpu.lock_unpoisoned();
     let mut bytes = Vec::with_capacity(length);
     for i in 0..length {
         bytes.push(cpu.bus.mem.mem_aux_read(addr.wrapping_add(i as u16)));
@@ -734,7 +734,7 @@ fn mem_aux_write(shared: &EmuShared, args: &Value) -> Result<Value, String> {
         return Err("no bytes supplied (use `bytes` or `hex`)".to_string());
     }
 
-    let mut cpu = shared.cpu.lock();
+    let mut cpu = shared.cpu.lock_unpoisoned();
     for (i, byte) in bytes.iter().enumerate() {
         cpu.bus
             .mem
@@ -762,7 +762,7 @@ fn mem_shadow_write(shared: &EmuShared, args: &Value) -> Result<Value, String> {
     }
     let aux = args.get("aux").and_then(Value::as_bool).unwrap_or(false);
 
-    let mut cpu = shared.cpu.lock();
+    let mut cpu = shared.cpu.lock_unpoisoned();
     for (i, byte) in bytes.iter().enumerate() {
         cpu.bus
             .video
@@ -773,7 +773,7 @@ fn mem_shadow_write(shared: &EmuShared, args: &Value) -> Result<Value, String> {
 }
 
 fn cpu_registers(shared: &EmuShared) -> Result<Value, String> {
-    let cpu = shared.cpu.lock();
+    let cpu = shared.cpu.lock_unpoisoned();
     let p = cpu.status.bits();
     Ok(json!({
         "pc": cpu.program_counter,
@@ -797,7 +797,7 @@ fn cpu_registers(shared: &EmuShared) -> Result<Value, String> {
 }
 
 fn disassemble(shared: &EmuShared, args: &Value) -> Result<Value, String> {
-    let mut cpu = shared.cpu.lock();
+    let mut cpu = shared.cpu.lock_unpoisoned();
     let addr = match arg_int(args, "addr").ok() {
         Some(value) => value as u16,
         None => cpu.program_counter,
@@ -838,7 +838,7 @@ fn text_screen(shared: &EmuShared, args: &Value) -> Result<Value, String> {
     let page = arg_int(args, "page").unwrap_or(1);
     let base: u16 = if page == 2 { 0x800 } else { 0x400 };
 
-    let cpu = shared.cpu.lock();
+    let cpu = shared.cpu.lock_unpoisoned();
 
     // The Videx Videoterm is a separate 80-column card with its own 2 KB of
     // video RAM. While it is active it drives the display and the Apple text
@@ -906,7 +906,7 @@ fn set_display_mode(shared: &EmuShared, args: &Value) -> Result<Value, String> {
         .get(index)
         .ok_or_else(|| format!("display index {index} out of range (0-6)"))?;
 
-    let mut cpu = shared.cpu.lock();
+    let mut cpu = shared.cpu.lock_unpoisoned();
     cpu.bus.video.set_display_mode(mode);
     cpu.bus.videoterm.invalidate_video();
     Ok(json!({ "ok": true, "index": index }))
@@ -918,7 +918,7 @@ fn set_50hz(shared: &EmuShared, args: &Value) -> Result<Value, String> {
         .and_then(Value::as_bool)
         .ok_or_else(|| "missing boolean `enabled`".to_string())?;
 
-    let mut cpu = shared.cpu.lock();
+    let mut cpu = shared.cpu.lock_unpoisoned();
     cpu.bus.video.set_video_50hz(enabled);
     cpu.bus.audio.update_cycles(enabled);
     update_video_state(&mut cpu, &shared.pacing);
