@@ -919,9 +919,6 @@ FLAGS:
                        sound is played). Intended for automation, e.g. with
                        --mcp
     --mcp              Start the MCP (Model Context Protocol) stdio server
-    --mcp-tcp ADDR     Start the MCP server on a TCP socket instead of stdio,
-                       e.g. --mcp-tcp 127.0.0.1:8080 (one client at a time,
-                       reconnects are accepted)
     --nojoystick       Disable joystick
     --xtrim            Set joystick x-trim value
     --ytrim            Set joystick y-trim value
@@ -2768,14 +2765,12 @@ struct App {
     video_time: Instant,
     emu_handle: Option<thread::JoinHandle<()>>,
     // Set by `--headless`: no window can be closed, so the process also ends
-    // when every MCP server thread is gone (the stdio client closed stdin) -
+    // when the MCP server thread is gone (its client closed stdin) -
     // otherwise nothing would ever drive the emulator and it would linger
-    // forever. A TCP server never finishes on its own (it goes back to
-    // accepting), so `--headless --mcp-tcp` stays up until the client sends
-    // `quit` or the emulator stops.
+    // forever.
     headless: bool,
     #[cfg(feature = "mcp")]
-    mcp_handles: Vec<thread::JoinHandle<()>>,
+    mcp_handle: Option<thread::JoinHandle<()>>,
 }
 
 #[app_impl]
@@ -2806,19 +2801,21 @@ impl App {
         }
 
         // Headless has no window to close, so nothing can stop the emulator
-        // once every MCP server thread is gone (its client closed stdin): no
+        // once the MCP server thread is gone (its client closed stdin): no
         // `Event::Quit` will arrive and no client can send `quit`. Halt the
         // CPU the way a window close does, and let the normal paths finish
         // the job - the reload handling below (if a reload was in flight) or
         // `emu_handle` finishing at the top of the next call, which ends the
         // app. Without this the process would keep emulating in the
         // background forever, since `app_quit` can only observe `shutdown`
-        // once the run loop leaves the CPU halted. An empty vector means no
-        // MCP server was started at all, so nothing is watched.
+        // once the run loop leaves the CPU halted. No MCP server was started
+        // at all, so nothing is watched.
         #[cfg(feature = "mcp")]
         if self.headless
-            && !self.mcp_handles.is_empty()
-            && self.mcp_handles.iter().all(|handle| handle.is_finished())
+            && self
+                .mcp_handle
+                .as_ref()
+                .is_some_and(|handle| handle.is_finished())
             && !shared.halted.load(Ordering::Acquire)
         {
             let mut cpu = shared.cpu.lock_unpoisoned();
@@ -3151,25 +3148,11 @@ impl App {
         // the server is an extra control surface for automation.
         let _mcp_enabled = pargs.contains("--mcp");
 
-        // Optional TCP transport for the same protocol: bind the given socket
-        // address and serve clients over it instead of (or in addition to)
-        // stdio. Parsed and bound here - before SDL init and before any window
-        // exists - so a bad address or an already used port is reported as a
-        // plain startup error. The listener is handed to the server thread
-        // once the emulator is up.
-        let _mcp_tcp: Option<String> = pargs.opt_value_from_str("--mcp-tcp")?;
-
         #[cfg(not(feature = "mcp"))]
-        if _mcp_enabled || _mcp_tcp.is_some() {
-            eprintln!("--mcp / --mcp-tcp require a build with the `mcp` feature enabled");
+        if _mcp_enabled {
+            eprintln!("--mcp requires a build with the `mcp` feature enabled");
             return Ok(None);
         }
-
-        #[cfg(feature = "mcp")]
-        let mcp_tcp_listener = match _mcp_tcp.as_deref() {
-            Some(addr) => Some(mcp::bind_tcp(addr)?),
-            None => None,
-        };
 
         // Headless mode: force SDL onto its dummy video and audio drivers.
         // The hints must be set before `sdl3::init()` (SDL reads them while
@@ -3432,22 +3415,16 @@ impl App {
                 emulator_thread(emu_shared, audio_stream, dcyc);
             })?;
 
-        // Start the MCP server(s). The stdio one ends when the client closes
-        // stdin, the TCP one runs until the process exits (it keeps accepting
-        // new connections); both are killed with the process. The handles are
-        // kept so a headless app - which has no window to close - can exit
-        // once every server thread is gone; windowed mode ignores them and
-        // runs on as before.
+        // Start the MCP server. Its thread ends when the client closes stdin
+        // (or on the first stdout write error) and is otherwise killed with
+        // the process. The handle is kept so a headless app - which has no
+        // window to close - can exit once the server thread is gone; windowed
+        // mode ignores it and runs on as before.
         #[cfg(feature = "mcp")]
-        let mcp_handles = {
-            let mut handles = Vec::new();
-            if _mcp_enabled {
-                handles.push(mcp::spawn(Arc::clone(&shared))?);
-            }
-            if let Some((_bound, listener)) = mcp_tcp_listener {
-                handles.push(mcp::spawn_tcp(Arc::clone(&shared), listener)?);
-            }
-            handles
+        let mcp_handle = if _mcp_enabled {
+            Some(mcp::spawn(Arc::clone(&shared))?)
+        } else {
+            None
         };
 
         Ok(Some(App {
@@ -3464,7 +3441,7 @@ impl App {
             emu_handle: Some(emu_handle),
             headless,
             #[cfg(feature = "mcp")]
-            mcp_handles,
+            mcp_handle,
         }))
     }
 }

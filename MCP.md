@@ -24,44 +24,8 @@ emu6502 --mcp path/to/boot.dsk
 Everything is logged to stderr; stdout carries only JSON-RPC frames, so the
 process can be launched directly by an MCP client.
 
-## TCP transport
-
-Both frontends can serve the same protocol on a plain TCP socket instead of
-stdio:
-
-```sh
-cargo build -p sdl_frontend --features mcp   # or -p gpui_frontend
-emu6502 --mcp-tcp 127.0.0.1:8080 path/to/boot.dsk
-```
-
-The framing is unchanged — newline-delimited JSON-RPC 2.0, one request and one
-response per line — so any client that already speaks the stdio protocol only
-needs to swap the pipe for a socket. There is no HTTP or WebSocket layer. Bind
-the port to `127.0.0.1` (the default choice above) unless you explicitly want
-other machines on the network to drive the emulator: the server has no
-authentication whatsoever, and its tools can read and patch memory, load disks
-and shut the emulator down.
-
-Differences from stdio:
-
-- **Connections are served one at a time**, sequentially. A client that keeps
-  its connection open holds the server; a second client waits until the first
-  disconnects (or the emulator is told to `quit`).
-- **The listener outlives a client.** A disconnect returns to `accept`, so a
-  client can reconnect (and the emulator keeps running) instead of taking the
-  server down. This also applies to `--headless`: a TCP server thread never
-  finishes on its own, so with `--mcp-tcp` the process no longer exits when the
-  client goes away — use the `quit` tool or Ctrl-C to stop it.
-- **`--mcp` and `--mcp-tcp` can be combined** to serve both transports at once
-  (e.g. a stdio client for interactive work plus a socket for a script).
-- **Port `0` binds an ephemeral port**, whose address is printed to stderr
-  (`MCP server listening on tcp://127.0.0.1:PORT`).
-
-The listener is bound during argument parsing, before the window or the
-emulator exists, so a bind failure (bad address, port already in use) is
-reported as a plain startup error and exits immediately. Requests are capped at
-1 MiB per frame; a larger one is answered with a `-32700` parse error instead
-of being buffered.
+Requests are capped at 1 MiB per frame; a larger one is answered with a
+`-32700` parse error instead of being buffered.
 
 ## Headless mode
 
@@ -78,10 +42,7 @@ serves the MCP client and shuts the process down once the client's stdin is
 closed (or the emulator stops), since a headless app has no window that could
 be closed. Combine it with `--mcp`; without the MCP server nothing can ever
 stop the emulator. The SDL frontend uses its dummy video/audio drivers and
-exits the same way when the MCP client is gone. This auto-exit is driven by
-the stdio transport only: with `--mcp-tcp` the server keeps listening for a
-reconnect, so the process stays up until the client calls `quit` or you
-interrupt it (see the TCP section below).
+exits the same way when the MCP client is gone.
 
 
 ## Client configuration
@@ -161,7 +122,8 @@ Addresses and lengths accept JSON integers or strings such as `"0x0300"` /
 
 ## Tests
 
-The protocol-agnostic helpers (address/byte parsing, text decoding) have unit
+The framing (request parsing, notifications, the 1 MiB cap) and the
+protocol-agnostic helpers (address/byte parsing, text decoding) have unit
 tests:
 
 ```sh

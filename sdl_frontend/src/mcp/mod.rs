@@ -1,19 +1,16 @@
 //! Minimal Model Context Protocol (MCP) server for the emulator.
 //!
-//! The server speaks newline-delimited JSON-RPC 2.0 and has two transports:
-//! stdio (`--mcp`, the framing an MCP client expects when it spawns us) and a
-//! plain TCP socket (`--mcp-tcp ADDR`, for clients that drive the emulator
-//! over the network). Both share the same dispatcher and the running emulator
-//! through `Arc<EmuShared>`: most tools lock `cpu` briefly, while work that
-//! needs the SDL main thread (a screenshot) is deferred through `EmuShared::mcp`.
+//! The server speaks newline-delimited JSON-RPC 2.0 over stdio (`--mcp`, the
+//! framing an MCP client expects when it spawns us). It shares its dispatcher
+//! and the running emulator through `Arc<EmuShared>`: most tools lock `cpu`
+//! briefly, while work that needs the SDL main thread (a screenshot) is
+//! deferred through `EmuShared::mcp`.
 //!
-//! On stdio, stdout is reserved for JSON-RPC frames; all diagnostics go to
-//! stderr. On TCP, stderr carries the same diagnostics plus the bound address.
+//! stdout is reserved for JSON-RPC frames; all diagnostics go to stderr.
 
 mod tools;
 
-use std::io::{BufRead, BufReader, Write};
-use std::net::{SocketAddr, TcpListener, TcpStream};
+use std::io::{BufRead, Write};
 use std::sync::Arc;
 use std::thread;
 
@@ -24,7 +21,7 @@ use crate::EmuShared;
 /// Protocol revision advertised in the `initialize` handshake.
 pub const PROTOCOL_VERSION: &str = "2024-11-05";
 
-/// Largest request frame accepted on either transport. Tool calls are tiny
+/// Largest request frame accepted. Tool calls are tiny
 /// (`mem_write` payloads are the biggest), so this is only a guard against a
 /// buggy or hostile peer streaming an unbounded line into memory. A larger
 /// frame is drained (so framing stays in sync) and answered with a parse error.
@@ -47,62 +44,17 @@ fn run(shared: Arc<EmuShared>) {
     });
 }
 
-/// Binds the TCP listener for the MCP server. Split from [`spawn_tcp`] so the
-/// caller can bind (and report a bad address or an already used port) before
-/// it creates the window or the emulator, then hand the listener over.
-pub fn bind_tcp(addr: &str) -> std::io::Result<(SocketAddr, TcpListener)> {
-    let listener = TcpListener::bind(addr)?;
-    let bound = listener.local_addr()?;
-    eprintln!("MCP server listening on tcp://{bound}");
-    Ok((bound, listener))
-}
-
-/// Spawns the detached TCP MCP server thread on an already bound listener.
+/// Serves one client: reads frames from `reader`, answers through `out` using
+/// `dispatch`, and returns at EOF (the client closed stdin) or on the first
+/// write/read error.
 ///
-/// Unlike stdio the listener outlives a single client: connections are served
-/// one at a time and a disconnect returns to `accept`, so a client can
-/// reconnect. Only the process exit (or the `quit` tool) stops the server.
-pub fn spawn_tcp(
-    shared: Arc<EmuShared>,
-    listener: TcpListener,
-) -> std::io::Result<std::thread::JoinHandle<()>> {
-    let join_handle = thread::Builder::new()
-        .name("mcp-tcp".to_string())
-        .spawn(move || run_tcp(shared, listener))?;
-    Ok(join_handle)
-}
-
-fn run_tcp(shared: Arc<EmuShared>, listener: TcpListener) {
-    for connection in listener.incoming() {
-        match connection {
-            Ok(stream) => {
-                // Interactive request/response: small frames should not sit in
-                // the Nagle buffer waiting for a coalescing window.
-                let _ = stream.set_nodelay(true);
-                if let Err(err) = serve_conn(&shared, stream) {
-                    eprintln!("MCP tcp connection ended: {err}");
-                }
-            }
-            // A transient accept error (too many open files, an aborted
-            // connection) must not take the whole server down.
-            Err(err) => eprintln!("MCP tcp accept error: {err}"),
-        }
-    }
-}
-
-fn serve_conn(shared: &EmuShared, stream: TcpStream) -> std::io::Result<()> {
-    let out = stream.try_clone()?;
-    serve(BufReader::new(stream), out, |request| {
-        handle(shared, request)
-    })
-}
-
-/// Serves one connection: reads frames from `reader`, answers through `out`
-/// using `dispatch`, and returns at EOF or on the first write/read error.
-///
-/// Transport-agnostic on purpose: stdio and TCP differ only in the stream pair
-/// they hand in, which keeps the framing testable without an emulator.
-fn serve<R, W, F>(mut reader: R, mut out: W, mut dispatch: F) -> std::io::Result<()>
+/// Generic over the stream pair on purpose, which keeps the framing testable
+/// with in-memory buffers and without an emulator at all.
+fn serve<R, W, F>(
+    mut reader: R,
+    mut out: W,
+    mut dispatch: F,
+) -> std::io::Result<()>
 where
     R: BufRead,
     W: Write,
@@ -115,8 +67,8 @@ where
             return Ok(()); // EOF: the client is gone
         };
 
-        // The frame is not necessarily valid UTF-8 (a raw TCP peer can send
-        // anything); lossy decoding just turns it into a parse error.
+        // The frame is not necessarily valid UTF-8; lossy decoding just turns
+        // it into a parse error.
         let text = String::from_utf8_lossy(&frame);
         let text = text.trim();
         if text.is_empty() {
@@ -269,7 +221,7 @@ fn error_response(id: Value, code: i64, message: &str) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
+    use std::io::Cursor;
 
     /// Dispatcher standing in for `handle` so the framing can be exercised
     /// without a `EmuShared` (and therefore without SDL).
@@ -283,85 +235,58 @@ mod tests {
         }
     }
 
-    /// Starts a one-connection server on an ephemeral port.
-    fn serve_one() -> (SocketAddr, thread::JoinHandle<()>) {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = listener.local_addr().unwrap();
-        let handle = thread::spawn(move || {
-            let (stream, _) = listener.accept().unwrap();
-            let out = stream.try_clone().unwrap();
-            let _ = serve(BufReader::new(stream), out, fake_dispatch);
-        });
-        (addr, handle)
+    /// Serves a complete request stream from memory and returns everything
+    /// `serve` wrote back. The reader starts at EOF, so the call runs to
+    /// completion without any client.
+    fn serve_buffered(requests: impl AsRef<[u8]>) -> Vec<u8> {
+        let mut out = Vec::new();
+        serve(Cursor::new(requests.as_ref()), &mut out, fake_dispatch).unwrap();
+        out
+    }
+
+    /// Parses the newline-delimited responses `serve` produced.
+    fn responses(out: &[u8]) -> Vec<Value> {
+        String::from_utf8_lossy(out)
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect()
     }
 
     #[test]
-    fn tcp_frames_requests_answers_and_ignores_notifications() {
-        let (addr, server) = serve_one();
+    fn frames_requests_answers_and_ignores_notifications() {
+        let mut requests = [
+            r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#,
+            "  ", // blank frames are skipped
+            r#"{"jsonrpc":"2.0","id":1,"method":"ping"}"#,
+        ]
+        .join("\n");
+        requests.push('\n');
 
-        let client = TcpStream::connect(addr).unwrap();
-        client
-            .set_read_timeout(Some(Duration::from_secs(10)))
-            .unwrap();
-        let mut out = client.try_clone().unwrap();
-
-        // A notification must never be answered, so anything read back below
-        // can only be the reply to the `ping`.
-        writeln!(
-            out,
-            r#"{{"jsonrpc":"2.0","method":"notifications/initialized"}}"#
-        )
-        .unwrap();
-        writeln!(out, "  ").unwrap(); // blank frames are skipped
-        writeln!(out, r#"{{"jsonrpc":"2.0","id":1,"method":"ping"}}"#).unwrap();
-
-        let mut line = String::new();
-        BufReader::new(client.try_clone().unwrap())
-            .read_line(&mut line)
-            .unwrap();
-        let reply: Value = serde_json::from_str(line.trim()).unwrap();
-        assert_eq!(reply["jsonrpc"], "2.0");
-        assert_eq!(reply["id"], 1);
-        assert_eq!(reply["result"], json!({}));
-        assert!(reply.get("error").is_none());
-
-        // Dropping the client closes the connection, which ends the server.
-        drop(out);
-        drop(client);
-        server.join().unwrap();
+        let replies = responses(&serve_buffered(requests));
+        // A notification must never be answered, so the only reply is the one
+        // to the `ping`.
+        assert_eq!(replies.len(), 1);
+        assert_eq!(replies[0]["jsonrpc"], "2.0");
+        assert_eq!(replies[0]["id"], 1);
+        assert_eq!(replies[0]["result"], json!({}));
+        assert!(replies[0].get("error").is_none());
     }
 
     #[test]
     fn oversized_frame_is_reported_and_framing_survives() {
-        let (addr, server) = serve_one();
+        let mut requests = vec![b'a'; MAX_FRAME_BYTES + 64];
+        requests.push(b'\n');
+        requests.extend_from_slice(br#"{"jsonrpc":"2.0","id":7,"method":"ping"}"#);
+        requests.push(b'\n');
 
-        let client = TcpStream::connect(addr).unwrap();
-        let mut out = client.try_clone().unwrap();
-
-        let mut oversized = vec![b'a'; MAX_FRAME_BYTES + 64];
-        oversized.push(b'\n');
-        out.write_all(&oversized).unwrap();
-        writeln!(out, r#"{{"jsonrpc":"2.0","id":7,"method":"ping"}}"#).unwrap();
-
-        let mut line = String::new();
-        BufReader::new(client.try_clone().unwrap())
-            .read_line(&mut line)
-            .unwrap();
-        let reply: Value = serde_json::from_str(line.trim()).unwrap();
-        assert_eq!(reply["error"]["code"], -32700);
+        let replies = responses(&serve_buffered(requests));
+        assert_eq!(replies.len(), 2);
+        assert_eq!(replies[0]["error"]["code"], -32700);
 
         // The oversized frame was drained up to its newline, so the next
         // request is still framed correctly.
-        line.clear();
-        BufReader::new(client.try_clone().unwrap())
-            .read_line(&mut line)
-            .unwrap();
-        let reply: Value = serde_json::from_str(line.trim()).unwrap();
-        assert_eq!(reply["id"], 7);
-        assert_eq!(reply["result"], json!({}));
-
-        drop(out);
-        drop(client);
-        server.join().unwrap();
+        assert_eq!(replies[1]["id"], 7);
+        assert_eq!(replies[1]["result"], json!({}));
     }
 }
