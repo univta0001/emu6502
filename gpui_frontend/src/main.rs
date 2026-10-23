@@ -76,16 +76,27 @@ use std::fs;
 use std::fs::File;
 use std::path::Path;
 use std::sync::Arc;
-use std::sync::Mutex;
+#[cfg(feature = "mcp")]
+use std::sync::Condvar;
+use std::sync::{Mutex, MutexGuard};
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(feature = "mcp")]
 use std::sync::atomic::{AtomicU32, AtomicUsize};
-#[cfg(feature = "mcp")]
-use std::sync::Condvar;
 use std::time::Duration;
 use std::time::Instant;
 use strum::IntoEnumIterator;
+
+trait MutexExt<T: ?Sized> {
+    fn lock_unpoisoned(&self) -> MutexGuard<'_, T>;
+}
+
+impl<T: ?Sized> MutexExt<T> for Mutex<T> {
+    #[inline]
+    fn lock_unpoisoned(&self) -> MutexGuard<'_, T> {
+        self.lock().unwrap_or_else(|e| e.into_inner())
+    }
+}
 
 #[cfg(feature = "mcp")]
 mod mcp;
@@ -408,38 +419,38 @@ impl McpControl {
     }
 
     fn pause(&self) {
-        *self.paused.lock().unwrap() = true;
+        *self.paused.lock_unpoisoned() = true;
     }
 
     fn resume(&self) {
         self.step_budget.store(MCP_NO_BUDGET, Ordering::Release);
         self.run_until_pc.store(MCP_NO_PC, Ordering::Release);
-        *self.paused.lock().unwrap() = false;
+        *self.paused.lock_unpoisoned() = false;
         self.resume_cv.notify_all();
     }
 
     fn is_paused(&self) -> bool {
-        *self.paused.lock().unwrap()
+        *self.paused.lock_unpoisoned()
     }
 
     fn step(&self, instructions: usize) {
         self.run_until_pc.store(MCP_NO_PC, Ordering::Release);
         self.step_budget
             .store(instructions.max(1), Ordering::Release);
-        *self.paused.lock().unwrap() = false;
+        *self.paused.lock_unpoisoned() = false;
         self.resume_cv.notify_all();
     }
 
     fn run_until(&self, pc: u16) {
         self.step_budget.store(MCP_NO_BUDGET, Ordering::Release);
         self.run_until_pc.store(pc as u32, Ordering::Release);
-        *self.paused.lock().unwrap() = false;
+        *self.paused.lock_unpoisoned() = false;
         self.resume_cv.notify_all();
     }
 
     // Emulator thread: park while paused.
     fn wait_if_paused(&self) {
-        let mut guard = self.paused.lock().unwrap();
+        let mut guard = self.paused.lock_unpoisoned();
         while *guard {
             guard = self.resume_cv.wait(guard).unwrap();
         }
@@ -447,11 +458,11 @@ impl McpControl {
 
     // Emulator thread: re-park after a step budget / breakpoint hit.
     fn park(&self) {
-        *self.paused.lock().unwrap() = true;
+        *self.paused.lock_unpoisoned() = true;
     }
 
     fn bp_add(&self, addr: u16) {
-        let mut list = self.breakpoints.lock().unwrap();
+        let mut list = self.breakpoints.lock_unpoisoned();
         if !list.contains(&addr) {
             list.push(addr);
         }
@@ -459,18 +470,18 @@ impl McpControl {
     }
 
     fn bp_remove(&self, addr: u16) {
-        let mut list = self.breakpoints.lock().unwrap();
+        let mut list = self.breakpoints.lock_unpoisoned();
         list.retain(|&value| value != addr);
         self.has_breakpoints
             .store(!list.is_empty(), Ordering::Release);
     }
 
     fn bp_list(&self) -> Vec<u16> {
-        self.breakpoints.lock().unwrap().clone()
+        self.breakpoints.lock_unpoisoned().clone()
     }
 
     fn bp_clear(&self) {
-        self.breakpoints.lock().unwrap().clear();
+        self.breakpoints.lock_unpoisoned().clear();
         self.has_breakpoints.store(false, Ordering::Release);
     }
 }
@@ -664,7 +675,7 @@ fn emulator_thread(
         // Step one frame worth of CPU cycles
         let (mut reload, mut model_changed) = (false, false);
         {
-            let mut core = shared.core.lock().unwrap();
+            let mut core = shared.core.lock_unpoisoned();
 
             let mut halted = false;
             {
@@ -755,7 +766,7 @@ fn emulator_thread(
             if model_changed {
                 // Model change: reinitialize the machine (mirrors the
                 // sdl_frontend implementation)
-                let mut core = shared.core.lock().unwrap();
+                let mut core = shared.core.lock_unpoisoned();
                 core.cpu.bus.init_memory();
                 core.cpu.bus.set_apple2c(false);
                 core.cpu.bus.video.set_apple2c(false);
@@ -768,7 +779,7 @@ fn emulator_thread(
                 #[cfg(feature = "serialization")]
                 match load_serialized_image() {
                     Ok(mut new_cpu) => {
-                        let mut core = shared.core.lock().unwrap();
+                        let mut core = shared.core.lock_unpoisoned();
                         initialize_new_cpu(&mut new_cpu, &mut core);
                         core.cpu = new_cpu;
                         core.dcyc = 0;
@@ -788,7 +799,7 @@ fn emulator_thread(
 
         // Update video, audio and stats at a multiple of 60Hz or 50Hz
         let (normal_cpu_speed, adj_ms) = {
-            let mut core = shared.core.lock().unwrap();
+            let mut core = shared.core.lock_unpoisoned();
 
             let video_time_elapsed = video_time.elapsed().as_micros();
             if video_time_elapsed >= core.video.cpu_period as u128 {
@@ -823,14 +834,14 @@ fn emulator_thread(
                 spin_sleep::sleep(adj_ms - video_cpu_update);
             }
         } else {
-            spin_sleep::sleep(Duration::from_micros(20))
+            spin_sleep::sleep(Duration::from_micros(10))
         }
 
         let elapsed = t.elapsed().as_micros();
         adj_ms_offset = Duration::from_micros(elapsed.saturating_sub(adj_ms.as_micros()) as u64);
 
         {
-            let mut core = shared.core.lock().unwrap();
+            let mut core = shared.core.lock_unpoisoned();
             core.speed.estimated_mhz = (core.dcyc as f32) / elapsed as f32;
             core.speed.fps = core.video.cpu_mhz / core.dcyc as f32;
             core.dcyc = core.dcyc.saturating_sub(core.video.cpu_cycles);
@@ -948,6 +959,9 @@ FLAGS:
                        no sound is played). Intended for automation, e.g. with
                        --mcp. Quit with Ctrl-C, or when the MCP client exits
     --mcp              Start the MCP (Model Context Protocol) stdio server
+    --mcp-tcp ADDR     Start the MCP server on a TCP socket instead of stdio,
+                       e.g. --mcp-tcp 127.0.0.1:8080 (one client at a time,
+                       reconnects are accepted)
     --nojoystick       Disable joystick
     --xtrim            Set joystick x-trim value
     --ytrim            Set joystick y-trim value
@@ -1476,7 +1490,7 @@ fn toggle_entry(
         enabled,
         selected: is_active,
         action: Some(Box::new(move |_window, _cx| {
-            let mut core = emu.lock().unwrap();
+            let mut core = emu.lock_unpoisoned();
             on_toggle(&mut core, !is_active);
         })),
     })
@@ -1497,7 +1511,7 @@ fn action_entry(
         enabled: true,
         selected: false,
         action: Some(Box::new(move |window, cx| {
-            let mut core = emu.lock().unwrap();
+            let mut core = emu.lock_unpoisoned();
             action(&mut core, window, cx);
         })),
     })
@@ -2193,7 +2207,7 @@ impl EmuView {
         csd: bool,
         controls: WindowControls,
     ) -> impl IntoElement {
-        let open_menu = self.emu.lock().unwrap().open_menu;
+        let open_menu = self.emu.lock_unpoisoned().open_menu;
 
         div()
             .id("menu_bar")
@@ -2214,11 +2228,11 @@ impl EmuView {
                     .on_mouse_down(MouseButton::Left, move |_, window, _| {
                         // The compositor move grab swallows the mouse-up, which
                         // would leave the emulated mouse button stuck down
-                        emu_drag.lock().unwrap().input.mouse_buttons = [false, false];
+                        emu_drag.lock_unpoisoned().input.mouse_buttons = [false, false];
                         window.start_window_move();
                     })
                     .on_mouse_down(MouseButton::Right, move |event, window, _| {
-                        emu_menu.lock().unwrap().input.mouse_buttons = [false, false];
+                        emu_menu.lock_unpoisoned().input.mouse_buttons = [false, false];
                         window.show_window_menu(event.position);
                     })
                     .on_click(|event: &ClickEvent, window, _| {
@@ -2252,7 +2266,7 @@ impl EmuView {
                             // already open, hovering another title switches
                             // to it. Hover alone never opens a menu.
                             if *hovered && !is_open {
-                                let mut core = emu3.lock().unwrap();
+                                let mut core = emu3.lock_unpoisoned();
                                 if core.open_menu.is_some() {
                                     core.open_menu = Some(id);
                                     core.open_submenu = None;
@@ -2264,7 +2278,7 @@ impl EmuView {
                         })
                         .on_click(move |_: &ClickEvent, window: &mut Window, cx: &mut App| {
                             {
-                                let mut core = emu2.lock().unwrap();
+                                let mut core = emu2.lock_unpoisoned();
                                 core.open_menu = if is_open { None } else { Some(id) };
                                 core.open_submenu = None;
                                 core.open_combo = None;
@@ -2305,7 +2319,7 @@ impl EmuView {
 
     fn render_settings(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let (rows, open_combo) = {
-            let core = self.emu.lock().unwrap();
+            let core = self.emu.lock_unpoisoned();
             (settings_rows(&core), core.open_combo)
         };
 
@@ -2405,7 +2419,7 @@ impl EmuView {
                                                           window: &mut Window,
                                                           cx: &mut App| {
                                                         view.update(cx, |this, _cx| {
-                                                            let mut core = this.emu.lock().unwrap();
+                                                            let mut core = this.emu.lock_unpoisoned();
                                                             core.open_combo = if open {
                                                                 None
                                                             } else {
@@ -2440,7 +2454,7 @@ impl EmuView {
                                             .child("OK")
                                             .on_click(cx.listener(
                                                 |this, _: &ClickEvent, window, cx| {
-                                                    let mut core = this.emu.lock().unwrap();
+                                                    let mut core = this.emu.lock_unpoisoned();
                                                     let settings = core.current_settings.clone();
                                                     if update_settings(&mut core.cpu, &settings) {
                                                         core.prev_settings = core.current_settings.clone();
@@ -2467,7 +2481,7 @@ impl EmuView {
                                             .child("Cancel")
                                             .on_click(cx.listener(
                                                 |this, _: &ClickEvent, window, cx| {
-                                                    let mut core = this.emu.lock().unwrap();
+                                                    let mut core = this.emu.lock_unpoisoned();
                                                     core.current_settings = core.prev_settings.clone();
                                                     close_menus(&mut core);
                                                     core.settings_open = false;
@@ -2525,7 +2539,7 @@ impl EmuView {
                                                           window: &mut Window,
                                                           cx: &mut App| {
                                                         view.update(cx, |this, _cx| {
-                                                            let mut core = this.emu.lock().unwrap();
+                                                            let mut core = this.emu.lock_unpoisoned();
                                                             core.current_settings[settings_index] = oi;
                                                             core.open_combo = None;
                                                         });
@@ -2605,7 +2619,7 @@ fn render_dropdown(
     is_submenu: bool,
     owner: Option<&'static str>,
 ) -> impl IntoElement {
-    let open_submenu = emu.lock().unwrap().open_submenu;
+    let open_submenu = emu.lock_unpoisoned().open_submenu;
 
     let dropdown = div()
         .flex()
@@ -2702,7 +2716,7 @@ fn render_menu_entry(
                     // (`owner`), otherwise the submenu would be dismissed the
                     // moment the cursor reaches its own entries
                     if *hovered {
-                        let mut core = emu_hover.lock().unwrap();
+                        let mut core = emu_hover.lock_unpoisoned();
                         if core.open_submenu != owner {
                             core.open_submenu = None;
                             drop(core);
@@ -2759,7 +2773,7 @@ fn render_menu_entry(
                     // would make it unreachable. Sibling submenus replace each
                     // other because opening overwrites `open_submenu`.
                     if *hovered {
-                        let mut core = emu2.lock().unwrap();
+                        let mut core = emu2.lock_unpoisoned();
                         if core.open_submenu != Some(id) {
                             core.open_submenu = Some(id);
                             drop(core);
@@ -2898,7 +2912,7 @@ impl Render for EmuView {
         // Resize the window when the scale setting changed
         // Check on the capslock state
         {
-            let mut core = self.emu.lock().unwrap();
+            let mut core = self.emu.lock_unpoisoned();
 
             let capslock = window.capslock().on;
             if core.input.prev_caps != capslock {
@@ -2919,7 +2933,7 @@ impl Render for EmuView {
         let (frame_source, disk_led, fps, mhz, track_text, menu_tree, settings_open, menu_open) = {
             // Poll gamepad events (gilrs queues them internally; polling here
             // drains them on the main thread)
-            let mut core = self.emu.lock().unwrap();
+            let mut core = self.emu.lock_unpoisoned();
 
             while let Some(event) = self.gilrs.next_event() {
                 handle_gamepad_event(&mut core.cpu, event, &self.gilrs, &mut self.gamepads);
@@ -2970,7 +2984,7 @@ impl Render for EmuView {
             .bg(rgb(0x000000))
             .child(img(frame_source).size_full().object_fit(ObjectFit::Contain))
             .when_some(disk_led, |this, color| {
-                let scale = self.emu.lock().unwrap().video.scale;
+                let scale = self.emu.lock_unpoisoned().video.scale;
                 this.child(
                     div()
                         .absolute()
@@ -2982,7 +2996,7 @@ impl Render for EmuView {
                 )
             })
             .on_drop(cx.listener(|this, paths: &ExternalPaths, _window, _cx| {
-                let mut core = this.emu.lock().unwrap();
+                let mut core = this.emu.lock_unpoisoned();
                 for path in paths.paths() {
                     handle_file_drop(&mut core.cpu, path);
                 }
@@ -3111,7 +3125,7 @@ fn handle_key_down(
     let keystroke = &event.keystroke;
     let key: &str = &keystroke.key;
 
-    let mut core = emu.lock().unwrap();
+    let mut core = emu.lock_unpoisoned();
 
     // Alt-Enter toggles fullscreen
     if key == "enter" && keystroke.modifiers.alt {
@@ -3178,7 +3192,7 @@ fn handle_key_up(emu: &Arc<Mutex<EmulatorCore>>, event: &KeyUpEvent) {
     let keystroke = &event.keystroke;
     let key: &str = &keystroke.key;
 
-    let mut core = emu.lock().unwrap();
+    let mut core = emu.lock_unpoisoned();
 
     if core.settings_open || core.open_menu.is_some() {
         return;
@@ -3197,7 +3211,7 @@ fn handle_key_up(emu: &Arc<Mutex<EmulatorCore>>, event: &KeyUpEvent) {
 }
 
 fn handle_modifiers_changed(emu: &Arc<Mutex<EmulatorCore>>, event: &ModifiersChangedEvent) {
-    let mut core = emu.lock().unwrap();
+    let mut core = emu.lock_unpoisoned();
 
     // The alt keys act as the paddle pushbuttons (left Alt -> button 0,
     // right Alt -> button 1, matching the SDL frontend); gpui reports
@@ -3212,7 +3226,7 @@ fn handle_modifiers_changed(emu: &Arc<Mutex<EmulatorCore>>, event: &ModifiersCha
 }
 
 fn handle_mouse_down(emu: &Arc<Mutex<EmulatorCore>>, event: &MouseDownEvent, cx: &mut App) {
-    let mut core = emu.lock().unwrap();
+    let mut core = emu.lock_unpoisoned();
 
     match event.button {
         MouseButton::Left => core.input.mouse_buttons[0] = true,
@@ -3230,7 +3244,7 @@ fn handle_mouse_down(emu: &Arc<Mutex<EmulatorCore>>, event: &MouseDownEvent, cx:
 }
 
 fn handle_mouse_up(emu: &Arc<Mutex<EmulatorCore>>, event: &MouseUpEvent) {
-    let mut core = emu.lock().unwrap();
+    let mut core = emu.lock_unpoisoned();
 
     match event.button {
         MouseButton::Left => core.input.mouse_buttons[0] = false,
@@ -3245,7 +3259,7 @@ fn handle_mouse_move(emu: &Arc<Mutex<EmulatorCore>>, event: &MouseMoveEvent, win
     let viewport = window.viewport_size();
     let fullscreen = window.is_fullscreen();
 
-    let mut core = emu.lock().unwrap();
+    let mut core = emu.lock_unpoisoned();
 
     // Only feed mouse deltas when the cursor is inside the video area
     let video_top = if fullscreen { 0.0 } else { MENU_BAR_HEIGHT };
@@ -3761,11 +3775,24 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     // extra control surface for automation.
     let _mcp_enabled = pargs.contains("--mcp");
 
+    // Optional TCP transport for the same protocol: bind the given socket
+    // address and serve clients over it instead of (or in addition to) stdio.
+    // Bound here - before the emulator and any window exist - so a bad address
+    // or an already used port is reported as a plain startup error. The
+    // listener is handed to the server thread once the emulator is up.
+    let _mcp_tcp: Option<String> = pargs.opt_value_from_str("--mcp-tcp")?;
+
     #[cfg(not(feature = "mcp"))]
-    if _mcp_enabled {
-        eprintln!("--mcp requires a build with the `mcp` feature enabled");
+    if _mcp_enabled || _mcp_tcp.is_some() {
+        eprintln!("--mcp / --mcp-tcp require a build with the `mcp` feature enabled");
         return Ok(());
     }
+
+    #[cfg(feature = "mcp")]
+    let mcp_tcp_listener = match _mcp_tcp.as_deref() {
+        Some(addr) => Some(mcp::bind_tcp(addr)?),
+        None => None,
+    };
 
     // Headless mode: run without a window, audio output or gamepad support.
     // GPUI needs a display to run its event loop, so the main thread never
@@ -3872,7 +3899,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     )));
 
     {
-        let mut core_guard = core.lock().unwrap();
+        let mut core_guard = core.lock_unpoisoned();
         core_guard.video.scale = scale;
         core_guard.video.prev_scale = scale;
         core_guard.input.key_caps = key_caps;
@@ -3911,23 +3938,31 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         .name("emulator".into())
         .spawn(move || emulator_thread(emu_shared, audio_queue, notify_tx))?;
 
-    // Start the MCP server (it ends when the client closes stdin, and is
-    // killed when the process exits). The handle is kept so a headless app -
-    // which has no window to close - can exit once the client is gone;
-    // windowed mode ignores it and runs on as before.
+    // Start the MCP server(s). The stdio one ends when the client closes
+    // stdin, the TCP one runs until the process exits (it keeps accepting new
+    // connections); both are killed with the process. The handles are kept so
+    // a headless app - which has no window to close - can exit once every
+    // server thread is gone; windowed mode ignores them and runs on as
+    // before.
     #[cfg(feature = "mcp")]
-    let mcp_handle = if _mcp_enabled {
-        Some(mcp::spawn(Arc::clone(&shared))?)
-    } else {
-        None
+    let mcp_handles = {
+        let mut handles = Vec::new();
+        if _mcp_enabled {
+            handles.push(mcp::spawn(Arc::clone(&shared))?);
+        }
+        if let Some((_bound, listener)) = mcp_tcp_listener {
+            handles.push(mcp::spawn_tcp(Arc::clone(&shared), listener)?);
+        }
+        handles
     };
 
     // Headless: no window and no UI event loop. The main thread only watches
-    // the MCP server thread (which ends when its client closes stdin), the
-    // emulator thread and OS termination requests (Ctrl-C / SIGINT / SIGTERM),
-    // and shuts everything down as soon as any of them is gone. There is no
-    // UI consuming `NotifyMsg::Quit`, so the terminate watcher's message is
-    // not observable here - the loop polls the flag the handlers set instead.
+    // the MCP server threads (the stdio one ends when its client closes
+    // stdin; the TCP one never does, since it keeps accepting), the emulator
+    // thread and OS termination requests (Ctrl-C / SIGINT / SIGTERM), and
+    // shuts everything down as soon as they are all gone. There is no UI
+    // consuming `NotifyMsg::Quit`, so the terminate watcher's message is not
+    // observable here - the loop polls the flag the handlers set instead.
     if headless {
         // No UI ever consumes the frame notifications, and the receiver would
         // otherwise queue one message per video period for the process
@@ -3941,8 +3976,12 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             if emu_handle.is_finished() {
                 break;
             }
+            // An empty vector means no MCP server was started at all, so
+            // nothing is watched here. A TCP server never finishes on its own
+            // (`--headless --mcp-tcp` stays up until the client sends `quit`
+            // or Ctrl-C), so this only fires once every server thread is gone.
             #[cfg(feature = "mcp")]
-            if mcp_handle.as_ref().is_some_and(|handle| handle.is_finished()) {
+            if !mcp_handles.is_empty() && mcp_handles.iter().all(|handle| handle.is_finished()) {
                 break;
             }
             spin_sleep::sleep(Duration::from_millis(50));
@@ -3952,15 +3991,17 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         #[cfg(feature = "mcp")]
         shared.mcp.resume();
 
-        // Join the MCP thread only when it is the thread that ended. On an OS
-        // termination request (or an emulator crash) it may still be parked on
-        // `read_line(stdin)`, and joining it would block the very exit path
-        // that was supposed to be prompt; the thread dies with the process.
+        // Join the MCP threads only when they are the threads that ended. On
+        // an OS termination request (or an emulator crash) one of them may
+        // still be parked on `read_line(stdin)`, and joining it would block
+        // the very exit path that was supposed to be prompt; the thread dies
+        // with the process. Consuming the vector is fine: the windowed path
+        // below only drops it, and this branch returns.
         #[cfg(feature = "mcp")]
-        if let Some(handle) = mcp_handle
-            && handle.is_finished()
-        {
-            let _ = handle.join();
+        for handle in mcp_handles {
+            if handle.is_finished() {
+                let _ = handle.join();
+            }
         }
         let _ = emu_handle.join();
         return Ok(());
@@ -4387,7 +4428,7 @@ fn init_audio_stream(audio_queue: AudioQueue) -> Option<cpal::Stream> {
         .build_output_stream(
             desired,
             move |data: &mut [i16], _| {
-                let mut queue = audio_queue.lock().unwrap();
+                let mut queue = audio_queue.lock_unpoisoned();
                 let available = queue.len().min(data.len());
                 for (sample, queued) in data.iter_mut().zip(queue.drain(..available)) {
                     *sample = queued;
