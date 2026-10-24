@@ -46,10 +46,6 @@ use sdl3_main::{AppResult, AppResultWithState, MainThreadData, app_impl};
 
 use std::fs;
 
-#[cfg(feature = "use-parking-lot")]
-use parking_lot::{Condvar, Mutex, MutexGuard};
-
-#[cfg(not(feature = "use-parking-lot"))]
 use std::sync::{Condvar, Mutex, MutexGuard};
 
 use std::fs::File;
@@ -64,15 +60,7 @@ trait MutexExt<T: ?Sized> {
 impl<T: ?Sized> MutexExt<T> for Mutex<T> {
     #[inline]
     fn lock_unpoisoned(&self) -> MutexGuard<'_, T> {
-        #[cfg(feature = "use-parking-lot")]
-        {
-            self.lock()
-        }
-
-        #[cfg(not(feature = "use-parking-lot"))]
-        {
-            self.lock().unwrap_or_else(|e| e.into_inner())
-        }
+        self.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
 
@@ -269,7 +257,7 @@ struct Stats {
 //   it stays open, while the emulator thread needs `cpu` once per video
 //   period to keep feeding the SDL audio stream; a lock held that long
 //   drains the stream and stalls audio.
-// - `parking_lot::Mutex` is not reentrant, so a function that locks `cpu`
+// - `Mutex` is not reentrant, so a function that locks `cpu`
 //   itself (the dialog helpers, `serialize_state`, the menu helpers)
 //   must only be called from a scope that does not already hold the guard.
 //   Keep guards scoped to a single helper call, and defer anything that
@@ -315,27 +303,13 @@ impl ScreenshotChannel {
             if let Some(bytes) = guard.take() {
                 return Some(bytes);
             }
-            #[cfg(feature = "use-parking-lot")]
-            {
-                if self
-                    .ready
-                    .wait_for(&mut guard, std::time::Duration::from_secs(5))
-                    .timed_out()
-                {
-                    return None;
-                }
-            }
-
-            #[cfg(not(feature = "use-parking-lot"))]
-            {
-                let (g, timed_out) = self
-                    .ready
-                    .wait_timeout(guard, std::time::Duration::from_secs(5))
-                    .unwrap_or_else(|e| e.into_inner());
-                guard = g;
-                if timed_out.timed_out() {
-                    return None;
-                }
+            let (g, timed_out) = self
+                .ready
+                .wait_timeout(guard, std::time::Duration::from_secs(5))
+                .unwrap_or_else(|e| e.into_inner());
+            guard = g;
+            if timed_out.timed_out() {
+                return None;
             }
         }
     }
@@ -410,17 +384,10 @@ impl McpControl {
     fn wait_if_paused(&self) {
         let mut guard = self.paused.lock_unpoisoned();
         while *guard {
-            #[cfg(feature = "use-parking-lot")]
-            {
-                self.resume_cv.wait(&mut guard);
-            }
-            #[cfg(not(feature = "use-parking-lot"))]
-            {
-                guard = self
-                    .resume_cv
-                    .wait(guard)
-                    .unwrap_or_else(|e| e.into_inner());
-            };
+            guard = self
+                .resume_cv
+                .wait(guard)
+                .unwrap_or_else(|e| e.into_inner());
         }
     }
 
@@ -886,16 +853,6 @@ fn print_version() {
         eprintln!("emu6502 {VERSION} ({})", git_hash);
     } else {
         eprintln!("emu6502 {VERSION}");
-    }
-
-    #[cfg(feature = "use-parking-lot")]
-    {
-        eprintln!("Using parking-lot Mutex")
-    }
-
-    #[cfg(not(feature = "use-parking-lot"))]
-    {
-        eprintln!("Using standard Mutex")
     }
 }
 
@@ -2643,7 +2600,7 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
                 // `cpu` and immediately re-acquires it, leaving only a
                 // nanosecond window between frames. The UI thread blocks on
                 // `cpu` for every key event (`handle_event`) and every frame
-                // (`app_iterate`). `parking_lot::Mutex` has an internal
+                // (`app_iterate`). `Mutex` has an internal
                 // hand-off that hands the lock to the parked waiter at release,
                 // but `std::sync::Mutex` (SRWLOCK on Windows, futex on Linux) is
                 // strictly unfair: the still-running emulator thread barges back
@@ -2655,7 +2612,7 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
                 // the UI thread is actually scheduled. Sleeping here keeps the
                 // lock free for a real duration - long enough for the OS to wake
                 // and run the waiting UI thread, which then grabs the lock,
-                // reproducing `parking_lot`'s hand-off. 10us clears the wake-up
+                // reproducing hand-off. 10us clears the wake-up
                 // latency on Windows/Linux with negligible cost to top speed;
                 // raise it slightly if a heavily loaded machine still shows lag.
                 spin_sleep::sleep(std::time::Duration::from_micros(10));
@@ -2696,21 +2653,11 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
             // where `app_quit` notifies between the check below and `wait_for`.
             let mut done = shared.reload_done.lock_unpoisoned();
             while !*done && !shared.shutdown.load(Ordering::Acquire) {
-                #[cfg(feature = "use-parking-lot")]
-                {
-                    shared
-                        .reload_cv
-                        .wait_for(&mut done, std::time::Duration::from_millis(100));
-                }
-
-                #[cfg(not(feature = "use-parking-lot"))]
-                {
-                    let (g, _) = shared
-                        .reload_cv
-                        .wait_timeout(done, std::time::Duration::from_millis(100))
-                        .unwrap_or_else(|e| e.into_inner());
-                    done = g;
-                }
+                let (g, _) = shared
+                    .reload_cv
+                    .wait_timeout(done, std::time::Duration::from_millis(100))
+                    .unwrap_or_else(|e| e.into_inner());
+                done = g;
             }
             let reloaded = *done;
             *done = false;
