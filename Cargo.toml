@@ -6,6 +6,8 @@ members = [
 #    "gpui_frontend",
 ]
 
+resolver = "3"
+
 # Patched vendored xkbcommon: GPUI enables the `xkbcommon` crate with the x11
 # feature on Linux, which links libxkbcommon-x11. The vendored copy reduces
 # the x11 feature to a no-op (GPUI's Wayland backend never uses `xkb::x11`).
@@ -14,11 +16,10 @@ members = [
 # xdg_wm_base v1, while gpui 0.2.2 hard-requires v2..=5 and panics with
 # `UnsupportedVersion`. The vendored copy accepts v1 (gpui's Wayland code
 # only uses v1 requests on xdg_surface/xdg_toplevel).
-#[patch.crates-io]
+[patch.crates-io]
 #xkbcommon = { path = "vendor/xkbcommon" }
 #gpui = { path = "vendor/gpui" }
-
-resolver = "3"
+imgui-sdl3 = { path = "vendor/imgui-sdl3" }
 
 [workspace.package]
 version = "0.9.8"

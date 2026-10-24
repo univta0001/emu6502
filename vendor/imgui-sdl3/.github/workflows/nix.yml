@@ -1,0 +1,22 @@
+name: Check & Build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+      - uses: extractions/setup-just@v4
+      - run: nix develop --command just lint
+
+  examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+      - uses: extractions/setup-just@v4
+      - run: nix develop --command just build
