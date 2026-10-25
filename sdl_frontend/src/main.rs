@@ -46,6 +46,7 @@ use sdl3_main::{AppResult, AppResultWithState, MainThreadData, app_impl};
 
 use std::fs;
 
+use std::ops::DerefMut;
 use std::sync::{Condvar, Mutex, MutexGuard};
 
 use std::fs::File;
@@ -54,10 +55,18 @@ use std::sync::OnceLock;
 use std::time::Instant;
 
 trait MutexExt<T: ?Sized> {
-    fn lock_unpoisoned(&self) -> MutexGuard<'_, T>;
+    type Guard<'a>: DerefMut<Target = T>
+    where
+        Self: 'a;
+
+    fn lock_unpoisoned(&self) -> Self::Guard<'_>;
 }
 
 impl<T: ?Sized> MutexExt<T> for Mutex<T> {
+    type Guard<'a> = MutexGuard<'a, T>
+    where
+        Self: 'a;
+
     #[inline]
     fn lock_unpoisoned(&self) -> MutexGuard<'_, T> {
         self.lock().unwrap_or_else(|e| e.into_inner())
