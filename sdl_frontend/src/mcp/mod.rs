@@ -50,11 +50,7 @@ fn run(shared: Arc<EmuShared>) {
 ///
 /// Generic over the stream pair on purpose, which keeps the framing testable
 /// with in-memory buffers and without an emulator at all.
-fn serve<R, W, F>(
-    mut reader: R,
-    mut out: W,
-    mut dispatch: F,
-) -> std::io::Result<()>
+fn serve<R, W, F>(mut reader: R, mut out: W, mut dispatch: F) -> std::io::Result<()>
 where
     R: BufRead,
     W: Write,

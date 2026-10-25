@@ -2615,7 +2615,7 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
                 // reproducing hand-off. 10us clears the wake-up
                 // latency on Windows/Linux with negligible cost to top speed;
                 // raise it slightly if a heavily loaded machine still shows lag.
-                spin_sleep::sleep(std::time::Duration::from_micros(10));
+                spin_sleep::sleep(std::time::Duration::from_micros(20));
             }
 
             let elapsed = t.elapsed().as_micros();
