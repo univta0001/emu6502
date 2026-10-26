@@ -1174,7 +1174,7 @@ impl Video {
         self.display_mode == DisplayMode::MONO_WHITE
             || self.display_mode == DisplayMode::MONO_GREEN
             || self.display_mode == DisplayMode::MONO_AMBER
-            || (self.display_mode == DisplayMode::NTSC && !self.color_burst)
+            || (self.display_mode == DisplayMode::NTSC && !self.video_50hz && !self.color_burst)
     }
 
     pub fn is_shr_mode(&self) -> bool {
