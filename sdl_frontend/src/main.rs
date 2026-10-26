@@ -889,7 +889,7 @@ FLAGS:
     --xtrim            Set joystick x-trim value
     --ytrim            Set joystick y-trim value
     --swapbuttons      Swap the paddle 0 and paddle 1 buttons
-    -r no of pages     Emulate RAMworks III card with 1 to 255 pages
+    -r no of pages     Emulate RAMworks III card with 1 to 256 pages
     --rf size          Ramfactor memory size in KB
     -m, --model MODEL  Set apple 2 model.
                        Valid value: apple2p,apple2e,apple2ee,apple2ep,apple2c,
@@ -3510,12 +3510,12 @@ fn parse_args(
     }
 
     if let Some(bank) = pargs.opt_value_from_str::<_, u16>("-r")? {
-        if bank == 0 || bank > 255 {
-            eprintln!("RAMWorks III accepts value from 1 to 255 (inclusive)");
+        if bank == 0 || bank > 256 {
+            eprintln!("RAMWorks III accepts value from 1 to 256 (inclusive)");
             return Ok(true);
         }
         let mmu = &mut cpu.bus.mem;
-        mmu.set_aux_size(bank as u8);
+        mmu.set_aux_size(bank);
         mmu.aux_type = AuxType::RW3;
         cpu.bus.video.disable_aux = false;
     }

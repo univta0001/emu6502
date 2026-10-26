@@ -286,7 +286,7 @@ impl Mmu {
         }
     }
 
-    pub fn set_aux_size(&mut self, value: u8) {
+    pub fn set_aux_size(&mut self, value: u16) {
         if value > 1 {
             self.ext_aux_mem = Some(vec![0u8; 0x10000 * (value - 1) as usize])
         } else {
