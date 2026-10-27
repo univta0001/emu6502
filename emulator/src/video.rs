@@ -215,8 +215,11 @@ const WIDTH_STEP: usize = Video::WIDTH * 4;
 const TEXT_LEN: usize = 0x400;
 const HIRES_LEN: usize = 0x2000;
 const CYCLES_PER_ROW: usize = 65;
-const CYCLES_PER_BURST_START: usize = 12;
+
+// Color burst starts at 13 to 16 (Based on UtA2e Section 3-15)
+const CYCLES_PER_BURST_START: usize = 13;
 const CYCLES_PER_BURST_END: usize = 16;
+
 const CYCLES_COLOR_BURST: usize = 1024;
 const CYCLES_PER_HBL: usize = 25;
 const CYCLES_PER_FIELD_60HZ: usize = 17030;
@@ -836,7 +839,7 @@ impl Video {
             return;
         }
 
-        if (CYCLES_PER_BURST_START..CYCLES_PER_BURST_END).contains(&col) {
+        if (CYCLES_PER_BURST_START..=CYCLES_PER_BURST_END).contains(&col) {
             self.update_color_burst();
         }
 
