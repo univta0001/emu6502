@@ -2974,7 +2974,18 @@ impl Video {
                             && self.color_burst
                             && !self.graphics_mode))
                 {
-                    if value & 0x1 > 0 { 0x7f } else { 0 }
+                    let ch = self.read_text_memory(col - 1, row);
+                    let val = self.get_normalized_char(ch);
+                    let bitmap = self.get_font_bitmap(val, row % 8);
+                    let (flash, _, _) = self.get_font_flash_mono_color(ch);
+                    let mut prev_data = bitmap.reverse_bits() & 0x7f;
+                    if !self.apple2e {
+                        prev_data >>= 1;
+                    }
+                    if flash {
+                        prev_data ^= 0x7f;
+                    }
+                    prev_data
                 } else {
                     self.read_hires_memory(col - 1, row)
                 }
@@ -3034,7 +3045,18 @@ impl Video {
                             && self.color_burst
                             && !self.graphics_mode))
                 {
-                    if value & 0x1 > 0 { 0x7f } else { 0 }
+                    let ch = self.read_text_memory(col + 1, row);
+                    let val = self.get_normalized_char(ch);
+                    let bitmap = self.get_font_bitmap(val, row % 8);
+                    let (flash, _, _) = self.get_font_flash_mono_color(ch);
+                    let mut next_data = bitmap.reverse_bits() & 0x7f;
+                    if !self.apple2e {
+                        next_data >>= 1;
+                    }
+                    if flash {
+                        next_data ^= 0x7f;
+                    }
+                    next_data
                 } else {
                     self.read_hires_memory(col + 1, row)
                 }

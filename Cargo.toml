@@ -22,7 +22,7 @@ resolver = "3"
 imgui-sdl3 = { path = "vendor/imgui-sdl3" }
 
 [workspace.package]
-version = "0.9.8"
+version = "0.9.9"
 
 [profile.test]
 opt-level = 3
