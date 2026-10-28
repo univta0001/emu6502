@@ -3484,11 +3484,18 @@ impl Video {
             // Handle luma for col - 1
             let prev_value = if col > 0 {
                 if mixed_mode {
-                    /*
-                    let prev_value = self.get_normalized_char(prev_ch);
-                    CHAR_APPLE2E_ROM[prev_value as usize * 8 + row % 8].reverse_bits()
-                    */
-                    if value & 1 > 0 { 0x7f } else { 0 }
+                    let ch = self.read_text_memory(col - 1, row);
+                    let val = self.get_normalized_char(ch);
+                    let bitmap = self.get_font_bitmap(val, row % 8);
+                    let (flash, _, _) = self.get_font_flash_mono_color(ch);
+                    let mut prev_data = bitmap.reverse_bits() & 0x7f;
+                    if !self.apple2e {
+                        prev_data >>= 1;
+                    }
+                    if flash {
+                        prev_data ^= 0x7f;
+                    }
+                    if value & 1 > 0 { prev_data } else { 0 }
                 } else {
                     if self.is_graphics() {
                         if !self.lores_mode {
@@ -3497,12 +3504,18 @@ impl Video {
                             if value & 1 > 0 { 0x7f } else { 0 }
                         }
                     } else {
-                        /*
-                        let prev_ch = self.read_text_memory(col - 1, row);
-                        let prev_value = self.get_normalized_char(prev_ch);
-                        CHAR_APPLE2E_ROM[prev_value as usize * 8 + row % 8].reverse_bits()
-                        */
-                        if value & 1 > 0 { 0x7f } else { 0 }
+                        let ch = self.read_text_memory(col - 1, row);
+                        let val = self.get_normalized_char(ch);
+                        let bitmap = self.get_font_bitmap(val, row % 8);
+                        let (flash, _, _) = self.get_font_flash_mono_color(ch);
+                        let mut prev_data = bitmap.reverse_bits() & 0x7f;
+                        if !self.apple2e {
+                            prev_data >>= 1;
+                        }
+                        if flash {
+                            prev_data ^= 0x7f;
+                        }
+                        if value & 1 > 0 { prev_data } else { 0 }
                     }
                 }
             } else {
@@ -3542,17 +3555,33 @@ impl Video {
             let next_value = if col < 39 {
                 if mixed_mode {
                     let next_ch = self.read_aux_text_memory(col + 1, row);
-                    /*
-                    let next_value = self.get_normalized_char(next_ch);
-                    CHAR_APPLE2E_ROM[next_value as usize * 8 + row % 8].reverse_bits()
-                    */
-                    if next_ch & 1 > 0 { 0x7f } else { 0 }
+                    let val = self.get_normalized_char(next_ch);
+                    let bitmap = self.get_font_bitmap(val, row % 8);
+                    let (flash, _, _) = self.get_font_flash_mono_color(next_ch);
+                    let mut next_data = bitmap.reverse_bits() & 0x7f;
+                    if !self.apple2e {
+                        next_data >>= 1;
+                    }
+                    if flash {
+                        next_data ^= 0x7f;
+                    }
+                    if value & 1 > 0 { next_data } else { 0 }
                 } else {
                     if !self.lores_mode {
                         self.read_aux_hires_memory(col + 1, row)
                     } else {
                         let next_ch = self.read_aux_text_memory(col + 1, row);
-                        if next_ch & 1 > 0 { 0x7f } else { 0 }
+                        let val = self.get_normalized_char(next_ch);
+                        let bitmap = self.get_font_bitmap(val, row % 8);
+                        let (flash, _, _) = self.get_font_flash_mono_color(next_ch);
+                        let mut next_data = bitmap.reverse_bits() & 0x7f;
+                        if !self.apple2e {
+                            next_data >>= 1;
+                        }
+                        if flash {
+                            next_data ^= 0x7f;
+                        }
+                        if value & 1 > 0 { next_data } else { 0 }
                     }
                 }
             } else {
@@ -3583,7 +3612,6 @@ impl Video {
                             / 100) as u8;
                     color = [gray, gray, gray];
                 }
-                //let color = chroma_ntsc_color(&luma, x + i, NTSC_PIXEL_NEIGHBOR + i, NTSC_PIXEL_NEIGHBOR, true, &self.ntsc_decoder);
                 self.set_pixel_count(x + i, 2 * row, color, 1);
             }
         }
