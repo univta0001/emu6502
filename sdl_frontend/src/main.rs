@@ -63,7 +63,8 @@ trait MutexExt<T: ?Sized> {
 }
 
 impl<T: ?Sized> MutexExt<T> for Mutex<T> {
-    type Guard<'a> = MutexGuard<'a, T>
+    type Guard<'a>
+        = MutexGuard<'a, T>
     where
         Self: 'a;
 
