@@ -3495,7 +3495,7 @@ impl Video {
                     if flash {
                         prev_data ^= 0x7f;
                     }
-                    if value & 1 > 0 { prev_data } else { 0 }
+                    prev_data
                 } else {
                     if self.is_graphics() {
                         if !self.lores_mode {
@@ -3515,7 +3515,7 @@ impl Video {
                         if flash {
                             prev_data ^= 0x7f;
                         }
-                        if value & 1 > 0 { prev_data } else { 0 }
+                        prev_data
                     }
                 }
             } else {
@@ -3565,7 +3565,7 @@ impl Video {
                     if flash {
                         next_data ^= 0x7f;
                     }
-                    if value & 1 > 0 { next_data } else { 0 }
+                    next_data
                 } else {
                     if !self.lores_mode {
                         self.read_aux_hires_memory(col + 1, row)
@@ -3581,7 +3581,7 @@ impl Video {
                         if flash {
                             next_data ^= 0x7f;
                         }
-                        if value & 1 > 0 { next_data } else { 0 }
+                        next_data
                     }
                 }
             } else {
