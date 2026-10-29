@@ -3515,7 +3515,7 @@ impl Video {
                         if flash {
                             prev_data ^= 0x7f;
                         }
-                        prev_data
+                        if value & 1 > 0 { prev_data } else { 0 }
                     }
                 }
             } else {
@@ -3581,7 +3581,7 @@ impl Video {
                         if flash {
                             next_data ^= 0x7f;
                         }
-                        next_data
+                        if value & 1 > 0 { next_data } else { 0 }
                     }
                 }
             } else {

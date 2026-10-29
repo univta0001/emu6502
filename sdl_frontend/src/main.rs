@@ -2165,7 +2165,11 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 let cpu = &mut shared.cpu.lock_unpoisoned();
-                cpu.interrupt_reset();
+                if keymod.intersects(Mod::LALTMOD | Mod::RALTMOD) {
+                    cpu.reset();
+                } else {
+                    cpu.interrupt_reset();
+                }
                 return true;
             }
             return true;

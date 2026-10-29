@@ -995,6 +995,7 @@ impl CPU {
     }
 
     pub fn reset(&mut self) {
+        self.set_reset(false);
         self.register_a = 0;
         self.register_x = 0;
         self.register_y = 0;

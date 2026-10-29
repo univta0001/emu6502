@@ -563,7 +563,11 @@
 
                 // Handle reset key
                 if (e.ctrlKey && (e.key == "F12" || e.code == "Pause")) {
-                    emu6502.interrupt_reset();
+                    if (e.code == "AltLeft" || e.code == "AltRight") {
+                        emu6502.reset();
+                    } else {
+                        emu6502.interrupt_reset();
+                    }
                     return
                 }
 
