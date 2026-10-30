@@ -4170,7 +4170,7 @@ fn parse_args(
             return Ok(true);
         }
         let mmu = &mut cpu.bus.mem;
-        mmu.set_aux_size(bank as u8);
+        mmu.set_aux_size(bank);
         mmu.aux_type = AuxType::RW3;
         cpu.bus.video.disable_aux = false;
     }

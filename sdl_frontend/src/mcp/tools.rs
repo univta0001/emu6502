@@ -32,8 +32,16 @@ pub fn list() -> Value {
         ),
         tool(
             "reset",
-            "Reset the CPU and machine (same as the power-on reset).",
-            json!({ "type": "object", "properties": {} })
+            "Reset the CPU. Soft reset (default) triggers a RESET interrupt without clearing registers or peripheral state. Hard reset performs a full power-on reset, clearing CPU registers and all peripheral state.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "hard": {
+                        "type": "boolean",
+                        "description": "If true, perform a hard reset (full power-on). If false or omitted, perform a soft reset (RESET interrupt only)."
+                    }
+                }
+            })
         ),
         tool(
             "pause",
@@ -368,8 +376,15 @@ pub fn call(shared: &EmuShared, name: &str, args: &Value) -> Result<Value, Strin
     match name {
         "status" => status(shared),
         "reset" => {
-            shared.cpu.lock_unpoisoned().reset();
-            Ok(json!({ "ok": true }))
+            let hard = args.get("hard").and_then(Value::as_bool).unwrap_or(false);
+            let mut cpu = shared.cpu.lock_unpoisoned();
+            if hard {
+                cpu.bus.pushbutton_latch[0] = 0x80;
+                cpu.reset();
+            } else {
+                cpu.interrupt_reset();
+            }
+            Ok(json!({ "ok": true, "hard": hard }))
         }
         "pause" => {
             shared.mcp.pause();

@@ -16,7 +16,7 @@ use image::codecs::png::PngEncoder;
 use serde_json::{Value, json};
 
 use crate::{
-    APPLE2_ROM, APPLE2C0_ROM, APPLE2C3_ROM, APPLE2C4_ROM, APPLE2C_ROM, APPLE2CP_ROM, APPLE2E_ROM,
+    APPLE2_ROM, APPLE2C_ROM, APPLE2C0_ROM, APPLE2C3_ROM, APPLE2C4_ROM, APPLE2CP_ROM, APPLE2E_ROM,
     APPLE2EE_ROM, APPLE2P_ROM, DISPLAY_MODES, EmuShared, SPEED_MODES, SPEED_NAMES, eject_disk,
     eject_harddisk, initialize_apple_system, load_disk, load_harddisk,
 };
@@ -35,8 +35,16 @@ pub fn list() -> Value {
         ),
         tool(
             "reset",
-            "Reset the CPU and machine (same as the power-on reset).",
-            json!({ "type": "object", "properties": {} })
+            "Reset the CPU. Soft reset (default) triggers a RESET interrupt without clearing registers or peripheral state. Hard reset performs a full power-on reset, clearing CPU registers and all peripheral state.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "hard": {
+                        "type": "boolean",
+                        "description": "If true, perform a hard reset (full power-on). If false or omitted, perform a soft reset (RESET interrupt only)."
+                    }
+                }
+            })
         ),
         tool(
             "pause",
@@ -371,8 +379,15 @@ pub fn call(shared: &EmuShared, name: &str, args: &Value) -> Result<Value, Strin
     match name {
         "status" => status(shared),
         "reset" => {
-            shared.core.lock().unwrap().cpu.reset();
-            Ok(json!({ "ok": true }))
+            let hard = args.get("hard").and_then(Value::as_bool).unwrap_or(false);
+            let mut core = shared.core.lock();
+            if hard {
+                cpu.bus.pushbutton_latch[0] = 0x80;
+                core.cpu.reset();
+            } else {
+                core.cpu.interrupt_reset();
+            }
+            Ok(json!({ "ok": true, "hard": hard }))
         }
         "pause" => {
             shared.mcp.pause();
@@ -398,7 +413,7 @@ pub fn call(shared: &EmuShared, name: &str, args: &Value) -> Result<Value, Strin
             // Halt the CPU on purpose; the emulator thread turns the halt
             // into a quit notification that ends the application.
             {
-                let mut core = shared.core.lock().unwrap();
+                let mut core = shared.core.lock();
                 core.reload_cpu = false;
                 core.model_changed = false;
                 core.cpu.halt_cpu();
@@ -412,26 +427,26 @@ pub fn call(shared: &EmuShared, name: &str, args: &Value) -> Result<Value, Strin
         "disk_insert" => {
             let path = arg_str(args, "path")?;
             let drive = arg_int(args, "drive").unwrap_or(0);
-            let mut core = shared.core.lock().unwrap();
+            let mut core = shared.core.lock();
             load_disk(&mut core.cpu, &path, drive as usize).map_err(|e| e.to_string())?;
             Ok(json!({ "ok": true, "drive": drive, "path": path }))
         }
         "disk_eject" => {
             let drive = arg_int(args, "drive").unwrap_or(0);
-            let mut core = shared.core.lock().unwrap();
+            let mut core = shared.core.lock();
             eject_disk(&mut core.cpu, drive as usize);
             Ok(json!({ "ok": true, "drive": drive }))
         }
         "harddisk_insert" => {
             let path = arg_str(args, "path")?;
             let drive = arg_int(args, "drive").unwrap_or(0);
-            let mut core = shared.core.lock().unwrap();
+            let mut core = shared.core.lock();
             load_harddisk(&mut core.cpu, &path, drive as usize).map_err(|e| e.to_string())?;
             Ok(json!({ "ok": true, "drive": drive, "path": path }))
         }
         "harddisk_eject" => {
             let drive = arg_int(args, "drive").unwrap_or(0);
-            let mut core = shared.core.lock().unwrap();
+            let mut core = shared.core.lock();
             eject_harddisk(&mut core.cpu, drive as usize);
             Ok(json!({ "ok": true, "drive": drive }))
         }
@@ -443,7 +458,7 @@ pub fn call(shared: &EmuShared, name: &str, args: &Value) -> Result<Value, Strin
             let queued = text.chars().count();
             // Fed into the keyboard latch one character per emulated frame by
             // the same clipboard paste path the UI uses
-            let mut core = shared.core.lock().unwrap();
+            let mut core = shared.core.lock();
             core.input.clipboard_text.push_str(&text);
             Ok(json!({ "ok": true, "queued": queued }))
         }
@@ -452,14 +467,13 @@ pub fn call(shared: &EmuShared, name: &str, args: &Value) -> Result<Value, Strin
             shared
                 .core
                 .lock()
-                .unwrap()
                 .cpu
                 .bus
                 .set_keyboard_latch(latch);
             Ok(json!({ "ok": true, "latch": latch }))
         }
         "input_joystick" => {
-            let mut core = shared.core.lock().unwrap();
+            let mut core = shared.core.lock();
             let cpu = &mut core.cpu;
             if let Some(v) = arg_int(args, "paddle0").ok() {
                 cpu.bus.paddle_latch[0] = v.min(288) as u16;
@@ -483,7 +497,6 @@ pub fn call(shared: &EmuShared, name: &str, args: &Value) -> Result<Value, Strin
             shared
                 .core
                 .lock()
-                .unwrap()
                 .cpu
                 .bus
                 .set_mouse_state(dx, dy, &[left, right]);
@@ -501,7 +514,7 @@ pub fn call(shared: &EmuShared, name: &str, args: &Value) -> Result<Value, Strin
         "disassemble" => disassemble(shared, args),
         "pc_set" => {
             let addr = arg_addr(args, "addr")?;
-            shared.core.lock().unwrap().cpu.program_counter = addr;
+            shared.core.lock().cpu.program_counter = addr;
             Ok(json!({ "ok": true, "pc": addr }))
         }
         "bp_add" => {
@@ -554,7 +567,7 @@ fn model_name(cpu: &CPU) -> &'static str {
 }
 
 fn status(shared: &EmuShared) -> Result<Value, String> {
-    let core = shared.core.lock().unwrap();
+    let core = shared.core.lock();
     let cpu = &core.cpu;
 
     Ok(json!({
@@ -577,7 +590,7 @@ fn set_speed(shared: &EmuShared, args: &Value) -> Result<Value, String> {
         .get(index)
         .ok_or_else(|| format!("speed index {index} out of range (0-4)"))?;
 
-    let mut core = shared.core.lock().unwrap();
+    let mut core = shared.core.lock();
     core.speed.speed_index = index;
     core.cpu.set_speed(speed);
     core.update_video_state();
@@ -586,7 +599,7 @@ fn set_speed(shared: &EmuShared, args: &Value) -> Result<Value, String> {
 
 fn set_model(shared: &EmuShared, args: &Value) -> Result<Value, String> {
     let model = arg_str(args, "model")?.to_ascii_lowercase();
-    let mut core = shared.core.lock().unwrap();
+    let mut core = shared.core.lock();
 
     match model.as_str() {
         "apple2" | "2" => {
@@ -630,7 +643,7 @@ fn set_model(shared: &EmuShared, args: &Value) -> Result<Value, String> {
 // ---------------------------------------------------------------------------
 
 fn disk_list(shared: &EmuShared) -> Result<Value, String> {
-    let core = shared.core.lock().unwrap();
+    let core = shared.core.lock();
     let cpu = &core.cpu;
 
     let mut floppy = Vec::new();
@@ -668,7 +681,7 @@ fn mem_bus_read(shared: &EmuShared, args: &Value) -> Result<Value, String> {
     let addr = arg_addr(args, "addr")?;
     let length = arg_int(args, "length").unwrap_or(1).clamp(1, 4096) as usize;
 
-    let mut core = shared.core.lock().unwrap();
+    let mut core = shared.core.lock();
     let cpu = &mut core.cpu;
     let mut bytes = Vec::with_capacity(length);
     for i in 0..length {
@@ -690,10 +703,11 @@ fn mem_bus_write(shared: &EmuShared, args: &Value) -> Result<Value, String> {
         return Err("no bytes supplied (use `bytes` or `hex`)".to_string());
     }
 
-    let mut core = shared.core.lock().unwrap();
+    let mut core = shared.core.lock();
     let cpu = &mut core.cpu;
     for (i, byte) in bytes.iter().enumerate() {
-        cpu.bus.unclocked_addr_write(addr.wrapping_add(i as u16), *byte);
+        cpu.bus
+            .unclocked_addr_write(addr.wrapping_add(i as u16), *byte);
     }
 
     Ok(json!({ "ok": true, "addr": addr, "length": bytes.len() }))
@@ -703,7 +717,7 @@ fn mem_read(shared: &EmuShared, args: &Value) -> Result<Value, String> {
     let addr = arg_addr(args, "addr")?;
     let length = arg_int(args, "length").unwrap_or(1).clamp(1, 4096) as usize;
 
-    let core = shared.core.lock().unwrap();
+    let core = shared.core.lock();
     let cpu = &core.cpu;
     let mut bytes = Vec::with_capacity(length);
     for i in 0..length {
@@ -725,7 +739,7 @@ fn mem_write(shared: &EmuShared, args: &Value) -> Result<Value, String> {
         return Err("no bytes supplied (use `bytes` or `hex`)".to_string());
     }
 
-    let mut core = shared.core.lock().unwrap();
+    let mut core = shared.core.lock();
     let cpu = &mut core.cpu;
     for (i, byte) in bytes.iter().enumerate() {
         cpu.bus.mem.mem_write(addr.wrapping_add(i as u16), *byte);
@@ -741,7 +755,7 @@ fn mem_aux_read(shared: &EmuShared, args: &Value) -> Result<Value, String> {
     let addr = arg_addr(args, "addr")?;
     let length = arg_int(args, "length").unwrap_or(1).clamp(1, 4096) as usize;
 
-    let core = shared.core.lock().unwrap();
+    let core = shared.core.lock();
     let cpu = &core.cpu;
     let mut bytes = Vec::with_capacity(length);
     for i in 0..length {
@@ -767,7 +781,7 @@ fn mem_aux_write(shared: &EmuShared, args: &Value) -> Result<Value, String> {
         return Err("no bytes supplied (use `bytes` or `hex`)".to_string());
     }
 
-    let mut core = shared.core.lock().unwrap();
+    let mut core = shared.core.lock();
     let cpu = &mut core.cpu;
     for (i, byte) in bytes.iter().enumerate() {
         cpu.bus
@@ -796,7 +810,7 @@ fn mem_shadow_write(shared: &EmuShared, args: &Value) -> Result<Value, String> {
     }
     let aux = args.get("aux").and_then(Value::as_bool).unwrap_or(false);
 
-    let mut core = shared.core.lock().unwrap();
+    let mut core = shared.core.lock();
     let cpu = &mut core.cpu;
     for (i, byte) in bytes.iter().enumerate() {
         cpu.bus
@@ -808,7 +822,7 @@ fn mem_shadow_write(shared: &EmuShared, args: &Value) -> Result<Value, String> {
 }
 
 fn cpu_registers(shared: &EmuShared) -> Result<Value, String> {
-    let core = shared.core.lock().unwrap();
+    let core = shared.core.lock();
     let cpu = &core.cpu;
     let p = cpu.status.bits();
     Ok(json!({
@@ -833,7 +847,7 @@ fn cpu_registers(shared: &EmuShared) -> Result<Value, String> {
 }
 
 fn disassemble(shared: &EmuShared, args: &Value) -> Result<Value, String> {
-    let mut core = shared.core.lock().unwrap();
+    let mut core = shared.core.lock();
     let cpu = &mut core.cpu;
     let addr = match arg_int(args, "addr").ok() {
         Some(value) => value as u16,
@@ -855,7 +869,7 @@ fn disassemble(shared: &EmuShared, args: &Value) -> Result<Value, String> {
 /// the GPUI frontend needs no UI thread for this: the video buffer lives in
 /// the shared core, so the MCP thread can encode it directly.
 fn screenshot(shared: &EmuShared, args: &Value) -> Result<Value, String> {
-    let core = shared.core.lock().unwrap();
+    let core = shared.core.lock();
     let frame = &core.cpu.bus.video.frame;
 
     let mut bytes = Vec::new();
@@ -886,7 +900,7 @@ fn text_screen(shared: &EmuShared, args: &Value) -> Result<Value, String> {
     let page = arg_int(args, "page").unwrap_or(1);
     let base: u16 = if page == 2 { 0x800 } else { 0x400 };
 
-    let core = shared.core.lock().unwrap();
+    let core = shared.core.lock();
     let cpu = &core.cpu;
 
     // The Videx Videoterm is a separate 80-column card with its own 2 KB of
@@ -955,7 +969,7 @@ fn set_display_mode(shared: &EmuShared, args: &Value) -> Result<Value, String> {
         .get(index)
         .ok_or_else(|| format!("display index {index} out of range (0-6)"))?;
 
-    let mut core = shared.core.lock().unwrap();
+    let mut core = shared.core.lock();
     core.video.display_index = index;
     core.cpu.bus.video.set_display_mode(mode);
     core.cpu.bus.videoterm.invalidate_video();
@@ -968,7 +982,7 @@ fn set_50hz(shared: &EmuShared, args: &Value) -> Result<Value, String> {
         .and_then(Value::as_bool)
         .ok_or_else(|| "missing boolean `enabled`".to_string())?;
 
-    let mut core = shared.core.lock().unwrap();
+    let mut core = shared.core.lock();
     core.cpu.bus.video.set_video_50hz(enabled);
     core.cpu.bus.audio.update_cycles(enabled);
     core.update_video_state();
