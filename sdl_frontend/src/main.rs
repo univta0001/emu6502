@@ -2165,7 +2165,7 @@ fn function_key_processed(event: &Event, state: &mut EmulatorState, shared: &Emu
         } => {
             if keymod.contains(Mod::LCTRLMOD) || keymod.contains(Mod::RCTRLMOD) {
                 let cpu = &mut shared.cpu.lock_unpoisoned();
-                if keymod.intersects(Mod::LALTMOD | Mod::RALTMOD) {
+                if cpu.is_apple2e() && keymod.intersects(Mod::LALTMOD | Mod::RALTMOD) {
                     cpu.reset();
                 } else {
                     cpu.interrupt_reset();
@@ -4189,9 +4189,11 @@ fn prepare_input_menu(ui: &imgui::Ui, state: &mut EmulatorState, shared: &EmuSha
             cpu.interrupt_reset();
         }
 
+        let is_apple2e = cpu.is_apple2e();
         if ui
             .menu_item_config("Hard Reset")
             .shortcut("Ctrl-Alt-F12")
+            .enabled(is_apple2e)
             .build()
         {
             cpu.bus.pushbutton_latch[0] = 0x80;
