@@ -2562,16 +2562,16 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
                             break;
                         }
                     }
-                }
 
-                {
-                    // Lock-free fast path: skip the lock unless new
-                    // clipboard text is pending
-                    if shared.clipboard_pending.load(Ordering::Acquire) {
-                        let mut clipboard_text = shared.clipboard_text.lock_unpoisoned();
-                        process_clipboard(&mut cpu, &mut clipboard_text);
-                        if clipboard_text.is_empty() {
-                            shared.clipboard_pending.store(false, Ordering::Release);
+                    {
+                        // Lock-free fast path: skip the lock unless new
+                        // clipboard text is pending
+                        if shared.clipboard_pending.load(Ordering::Acquire) {
+                            let mut clipboard_text = shared.clipboard_text.lock_unpoisoned();
+                            process_clipboard(&mut cpu, &mut clipboard_text);
+                            if clipboard_text.is_empty() {
+                                shared.clipboard_pending.store(false, Ordering::Release);
+                            }
                         }
                     }
                 }
