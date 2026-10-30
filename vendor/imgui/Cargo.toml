@@ -1,0 +1,37 @@
+[package]
+name = "imgui"
+version = "0.12.0"
+edition = "2021"
+description = "High-level Rust bindings to dear imgui"
+homepage = "https://github.com/imgui-rs/imgui-rs"
+repository = "https://github.com/imgui-rs/imgui-rs"
+documentation = "https://docs.rs/imgui"
+license = "MIT OR Apache-2.0"
+categories = ["gui", "api-bindings"]
+readme = "../README.md"
+
+exclude = ["/resources"]
+
+[package.metadata.docs.rs]
+features = ["freetype", "docking", "tables-api"]
+
+[dependencies]
+bitflags = "1"
+imgui-sys = { path = "../imgui-sys", version = "0.12" }
+mint = "0.5.6"
+parking_lot = "0.12"
+cfg-if = "1"
+
+[features]
+wasm = ["imgui-sys/wasm"]
+freetype = ["imgui-sys/freetype"]
+docking = ["imgui-sys/docking"]
+external = ["imgui-sys/external"]
+# this api is in beta in the upstream imgui crate. See issue #524 for more info.
+# it should be stable and fine to use though.
+tables-api = []
+
+[dev-dependencies]
+approx = "0.5.1"
+memoffset = "0.9"
+pretty_assertions = "1.4.1"

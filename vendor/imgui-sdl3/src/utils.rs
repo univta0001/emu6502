@@ -57,8 +57,6 @@ pub fn create_texture(
     width: u32,
     height: u32,
 ) -> Result<Texture<'static>, Box<dyn Error>> {
-    let size_bytes = width * height * 4; // Assuming RGBA8 format
-
     let texture = device.create_texture(
         TextureCreateInfo::new()
             .with_format(TextureFormat::R8g8b8a8Unorm)
@@ -69,6 +67,23 @@ pub fn create_texture(
             .with_num_levels(1)
             .with_usage(TextureUsage::SAMPLER),
     )?;
+
+    upload_to_gpu_texture(device, copy_pass, &texture, image_data, width, height)?;
+
+    Ok(texture)
+}
+
+/// Uploads `image_data` (RGBA8, tightly packed `width` x `height`) into an
+/// existing GPU texture via the given copy pass.
+pub fn upload_to_gpu_texture(
+    device: &Device,
+    copy_pass: &CopyPass,
+    texture: &Texture,
+    image_data: &[u8],
+    width: u32,
+    height: u32,
+) -> Result<(), Box<dyn Error>> {
+    let size_bytes = width * height * 4; // Assuming RGBA8 format
 
     let transfer_buffer = device
         .create_transfer_buffer()
@@ -85,7 +100,7 @@ pub fn create_texture(
             .with_transfer_buffer(&transfer_buffer)
             .with_offset(0),
         TextureRegion::new()
-            .with_texture(&texture)
+            .with_texture(texture)
             .with_layer(0)
             .with_width(width)
             .with_height(height)
@@ -93,5 +108,5 @@ pub fn create_texture(
         false,
     );
 
-    Ok(texture)
+    Ok(())
 }

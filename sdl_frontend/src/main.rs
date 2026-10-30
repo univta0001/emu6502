@@ -4182,6 +4182,23 @@ fn prepare_input_menu(ui: &imgui::Ui, state: &mut EmulatorState, shared: &EmuSha
         ui.separator();
 
         if ui
+            .menu_item_config("Soft Reset")
+            .shortcut("Ctrl-F12")
+            .build()
+        {
+            cpu.interrupt_reset();
+        }
+
+        if ui
+            .menu_item_config("Hard Reset")
+            .shortcut("Ctrl-Alt-F12")
+            .build()
+        {
+            cpu.bus.pushbutton_latch[0] = 0x80;
+            cpu.reset();
+        }
+
+        if ui
             .menu_item_config("Paste from Clipboard")
             .shortcut("Shift-Insert")
             .build()
@@ -4550,7 +4567,8 @@ fn prepare_statusbar(
                 | imgui::WindowFlags::NO_RESIZE
                 | imgui::WindowFlags::NO_SAVED_SETTINGS
                 | imgui::WindowFlags::NO_BRING_TO_FRONT_ON_FOCUS
-                | imgui::WindowFlags::NO_NAV_FOCUS,
+                | imgui::WindowFlags::NO_NAV_FOCUS
+                | imgui::WindowFlags::NO_DOCKING,
         )
         .build(|| {
             // Render your status bar content here

@@ -19,6 +19,8 @@ resolver = "3"
 [patch.crates-io]
 #xkbcommon = { path = "vendor/xkbcommon" }
 #gpui = { path = "vendor/gpui" }
+imgui = { path = "vendor/imgui" }
+imgui-sys = { path = "vendor/imgui-sys" }
 imgui-sdl3 = { path = "vendor/imgui-sdl3" }
 
 [workspace.package]

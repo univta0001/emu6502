@@ -123,6 +123,9 @@ impl Platform {
         let scale_factor = content_scale / self.hidpi_factor;
         if (scale_factor - 1.0).abs() > f32::EPSILON {
             context.style_mut().scale_all_sizes(scale_factor);
+            // Dear ImGui 1.92 moved io.FontGlobalScale to style.FontScaleMain
+            // (absolute global font scale, like the old field).
+            context.style_mut().font_scale_main = content_scale;
             self.hidpi_factor = content_scale;
         }
 
@@ -146,7 +149,6 @@ impl Platform {
             (window_drawable_size.0 as f32) / (window_size.0 as f32),
             (window_drawable_size.1 as f32) / (window_size.1 as f32),
         ];
-        io.font_global_scale = content_scale;
 
         // Set mouse position if requested by imgui-rs
         if io.want_set_mouse_pos {
@@ -349,5 +351,8 @@ fn to_sdl_cursor(cursor: MouseCursor) -> SystemCursor {
         MouseCursor::ResizeNWSE => SystemCursor::SizeNWSE,
         MouseCursor::Hand => SystemCursor::Hand,
         MouseCursor::NotAllowed => SystemCursor::No,
+        MouseCursor::Wait => SystemCursor::Wait,
+        MouseCursor::Progress => SystemCursor::WaitArrow,
+
     }
 }
