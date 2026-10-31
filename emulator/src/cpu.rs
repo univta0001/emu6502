@@ -932,7 +932,7 @@ impl CPU {
 
     fn tax(&mut self) {
         self.register_x = self.register_a;
-        self.tick();
+        let _ = self.addr_read(self.program_counter);
         self.update_zero_and_negative_flags(self.register_x);
     }
 
@@ -943,19 +943,19 @@ impl CPU {
 
     fn inc_accumulator(&mut self) {
         self.register_a = self.register_a.wrapping_add(1);
-        self.tick();
+        let _ = self.addr_read(self.program_counter);
         self.update_zero_and_negative_flags(self.register_a);
     }
 
     fn inx(&mut self) {
         self.register_x = self.register_x.wrapping_add(1);
-        self.tick();
+        let _ = self.addr_read(self.program_counter);
         self.update_zero_and_negative_flags(self.register_x);
     }
 
     fn iny(&mut self) {
         self.register_y = self.register_y.wrapping_add(1);
-        self.tick();
+        let _ = self.addr_read(self.program_counter);
         self.update_zero_and_negative_flags(self.register_y);
     }
 
@@ -1153,7 +1153,7 @@ impl CPU {
     fn asl_accumulator(&mut self) {
         let mut data = self.register_a;
         self.status.set(CpuFlags::CARRY, data & 0x80 > 0);
-        self.tick();
+        let _ = self.addr_read(self.program_counter);
         data <<= 1;
         self.set_register_a(data)
     }
@@ -1170,7 +1170,7 @@ impl CPU {
     fn lsr_accumulator(&mut self) {
         let mut data = self.register_a;
         self.status.set(CpuFlags::CARRY, data & 1 == 1);
-        self.tick();
+        let _ = self.addr_read(self.program_counter);
         data >>= 1;
         self.set_register_a(data)
     }
@@ -1199,7 +1199,7 @@ impl CPU {
         let mut data = self.register_a;
         let old_carry = self.status.contains(CpuFlags::CARRY) as u8;
         self.status.set(CpuFlags::CARRY, data & 0x80 > 0);
-        self.tick();
+        let _ = self.addr_read(self.program_counter);
         data <<= 1;
         data |= old_carry;
         self.set_register_a(data);
@@ -1220,7 +1220,7 @@ impl CPU {
         let mut data = self.register_a;
         let old_carry = self.status.contains(CpuFlags::CARRY) as u8;
         self.status.set(CpuFlags::CARRY, data & 1 == 1);
-        self.tick();
+        let _ = self.addr_read(self.program_counter);
         data >>= 1;
         data |= old_carry << 7;
         self.set_register_a(data);
@@ -1236,19 +1236,19 @@ impl CPU {
 
     fn dey(&mut self) {
         self.register_y = self.register_y.wrapping_sub(1);
-        self.tick();
+        let _ = self.addr_read(self.program_counter);
         self.update_zero_and_negative_flags(self.register_y);
     }
 
     fn dex(&mut self) {
         self.register_x = self.register_x.wrapping_sub(1);
-        self.tick();
+        let _ = self.addr_read(self.program_counter);
         self.update_zero_and_negative_flags(self.register_x);
     }
 
     fn dec_accumulator(&mut self) {
         self.register_a = self.register_a.wrapping_sub(1);
-        self.tick();
+        let _ = self.addr_read(self.program_counter);
         self.update_zero_and_negative_flags(self.register_a);
     }
 
