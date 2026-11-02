@@ -216,10 +216,14 @@ const TEXT_LEN: usize = 0x400;
 const HIRES_LEN: usize = 0x2000;
 const CYCLES_PER_ROW: usize = 65;
 
-const CYCLES_PER_BURST_START: usize = 15;
-const CYCLES_PER_BURST_END: usize = 18;
+// Color burst starts at 13 to 16 (Based on UtA2e Section 3-15)
+// When color burst is turned on using HIRES mode, there is a 6 lines latency
+// When HIRES mode is turned off, the color burst is valid for at least 128 lines
+const CYCLES_PER_BURST_START: usize = 13;
+const CYCLES_PER_BURST_END: usize = 16;
+const CYCLES_COLOR_BURST_DELAY: usize = 24;
+const CYCLES_COLOR_BURST: usize = 512;
 
-const CYCLES_COLOR_BURST: usize = 1024;
 const CYCLES_PER_HBL: usize = 25;
 const CYCLES_PER_FIELD_60HZ: usize = 17030;
 const CYCLES_PER_FIELD_50HZ: usize = 20280;
@@ -905,11 +909,20 @@ impl Video {
 
     fn update_color_burst(&mut self) {
         self.color_burst_duration = if self.graphics_mode {
-            CYCLES_COLOR_BURST
+            match self.color_burst_duration {
+                0 => CYCLES_COLOR_BURST + CYCLES_COLOR_BURST_DELAY,
+                d if d > CYCLES_COLOR_BURST => d - 1,
+                _ => CYCLES_COLOR_BURST,
+            }
         } else {
-            self.color_burst_duration.saturating_sub(1)
+            if self.color_burst_duration > CYCLES_COLOR_BURST {
+                0
+            } else {
+                self.color_burst_duration.saturating_sub(1)
+            }
         };
-        self.color_burst = self.color_burst_duration > 0;
+        self.color_burst =
+            self.color_burst_duration > 0 && self.color_burst_duration <= CYCLES_COLOR_BURST;
     }
 
     pub fn update_shadow_memory(&mut self, aux_memory: bool, addr: u16, value: u8) {
