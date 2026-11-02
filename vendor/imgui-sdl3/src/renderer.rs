@@ -172,7 +172,7 @@ impl Renderer {
     pub fn render(
         &mut self,
         device: &Device,
-        command_buffer: &mut CommandBuffer,
+        command_buffer: &CommandBuffer,
         color_targets: &[ColorTargetInfo],
         imgui_context: &mut imgui::Context,
     ) -> Result<(), Box<dyn Error>> {

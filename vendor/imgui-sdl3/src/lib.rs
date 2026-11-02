@@ -56,7 +56,7 @@
 //!                 &device,
 //!                 &window,
 //!                 &event_pump,
-//!                 &mut command_buffer,
+//!                 &command_buffer,
 //!                 &color_targets,
 //!                 |ui| {
 //!                     // create imgui UI here
@@ -142,7 +142,7 @@ impl ImGuiSdl3 {
         device: &sdl3::gpu::Device,
         window: &sdl3::video::Window,
         event_pump: &sdl3::EventPump,
-        command_buffer: &mut CommandBuffer,
+        command_buffer: &CommandBuffer,
         color_targets: &[ColorTargetInfo],
         mut draw_callback: T,
     ) where

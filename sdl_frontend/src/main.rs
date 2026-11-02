@@ -2380,7 +2380,7 @@ fn render_frame(
         device,
         window,
         event_pump,
-        &mut cmd_buf,
+        &cmd_buf,
         &color_targets,
         |ui| {
             let io = ui.io();
