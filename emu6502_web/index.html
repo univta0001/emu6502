@@ -171,6 +171,20 @@
                     return;
                 }
 
+                let url;
+                try {
+                    url = new URL(location, window.location.href);
+                } catch {
+                    console.log("Invalid hash location URL: " + location);
+                    return;
+                }
+
+                const is_file_protocol =  window.location.protocol === "file:";
+                if (is_file_protocol) {
+                    console.log("Cannot fetch disk \"" + location + "\": the page is opened via file://. Serve the emulator over HTTP (e.g. \"python -m http.server\") and use same-origin disk paths.");
+                    return;
+                }
+
                 try {
                     const response = await fetch(location);
                     if (!response.ok) {
@@ -180,7 +194,11 @@
                     const content = new Uint8ClampedArray(arrayBuffer);
                     emu6502.load_disk(location,content,0);
                 } catch(error) {
-                    console.log("Error fetching from hash location: "+error);
+                    if (error instanceof TypeError) {
+                        console.log("Network or CORS error fetching \"" + location + "\": " + error);
+                    } else {
+                        console.log("Error fetching from hash location: " + error);
+                    }
                 }
             }
 
