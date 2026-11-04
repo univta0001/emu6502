@@ -315,7 +315,7 @@ impl Videoterm {
         let scanline = video.get_scanline();
         for j in 0..16 {
             let y_screen = y * 2 + j;
-            let src_row = ((j + 1) * 8 / 16).min(8);
+            let src_row = j * 9 / 16;
             let src_pixels = char_rows[src_row];
 
             if col == 39 {

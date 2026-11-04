@@ -1205,7 +1205,7 @@ impl Video {
     }
 
     pub fn write_vertical_blend_frame(&self, frame: &[u8], scanline: bool, display: &mut [u8]) {
-        assert!(display.len() >= WIDTH_STEP * Self::HEIGHT);
+        debug_assert!(display.len() >= WIDTH_STEP * Self::HEIGHT);
         let width = Self::WIDTH;
         let height = Self::HEIGHT;
         let width_step = WIDTH_STEP;
@@ -1278,7 +1278,7 @@ impl Video {
     }
 
     pub fn write_barrel_distorted_frame(&self, frame: &[u8], distortion: f32, display: &mut [u8]) {
-        assert!(display.len() >= WIDTH_STEP * Self::HEIGHT);
+        debug_assert!(display.len() >= WIDTH_STEP * Self::HEIGHT);
         let width = Self::WIDTH;
         let height = Self::HEIGHT;
         let width_f = width as f32;
@@ -1726,19 +1726,19 @@ impl Video {
     }
 
     pub fn get_pixel(&self, x: usize, y: usize) -> Rgb {
-        assert!(self.frame.len() >= y * WIDTH_STEP + x * 4 + 3);
+        debug_assert!(self.frame.len() >= y * WIDTH_STEP + x * 4 + 3);
         let base = y * WIDTH_STEP + x * 4;
         [self.frame[base], self.frame[base + 1], self.frame[base + 2]]
     }
 
     pub fn set_pixel(&mut self, x: usize, y: usize, rgb: Rgb) {
-        assert!(self.frame.len() >= y * WIDTH_STEP + x * 4 + 3);
+        debug_assert!(self.frame.len() >= y * WIDTH_STEP + x * 4 + 3);
         let base = y * WIDTH_STEP + x * 4;
         self.frame[base..base + 3].copy_from_slice(&rgb);
     }
 
     pub fn set_pixel_2(&mut self, x: usize, y: usize, rgb: Rgb) {
-        assert!(self.frame.len() >= (y + 1) * WIDTH_STEP + x * 4 + 3);
+        debug_assert!(self.frame.len() >= (y + 1) * WIDTH_STEP + x * 4 + 3);
         let base = y * WIDTH_STEP + x * 4;
         let base2 = base + WIDTH_STEP;
         self.frame[base..base + 3].copy_from_slice(&rgb);
