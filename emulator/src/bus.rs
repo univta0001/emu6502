@@ -29,6 +29,50 @@ use serde::{Deserialize, Serialize};
 pub const ROM_START: u16 = 0xd000;
 pub const ROM_END: u16 = 0xffff;
 
+/// Dispatch an I/O access to a card, forwarding bus context (cycles, mem, video)
+/// and passing the write value on I/O writes or the floating-bus value on reads.
+macro_rules! card_io_access {
+    ($self:ident, $device:expr, $addr:expr, $value:expr, $floating_value:expr, $write_flag:expr) => {
+        if $write_flag {
+            $device.io_access(
+                $self.cycles,
+                &mut $self.mem,
+                &mut $self.video,
+                $addr,
+                $value,
+                $write_flag,
+            )
+        } else {
+            $device.io_access(
+                $self.cycles,
+                &mut $self.mem,
+                &mut $self.video,
+                $addr,
+                $floating_value,
+                $write_flag,
+            )
+        }
+    };
+}
+
+macro_rules! card_rom_access {
+    ($self:ident, $device:expr, $addr:expr, $value:expr, $floating_value:expr, $write_flag:expr) => {
+        if $write_flag {
+            $device.rom_access(
+                $addr,
+                $value,
+                $write_flag,
+            )
+        } else {
+            $device.rom_access(
+                $addr,
+                $floating_value,
+                $write_flag,
+            )
+        }
+    };
+}
+
 pub trait Card {
     fn rom_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8;
     fn io_access(
@@ -568,52 +612,41 @@ impl Bus {
             self.extended_rom = slot as u8;
         }
 
-        let mut saturn;
-        let return_value: Option<&mut dyn Card> = match slot_value {
-            IODevice::Printer => Some(&mut self.parallel),
-            IODevice::RamFactor => Some(&mut self.ramfactor),
-            IODevice::Videoterm => Some(&mut self.videoterm),
-            IODevice::Mouse => Some(&mut self.mouse),
-            IODevice::Disk => Some(&mut self.disk),
+        match slot_value {
+            IODevice::Printer => {
+                card_io_access!(self, self.parallel, addr, value, floating_value, write_flag)
+            }
+            IODevice::RamFactor => {
+                card_io_access!(self, self.ramfactor, addr, value, floating_value, write_flag)
+            }
+            IODevice::Videoterm => {
+                card_io_access!(self, self.videoterm, addr, value, floating_value, write_flag)
+            }
+            IODevice::Mouse => {
+                card_io_access!(self, self.mouse, addr, value, floating_value, write_flag)
+            }
+            IODevice::Disk => {
+                card_io_access!(self, self.disk, addr, value, floating_value, write_flag)
+            }
             IODevice::Disk13 => {
                 self.disk.force_disk_rom13();
-                Some(&mut self.disk)
+                card_io_access!(self, self.disk, addr, value, floating_value, write_flag)
             }
-            IODevice::HardDisk => Some(&mut self.harddisk),
-            IODevice::Mockingboard(_) => None,
+            IODevice::HardDisk => {
+                card_io_access!(self, self.harddisk, addr, value, floating_value, write_flag)
+            }
+            IODevice::Mockingboard(_) => floating_value & 0x7f,
             #[cfg(feature = "z80")]
-            IODevice::Z80 => None,
+            IODevice::Z80 => floating_value & 0x7f,
             #[cfg(not(target_os = "wasi"))]
-            IODevice::Uthernet2 => Some(&mut self.uthernet2),
-            IODevice::Saturn(value) => {
-                saturn = Saturn(value);
-                Some(&mut saturn)
+            IODevice::Uthernet2 => {
+                card_io_access!(self, self.uthernet2, addr, value, floating_value, write_flag)
             }
-            _ => None,
-        };
-
-        if let Some(device) = return_value {
-            if write_flag {
-                device.io_access(
-                    self.cycles,
-                    &mut self.mem,
-                    &mut self.video,
-                    addr,
-                    value,
-                    write_flag,
-                )
-            } else {
-                device.io_access(
-                    self.cycles,
-                    &mut self.mem,
-                    &mut self.video,
-                    addr,
-                    floating_value,
-                    write_flag,
-                )
+            IODevice::Saturn(no) => {
+                let mut saturn = Saturn(no);
+                card_io_access!(self, saturn, addr, value, floating_value, write_flag)
             }
-        } else {
-            floating_value & 0x7f
+            _ => floating_value & 0x7f,
         }
     }
 
@@ -650,41 +683,47 @@ impl Bus {
                     self.extended_rom = slot as u8;
                 }
 
-                let return_value: Option<&mut dyn Card> = match slot_value {
-                    IODevice::Printer => Some(&mut self.parallel),
-                    IODevice::RamFactor => Some(&mut self.ramfactor),
-                    IODevice::VidHD => Some(&mut self.vidhd),
-                    IODevice::Videoterm => Some(&mut self.videoterm),
-                    IODevice::Mouse => Some(&mut self.mouse),
-                    IODevice::Disk => Some(&mut self.disk),
+                match slot_value {
+                    IODevice::Printer => {
+                        card_rom_access!(self, self.parallel, addr, value, floating_value, write_flag)
+                    }
+                    IODevice::RamFactor => {
+                        card_rom_access!(self, self.ramfactor, addr, value, floating_value, write_flag)
+                    }
+                    IODevice::VidHD => {
+                        card_rom_access!(self, self.vidhd, addr, value, floating_value, write_flag)
+                    }
+                    IODevice::Videoterm => {
+                        card_rom_access!(self, self.videoterm, addr, value, floating_value, write_flag)
+                    }
+                    IODevice::Mouse => {
+                        card_rom_access!(self, self.mouse, addr, value, floating_value, write_flag)
+                    }
+                    IODevice::Disk => {
+                        card_rom_access!(self, self.disk, addr, value, floating_value, write_flag)
+                    }
                     IODevice::Disk13 => {
                         self.disk.force_disk_rom13();
-                        Some(&mut self.disk)
+                        card_rom_access!(self, self.disk, addr, value, floating_value, write_flag)
                     }
-                    IODevice::HardDisk => Some(&mut self.harddisk),
+                    IODevice::HardDisk => {
+                        card_rom_access!(self, self.harddisk, addr, value, floating_value, write_flag)
+                    }
                     #[cfg(feature = "z80")]
                     IODevice::Z80 => {
                         if write_flag {
                             self.halt_cpu = true;
                         }
-                        None
+                        floating_value
                     }
-                    IODevice::Mockingboard(device_no) => self
-                        .audio
-                        .mboard
-                        .get_mut(device_no)
-                        .map(|mb| mb as &mut dyn Card),
-                    _ => None,
-                };
-
-                if let Some(device) = return_value {
-                    if write_flag {
-                        device.rom_access(addr, value, write_flag)
-                    } else {
-                        device.rom_access(addr, floating_value, write_flag)
+                    IODevice::Mockingboard(device_no) => {
+                        if let Some(mb) = self.audio.mboard.get_mut(device_no) {
+                            card_rom_access!(self, mb, addr, value, floating_value, write_flag)
+                        } else {
+                            floating_value
+                        }
                     }
-                } else {
-                    floating_value
+                    _ => floating_value,
                 }
             } else {
                 floating_value
