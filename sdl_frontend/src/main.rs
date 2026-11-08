@@ -3137,6 +3137,11 @@ impl App {
             );
         }
 
+        // Deterministic cold-RAM/disk randomness for reproducible runs.
+        if let Some(seed) = pargs.opt_value_from_str::<_, u64>("--seed")? {
+            Bus::seed_rand(seed);
+        }
+
         //let _function_test: Vec<u8> = std::fs::read("6502_functional_test.bin").unwrap();
         //let _function_test: Vec<u8> = std::fs::read("65C02_extended_opcodes_test.bin").unwrap();
         //let apple2_rom: Vec<u8> = std::fs::read("Apple2_Plus.rom").unwrap();

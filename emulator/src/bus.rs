@@ -58,17 +58,9 @@ macro_rules! card_io_access {
 macro_rules! card_rom_access {
     ($self:ident, $device:expr, $addr:expr, $value:expr, $floating_value:expr, $write_flag:expr) => {
         if $write_flag {
-            $device.rom_access(
-                $addr,
-                $value,
-                $write_flag,
-            )
+            $device.rom_access($addr, $value, $write_flag)
         } else {
-            $device.rom_access(
-                $addr,
-                $floating_value,
-                $write_flag,
-            )
+            $device.rom_access($addr, $floating_value, $write_flag)
         }
     };
 }
@@ -453,6 +445,13 @@ impl Bus {
         self.cycles = cycles;
     }
 
+    /// Seed the crate-wide fastrand generator. Used by tests to make the
+    /// random disk bits (and cold-RAM init) deterministic across machines.
+    /// Must be called before `Bus::new` seeds its own`init_memory` pattern.
+    pub fn seed_rand(seed: u64) {
+        fastrand::seed(seed)
+    }
+
     pub fn set_apple2c(&mut self, flag: bool) {
         self.is_apple2c = flag;
         self.reset_apple2c_slot();
@@ -617,10 +616,24 @@ impl Bus {
                 card_io_access!(self, self.parallel, addr, value, floating_value, write_flag)
             }
             IODevice::RamFactor => {
-                card_io_access!(self, self.ramfactor, addr, value, floating_value, write_flag)
+                card_io_access!(
+                    self,
+                    self.ramfactor,
+                    addr,
+                    value,
+                    floating_value,
+                    write_flag
+                )
             }
             IODevice::Videoterm => {
-                card_io_access!(self, self.videoterm, addr, value, floating_value, write_flag)
+                card_io_access!(
+                    self,
+                    self.videoterm,
+                    addr,
+                    value,
+                    floating_value,
+                    write_flag
+                )
             }
             IODevice::Mouse => {
                 card_io_access!(self, self.mouse, addr, value, floating_value, write_flag)
@@ -640,7 +653,14 @@ impl Bus {
             IODevice::Z80 => floating_value & 0x7f,
             #[cfg(not(target_os = "wasi"))]
             IODevice::Uthernet2 => {
-                card_io_access!(self, self.uthernet2, addr, value, floating_value, write_flag)
+                card_io_access!(
+                    self,
+                    self.uthernet2,
+                    addr,
+                    value,
+                    floating_value,
+                    write_flag
+                )
             }
             IODevice::Saturn(no) => {
                 let mut saturn = Saturn(no);
@@ -685,16 +705,37 @@ impl Bus {
 
                 match slot_value {
                     IODevice::Printer => {
-                        card_rom_access!(self, self.parallel, addr, value, floating_value, write_flag)
+                        card_rom_access!(
+                            self,
+                            self.parallel,
+                            addr,
+                            value,
+                            floating_value,
+                            write_flag
+                        )
                     }
                     IODevice::RamFactor => {
-                        card_rom_access!(self, self.ramfactor, addr, value, floating_value, write_flag)
+                        card_rom_access!(
+                            self,
+                            self.ramfactor,
+                            addr,
+                            value,
+                            floating_value,
+                            write_flag
+                        )
                     }
                     IODevice::VidHD => {
                         card_rom_access!(self, self.vidhd, addr, value, floating_value, write_flag)
                     }
                     IODevice::Videoterm => {
-                        card_rom_access!(self, self.videoterm, addr, value, floating_value, write_flag)
+                        card_rom_access!(
+                            self,
+                            self.videoterm,
+                            addr,
+                            value,
+                            floating_value,
+                            write_flag
+                        )
                     }
                     IODevice::Mouse => {
                         card_rom_access!(self, self.mouse, addr, value, floating_value, write_flag)
@@ -707,7 +748,14 @@ impl Bus {
                         card_rom_access!(self, self.disk, addr, value, floating_value, write_flag)
                     }
                     IODevice::HardDisk => {
-                        card_rom_access!(self, self.harddisk, addr, value, floating_value, write_flag)
+                        card_rom_access!(
+                            self,
+                            self.harddisk,
+                            addr,
+                            value,
+                            floating_value,
+                            write_flag
+                        )
                     }
                     #[cfg(feature = "z80")]
                     IODevice::Z80 => {
