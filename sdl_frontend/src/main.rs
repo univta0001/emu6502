@@ -457,6 +457,7 @@ struct EmuShared {
     // loop stopped pumping `app_iterate`, which is what normally services the
     // reload.
     shutdown: AtomicBool,
+    seed: Option<u64>,
 }
 
 // Wrapper to move the SDL audio stream into the emulator thread.
@@ -2485,6 +2486,13 @@ fn update_mouse_state(cpu: &mut CPU, event_pump: &sdl3::EventPump, state: &mut E
 // into the SDL audio stream, then releases the CPU lock and sleeps for the
 // remainder of the video period, so the UI thread can access the emulator.
 fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mut dcyc: usize) {
+    // `fastrand` keeps its state per thread: seed this thread's stream so the
+    // disk noise generator (and the joystick jitter) produce the same stream in
+    // every run that was started with the same `--seed`.
+    if let Some(seed) = shared.seed {
+        Bus::seed_rand(seed);
+    }
+
     let mut audio_accumulator: u64 = 0;
     let mut t = Instant::now();
     let mut adj_ms_offset = std::time::Duration::from_micros(0);
@@ -3139,8 +3147,10 @@ impl App {
         }
 
         // Deterministic cold-RAM/disk randomness for reproducible runs.
+        let mut rng_seed: Option<u64> = None;
         if let Some(seed) = pargs.opt_value_from_str::<_, u64>("--seed")? {
             Bus::seed_rand(seed);
+            rng_seed = Some(seed);
         }
 
         //let _function_test: Vec<u8> = std::fs::read("6502_functional_test.bin").unwrap();
@@ -3365,6 +3375,7 @@ impl App {
             reload_cv: Condvar::new(),
             halted: AtomicBool::new(false),
             shutdown: AtomicBool::new(false),
+            seed: rng_seed,
         });
 
         {
