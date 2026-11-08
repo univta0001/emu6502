@@ -945,6 +945,7 @@ FLAGS:
     --noslot_clock off Disable noslot clock 
     --disable_jitter   Disable disk jitter
     --disksound off    Disable disk sound
+    --seed <n>         Seed cold-RAM/disk randomness (reproducible runs)
 
 ARGS:
     [disk 1]           Disk 1 file (woz, dsk, do, po file). Can be in gz format
