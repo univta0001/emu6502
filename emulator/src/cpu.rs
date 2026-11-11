@@ -455,7 +455,7 @@ pub struct CPU {
     pub z80cpu: Cpu,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 #[allow(non_camel_case_types)]
 pub enum AddressingMode {
     Immediate,
@@ -473,7 +473,7 @@ pub enum AddressingMode {
     NoneAddressing,
 }
 
-mod interrupt {
+pub(crate) mod interrupt {
     #[derive(PartialEq, Eq)]
     #[allow(clippy::upper_case_acronyms)]
     pub enum InterruptType {
@@ -484,35 +484,35 @@ mod interrupt {
     }
 
     #[derive(PartialEq, Eq)]
-    pub(super) struct Interrupt {
+    pub(crate) struct Interrupt {
         pub(super) itype: InterruptType,
         pub(super) vector_addr: u16,
         pub(super) b_flag_mask: u8,
         pub(super) cpu_cycles: u8,
     }
 
-    pub(super) const NMI: Interrupt = Interrupt {
+    pub(crate) const NMI: Interrupt = Interrupt {
         itype: InterruptType::NMI,
         vector_addr: 0xfffa,
         b_flag_mask: 0b00100000,
         cpu_cycles: 2,
     };
 
-    pub(super) const RESET: Interrupt = Interrupt {
+    pub(crate) const RESET: Interrupt = Interrupt {
         itype: InterruptType::RESET,
         vector_addr: 0xfffc,
         b_flag_mask: 0b00000000,
         cpu_cycles: 2,
     };
 
-    pub(super) const IRQ: Interrupt = Interrupt {
+    pub(crate) const IRQ: Interrupt = Interrupt {
         itype: InterruptType::IRQ,
         vector_addr: 0xfffe,
         b_flag_mask: 0b00100000,
         cpu_cycles: 2,
     };
 
-    pub(super) const BRK: Interrupt = Interrupt {
+    pub(crate) const BRK: Interrupt = Interrupt {
         itype: InterruptType::BRK,
         vector_addr: 0xfffe,
         b_flag_mask: 0b00110000,
@@ -578,7 +578,7 @@ impl CPU {
         addr1 & 0xFF00 != addr2 & 0xFF00
     }
 
-    fn increment_pc(&mut self) {
+    pub(crate) fn increment_pc(&mut self) {
         self.program_counter = self.program_counter.wrapping_add(1);
     }
 
@@ -586,51 +586,51 @@ impl CPU {
         self.program_counter = self.program_counter.wrapping_add(count as u16);
     }
 
-    fn next_byte(&mut self) -> u8 {
+    pub(crate) fn next_byte(&mut self) -> u8 {
         let value = self.addr_read(self.program_counter);
         self.increment_pc();
         value
     }
 
-    fn next_word(&mut self) -> u16 {
+    pub(crate) fn next_word(&mut self) -> u16 {
         let value = self.addr_read_u16(self.program_counter);
         self.program_counter = self.program_counter.wrapping_add(2);
         value
     }
 
-    fn addr_read(&mut self, addr: u16) -> u8 {
+    pub(crate) fn addr_read(&mut self, addr: u16) -> u8 {
         let value = self.bus.unclocked_addr_read(addr);
         self.tick();
         value
     }
 
-    fn addr_read_u16(&mut self, addr: u16) -> u16 {
+    pub(crate) fn addr_read_u16(&mut self, addr: u16) -> u16 {
         let value = self.bus.unclocked_addr_read_u16(addr);
         self.tick();
         self.tick();
         value
     }
 
-    fn addr_write(&mut self, addr: u16, value: u8) {
+    pub(crate) fn addr_write(&mut self, addr: u16, value: u8) {
         self.bus.unclocked_addr_write(addr, value);
         self.tick();
     }
 
-    pub fn get_zeropage_addr(&mut self) -> u16 {
+    pub(crate) fn get_zeropage_addr(&mut self) -> u16 {
         self.next_byte() as u16
     }
 
-    pub fn get_absolute_addr(&mut self) -> u16 {
+    pub(crate) fn get_absolute_addr(&mut self) -> u16 {
         self.next_word()
     }
 
-    pub fn get_zeropage_x_addr(&mut self) -> u16 {
+    pub(crate) fn get_zeropage_x_addr(&mut self) -> u16 {
         let pos = self.next_byte();
         self.tick();
         pos.wrapping_add(self.register_x) as u16
     }
 
-    pub fn get_zeropage_y_addr(&mut self) -> u16 {
+    pub(crate) fn get_zeropage_y_addr(&mut self) -> u16 {
         let pos = self.next_byte();
         self.tick();
         pos.wrapping_add(self.register_y) as u16
@@ -640,7 +640,7 @@ impl CPU {
         self.next_byte() as u16
     }
 
-    pub fn get_absolute_x_addr(&mut self, op: &OpCode) -> u16 {
+    pub(crate) fn get_absolute_x_addr(&mut self, op: &OpCode) -> u16 {
         let base = self.next_word();
         let addr = base.wrapping_add(self.register_x as u16);
         let page_crossed = self.page_cross(base, addr);
@@ -660,7 +660,7 @@ impl CPU {
         addr
     }
 
-    pub fn get_absolute_y_addr(&mut self, op: &OpCode) -> u16 {
+    pub(crate) fn get_absolute_y_addr(&mut self, op: &OpCode) -> u16 {
         let base = self.next_word();
         let addr = base.wrapping_add(self.register_y as u16);
         let page_crossed = self.page_cross(base, addr);
@@ -671,14 +671,14 @@ impl CPU {
         addr
     }
 
-    pub fn get_indirect_zeropage_addr(&mut self) -> u16 {
+    pub(crate) fn get_indirect_zeropage_addr(&mut self) -> u16 {
         let ptr = self.next_byte();
         let lo = self.addr_read(ptr as u16);
         let hi = self.addr_read((ptr.wrapping_add(1)) as u16);
         (hi as u16) * 256 + lo as u16
     }
 
-    pub fn get_indirect_x_addr(&mut self) -> u16 {
+    pub(crate) fn get_indirect_x_addr(&mut self) -> u16 {
         let base = self.next_byte();
         let ptr = base.wrapping_add(self.register_x);
         self.tick();
@@ -687,7 +687,7 @@ impl CPU {
         hi as u16 * 256 + lo as u16
     }
 
-    pub fn get_indirect_y_addr(&mut self, op: &OpCode) -> u16 {
+    pub(crate) fn get_indirect_y_addr(&mut self, op: &OpCode) -> u16 {
         let base = self.next_byte();
         let lo = self.addr_read(base as u16);
         let hi = self.addr_read((base.wrapping_add(1)) as u16);
@@ -707,7 +707,7 @@ impl CPU {
         self.addr_read_u16(ptr)
     }
 
-    pub fn get_immediate_addr(&mut self) -> u16 {
+    pub(crate) fn get_immediate_addr(&mut self) -> u16 {
         let original_pc = self.program_counter;
         self.increment_pc();
         original_pc
@@ -779,7 +779,7 @@ impl CPU {
     }
 
     /*
-    pub fn get_operand_address(&mut self, op: &OpCode, addr: u16) -> u16 {
+    pub(crate) fn get_operand_address(&mut self, op: &OpCode, addr: u16) -> u16 {
         let addr = self.get_oper_address(op,addr);
         if addr == 0x3000 && !self.bus._80storeon {
             let mut output = String::new();
@@ -790,7 +790,7 @@ impl CPU {
     }
     */
 
-    pub fn get_operand_address(&mut self, op: &OpCode, addr: u16) -> u16 {
+    pub(crate) fn get_operand_address(&mut self, op: &OpCode, addr: u16) -> u16 {
         match op.mode {
             AddressingMode::ZeroPage => self.get_zeropage_addr(),
             AddressingMode::Absolute => self.get_absolute_addr(),
@@ -838,7 +838,7 @@ impl CPU {
         }
     }
 
-    fn tick(&mut self) {
+    pub(crate) fn tick(&mut self) {
         self.bus.tick();
         self.irq_penultimate_tick = (self.irq_penultimate_tick << 1)
             | (!self.status.contains(CpuFlags::INTERRUPT_DISABLE) && self.bus.irq().is_some())
@@ -864,43 +864,43 @@ impl CPU {
     // E0  2 2    1 1    . .    1 1 c  1 1    . .    1 1 d
     // F0  . .    1 1    2 4    1 1 c  1 1    3 4    1 1 d
 
-    fn nop_read(&mut self, op: &OpCode) {
+    pub(crate) fn nop_read(&mut self, op: &OpCode) {
         let addr = self.get_operand_address(op, self.program_counter);
         self.addr_read(addr);
     }
 
-    fn ldy(&mut self, addr: u16) {
+    pub(crate) fn ldy(&mut self, addr: u16) {
         let data = self.addr_read(addr);
         self.set_register_y(data);
     }
 
-    fn ldx(&mut self, addr: u16) {
+    pub(crate) fn ldx(&mut self, addr: u16) {
         let data = self.addr_read(addr);
         self.set_register_x(data);
     }
 
-    fn lda(&mut self, addr: u16) {
+    pub(crate) fn lda(&mut self, addr: u16) {
         let data = self.addr_read(addr);
         self.set_register_a(data);
     }
 
-    fn sta(&mut self, addr: u16) {
+    pub(crate) fn sta(&mut self, addr: u16) {
         self.addr_write(addr, self.register_a);
     }
 
-    fn stx(&mut self, addr: u16) {
+    pub(crate) fn stx(&mut self, addr: u16) {
         self.addr_write(addr, self.register_x);
     }
 
-    fn sty(&mut self, addr: u16) {
+    pub(crate) fn sty(&mut self, addr: u16) {
         self.addr_write(addr, self.register_y);
     }
 
-    fn stz(&mut self, addr: u16) {
+    pub(crate) fn stz(&mut self, addr: u16) {
         self.addr_write(addr, 0);
     }
 
-    fn set_register_a(&mut self, value: u8) {
+    pub(crate) fn set_register_a(&mut self, value: u8) {
         self.register_a = value;
         self.update_zero_and_negative_flags(self.register_a);
     }
@@ -915,45 +915,45 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_y);
     }
 
-    fn and(&mut self, addr: u16) {
+    pub(crate) fn and(&mut self, addr: u16) {
         let data = self.addr_read(addr);
         self.set_register_a(data & self.register_a);
     }
 
-    fn eor(&mut self, addr: u16) {
+    pub(crate) fn eor(&mut self, addr: u16) {
         let data = self.addr_read(addr);
         self.set_register_a(data ^ self.register_a);
     }
 
-    fn ora(&mut self, addr: u16) {
+    pub(crate) fn ora(&mut self, addr: u16) {
         let data = self.addr_read(addr);
         self.set_register_a(data | self.register_a);
     }
 
-    fn tax(&mut self) {
+    pub(crate) fn tax(&mut self) {
         self.register_x = self.register_a;
         let _ = self.addr_read(self.program_counter);
         self.update_zero_and_negative_flags(self.register_x);
     }
 
-    fn update_zero_and_negative_flags(&mut self, result: u8) {
+    pub(crate) fn update_zero_and_negative_flags(&mut self, result: u8) {
         let zn_update = ((result == 0) as u8) << 1 | (result & 0x80);
         self.status = CpuFlags::from_bits_truncate((self.status.bits() & !0x82) | zn_update);
     }
 
-    fn inc_accumulator(&mut self) {
+    pub(crate) fn inc_accumulator(&mut self) {
         self.register_a = self.register_a.wrapping_add(1);
         let _ = self.addr_read(self.program_counter);
         self.update_zero_and_negative_flags(self.register_a);
     }
 
-    fn inx(&mut self) {
+    pub(crate) fn inx(&mut self) {
         self.register_x = self.register_x.wrapping_add(1);
         let _ = self.addr_read(self.program_counter);
         self.update_zero_and_negative_flags(self.register_x);
     }
 
-    fn iny(&mut self) {
+    pub(crate) fn iny(&mut self) {
         self.register_y = self.register_y.wrapping_add(1);
         let _ = self.addr_read(self.program_counter);
         self.update_zero_and_negative_flags(self.register_y);
@@ -1022,16 +1022,16 @@ impl CPU {
         self.halt_cpu = true;
     }
 
-    fn set_carry_flag(&mut self) {
+    pub(crate) fn set_carry_flag(&mut self) {
         self.status.insert(CpuFlags::CARRY)
     }
 
-    fn clear_carry_flag(&mut self) {
+    pub(crate) fn clear_carry_flag(&mut self) {
         self.status.remove(CpuFlags::CARRY)
     }
 
     /// http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html
-    fn add_to_register_a(&mut self, data: u8, sub: bool) {
+    pub(crate) fn add_to_register_a(&mut self, data: u8, sub: bool) {
         let result: u8;
         let input = self.register_a;
 
@@ -1105,7 +1105,7 @@ impl CPU {
         }
     }
 
-    fn sbc(&mut self, op: &OpCode) {
+    pub(crate) fn sbc(&mut self, op: &OpCode) {
         let addr = self.get_operand_address(op, self.program_counter);
         let data = self.bus.unclocked_addr_read(addr);
         self.add_to_register_a(data.wrapping_neg().wrapping_sub(1), true);
@@ -1116,7 +1116,7 @@ impl CPU {
         self.tick();
     }
 
-    fn adc(&mut self, op: &OpCode) {
+    pub(crate) fn adc(&mut self, op: &OpCode) {
         let addr = self.get_operand_address(op, self.program_counter);
         let data = self.bus.unclocked_addr_read(addr);
         self.add_to_register_a(data, false);
@@ -1127,30 +1127,35 @@ impl CPU {
         self.tick();
     }
 
-    fn stack_pop(&mut self) -> u8 {
+    /// direct write-through to the status byte (used by RTI's PLP-like reload)
+    pub(crate) fn set_status_bits(&mut self, bits: u8) {
+        *self.status.0.bits_mut() = bits;
+    }
+
+    pub(crate) fn stack_pop(&mut self) -> u8 {
         self.stack_pointer = self.stack_pointer.wrapping_add(1);
         self.addr_read(STACK + self.stack_pointer as u16)
     }
 
-    fn stack_push(&mut self, data: u8) {
+    pub(crate) fn stack_push(&mut self, data: u8) {
         self.addr_write(STACK + self.stack_pointer as u16, data);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1)
     }
 
-    fn stack_push_u16(&mut self, data: u16) {
+    pub(crate) fn stack_push_u16(&mut self, data: u16) {
         let hi = (data >> 8) as u8;
         let lo = (data & 0xff) as u8;
         self.stack_push(hi);
         self.stack_push(lo);
     }
 
-    fn stack_pop_u16(&mut self) -> u16 {
+    pub(crate) fn stack_pop_u16(&mut self) -> u16 {
         let lo = self.stack_pop();
         let hi = self.stack_pop();
         u16::from_le_bytes([lo, hi])
     }
 
-    fn asl_accumulator(&mut self) {
+    pub(crate) fn asl_accumulator(&mut self) {
         let mut data = self.register_a;
         self.status.set(CpuFlags::CARRY, data & 0x80 > 0);
         let _ = self.addr_read(self.program_counter);
@@ -1158,7 +1163,7 @@ impl CPU {
         self.set_register_a(data)
     }
 
-    fn asl(&mut self, addr: u16) {
+    pub(crate) fn asl(&mut self, addr: u16) {
         let mut data = self.addr_read(addr);
         self.status.set(CpuFlags::CARRY, data & 0x80 > 0);
         self.tick();
@@ -1167,7 +1172,7 @@ impl CPU {
         self.update_zero_and_negative_flags(data);
     }
 
-    fn lsr_accumulator(&mut self) {
+    pub(crate) fn lsr_accumulator(&mut self) {
         let mut data = self.register_a;
         self.status.set(CpuFlags::CARRY, data & 1 == 1);
         let _ = self.addr_read(self.program_counter);
@@ -1175,7 +1180,7 @@ impl CPU {
         self.set_register_a(data)
     }
 
-    fn lsr(&mut self, addr: u16) {
+    pub(crate) fn lsr(&mut self, addr: u16) {
         let mut data = self.addr_read(addr);
         self.status.set(CpuFlags::CARRY, data & 1 == 1);
         data >>= 1;
@@ -1184,7 +1189,7 @@ impl CPU {
         self.update_zero_and_negative_flags(data);
     }
 
-    fn rol(&mut self, addr: u16) {
+    pub(crate) fn rol(&mut self, addr: u16) {
         let mut data = self.addr_read(addr);
         let old_carry = self.status.contains(CpuFlags::CARRY) as u8;
         self.status.set(CpuFlags::CARRY, data & 0x80 > 0);
@@ -1195,7 +1200,7 @@ impl CPU {
         self.update_zero_and_negative_flags(data);
     }
 
-    fn rol_accumulator(&mut self) {
+    pub(crate) fn rol_accumulator(&mut self) {
         let mut data = self.register_a;
         let old_carry = self.status.contains(CpuFlags::CARRY) as u8;
         self.status.set(CpuFlags::CARRY, data & 0x80 > 0);
@@ -1205,7 +1210,7 @@ impl CPU {
         self.set_register_a(data);
     }
 
-    fn ror(&mut self, addr: u16) {
+    pub(crate) fn ror(&mut self, addr: u16) {
         let mut data = self.addr_read(addr);
         let old_carry = self.status.contains(CpuFlags::CARRY) as u8;
         self.status.set(CpuFlags::CARRY, data & 1 == 1);
@@ -1216,7 +1221,7 @@ impl CPU {
         self.update_zero_and_negative_flags(data);
     }
 
-    fn ror_accumulator(&mut self) {
+    pub(crate) fn ror_accumulator(&mut self) {
         let mut data = self.register_a;
         let old_carry = self.status.contains(CpuFlags::CARRY) as u8;
         self.status.set(CpuFlags::CARRY, data & 1 == 1);
@@ -1226,7 +1231,7 @@ impl CPU {
         self.set_register_a(data);
     }
 
-    fn inc(&mut self, addr: u16) {
+    pub(crate) fn inc(&mut self, addr: u16) {
         let mut data = self.addr_read(addr);
         data = data.wrapping_add(1);
         self.tick();
@@ -1234,25 +1239,25 @@ impl CPU {
         self.update_zero_and_negative_flags(data);
     }
 
-    fn dey(&mut self) {
+    pub(crate) fn dey(&mut self) {
         self.register_y = self.register_y.wrapping_sub(1);
         let _ = self.addr_read(self.program_counter);
         self.update_zero_and_negative_flags(self.register_y);
     }
 
-    fn dex(&mut self) {
+    pub(crate) fn dex(&mut self) {
         self.register_x = self.register_x.wrapping_sub(1);
         let _ = self.addr_read(self.program_counter);
         self.update_zero_and_negative_flags(self.register_x);
     }
 
-    fn dec_accumulator(&mut self) {
+    pub(crate) fn dec_accumulator(&mut self) {
         self.register_a = self.register_a.wrapping_sub(1);
         let _ = self.addr_read(self.program_counter);
         self.update_zero_and_negative_flags(self.register_a);
     }
 
-    fn dec(&mut self, addr: u16) {
+    pub(crate) fn dec(&mut self, addr: u16) {
         let mut data = self.addr_read(addr);
         data = data.wrapping_sub(1);
         self.tick();
@@ -1260,7 +1265,7 @@ impl CPU {
         self.update_zero_and_negative_flags(data);
     }
 
-    fn plx(&mut self) {
+    pub(crate) fn plx(&mut self) {
         if self.m65c02 {
             self.tick();
             self.tick();
@@ -1271,7 +1276,7 @@ impl CPU {
         }
     }
 
-    fn ply(&mut self) {
+    pub(crate) fn ply(&mut self) {
         if self.m65c02 {
             self.tick();
             self.tick();
@@ -1282,14 +1287,14 @@ impl CPU {
         }
     }
 
-    fn pla(&mut self) {
+    pub(crate) fn pla(&mut self) {
         self.tick();
         self.tick();
         let data = self.stack_pop();
         self.set_register_a(data);
     }
 
-    fn plp(&mut self) {
+    pub(crate) fn plp(&mut self) {
         self.tick();
         self.tick();
         *self.status.0.bits_mut() = self.stack_pop();
@@ -1297,21 +1302,21 @@ impl CPU {
         self.status.insert(CpuFlags::UNUSED);
     }
 
-    fn php(&mut self) {
+    pub(crate) fn php(&mut self) {
         self.tick();
         let mut flags = self.status;
         flags.insert(CpuFlags::BREAK | CpuFlags::UNUSED);
         self.stack_push(flags.bits());
     }
 
-    fn bit_immediate(&mut self) {
+    pub(crate) fn bit_immediate(&mut self) {
         let data = self.addr_read(self.program_counter);
         self.increment_pc();
         let and = self.register_a & data;
         self.status.set(CpuFlags::ZERO, and == 0);
     }
 
-    fn bit(&mut self, addr: u16) {
+    pub(crate) fn bit(&mut self, addr: u16) {
         let data = self.addr_read(addr);
         let and = self.register_a & data;
         self.status.set(CpuFlags::ZERO, and == 0);
@@ -1319,7 +1324,7 @@ impl CPU {
         self.status.set(CpuFlags::OVERFLOW, data & 0b01000000 > 0);
     }
 
-    fn trb(&mut self, op: &OpCode) {
+    pub(crate) fn trb(&mut self, op: &OpCode) {
         let addr = self.get_operand_address(op, self.program_counter);
         let data = self.addr_read(addr);
         let and = self.register_a & data;
@@ -1328,7 +1333,7 @@ impl CPU {
         self.addr_write(addr, data & (self.register_a ^ 0xff));
     }
 
-    fn tsb(&mut self, op: &OpCode) {
+    pub(crate) fn tsb(&mut self, op: &OpCode) {
         let addr = self.get_operand_address(op, self.program_counter);
         let data = self.addr_read(addr);
         let and = self.register_a & data;
@@ -1337,13 +1342,13 @@ impl CPU {
         self.addr_write(addr, data | self.register_a);
     }
 
-    fn compare(&mut self, addr: u16, compare_with: u8) {
+    pub(crate) fn compare(&mut self, addr: u16, compare_with: u8) {
         let data = self.addr_read(addr);
         self.status.set(CpuFlags::CARRY, data <= compare_with);
         self.update_zero_and_negative_flags(compare_with.wrapping_sub(data));
     }
 
-    fn branch(&mut self, condition: bool) {
+    pub(crate) fn branch(&mut self, condition: bool) {
         let addr = self.get_immediate_addr();
 
         if condition {
@@ -1362,7 +1367,7 @@ impl CPU {
         }
     }
 
-    fn rmb(&mut self, bit: u8) {
+    pub(crate) fn rmb(&mut self, bit: u8) {
         if self.m65c02 && !self.m65c02_rockwell_disable {
             let zp = self.next_byte();
             let value = self.addr_read(zp as u16);
@@ -1426,7 +1431,7 @@ impl CPU {
         }
     }
 
-    fn smb(&mut self, bit: u8) {
+    pub(crate) fn smb(&mut self, bit: u8) {
         if self.m65c02 && !self.m65c02_rockwell_disable {
             let zp = self.next_byte();
             let value = self.addr_read(zp as u16);
@@ -1484,7 +1489,7 @@ impl CPU {
         }
     }
 
-    fn bbr(&mut self, opcode: &OpCode, bit: u8) {
+    pub(crate) fn bbr(&mut self, opcode: &OpCode, bit: u8) {
         if self.m65c02 && !self.m65c02_rockwell_disable {
             let zp = self.next_byte();
             let value = self.addr_read(zp as u16);
@@ -1546,7 +1551,7 @@ impl CPU {
         }
     }
 
-    fn bbs(&mut self, opcode: &OpCode, bit: u8) {
+    pub(crate) fn bbs(&mut self, opcode: &OpCode, bit: u8) {
         if self.m65c02 && !self.m65c02_rockwell_disable {
             let zp = self.next_byte();
             let value = self.addr_read(zp as u16);
@@ -1615,7 +1620,7 @@ impl CPU {
         }
     }
 
-    fn dcp(&mut self, addr: u16) {
+    pub(crate) fn dcp(&mut self, addr: u16) {
         let mut data = self.addr_read(addr);
         data = data.wrapping_sub(1);
         self.addr_write(addr, data);
@@ -1626,7 +1631,7 @@ impl CPU {
         self.tick();
     }
 
-    fn isc(&mut self, addr: u16) {
+    pub(crate) fn isc(&mut self, addr: u16) {
         let mut data = self.addr_read(addr);
         data = data.wrapping_add(1);
         self.addr_write(addr, data);
@@ -1634,17 +1639,17 @@ impl CPU {
         self.tick();
     }
 
-    fn lax(&mut self, addr: u16) {
+    pub(crate) fn lax(&mut self, addr: u16) {
         self.lda(addr);
         self.register_x = self.register_a;
     }
 
-    fn sax(&mut self, addr: u16) {
+    pub(crate) fn sax(&mut self, addr: u16) {
         let result = self.register_a & self.register_x;
         self.addr_write(addr, result);
     }
 
-    fn rla(&mut self, addr: u16) {
+    pub(crate) fn rla(&mut self, addr: u16) {
         let mut data = self.addr_read(addr);
         let old_carry = self.status.contains(CpuFlags::CARRY) as u8;
         self.status.set(CpuFlags::CARRY, data & 0x80 > 0);
@@ -1656,7 +1661,7 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_a);
     }
 
-    fn rra(&mut self, addr: u16) {
+    pub(crate) fn rra(&mut self, addr: u16) {
         let mut data = self.addr_read(addr);
         let old_carry = self.status.contains(CpuFlags::CARRY) as u8;
         self.status.set(CpuFlags::CARRY, data & 1 == 1);
@@ -1669,7 +1674,7 @@ impl CPU {
         self.tick();
     }
 
-    fn slo(&mut self, addr: u16) {
+    pub(crate) fn slo(&mut self, addr: u16) {
         let mut data = self.addr_read(addr);
         self.status.set(CpuFlags::CARRY, data & 0x80 > 0);
         self.tick();
@@ -1679,7 +1684,7 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_a);
     }
 
-    fn sre(&mut self, addr: u16) {
+    pub(crate) fn sre(&mut self, addr: u16) {
         let mut data = self.addr_read(addr);
         self.status.set(CpuFlags::CARRY, data & 1 == 1);
         self.tick();
@@ -1689,23 +1694,23 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_a);
     }
 
-    fn sha(&mut self, addr: u16) {
+    pub(crate) fn sha(&mut self, addr: u16) {
         let result = self.register_a & self.register_x;
         let high_addr = (((addr & 0xff00) >> 8) as u8).wrapping_add(1);
         self.addr_write(addr, result & high_addr);
     }
 
-    fn shx(&mut self, addr: u16) {
+    pub(crate) fn shx(&mut self, addr: u16) {
         let high_addr = (((addr & 0xff00) >> 8) as u8).wrapping_add(1);
         self.addr_write(addr, self.register_x & high_addr);
     }
 
-    fn shy(&mut self, addr: u16) {
+    pub(crate) fn shy(&mut self, addr: u16) {
         let high_addr = (((addr & 0xff00) >> 8) as u8).wrapping_add(1);
         self.addr_write(addr, self.register_y & high_addr);
     }
 
-    fn sbx(&mut self) {
+    pub(crate) fn sbx(&mut self) {
         let addr = self.get_immediate_addr();
         let data = self.addr_read(addr);
         let result = ((self.register_a & self.register_x) as u16).wrapping_sub(data as u16);
@@ -1717,7 +1722,7 @@ impl CPU {
         self.register_x = (result & 0xff) as u8;
     }
 
-    fn arr(&mut self) {
+    pub(crate) fn arr(&mut self) {
         let addr = self.get_immediate_addr();
         let data = self.addr_read(addr);
         self.register_a &= data;
@@ -1769,7 +1774,7 @@ impl CPU {
         }
     }
 
-    fn interrupt(&mut self, interrupt: interrupt::Interrupt) {
+    pub(crate) fn interrupt(&mut self, interrupt: interrupt::Interrupt) {
         for _ in 0..interrupt.cpu_cycles {
             self.tick();
         }
@@ -3635,12 +3640,12 @@ impl CpuStats {
         op.code == 0x91
     }
 
-    fn next_byte(&self, cpu: &CPU) -> u8 {
+    pub(crate) fn next_byte(&self, cpu: &CPU) -> u8 {
         let pc = cpu.program_counter.wrapping_add(1);
         cpu.bus.mem_read(pc)
     }
 
-    fn next_word(&self, cpu: &CPU) -> u16 {
+    pub(crate) fn next_word(&self, cpu: &CPU) -> u16 {
         let pc = cpu.program_counter.wrapping_add(1);
         let lo = cpu.bus.mem_read(pc);
         let hi = cpu.bus.mem_read(pc.wrapping_add(1));

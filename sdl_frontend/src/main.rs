@@ -2869,7 +2869,37 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
                         // the emulator is on its way to the park point wins.
                         resume_epoch = epoch;
                     }
-                    let Some(cycles) = cpu.step() else {
+                    // MCP: a breakpoint, a run-until target or a pending step
+                    // budget needs an exact instruction granularity.
+                    // `cpu.step()` could step a whole assembly block, so the
+                    // program counter would only be observed at block
+                    // boundaries (a breakpoint inside a block would be stepped
+                    // over) and a step of N would run N *blocks*, not N
+                    // instructions.  Step one instruction at a time while such
+                    // a target is armed.
+                    #[cfg(feature = "mcp")]
+                    let precise_step = shared.mcp.has_breakpoints.load(Ordering::Relaxed)
+                        || shared.mcp.run_until_pc.load(Ordering::Relaxed) != MCP_NO_PC
+                        || shared.mcp.step_budget.load(Ordering::Relaxed) != MCP_NO_BUDGET;
+
+                    #[cfg(feature = "mcp")]
+                    let prev_cycles = cpu.bus.get_cycles();
+
+                    #[cfg(feature = "mcp")]
+                    let stepped = if precise_step {
+                        if cpu.step_with_callback(|_| {}) {
+                            Some(cpu.bus.get_cycles() - prev_cycles)
+                        } else {
+                            None
+                        }
+                    } else {
+                        cpu.step()
+                    };
+
+                    #[cfg(not(feature = "mcp"))]
+                    let stepped = cpu.step();
+
+                    let Some(cycles) = stepped else {
                         halted = true;
                         break;
                     };
