@@ -78,11 +78,11 @@ use std::path::Path;
 use std::sync::Arc;
 #[cfg(feature = "mcp")]
 use std::sync::Condvar;
-use std::sync::{Mutex, MutexGuard};
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(feature = "mcp")]
-use std::sync::atomic::{AtomicU32, AtomicUsize};
+use std::sync::atomic::{AtomicU32, AtomicU64, AtomicUsize};
+use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 use std::time::Instant;
 use strum::IntoEnumIterator;
@@ -397,7 +397,17 @@ const MCP_NO_PC: u32 = u32::MAX;
 
 #[cfg(feature = "mcp")]
 struct McpControl {
+    /// The pause state of the emulator thread.
+    ///
+    /// The mutex guards the condvar, the atomic is the lock-free view the
+    /// emulator thread polls between steps: a `pause` request has to take
+    /// effect while the machine is running, and the frame boundary is up to
+    /// 17k cycles away.
     paused: Mutex<bool>,
+    pause_requested: AtomicBool,
+    /// Bumped by every `resume`, so the emulator thread can tell that a
+    /// resume raced with its decision to park.
+    resume_epoch: AtomicU64,
     resume_cv: Condvar,
     step_budget: AtomicUsize,
     run_until_pc: AtomicU32,
@@ -410,6 +420,8 @@ impl McpControl {
     fn new() -> Self {
         Self {
             paused: Mutex::new(false),
+            pause_requested: AtomicBool::new(false),
+            resume_epoch: AtomicU64::new(0),
             resume_cv: Condvar::new(),
             step_budget: AtomicUsize::new(MCP_NO_BUDGET),
             run_until_pc: AtomicU32::new(MCP_NO_PC),
@@ -419,12 +431,15 @@ impl McpControl {
     }
 
     fn pause(&self) {
+        self.pause_requested.store(true, Ordering::Release);
         *self.paused.lock_unpoisoned() = true;
     }
 
     fn resume(&self) {
         self.step_budget.store(MCP_NO_BUDGET, Ordering::Release);
         self.run_until_pc.store(MCP_NO_PC, Ordering::Release);
+        self.pause_requested.store(false, Ordering::Release);
+        self.resume_epoch.fetch_add(1, Ordering::AcqRel);
         *self.paused.lock_unpoisoned() = false;
         self.resume_cv.notify_all();
     }
@@ -433,10 +448,23 @@ impl McpControl {
         *self.paused.lock_unpoisoned()
     }
 
+    /// True while a `pause` request is waiting to be picked up by the
+    /// emulator thread.
+    fn pause_requested(&self) -> bool {
+        self.pause_requested.load(Ordering::Acquire)
+    }
+
+    /// The current resume epoch, see `resume_epoch`.
+    fn epoch(&self) -> u64 {
+        self.resume_epoch.load(Ordering::Acquire)
+    }
+
     fn step(&self, instructions: usize) {
         self.run_until_pc.store(MCP_NO_PC, Ordering::Release);
         self.step_budget
             .store(instructions.max(1), Ordering::Release);
+        self.pause_requested.store(false, Ordering::Release);
+        self.resume_epoch.fetch_add(1, Ordering::AcqRel);
         *self.paused.lock_unpoisoned() = false;
         self.resume_cv.notify_all();
     }
@@ -444,6 +472,8 @@ impl McpControl {
     fn run_until(&self, pc: u16) {
         self.step_budget.store(MCP_NO_BUDGET, Ordering::Release);
         self.run_until_pc.store(pc as u32, Ordering::Release);
+        self.pause_requested.store(false, Ordering::Release);
+        self.resume_epoch.fetch_add(1, Ordering::AcqRel);
         *self.paused.lock_unpoisoned() = false;
         self.resume_cv.notify_all();
     }
@@ -671,6 +701,11 @@ fn emulator_thread(
         let mut pause_now = false;
         #[cfg(feature = "mcp")]
         let mut executed: usize = 0;
+        // MCP: the resume epoch the current frame started with. A `resume`
+        // that arrives while the emulator is on its way to a park point
+        // invalidates the park.
+        #[cfg(feature = "mcp")]
+        let mut resume_epoch = shared.mcp.epoch();
 
         // Step one frame worth of CPU cycles
         let (mut reload, mut model_changed) = (false, false);
@@ -689,6 +724,14 @@ fn emulator_thread(
                 while *dcyc < video.cpu_cycles {
                     #[cfg(feature = "mcp")]
                     {
+                        // A `pause` request has to take effect while the
+                        // machine is running: the frame boundary is up to
+                        // 17k cycles away, so the request is picked up here.
+                        let epoch = shared.mcp.epoch();
+                        if shared.mcp.pause_requested() {
+                            pause_now = true;
+                            break;
+                        }
                         let budget = shared.mcp.step_budget.load(Ordering::Relaxed);
                         if budget != MCP_NO_BUDGET && executed >= budget {
                             shared
@@ -698,6 +741,9 @@ fn emulator_thread(
                             pause_now = true;
                             break;
                         }
+                        // Remember the epoch: a `resume` that arrives while
+                        // the emulator is on its way to the park point wins.
+                        resume_epoch = epoch;
                     }
 
                     let prev_cycle = cpu.bus.get_cycles();
@@ -757,9 +803,14 @@ fn emulator_thread(
         // the next resume continues where this stopped.
         #[cfg(feature = "mcp")]
         if pause_now {
-            shared.mcp.park();
-            t = Instant::now();
-            continue;
+            // A `resume` that raced with the decision to park wins: the
+            // emulator keeps running instead of parking with the resume
+            // already spent.
+            if shared.mcp.epoch() == resume_epoch {
+                shared.mcp.park();
+                t = Instant::now();
+                continue;
+            }
         }
 
         if reload {
@@ -1017,6 +1068,7 @@ FLAGS:
     --exact_write      Enable exact track writing (No write to neighbor tracks)
     --noslot_clock off Disable noslot clock
     --disable_jitter   Disable disk jitter
+    --seed <n>         Seed cold-RAM/disk randomness (reproducible runs
 
 ARGS:
     [disk 1]           Disk 1 file (woz, dsk, do, po file). Can be in gz format
@@ -3783,6 +3835,11 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     // enters it here: it only serves the MCP client (if any) and shuts the
     // emulator down once the client is gone.
     let headless = pargs.contains("--headless");
+
+    // Deterministic cold-RAM/disk randomness for reproducible runs.
+    if let Some(seed) = pargs.opt_value_from_str::<_, u64>("--seed")? {
+        Bus::seed_rand(seed);
+    }
 
     // Create bus
     let bus = Bus::default();

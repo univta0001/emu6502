@@ -125,6 +125,11 @@ pub fn list() -> Value {
             })
         ),
         tool(
+            "disk_state",
+            "Show the internal disk state of the disk drive",
+            json!({ "type": "object", "properties": {} })
+        ),
+        tool(
             "harddisk_insert",
             "Mount a hard disk image (.hdv/.2mg/.po) in a drive.",
             json!({
@@ -437,7 +442,8 @@ pub fn call(shared: &EmuShared, name: &str, args: &Value) -> Result<Value, Strin
             let mut core = shared.core.lock_unpoisoned();
             eject_disk(&mut core.cpu, drive as usize);
             Ok(json!({ "ok": true, "drive": drive }))
-        }
+        },
+        "disk_state" => disk_state(shared),
         "harddisk_insert" => {
             let path = arg_str(args, "path")?;
             let drive = arg_int(args, "drive").unwrap_or(0);
@@ -671,6 +677,24 @@ fn disk_list(shared: &EmuShared) -> Result<Value, String> {
         "harddisk": harddisk,
         "selected_drive": cpu.bus.disk.drive_selected(),
         "track_info": { "track": track.0, "head": track.1, "sector": track.2 },
+    }))
+}
+
+fn disk_state(shared: &EmuShared) -> Result<Value, String> {
+    let core = shared.core.lock_unpoisoned();
+    let cpu = &core.cpu;
+    let disk_state = cpu.bus.disk.get_disk_state();
+    Ok(json!({
+        "cycles": disk_state.0,
+        "latch": disk_state.1,
+        "prev_latch": disk_state.2,
+        "phase": disk_state.3,
+        "q6": disk_state.4,
+        "q7": disk_state.5,
+        "drive_select": disk_state.6,
+        "track": disk_state.7,
+        "last_track": disk_state.8,
+        "disk_head": disk_state.9,
     }))
 }
 
