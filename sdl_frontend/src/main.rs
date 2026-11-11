@@ -46,7 +46,7 @@ use sdl3_main::{AppResult, AppResultWithState, MainThreadData, app_impl};
 
 use std::fs;
 
-use std::ops::DerefMut;
+use std::ops::{Deref, DerefMut};
 use std::sync::{Condvar, Mutex, MutexGuard};
 
 use std::fs::File;
@@ -71,6 +71,274 @@ impl<T: ?Sized> MutexExt<T> for Mutex<T> {
     #[inline]
     fn lock_unpoisoned(&self) -> MutexGuard<'_, T> {
         self.lock().unwrap_or_else(|e| e.into_inner())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// CPU lock hand-off
+//
+// The emulator thread holds `cpu` for a whole video frame and then re-acquires
+// it immediately. `std::sync::Mutex` is not fair (SRWLOCK on Windows, futex on
+// Linux), so the still-running emulator thread wins the re-acquisition race
+// before the OS can schedule a UI or MCP thread that is already queued on the
+// lock. In Fastest mode that starves keyboard/mouse input.
+//
+// The gate makes the hand-off explicit instead of leaving it to the scheduler:
+// a UI/MCP thread announces that it is waiting for the lock, and the emulator
+// thread does not take the lock while such a waiter exists - it spins briefly
+// for the waiter to get in, and parks if the waiter is still not scheduled.
+//
+// The gate counts threads that are *waiting*, not threads that hold the lock:
+// a thread stops being a waiter the moment it acquires `cpu`. The emulator
+// therefore only ever waits for a waiter to get in, never for it to finish its
+// work - once the lock changes hands, the emulator blocks on the mutex exactly
+// as it would without the gate. That keeps the hand-off cost at "one scheduler
+// wake" and makes it cheaper than the fixed sleep it replaces: with nobody
+// queued it is a single atomic load per frame, and UI acquisitions that would
+// have slipped between frames still cost the emulator nothing.
+//
+// `HANDOFF_SPIN` covers the normal case (the waiter is runnable and takes the
+// lock within microseconds, so no kernel wait happens). `HANDOFF_TIMEOUT`
+// bounds the parked fallback, so a thread that is somehow never scheduled
+// cannot stall emulation.
+// ---------------------------------------------------------------------------
+
+/// How long the emulator thread spins (yielding the CPU) for a waiting UI/MCP
+/// thread before parking on the condvar. Covers the scheduler wake-up of a
+/// waiter that was just unblocked by the release of `cpu`.
+const HANDOFF_SPIN: std::time::Duration = std::time::Duration::from_micros(25);
+
+/// Upper bound on how long the emulator thread parks for a waiter that the
+/// spin above did not see acquire the lock. Only bridges a slow scheduler
+/// wake-up; if the waiter is not being scheduled at all, waiting longer does
+/// not help it and only costs emulation. The waiter stays announced, so it is
+/// retried at the next frame boundary.
+const HANDOFF_TIMEOUT: std::time::Duration = std::time::Duration::from_micros(500);
+
+struct Handoff {
+    /// UI/MCP threads currently *waiting* for `cpu`: incremented before the
+    /// lock attempt and decremented as soon as the lock is acquired.
+    waiters: AtomicUsize,
+    /// Serialises the wait/notify pair. Never held by the emulator while it
+    /// holds `cpu`, and taken by a UI/MCP thread only while it holds `cpu`
+    /// (the `cpu -> handoff` order), so the emulator must park only after it
+    /// has released `cpu`.
+    gate: Mutex<()>,
+    cv: Condvar,
+}
+
+impl Handoff {
+    fn new() -> Self {
+        Self {
+            waiters: AtomicUsize::new(0),
+            gate: Mutex::new(()),
+            cv: Condvar::new(),
+        }
+    }
+
+    /// A UI/MCP thread took the lock: stop being a waiter and wake the
+    /// emulator if this was the last one.
+    fn acquired(&self) {
+        if self.waiters.fetch_sub(1, Ordering::AcqRel) == 1 {
+            // Holding `gate` across the notify is what closes the wait/notify
+            // race in `wait_for_waiters`.
+            let _gate = self.gate.lock_unpoisoned();
+            self.cv.notify_all();
+        }
+    }
+
+    /// Emulator thread: do not take `cpu` while a UI/MCP thread is waiting for
+    /// it. Returns once the waiting threads have acquired the lock (or after
+    /// `HANDOFF_TIMEOUT`, for a waiter that is not being scheduled). Must be
+    /// called with `cpu` released (see the struct comment).
+    fn wait_for_waiters(&self) {
+        // Common case (nobody waiting): a single atomic load.
+        if self.waiters.load(Ordering::Acquire) == 0 {
+            return;
+        }
+
+        // The waiter is normally runnable - the lock was just released - so it
+        // acquires within a few microseconds and no kernel wait is needed.
+        // `yield_now` hands the CPU over on a single-core machine instead of
+        // starving the waiter.
+        let spin_until = Instant::now() + HANDOFF_SPIN;
+        while self.waiters.load(Ordering::Acquire) > 0 {
+            if Instant::now() >= spin_until {
+                break;
+            }
+            std::thread::yield_now();
+        }
+        if self.waiters.load(Ordering::Acquire) == 0 {
+            return;
+        }
+
+        // Still waiting (not scheduled): park instead of spinning. Re-check
+        // the counter under `gate`: `acquired` notifies while holding it, so a
+        // waiter that is served between the load above and this point is still
+        // observed here and a wake-up cannot be missed.
+        let mut gate = self.gate.lock_unpoisoned();
+        let deadline = Instant::now() + HANDOFF_TIMEOUT;
+        while self.waiters.load(Ordering::Acquire) > 0 {
+            let now = Instant::now();
+            if now >= deadline {
+                break;
+            }
+            gate = self
+                .cv
+                .wait_timeout(gate, deadline - now)
+                .unwrap_or_else(|e| e.into_inner())
+                .0;
+        }
+    }
+}
+
+/// `CPU` behind a fair, hand-off aware lock. UI and MCP code keeps calling
+/// `lock_unpoisoned()` and gets the armed guard; the emulator thread must use
+/// `lock_emulator()` (it would otherwise wait for itself) and call
+/// `yield_to_waiters()` after releasing the lock each frame.
+struct CpuMutex {
+    cpu: Mutex<CPU>,
+    handoff: Handoff,
+}
+
+impl CpuMutex {
+    fn new(cpu: CPU) -> Self {
+        Self {
+            cpu: Mutex::new(cpu),
+            handoff: Handoff::new(),
+        }
+    }
+
+    /// UI / MCP path: announce the wait, then lock. The gate is released as
+    /// soon as the lock is acquired, so the emulator never waits for the
+    /// critical section itself.
+    fn lock_unpoisoned(&self) -> CpuGuard<'_> {
+        self.handoff.waiters.fetch_add(1, Ordering::AcqRel);
+        let cpu = self.cpu.lock_unpoisoned();
+        self.handoff.acquired();
+        CpuGuard { cpu }
+    }
+
+    /// Emulator path: no arming - the emulator is the thread the gate yields
+    /// *to*, so announcing itself would make it wait for itself.
+    fn lock_emulator(&self) -> MutexGuard<'_, CPU> {
+        self.cpu.lock_unpoisoned()
+    }
+
+    /// Emulator thread, called with `cpu` released: give waiting UI/MCP
+    /// threads a chance to take the lock before barging back onto it.
+    fn yield_to_waiters(&self) {
+        self.handoff.wait_for_waiters();
+    }
+}
+
+/// Guard returned by `CpuMutex::lock_unpoisoned`.
+struct CpuGuard<'a> {
+    cpu: MutexGuard<'a, CPU>,
+}
+
+impl Deref for CpuGuard<'_> {
+    type Target = CPU;
+
+    fn deref(&self) -> &CPU {
+        &self.cpu
+    }
+}
+
+impl DerefMut for CpuGuard<'_> {
+    fn deref_mut(&mut self) -> &mut CPU {
+        &mut self.cpu
+    }
+}
+
+#[cfg(test)]
+mod handoff_tests {
+    use super::*;
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    fn cpu_mutex() -> CpuMutex {
+        CpuMutex::new(CPU::new(Bus::new()))
+    }
+
+    // Nobody queued: the emulator thread must not park (the Fastest-mode
+    // path is one atomic load per frame).
+    #[test]
+    fn yield_without_waiters_does_not_block() {
+        let cpu = cpu_mutex();
+        let started = Instant::now();
+        cpu.yield_to_waiters();
+        assert!(started.elapsed() < Duration::from_millis(50));
+    }
+
+    // Acquiring the lock ends the wait: the emulator only waits for a waiter
+    // to get in, never for it to finish.
+    #[test]
+    fn acquiring_the_lock_clears_the_waiter_count() {
+        let cpu = cpu_mutex();
+        let guard = cpu.lock_unpoisoned();
+        assert_eq!(cpu.handoff.waiters.load(Ordering::Acquire), 0);
+
+        // A holder is not a waiter: the hand-off has nothing to wait for even
+        // though the lock is busy (the emulator then blocks on the mutex, as
+        // it would without the gate).
+        let started = Instant::now();
+        cpu.yield_to_waiters();
+        assert!(started.elapsed() < Duration::from_millis(50));
+        drop(guard);
+    }
+
+    // A UI thread blocked on the lock is served before the emulator resumes;
+    // the emulator does not wait for that thread to release the lock.
+    #[test]
+    fn emulator_yields_to_a_blocked_ui_thread() {
+        let cpu = Arc::new(cpu_mutex());
+        let first = cpu.lock_unpoisoned();
+
+        let (waiting_tx, waiting_rx) = mpsc::channel();
+        let (acquired_tx, acquired_rx) = mpsc::channel();
+        let ui_cpu = Arc::clone(&cpu);
+        let ui = thread::spawn(move || {
+            waiting_tx.send(()).unwrap();
+            let guard = ui_cpu.lock_unpoisoned();
+            acquired_tx.send(()).unwrap();
+            // Hold well past `HANDOFF_TIMEOUT`: the emulator must return as
+            // soon as the lock changes hands, not when this thread releases.
+            thread::sleep(Duration::from_millis(50));
+            drop(guard);
+        });
+
+        // The UI thread is now blocked on the lock.
+        waiting_rx.recv().unwrap();
+        let arm_deadline = Instant::now() + Duration::from_secs(5);
+        while cpu.handoff.waiters.load(Ordering::Acquire) == 0 {
+            assert!(
+                Instant::now() < arm_deadline,
+                "UI thread never announced its wait"
+            );
+            thread::yield_now();
+        }
+
+        // Hand the lock over from a helper thread so the test can watch the
+        // emulator's hand-off in parallel.
+        let emu_cpu = Arc::clone(&cpu);
+        let emulator = thread::spawn(move || {
+            let started = Instant::now();
+            emu_cpu.yield_to_waiters();
+            started.elapsed()
+        });
+
+        drop(first);
+        acquired_rx.recv().unwrap();
+
+        let waited = emulator.join().unwrap();
+        assert!(
+            waited < HANDOFF_TIMEOUT,
+            "emulator waited for the UI thread's critical section instead of \
+             just its acquisition ({waited:?})"
+        );
+        ui.join().unwrap();
+        assert_eq!(cpu.handoff.waiters.load(Ordering::Acquire), 0);
     }
 }
 
@@ -256,12 +524,19 @@ struct Stats {
 
 // State shared between the UI thread and the emulator thread.
 //
-// Lock order: `cpu` first, then `stats` / `clipboard_text`.
+// Lock order: `cpu` first, then `stats` / `clipboard_text`, and `cpu` before
+// `handoff.gate` (taken only in `Handoff::acquired`, by a thread that holds
+// `cpu`).
 // `pacing` uses atomics instead of a lock; its writes happen while the
 // `cpu` lock is held.
 //
 // Invariants for `cpu`:
 //
+// - `cpu` is a `CpuMutex`. UI and MCP code locks it with `lock_unpoisoned()`,
+//   which announces the wait to the hand-off gate so the emulator thread
+//   cannot barge past a waiting UI thread (see `Handoff`). The emulator thread
+//   is the only caller of `lock_emulator()` and must call `yield_to_waiters()`
+//   with the lock released, once per frame, so waiting threads get a turn.
 // - Never hold it across a blocking or OS-modal call (an rfd file dialog,
 //   unbounded file I/O). A modal dialog blocks the UI thread for as long as
 //   it stays open, while the emulator thread needs `cpu` once per video
@@ -462,7 +737,7 @@ impl McpControl {
 }
 
 struct EmuShared {
-    cpu: Mutex<CPU>,
+    cpu: CpuMutex,
     pacing: Pacing,
     stats: Stats,
     #[cfg(feature = "mcp")]
@@ -2551,7 +2826,7 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
 
         'break_loop: loop {
             let (halted, cpu_cycles, cpu_mhz, adj_ms, normal_cpu_speed) = {
-                let mut cpu = shared.cpu.lock_unpoisoned();
+                let mut cpu = shared.cpu.lock_emulator();
 
                 let pacing = &shared.pacing;
                 let pacing_cycles = pacing.cpu_cycles.load(Ordering::Relaxed);
@@ -2674,26 +2949,24 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
                     spin_sleep::sleep(adj_ms - video_cpu_update);
                 }
             } else {
-                // Fastest speed: the emulator is unthrottled, so it releases
-                // `cpu` and immediately re-acquires it, leaving only a
+                // Fastest speed: the emulator is unthrottled, so it would
+                // release `cpu` and immediately re-acquire it, leaving only a
                 // nanosecond window between frames. The UI thread blocks on
                 // `cpu` for every key event (`handle_event`) and every frame
-                // (`app_iterate`). `Mutex` has an internal
-                // hand-off that hands the lock to the parked waiter at release,
-                // but `std::sync::Mutex` (SRWLOCK on Windows, futex on Linux) is
-                // strictly unfair: the still-running emulator thread barges back
-                // in and re-takes the lock before the OS can wake and schedule
-                // the blocked UI thread, starving it and lagging key input.
+                // (`app_iterate`). `std::sync::Mutex` (SRWLOCK on Windows,
+                // futex on Linux) is strictly unfair: the still-running
+                // emulator thread barges back in and re-takes the lock before
+                // the OS can wake and schedule the blocked UI thread, starving
+                // it and lagging key input.
                 //
                 // `std::thread::yield_now()` is not enough: it only hints and
                 // returns almost at once, so the emulator re-locks long before
-                // the UI thread is actually scheduled. Sleeping here keeps the
-                // lock free for a real duration - long enough for the OS to wake
-                // and run the waiting UI thread, which then grabs the lock,
-                // reproducing hand-off. 10us clears the wake-up
-                // latency on Windows/Linux with negligible cost to top speed;
-                // raise it slightly if a heavily loaded machine still shows lag.
-                spin_sleep::sleep(std::time::Duration::from_micros(20));
+                // the UI thread is actually scheduled. Instead, do not take
+                // the lock while a UI/MCP thread is waiting for it: give that
+                // thread the first shot, and lose no throughput to acquisitions
+                // that would have slipped between frames anyway (see
+                // `Handoff`).
+                shared.cpu.yield_to_waiters();
             }
 
             let elapsed = t.elapsed().as_micros();
@@ -3417,7 +3690,7 @@ impl App {
 
         // State shared between the UI thread and the emulator thread
         let shared = Arc::new(EmuShared {
-            cpu: Mutex::new(cpu),
+            cpu: CpuMutex::new(cpu),
             pacing: Pacing::default(),
             stats: Stats::default(),
             #[cfg(feature = "mcp")]

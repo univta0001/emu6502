@@ -430,7 +430,7 @@ pub fn call(shared: &EmuShared, name: &str, args: &Value) -> Result<Value, Strin
             let drive = arg_int(args, "drive").unwrap_or(0);
             eject_disk(&mut shared.cpu.lock_unpoisoned(), drive as usize);
             Ok(json!({ "ok": true, "drive": drive }))
-        },
+        }
         "disk_state" => disk_state(shared),
         "harddisk_insert" => {
             let path = arg_str(args, "path")?;
