@@ -1127,11 +1127,6 @@ impl CPU {
         self.tick();
     }
 
-    /// direct write-through to the status byte (used by RTI's PLP-like reload)
-    pub(crate) fn set_status_bits(&mut self, bits: u8) {
-        *self.status.0.bits_mut() = bits;
-    }
-
     pub(crate) fn stack_pop(&mut self) -> u8 {
         self.stack_pointer = self.stack_pointer.wrapping_add(1);
         self.addr_read(STACK + self.stack_pointer as u16)
