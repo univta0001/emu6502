@@ -337,7 +337,17 @@ impl ScreenshotChannel {
 
 #[cfg(feature = "mcp")]
 struct McpControl {
+    /// The pause state of the emulator thread.
+    ///
+    /// The mutex guards the condvar, the atomic is the lock-free view the
+    /// emulator thread polls between steps: a `pause` request has to take
+    /// effect while the machine is running, and the frame boundary is up to
+    /// 17k cycles away.
     paused: Mutex<bool>,
+    pause_requested: AtomicBool,
+    /// Bumped by every `resume`, so the emulator thread can tell that a
+    /// resume raced with its decision to park.
+    resume_epoch: AtomicU64,
     resume_cv: Condvar,
     step_budget: AtomicUsize,
     run_until_pc: AtomicU32,
@@ -351,6 +361,8 @@ impl McpControl {
     fn new() -> Self {
         Self {
             paused: Mutex::new(false),
+            pause_requested: AtomicBool::new(false),
+            resume_epoch: AtomicU64::new(0),
             resume_cv: Condvar::new(),
             step_budget: AtomicUsize::new(MCP_NO_BUDGET),
             run_until_pc: AtomicU32::new(MCP_NO_PC),
@@ -361,12 +373,15 @@ impl McpControl {
     }
 
     fn pause(&self) {
+        self.pause_requested.store(true, Ordering::Release);
         *self.paused.lock_unpoisoned() = true;
     }
 
     fn resume(&self) {
         self.step_budget.store(MCP_NO_BUDGET, Ordering::Release);
         self.run_until_pc.store(MCP_NO_PC, Ordering::Release);
+        self.pause_requested.store(false, Ordering::Release);
+        self.resume_epoch.fetch_add(1, Ordering::AcqRel);
         *self.paused.lock_unpoisoned() = false;
         self.resume_cv.notify_all();
     }
@@ -375,10 +390,23 @@ impl McpControl {
         *self.paused.lock_unpoisoned()
     }
 
+    /// True while a `pause` request is waiting to be picked up by the
+    /// emulator thread.
+    fn pause_requested(&self) -> bool {
+        self.pause_requested.load(Ordering::Acquire)
+    }
+
+    /// The current resume epoch, see `resume_epoch`.
+    fn epoch(&self) -> u64 {
+        self.resume_epoch.load(Ordering::Acquire)
+    }
+
     fn step(&self, instructions: usize) {
         self.run_until_pc.store(MCP_NO_PC, Ordering::Release);
         self.step_budget
             .store(instructions.max(1), Ordering::Release);
+        self.pause_requested.store(false, Ordering::Release);
+        self.resume_epoch.fetch_add(1, Ordering::AcqRel);
         *self.paused.lock_unpoisoned() = false;
         self.resume_cv.notify_all();
     }
@@ -386,6 +414,8 @@ impl McpControl {
     fn run_until(&self, pc: u16) {
         self.step_budget.store(MCP_NO_BUDGET, Ordering::Release);
         self.run_until_pc.store(pc as u32, Ordering::Release);
+        self.pause_requested.store(false, Ordering::Release);
+        self.resume_epoch.fetch_add(1, Ordering::AcqRel);
         *self.paused.lock_unpoisoned() = false;
         self.resume_cv.notify_all();
     }
@@ -457,6 +487,9 @@ struct EmuShared {
     // loop stopped pumping `app_iterate`, which is what normally services the
     // reload.
     shutdown: AtomicBool,
+    // Seed for the emulator thread's `fastrand` stream (`--seed`). `fastrand`
+    // keeps its state per thread, so the main thread's seeding does not reach
+    // the disk noise generator that runs on the emulator thread.
     seed: Option<u64>,
 }
 
@@ -2510,6 +2543,11 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
         shared.mcp.wait_if_paused();
         #[cfg(feature = "mcp")]
         let mut pause_now = false;
+        // MCP: the resume epoch the current frame started with. A `resume`
+        // that arrives while the emulator is on its way to a park point
+        // invalidates the park.
+        #[cfg(feature = "mcp")]
+        let mut resume_epoch = shared.mcp.epoch();
 
         'break_loop: loop {
             let (halted, cpu_cycles, cpu_mhz, adj_ms, normal_cpu_speed) = {
@@ -2535,6 +2573,14 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
                 while dcyc < cpu_cycles {
                     #[cfg(feature = "mcp")]
                     {
+                        // A `pause` request has to take effect while the
+                        // machine is running: the frame boundary is up to
+                        // 17k cycles away, so the request is picked up here.
+                        let epoch = shared.mcp.epoch();
+                        if shared.mcp.pause_requested() {
+                            pause_now = true;
+                            break;
+                        }
                         let budget = shared.mcp.step_budget.load(Ordering::Relaxed);
                         if budget != MCP_NO_BUDGET && executed >= budget {
                             shared
@@ -2544,6 +2590,9 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
                             pause_now = true;
                             break;
                         }
+                        // Remember the epoch: a `resume` that arrives while
+                        // the emulator is on its way to the park point wins.
+                        resume_epoch = epoch;
                     }
                     let Some(cycles) = cpu.step() else {
                         halted = true;
@@ -2606,9 +2655,15 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
             // so the next resume continues where this stopped.
             #[cfg(feature = "mcp")]
             if pause_now {
-                shared.mcp.park();
-                t = Instant::now();
-                continue 'emulator;
+                // A `resume` that raced with the decision to park wins: the
+                // emulator keeps running instead of parking with the resume
+                // already spent.
+                if shared.mcp.epoch() == resume_epoch {
+                    shared.mcp.park();
+                    t = Instant::now();
+                    continue 'emulator;
+                }
+                pause_now = false;
             }
 
             // Pace the emulator to the video refresh period while the CPU lock

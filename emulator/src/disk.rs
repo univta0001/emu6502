@@ -1632,6 +1632,23 @@ impl DiskDrive {
         }
     }
 
+    #[doc(hidden)]
+    pub fn get_disk_state(&self) -> (usize, u8, u8, usize, u8, u8, usize, u8, u8, usize) {
+        let disk = &self.drive[self.drive_select];
+        (
+            self.cycles,
+            self.latch,
+            self.prev_latch,
+            self.phase,
+            self.q6 as u8,
+            self.q7 as u8,
+            self.drive_select,
+            disk.track,
+            disk.last_track,
+            disk.head,
+        )
+    }
+
     pub fn is_disk_sound_enabled(&self) -> bool {
         self.is_motor_on() && self.disk_sound.is_enabled()
     }
