@@ -79,9 +79,9 @@ use std::sync::Arc;
 #[cfg(feature = "mcp")]
 use std::sync::Condvar;
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, Ordering};
 #[cfg(feature = "mcp")]
-use std::sync::atomic::{AtomicU32, AtomicU64, AtomicUsize};
+use std::sync::atomic::{AtomicU64, AtomicUsize};
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 use std::time::Instant;
@@ -122,6 +122,11 @@ const CPU_CYCLES_PER_FRAME_50HZ: usize = 20280;
 const AUDIO_SAMPLE_RATE: u32 = emu6502::audio::AUDIO_SAMPLE_RATE as u32;
 const AUDIO_SAMPLE_SIZE: u32 = AUDIO_SAMPLE_RATE / 60;
 const AUDIO_SAMPLE_SIZE_50HZ: u32 = AUDIO_SAMPLE_RATE / 50;
+
+// Bytes in one RGBA frame. The UI keeps three of these: the raw emulator
+// snapshot and the blend / distortion scratch buffers, all outside the core
+// lock (see `capture_video_frame`).
+const FRAME_BYTES: usize = Video::WIDTH * Video::HEIGHT * 4;
 
 const PADDLE_MAX_VALUE: u16 = 288;
 
@@ -277,8 +282,6 @@ struct EmulatorCore {
     dcyc: usize,
     audio_accumulator: u64,
     audio_out_buffer: Vec<i16>,
-    blend_buffer: Vec<u8>,
-    barrel_buffer: Vec<u8>,
     // UI navigation state (read by the global key listener)
     settings_open: bool,
     open_menu: Option<&'static str>,
@@ -291,7 +294,7 @@ struct EmulatorCore {
 }
 
 impl EmulatorCore {
-    fn new(cpu: CPU, blend_buffer: Vec<u8>, barrel_buffer: Vec<u8>) -> Self {
+    fn new(cpu: CPU) -> Self {
         Self {
             cpu,
             video: VideoState::default(),
@@ -303,8 +306,6 @@ impl EmulatorCore {
             dcyc: 0,
             audio_accumulator: 0,
             audio_out_buffer: Vec::new(),
-            blend_buffer,
-            barrel_buffer,
             settings_open: false,
             open_menu: None,
             open_submenu: None,
@@ -413,6 +414,11 @@ struct McpControl {
     run_until_pc: AtomicU32,
     breakpoints: Mutex<Vec<u16>>,
     has_breakpoints: AtomicBool,
+    /// True while the run loop has to inspect the control plane after every
+    /// instruction: a pause request, a step budget, a run-until target or a
+    /// breakpoint is armed. False in normal operation, where the loop pays a
+    /// single load per instruction instead of reading every control field.
+    armed: AtomicBool,
 }
 
 #[cfg(feature = "mcp")]
@@ -427,11 +433,13 @@ impl McpControl {
             run_until_pc: AtomicU32::new(MCP_NO_PC),
             breakpoints: Mutex::new(Vec::new()),
             has_breakpoints: AtomicBool::new(false),
+            armed: AtomicBool::new(false),
         }
     }
 
     fn pause(&self) {
         self.pause_requested.store(true, Ordering::Release);
+        self.armed.store(true, Ordering::Release);
         *self.paused.lock_unpoisoned() = true;
     }
 
@@ -440,12 +448,34 @@ impl McpControl {
         self.run_until_pc.store(MCP_NO_PC, Ordering::Release);
         self.pause_requested.store(false, Ordering::Release);
         self.resume_epoch.fetch_add(1, Ordering::AcqRel);
+        self.armed
+            .store(self.has_breakpoints.load(Ordering::Acquire), Ordering::Release);
         *self.paused.lock_unpoisoned() = false;
         self.resume_cv.notify_all();
     }
 
     fn is_paused(&self) -> bool {
         *self.paused.lock_unpoisoned()
+    }
+
+    /// True while the run loop has to inspect the control plane after every
+    /// instruction (see `armed`). `Acquire` pairs with the `Release` store
+    /// that arms it, so the control fields written just before the arm are
+    /// visible to the reader.
+    fn is_armed(&self) -> bool {
+        self.armed.load(Ordering::Acquire)
+    }
+
+    /// Recomputes `armed` from the control fields. Used when a breakpoint is
+    /// removed or cleared; every other transition sets the flag directly.
+    fn refresh_armed(&self) {
+        self.armed.store(
+            self.has_breakpoints.load(Ordering::Acquire)
+                || self.pause_requested.load(Ordering::Acquire)
+                || self.step_budget.load(Ordering::Acquire) != MCP_NO_BUDGET
+                || self.run_until_pc.load(Ordering::Acquire) != MCP_NO_PC,
+            Ordering::Release,
+        );
     }
 
     /// True while a `pause` request is waiting to be picked up by the
@@ -465,6 +495,7 @@ impl McpControl {
             .store(instructions.max(1), Ordering::Release);
         self.pause_requested.store(false, Ordering::Release);
         self.resume_epoch.fetch_add(1, Ordering::AcqRel);
+        self.armed.store(true, Ordering::Release);
         *self.paused.lock_unpoisoned() = false;
         self.resume_cv.notify_all();
     }
@@ -474,6 +505,7 @@ impl McpControl {
         self.run_until_pc.store(pc as u32, Ordering::Release);
         self.pause_requested.store(false, Ordering::Release);
         self.resume_epoch.fetch_add(1, Ordering::AcqRel);
+        self.armed.store(true, Ordering::Release);
         *self.paused.lock_unpoisoned() = false;
         self.resume_cv.notify_all();
     }
@@ -497,13 +529,17 @@ impl McpControl {
             list.push(addr);
         }
         self.has_breakpoints.store(true, Ordering::Release);
+        self.armed.store(true, Ordering::Release);
     }
 
     fn bp_remove(&self, addr: u16) {
         let mut list = self.breakpoints.lock_unpoisoned();
         list.retain(|&value| value != addr);
-        self.has_breakpoints
-            .store(!list.is_empty(), Ordering::Release);
+        let empty = list.is_empty();
+        self.has_breakpoints.store(!empty, Ordering::Release);
+        if empty {
+            self.refresh_armed();
+        }
     }
 
     fn bp_list(&self) -> Vec<u16> {
@@ -513,13 +549,30 @@ impl McpControl {
     fn bp_clear(&self) {
         self.breakpoints.lock_unpoisoned().clear();
         self.has_breakpoints.store(false, Ordering::Release);
+        self.refresh_armed();
     }
+}
+
+/// Status values published by the emulator thread for the render path. They
+/// live outside `core` so reading them (the status bar, the drive LED) does
+/// not cost a core-lock acquisition: the emulator holds that lock for a whole
+/// frame's CPU burst, so every acquisition the UI makes can wait for it.
+///
+/// Floats are stored as bits (`f32::from_bits`), `disk_activity` is
+/// 0 = idle, 1 = floppy motor on, 2 = hard disk busy.
+#[derive(Default)]
+struct Stats {
+    estimated_mhz: AtomicU32,
+    fps: AtomicU32,
+    track_info: AtomicU8,
+    disk_activity: AtomicU8,
 }
 
 /// Emulator state shared between the UI thread, the emulator thread and (with
 /// the `mcp` feature) the MCP server thread.
 struct EmuShared {
     core: Arc<Mutex<EmulatorCore>>,
+    stats: Stats,
     #[cfg(feature = "mcp")]
     mcp: McpControl,
     // Set by the main thread just before it joins the emulator thread, so a
@@ -722,8 +775,18 @@ fn emulator_thread(
                     ..
                 } = &mut *core;
                 while *dcyc < video.cpu_cycles {
+                    // MCP: one load per instruction in the common case. The
+                    // rest of the control state is only read while something
+                    // is armed; the loop then also steps one instruction at a
+                    // time, because a whole block per step would only observe
+                    // the program counter at block boundaries (a breakpoint
+                    // inside a block would be stepped over) and a step of N
+                    // would run N *blocks*, not N instructions.
                     #[cfg(feature = "mcp")]
-                    {
+                    let armed = shared.mcp.is_armed();
+
+                    #[cfg(feature = "mcp")]
+                    if armed {
                         // A `pause` request has to take effect while the
                         // machine is running: the frame boundary is up to
                         // 17k cycles away, so the request is picked up here.
@@ -747,7 +810,15 @@ fn emulator_thread(
                     }
 
                     let prev_cycle = cpu.bus.get_cycles();
-                    if !cpu.step_with_callback(|_| {}) {
+                    #[cfg(feature = "mcp")]
+                    let stepped = if armed {
+                        cpu.step_with_callback(|_| {})
+                    } else {
+                        cpu.step_with_callback(|_| {})
+                    };
+                    #[cfg(not(feature = "mcp"))]
+                    let stepped = cpu.step_with_callback(|_| {});
+                    if !stepped {
                         halted = true;
                         break;
                     }
@@ -755,7 +826,11 @@ fn emulator_thread(
                     process_clipboard(cpu, &mut input.clipboard_text);
 
                     #[cfg(feature = "mcp")]
-                    {
+                    if armed {
+                        // `armed` is re-read above every instruction, so a
+                        // control that was armed before the step is honoured
+                        // here; one instruction of extra latency when a
+                        // request lands mid-step is harmless.
                         executed += 1;
                         if shared.mcp.has_breakpoints.load(Ordering::Relaxed)
                             && shared
@@ -848,6 +923,12 @@ fn emulator_thread(
             continue;
         }
 
+        // Screenshot requested from the UI (menu or hotkey). The frame is
+        // copied out under the lock below and encoded after it is released:
+        // the PNG encoder takes milliseconds, and the UI thread wants the core
+        // lock to draw the next frame.
+        let mut screenshot_frame: Option<Vec<u8>> = None;
+
         // Update video, audio and stats at a multiple of 60Hz or 50Hz
         let (normal_cpu_speed, adj_ms) = {
             let mut core = shared.core.lock_unpoisoned();
@@ -857,7 +938,7 @@ fn emulator_thread(
                 video_time = Instant::now();
 
                 if core.save_screenshot {
-                    save_emulator_screenshot(&mut core.cpu);
+                    screenshot_frame = Some(core.cpu.bus.video.frame.clone());
                     core.save_screenshot = false;
                 }
 
@@ -878,6 +959,11 @@ fn emulator_thread(
             )
         };
 
+        // Encode the screenshot with the core lock released (see above).
+        if let Some(frame) = screenshot_frame {
+            save_emulator_screenshot(&frame);
+        }
+
         // Pace the emulator to real time (outside the lock)
         if normal_cpu_speed {
             let video_cpu_update = t.elapsed() + adj_ms_offset;
@@ -893,17 +979,47 @@ fn emulator_thread(
 
         {
             let mut core = shared.core.lock_unpoisoned();
-            core.speed.estimated_mhz = (core.dcyc as f32) / elapsed as f32;
-            core.speed.fps = core.video.cpu_mhz / core.dcyc as f32;
+            let estimated_mhz = (core.dcyc as f32) / elapsed as f32;
+            let fps = core.video.cpu_mhz / core.dcyc as f32;
+            core.speed.estimated_mhz = estimated_mhz;
+            core.speed.fps = fps;
             core.dcyc = core.dcyc.saturating_sub(core.video.cpu_cycles);
+
+            // Published outside the core lock (see `Stats`): the render path
+            // draws the status bar and the drive LED from these atomics
+            // instead of interrupting the emulator's frame burst.
+            let disk_activity = if core.cpu.bus.harddisk.is_busy() {
+                2
+            } else if core.cpu.bus.disk.is_motor_on() {
+                1
+            } else {
+                0
+            };
+            let track_info = core.cpu.bus.disk.get_track_info();
+
+            shared
+                .stats
+                .estimated_mhz
+                .store(estimated_mhz.to_bits(), Ordering::Relaxed);
+            shared
+                .stats
+                .fps
+                .store(fps.to_bits(), Ordering::Relaxed);
+            shared
+                .stats
+                .track_info
+                .store(track_info.0 as u8, Ordering::Relaxed);
+            shared
+                .stats
+                .disk_activity
+                .store(disk_activity, Ordering::Relaxed);
         }
 
         t = Instant::now();
     }
 }
 
-fn save_emulator_screenshot(cpu: &mut CPU) {
-    let disp = &mut cpu.bus.video;
+fn save_emulator_screenshot(frame: &[u8]) {
     let now = Local::now();
     let timestamp = now.format("%Y-%m-%d_%H-%M-%S%.3f").to_string();
     let filename = format!("screenshot_{}.png", timestamp);
@@ -911,7 +1027,7 @@ fn save_emulator_screenshot(cpu: &mut CPU) {
     if let Ok(output) = File::create(&filename) {
         let encoder = PngEncoder::new(output);
         let result = encoder.write_image(
-            &disp.frame,
+            frame,
             Video::WIDTH as u32,
             Video::HEIGHT as u32,
             ColorType::Rgba8.into(),
@@ -926,32 +1042,59 @@ fn save_emulator_screenshot(cpu: &mut CPU) {
     }
 }
 
-/// Builds the frame image for the current video frame. The GPU expects BGRA
-/// data, so the RGBA frame is converted in place.
-fn make_frame_image(core: &mut EmulatorCore) -> Arc<RenderImage> {
+/// What the frame pipeline needs to know about the machine at the moment the
+/// snapshot was taken.
+struct FrameSnapshot {
+    scanline: bool,
+    vertical_blend: bool,
+    barrel_distortion: bool,
+}
+
+/// Copies the emulated frame out of the core and returns the settings that
+/// belong to it.
+///
+/// This is the only frame work done while holding the core lock: a memcpy
+/// instead of the per-pixel vertical blend / barrel distortion, the BGRA
+/// conversion and the image allocation, which `prepare_frame_image` runs once
+/// the guard is released.
+fn capture_video_frame(core: &mut EmulatorCore, scratch: &mut [u8]) -> FrameSnapshot {
     // Check if 80 column enabled, if enabled, refresh the video
     if core.cpu.bus.is_80_column_enabled() {
         core.cpu.bus.videoterm.refresh(&mut core.cpu.bus.video);
     }
 
-    let processed_frame: &[u8] = {
-        let video = &mut core.cpu.bus.video;
+    let snapshot = FrameSnapshot {
+        scanline: core.cpu.bus.video.get_scanline(),
+        vertical_blend: core.video.vertical_blend,
+        barrel_distortion: core.video.barrel_distortion,
+    };
+    scratch.copy_from_slice(&core.cpu.bus.video.frame);
+    snapshot
+}
 
-        if core.video.vertical_blend {
-            video.write_vertical_blend_frame(
-                &video.frame,
-                video.get_scanline(),
-                &mut core.blend_buffer,
-            );
-        } else {
-            core.blend_buffer.copy_from_slice(&video.frame);
-        }
-        if core.video.barrel_distortion {
-            video.write_barrel_distorted_frame(&core.blend_buffer, 0.015, &mut core.barrel_buffer);
-            &core.barrel_buffer
-        } else {
-            &core.blend_buffer
-        }
+/// Builds the frame image for the snapshot taken by `capture_video_frame`.
+/// The GPU expects BGRA data, so the RGBA frame is converted in place.
+///
+/// Must be called with the core lock released: the passes below touch every
+/// pixel of an 871 KB frame.
+fn prepare_frame_image(
+    snapshot: &FrameSnapshot,
+    scratch: &[u8],
+    blend_buffer: &mut [u8],
+    barrel_buffer: &mut [u8],
+) -> Arc<RenderImage> {
+    let frame: &[u8] = if snapshot.vertical_blend {
+        Video::blend_vertical_frame(scratch, snapshot.scanline, blend_buffer);
+        blend_buffer
+    } else {
+        scratch
+    };
+
+    let processed_frame: &[u8] = if snapshot.barrel_distortion {
+        Video::barrel_distort_frame(frame, 0.015, barrel_buffer);
+        barrel_buffer
+    } else {
+        frame
     };
 
     let mut bgra = processed_frame.to_vec();
@@ -2212,10 +2355,19 @@ fn build_menus(core: &mut EmulatorCore, emu: &Arc<Mutex<EmulatorCore>>) -> Vec<M
 
 struct EmuView {
     emu: Arc<Mutex<EmulatorCore>>,
+    // The emulator's shared state, for the lock-free `Stats` the status bar
+    // and the drive LED are drawn from.
+    shared: Arc<EmuShared>,
     focus_handle: FocusHandle,
     // The frame image painted this frame; dropped from the atlas on the next
     // render to keep the texture pool bounded.
     prev_image: Option<Arc<RenderImage>>,
+    // Frame pipeline scratch, deliberately owned by the view rather than by
+    // the shared core: the emulator frame is copied into `frame_buffer` under
+    // the lock and blended / converted from it after the lock is released.
+    frame_buffer: Vec<u8>,
+    blend_buffer: Vec<u8>,
+    barrel_buffer: Vec<u8>,
     // Gamepad handling (gilrs queues events internally; polled on the main thread)
     gilrs: Gilrs,
     // Paddle slot per connected gamepad (0 or 1; higher slots are ignored)
@@ -2228,7 +2380,7 @@ struct EmuView {
 
 impl EmuView {
     fn new(
-        core: Arc<Mutex<EmulatorCore>>,
+        shared: Arc<EmuShared>,
         gilrs: Gilrs,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -2240,9 +2392,13 @@ impl EmuView {
             gamepads.insert(id, next_free_paddle_slot(&gamepads));
         }
         Self {
-            emu: core,
+            emu: Arc::clone(&shared.core),
+            shared,
             focus_handle,
             prev_image: None,
+            frame_buffer: vec![0x00_u8; FRAME_BYTES],
+            blend_buffer: vec![0xff_u8; FRAME_BYTES],
+            barrel_buffer: vec![0xff_u8; FRAME_BYTES],
             gilrs,
             gamepads,
             windowed_size: None,
@@ -2253,11 +2409,10 @@ impl EmuView {
         &self,
         menus: Vec<MenuEntry>,
         emu: &Arc<Mutex<EmulatorCore>>,
+        open_menu: Option<&'static str>,
         csd: bool,
         controls: WindowControls,
     ) -> impl IntoElement {
-        let open_menu = self.emu.lock_unpoisoned().open_menu;
-
         div()
             .id("menu_bar")
             .flex()
@@ -2944,10 +3099,10 @@ impl Render for EmuView {
             if let WindowBounds::Fullscreen(pre) = window.window_bounds() {
                 self.windowed_size = Some(pre.size);
             }
-        } else if let Some(pre) = self.windowed_size.take() {
-            if window.viewport_size() != pre {
-                window.resize(pre);
-            }
+        } else if let Some(pre) = self.windowed_size.take()
+            && window.viewport_size() != pre
+        {
+            window.resize(pre);
         }
 
         // When the compositor provides no server-side decorations (Wayland CSD),
@@ -2958,9 +3113,17 @@ impl Render for EmuView {
             Decorations::Server => (false, WindowControls::default()),
         };
 
-        // Resize the window when the scale setting changed
-        // Check on the capslock state
-        {
+        // One critical section per frame: caps lock, the window scale, the
+        // gamepad input, the frame snapshot and the menu tree all describe the
+        // same view of the machine, so the emulator thread is interrupted once
+        // per frame instead of three times.
+        //
+        // Everything expensive is left out of it: the per-pixel frame work
+        // runs in `prepare_frame_image` below, and the status bar / drive LED
+        // read the lock-free `Stats` atomics.
+        let mut resize_to = None;
+        let scale;
+        let (snapshot, disk_activity, menu_tree, settings_open, open_menu) = {
             let mut core = self.emu.lock_unpoisoned();
 
             let capslock = window.capslock().on;
@@ -2969,61 +3132,66 @@ impl Render for EmuView {
                 core.input.prev_caps = capslock;
             }
 
-            let scale = core.video.scale;
+            // Resize the window when the scale setting changed. The resize
+            // itself is deferred until the lock is released: it is a
+            // windowing-system call and the emulator thread must not wait for
+            // it.
+            scale = core.video.scale;
             if core.video.prev_scale != scale {
                 core.video.prev_scale = scale;
-                let width = scale * Video::WIDTH as f32;
-                let height = scale * Video::HEIGHT as f32 + MENU_BAR_HEIGHT + STATUS_BAR_HEIGHT;
-                window.resize(size(px(width), px(height)));
+                resize_to = Some(size(
+                    px(scale * Video::WIDTH as f32),
+                    px(scale * Video::HEIGHT as f32 + MENU_BAR_HEIGHT + STATUS_BAR_HEIGHT),
+                ));
             }
-        }
 
-        // Read the emulator state and build the frame image
-        let (frame_source, disk_led, fps, mhz, track_text, menu_tree, settings_open, menu_open) = {
             // Poll gamepad events (gilrs queues them internally; polling here
             // drains them on the main thread)
-            let mut core = self.emu.lock_unpoisoned();
-
             while let Some(event) = self.gilrs.next_event() {
                 handle_gamepad_event(&mut core.cpu, event, &self.gilrs, &mut self.gamepads);
             }
 
-            let arc = make_frame_image(&mut core);
-            let frame_source = ImageSource::Render(arc.clone());
-            self.prev_image = Some(arc);
-
-            let harddisk_on = core.cpu.bus.harddisk.is_busy();
-            let disk_is_on = core.cpu.bus.disk.is_motor_on() || harddisk_on;
-            let disk_led = if disk_is_on {
-                Some(if harddisk_on {
-                    gpui::green()
-                } else {
-                    gpui::red()
-                })
-            } else {
-                None
-            };
-
-            let fps = core.speed.fps;
-            let mhz = core.speed.estimated_mhz;
-            let track_info = core.cpu.bus.disk.get_track_info();
-            let track_text = format!("T:{:02}.{:02}", track_info.0 / 4, track_info.0 % 4 * 25);
+            // Snapshot the frame (a memcpy) and the menu tree, then let go.
+            let snapshot = capture_video_frame(&mut core, &mut self.frame_buffer);
 
             let menu_tree = build_menus(&mut core, &self.emu);
             let settings_open = core.settings_open;
-            let menu_open = core.open_menu.is_some();
+            let open_menu = core.open_menu;
 
             (
-                frame_source,
-                disk_led,
-                fps,
-                mhz,
-                track_text,
+                snapshot,
+                self.shared.stats.disk_activity.load(Ordering::Relaxed),
                 menu_tree,
                 settings_open,
-                menu_open,
+                open_menu,
             )
         };
+
+        if let Some(size) = resize_to {
+            window.resize(size);
+        }
+
+        // Blend / distort / convert with the core lock released.
+        let arc = prepare_frame_image(
+            &snapshot,
+            &self.frame_buffer,
+            &mut self.blend_buffer,
+            &mut self.barrel_buffer,
+        );
+        let frame_source = ImageSource::Render(arc.clone());
+        self.prev_image = Some(arc);
+
+        let disk_led = match disk_activity {
+            2 => Some(gpui::green()),
+            1 => Some(gpui::red()),
+            _ => None,
+        };
+
+        let fps = f32::from_bits(self.shared.stats.fps.load(Ordering::Relaxed));
+        let mhz = f32::from_bits(self.shared.stats.estimated_mhz.load(Ordering::Relaxed));
+        let track = self.shared.stats.track_info.load(Ordering::Relaxed);
+        let track_text = format!("T:{:02}.{:02}", track / 4, track % 4 * 25);
+        let menu_open = open_menu.is_some();
 
         let video_area = div()
             .id("video_area")
@@ -3033,7 +3201,6 @@ impl Render for EmuView {
             .bg(rgb(0x000000))
             .child(img(frame_source).size_full().object_fit(ObjectFit::Contain))
             .when_some(disk_led, |this, color| {
-                let scale = self.emu.lock_unpoisoned().video.scale;
                 this.child(
                     div()
                         .absolute()
@@ -3151,7 +3318,7 @@ impl Render for EmuView {
                 )
             })
             .when(!fullscreen, |d| {
-                d.child(self.render_menu_bar(menu_tree, &self.emu, csd, window_controls))
+                d.child(self.render_menu_bar(menu_tree, &self.emu, open_menu, csd, window_controls))
             })
             .child(video_area)
             .when(!fullscreen, |d| {
@@ -3929,15 +4096,9 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         CPU_CYCLES_PER_FRAME_60HZ - 65 * 192
     };
 
-    // Shared emulator state
-    const FRAME_BYTES: usize = Video::WIDTH * Video::HEIGHT * 4;
-    let blend_buffer = vec![0xff_u8; FRAME_BYTES];
-    let barrel_buffer = vec![0xff_u8; FRAME_BYTES];
-    let core = Arc::new(Mutex::new(EmulatorCore::new(
-        cpu,
-        blend_buffer,
-        barrel_buffer,
-    )));
+    // Shared emulator state. The frame scratch buffers belong to the UI view
+    // (`EmuView`), which runs the blend / distortion pass outside this lock.
+    let core = Arc::new(Mutex::new(EmulatorCore::new(cpu)));
 
     {
         let mut core_guard = core.lock_unpoisoned();
@@ -3956,11 +4117,11 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     // server thread; the UI keeps its own handle to the core
     let shared = Arc::new(EmuShared {
         core,
+        stats: Stats::default(),
         #[cfg(feature = "mcp")]
         mcp: McpControl::new(),
         shutdown: AtomicBool::new(false),
     });
-    let core = shared.core.clone();
 
     // Channel used to notify the UI when a new video frame is available
     let (notify_tx, mut notify_rx) = futures::channel::mpsc::unbounded::<NotifyMsg>();
@@ -4015,7 +4176,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             // Otherwise this fires once the MCP client is gone (it closed
             // stdin).
             #[cfg(feature = "mcp")]
-            if mcp_handle.as_ref().is_some_and(|handle| handle.is_finished()) {
+            if mcp_handle
+                .as_ref()
+                .is_some_and(|handle| handle.is_finished())
+            {
                 break;
             }
             spin_sleep::sleep(Duration::from_millis(50));
@@ -4044,6 +4208,11 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     // Create the gamepad manager (only exists in windowed mode)
     let gilrs =
         Gilrs::new().map_err(|err| format!("Unable to initialize gamepad support: {err}"))?;
+
+    // Handle for the view: the windowed UI needs `EmuShared` itself (for the
+    // lock-free stats), while the code after the event loop below still needs
+    // the original handle for shutdown.
+    let ui_shared = Arc::clone(&shared);
 
     // GPUI application
     Application::new().run(move |cx: &mut App| {
@@ -4097,7 +4266,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
                 window_min_size: Some(size(px(400.0), px(300.0))),
                 ..Default::default()
             },
-            |window, cx| cx.new(|cx| EmuView::new(core.clone(), gilrs, window, cx)),
+            |window, cx| cx.new(|cx| EmuView::new(ui_shared.clone(), gilrs, window, cx)),
         )
         .unwrap();
     });

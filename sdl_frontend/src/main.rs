@@ -32,7 +32,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::Receiver;
 use std::thread;
 use strum::IntoEnumIterator;
@@ -125,6 +125,14 @@ struct Handoff {
     /// has released `cpu`.
     gate: Mutex<()>,
     cv: Condvar,
+    /// True only while the emulator thread is parked in the condvar wait in
+    /// `wait_for_waiters`. `acquired` only takes `gate` and signals the
+    /// condvar while this is set, so the common hand-off - a waiter that takes
+    /// the lock while the emulator is still running and has not parked - does
+    /// not touch a second lock or a condvar. The store here and the load in
+    /// `acquired` are sequentially consistent with the `waiters` accesses, so
+    /// at least one side always observes the other (no lost wake-up).
+    parked: AtomicBool,
 }
 
 impl Handoff {
@@ -133,15 +141,19 @@ impl Handoff {
             waiters: AtomicUsize::new(0),
             gate: Mutex::new(()),
             cv: Condvar::new(),
+            parked: AtomicBool::new(false),
         }
     }
 
     /// A UI/MCP thread took the lock: stop being a waiter and wake the
-    /// emulator if this was the last one.
+    /// emulator if this was the last one and it is parked.
     fn acquired(&self) {
-        if self.waiters.fetch_sub(1, Ordering::AcqRel) == 1 {
+        if self.waiters.fetch_sub(1, Ordering::SeqCst) == 1 && self.parked.load(Ordering::SeqCst) {
             // Holding `gate` across the notify is what closes the wait/notify
-            // race in `wait_for_waiters`.
+            // race in `wait_for_waiters`. `SeqCst` on the pair above is what
+            // guarantees that either this load of `parked` or that function's
+            // load of `waiters` observes the other side, so a wake-up cannot
+            // be missed even when the two run at the same instant.
             let _gate = self.gate.lock_unpoisoned();
             self.cv.notify_all();
         }
@@ -177,6 +189,10 @@ impl Handoff {
         // waiter that is served between the load above and this point is still
         // observed here and a wake-up cannot be missed.
         let mut gate = self.gate.lock_unpoisoned();
+        // Publish the park before the re-read of `waiters` below (the seq-cst
+        // pair with `acquired`), so a waiter that acquires right now either
+        // clears `waiters` before this load or sees `parked` and signals.
+        self.parked.store(true, Ordering::SeqCst);
         let deadline = Instant::now() + HANDOFF_TIMEOUT;
         while self.waiters.load(Ordering::Acquire) > 0 {
             let now = Instant::now();
@@ -189,6 +205,7 @@ impl Handoff {
                 .unwrap_or_else(|e| e.into_inner())
                 .0;
         }
+        self.parked.store(false, Ordering::SeqCst);
     }
 }
 
@@ -520,6 +537,11 @@ struct Pacing {
 struct Stats {
     estimated_mhz: AtomicU32,
     fps: AtomicU32,
+    track_info: AtomicU8,
+    /// Drive activity for the status LED: 0 = idle, 1 = disk motor on,
+    /// 2 = hard disk busy. Published by the emulator thread with the stats so
+    /// the render path never has to take the CPU lock just to draw the LED.
+    disk_activity: AtomicU8,
 }
 
 // State shared between the UI thread and the emulator thread.
@@ -542,6 +564,11 @@ struct Stats {
 //   it stays open, while the emulator thread needs `cpu` once per video
 //   period to keep feeding the SDL audio stream; a lock held that long
 //   drains the stream and stalls audio.
+// - Keep the render path off the lock. The frame is copied out of the
+//   emulator under `cpu` (a memcpy) and blended / barrel-distorted after the
+//   guard is released (see `prepare_video_frame`), and status-only reads for
+//   the UI (the drive LED) go through the `stats` atomics. A per-pixel pass,
+//   or a lock taken only to read a flag, stalls the emulator every frame.
 // - `Mutex` is not reentrant, so a function that locks `cpu`
 //   itself (the dialog helpers, `serialize_state`, the menu helpers)
 //   must only be called from a scope that does not already hold the guard.
@@ -628,6 +655,12 @@ struct McpControl {
     run_until_pc: AtomicU32,
     breakpoints: Mutex<Vec<u16>>,
     has_breakpoints: AtomicBool,
+    /// True while the run loop has to inspect the control plane after every
+    /// instruction: a pause request, a step budget, a run-until target or a
+    /// breakpoint is armed. False in normal operation, where the loop pays a
+    /// single relaxed load per instruction instead of reading every control
+    /// field.
+    armed: AtomicBool,
     screenshot: ScreenshotChannel,
 }
 
@@ -643,12 +676,14 @@ impl McpControl {
             run_until_pc: AtomicU32::new(MCP_NO_PC),
             breakpoints: Mutex::new(Vec::new()),
             has_breakpoints: AtomicBool::new(false),
+            armed: AtomicBool::new(false),
             screenshot: ScreenshotChannel::new(),
         }
     }
 
     fn pause(&self) {
         self.pause_requested.store(true, Ordering::Release);
+        self.armed.store(true, Ordering::Release);
         *self.paused.lock_unpoisoned() = true;
     }
 
@@ -657,12 +692,36 @@ impl McpControl {
         self.run_until_pc.store(MCP_NO_PC, Ordering::Release);
         self.pause_requested.store(false, Ordering::Release);
         self.resume_epoch.fetch_add(1, Ordering::AcqRel);
+        self.armed.store(
+            self.has_breakpoints.load(Ordering::Acquire),
+            Ordering::Release,
+        );
         *self.paused.lock_unpoisoned() = false;
         self.resume_cv.notify_all();
     }
 
     fn is_paused(&self) -> bool {
         *self.paused.lock_unpoisoned()
+    }
+
+    /// True while the emulator run loop has to inspect the control plane after
+    /// every instruction (see `armed`). `Acquire` pairs with the `Release`
+    /// store that arms it, so the control fields written just before the arm
+    /// are visible to the reader (on x86 the load is the same instruction).
+    fn is_armed(&self) -> bool {
+        self.armed.load(Ordering::Acquire)
+    }
+
+    /// Recomputes `armed` from the control fields. Used when a breakpoint is
+    /// removed or cleared; every other transition sets the flag directly.
+    fn refresh_armed(&self) {
+        self.armed.store(
+            self.has_breakpoints.load(Ordering::Acquire)
+                || self.pause_requested.load(Ordering::Acquire)
+                || self.step_budget.load(Ordering::Acquire) != MCP_NO_BUDGET
+                || self.run_until_pc.load(Ordering::Acquire) != MCP_NO_PC,
+            Ordering::Release,
+        );
     }
 
     /// True while a `pause` request is waiting to be picked up by the
@@ -682,6 +741,7 @@ impl McpControl {
             .store(instructions.max(1), Ordering::Release);
         self.pause_requested.store(false, Ordering::Release);
         self.resume_epoch.fetch_add(1, Ordering::AcqRel);
+        self.armed.store(true, Ordering::Release);
         *self.paused.lock_unpoisoned() = false;
         self.resume_cv.notify_all();
     }
@@ -691,6 +751,7 @@ impl McpControl {
         self.run_until_pc.store(pc as u32, Ordering::Release);
         self.pause_requested.store(false, Ordering::Release);
         self.resume_epoch.fetch_add(1, Ordering::AcqRel);
+        self.armed.store(true, Ordering::Release);
         *self.paused.lock_unpoisoned() = false;
         self.resume_cv.notify_all();
     }
@@ -717,13 +778,17 @@ impl McpControl {
             list.push(addr);
         }
         self.has_breakpoints.store(true, Ordering::Release);
+        self.armed.store(true, Ordering::Release);
     }
 
     fn bp_remove(&self, addr: u16) {
         let mut list = self.breakpoints.lock_unpoisoned();
         list.retain(|&value| value != addr);
-        self.has_breakpoints
-            .store(!list.is_empty(), Ordering::Release);
+        let empty = list.is_empty();
+        self.has_breakpoints.store(!empty, Ordering::Release);
+        if empty {
+            self.refresh_armed();
+        }
     }
 
     fn bp_list(&self) -> Vec<u16> {
@@ -733,6 +798,7 @@ impl McpControl {
     fn bp_clear(&self) {
         self.breakpoints.lock_unpoisoned().clear();
         self.has_breakpoints.store(false, Ordering::Release);
+        self.refresh_armed();
     }
 }
 
@@ -1995,33 +2061,64 @@ fn encode_png_bytes(frame: &[u8]) -> Option<Vec<u8>> {
     }
 }
 
-// Prepares the blended frame from the emulator video buffer.
-// Must be called while holding the CPU lock.
-fn prepare_video_frame<'a>(
-    cpu: &mut CPU,
-    blend_buffer: &'a mut [u8],
-    barrel_buffer: &'a mut [u8],
-    state: &EmulatorState,
-) -> &'a mut [u8] {
+// Copies the emulated frame out of the video state and returns the scanline
+// flag that belongs to it. This is the only frame work done while holding the
+// CPU lock: a memcpy instead of the per-pixel vertical blend / barrel
+// distortion, which `prepare_video_frame` runs after the lock is released.
+fn capture_video_frame(cpu: &mut CPU, scratch: &mut [u8]) -> bool {
     // Check if 80 column enabled, if enabled, refresh the video
     if cpu.bus.is_80_column_enabled() {
         cpu.bus.videoterm.refresh(&mut cpu.bus.video);
     }
 
-    let video = &mut cpu.bus.video;
+    scratch.copy_from_slice(&cpu.bus.video.frame);
+    cpu.bus.video.get_scanline()
+}
 
-    if state.video.vertical_blend {
-        video.write_vertical_blend_frame(&video.frame, video.get_scanline(), blend_buffer);
+// Prepares the frame to upload from the snapshot taken by
+// `capture_video_frame`.
+//
+// Must be called with the CPU lock released: the blend and the distortion are
+// per-pixel passes, and holding the lock across them stalls the emulator
+// thread for milliseconds on every frame. With both options off the snapshot
+// is the frame, so nothing else is copied here.
+fn prepare_video_frame<'a>(
+    state: &EmulatorState,
+    scratch: &'a [u8],
+    scanline: bool,
+    blend_buffer: &'a mut [u8],
+    barrel_buffer: &'a mut [u8],
+) -> &'a [u8] {
+    let frame: &[u8] = if state.video.vertical_blend {
+        Video::blend_vertical_frame(scratch, scanline, blend_buffer);
+        blend_buffer
     } else {
-        blend_buffer.copy_from_slice(&video.frame);
-    }
+        scratch
+    };
 
     if state.video.barrel_distortion {
-        video.write_barrel_distorted_frame(blend_buffer, 0.015, barrel_buffer);
+        Video::barrel_distort_frame(frame, 0.015, barrel_buffer);
         barrel_buffer
     } else {
-        blend_buffer
+        frame
     }
+}
+
+// Captures the emulator frame under a short CPU lock and returns it prepared
+// for the GPU / the PNG encoder. Used by the screenshot paths, which need a
+// frame of their own instead of the one the render path captures.
+fn capture_prepared_frame<'a>(
+    shared: &EmuShared,
+    scratch: &'a mut [u8],
+    state: &EmulatorState,
+    blend_buffer: &'a mut [u8],
+    barrel_buffer: &'a mut [u8],
+) -> &'a [u8] {
+    let scanline = {
+        let mut cpu = shared.cpu.lock_unpoisoned();
+        capture_video_frame(&mut cpu, scratch)
+    };
+    prepare_video_frame(state, scratch, scanline, blend_buffer, barrel_buffer)
 }
 
 // Uploads the prepared frame to the GPU as an imgui texture.
@@ -2048,19 +2145,16 @@ fn upload_gpu_texture(
 }
 
 fn update_gpu_harddisk_status(
-    cpu: &mut CPU,
+    disk_activity: u8,
     drawlist: &imgui::DrawListMut<'_>,
     window: &Window,
     state: &EmulatorState,
 ) {
-    let harddisk_on;
-    let disk_is_on = {
-        harddisk_on = cpu.bus.harddisk.is_busy();
-        cpu.bus.disk.is_motor_on() || harddisk_on
-    };
-
-    if disk_is_on {
-        let color: [f32; 4] = if harddisk_on {
+    // 0 = idle, 1 = floppy motor on, 2 = hard disk busy - read from the value
+    // the emulator thread publishes with the stats, so drawing the LED needs
+    // no CPU lock.
+    if disk_activity != 0 {
+        let color: [f32; 4] = if disk_activity == 2 {
             [0.0, 1.0, 0.0, 0.5]
         } else {
             [1.0, 0.0, 0.0, 0.5]
@@ -2685,6 +2779,9 @@ fn render_frame(
         .with_load_op(LoadOp::LOAD)
         .with_store_op(StoreOp::STORE)];
 
+    // Lock-free read of the drive-activity dot (see `Stats::disk_activity`).
+    let disk_activity = shared.stats.disk_activity.load(Ordering::Relaxed);
+
     imgui.render(
         sdl,
         device,
@@ -2702,10 +2799,7 @@ fn render_frame(
                 ui.frame_height()
             };
 
-            {
-                let cpu = &mut shared.cpu.lock_unpoisoned();
-                update_emulator_graphics(cpu, ui, window, state, image_texture_id);
-            }
+            update_emulator_graphics(ui, window, state, image_texture_id, disk_activity);
 
             if !state.video.current_full_screen {
                 prepare_main_menu(ui, state, shared);
@@ -2713,14 +2807,15 @@ fn render_frame(
                     state.show_settings = false;
                     ui.open_popup("Settings##settings");
                 }
-                let cpu = &mut shared.cpu.lock_unpoisoned();
-                prepare_settings(cpu, ui, state);
+                // The CPU lock is taken inside the popup builder: a closed
+                // popup draws nothing, so this no longer interrupts the
+                // emulator thread once per frame.
+                prepare_settings(shared, ui, state);
             }
 
             if state.video.menu_bar_height > 0.0 {
                 let (w, h) = window.size();
-                let cpu = &mut shared.cpu.lock_unpoisoned();
-                prepare_statusbar(cpu, ui, state, shared, w, h);
+                prepare_statusbar(ui, state, shared, w, h);
             }
         },
     );
@@ -2825,7 +2920,7 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
         let mut resume_epoch = shared.mcp.epoch();
 
         'break_loop: loop {
-            let (halted, cpu_cycles, cpu_mhz, adj_ms, normal_cpu_speed) = {
+            let (halted, cpu_cycles, cpu_mhz, adj_ms, normal_cpu_speed, track_info, disk_activity) = {
                 let mut cpu = shared.cpu.lock_emulator();
 
                 let pacing = &shared.pacing;
@@ -2847,7 +2942,10 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
                 let mut executed: usize = 0;
                 while dcyc < cpu_cycles {
                     #[cfg(feature = "mcp")]
-                    {
+                    let armed = shared.mcp.is_armed();
+
+                    #[cfg(feature = "mcp")]
+                    if armed {
                         // A `pause` request has to take effect while the
                         // machine is running: the frame boundary is up to
                         // 17k cycles away, so the request is picked up here.
@@ -2878,15 +2976,13 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
                     // instructions.  Step one instruction at a time while such
                     // a target is armed.
                     #[cfg(feature = "mcp")]
-                    let precise_step = shared.mcp.has_breakpoints.load(Ordering::Relaxed)
-                        || shared.mcp.run_until_pc.load(Ordering::Relaxed) != MCP_NO_PC
-                        || shared.mcp.step_budget.load(Ordering::Relaxed) != MCP_NO_BUDGET;
+                    let precise_step = armed;
 
                     #[cfg(feature = "mcp")]
                     let prev_cycles = cpu.bus.get_cycles();
 
                     #[cfg(feature = "mcp")]
-                    let stepped = if precise_step {
+                    let stepped: Option<usize> = if precise_step {
                         if cpu.step_with_callback(|_| {}) {
                             Some(cpu.bus.get_cycles() - prev_cycles)
                         } else {
@@ -2897,7 +2993,7 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
                     };
 
                     #[cfg(not(feature = "mcp"))]
-                    let stepped = cpu.step();
+                    let stepped: Option<usize> = cpu.step();
 
                     let Some(cycles) = stepped else {
                         halted = true;
@@ -2906,7 +3002,11 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
                     dcyc += cycles;
 
                     #[cfg(feature = "mcp")]
-                    {
+                    if armed {
+                        // `armed` is re-read above every instruction, so a
+                        // control that was armed before the step is honoured
+                        // here; one instruction of extra latency when a request
+                        // lands mid-step is harmless.
                         executed += 1;
                         if shared.mcp.has_breakpoints.load(Ordering::Relaxed)
                             && shared
@@ -2952,7 +3052,27 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
                 // internal video refresh for frames that are not displayed
                 cpu.bus.video.skip_update = true;
 
-                (halted, cpu_cycles, cpu_mhz, adj_ms, normal_cpu_speed)
+                let track_info = cpu.bus.disk.get_track_info();
+                // Published for the status LED (see `Stats::disk_activity`):
+                // read here, while the lock is held anyway, instead of in the
+                // render path.
+                let disk_activity = if cpu.bus.harddisk.is_busy() {
+                    2
+                } else if cpu.bus.disk.is_motor_on() {
+                    1
+                } else {
+                    0
+                };
+
+                (
+                    halted,
+                    cpu_cycles,
+                    cpu_mhz,
+                    adj_ms,
+                    normal_cpu_speed,
+                    track_info,
+                    disk_activity,
+                )
             };
 
             // MCP: a step budget or breakpoint paused the emulator mid-frame.
@@ -3010,6 +3130,14 @@ fn emulator_thread(shared: Arc<EmuShared>, mut audio_stream: SendAudioStream, mu
                 .estimated_mhz
                 .store(estimated_mhz_val.to_bits(), Ordering::Relaxed);
             shared.stats.fps.store(fps_val.to_bits(), Ordering::Relaxed);
+            shared
+                .stats
+                .track_info
+                .store(track_info.0 as u8, Ordering::Relaxed);
+            shared
+                .stats
+                .disk_activity
+                .store(disk_activity, Ordering::Relaxed);
 
             dcyc = dcyc.saturating_sub(cpu_cycles);
             t = Instant::now();
@@ -3079,6 +3207,9 @@ struct AppMain {
     event_pump: sdl3::EventPump,
     emulator_state: EmulatorState,
     video: Option<VideoOutput>,
+    // Raw emulator frame copied out under the CPU lock; `blend_buffer` and
+    // `barrel_buffer` receive the processed output with the lock released.
+    frame_buffer: Vec<u8>,
     blend_buffer: Vec<u8>,
     barrel_buffer: Vec<u8>,
     sdl_context: sdl3::Sdl,
@@ -3242,15 +3373,13 @@ impl App {
 
             if emulator_state.save_screenshot {
                 emulator_state.save_screenshot = false;
-                let frame = {
-                    let mut cpu = shared.cpu.lock_unpoisoned();
-                    prepare_video_frame(
-                        &mut cpu,
-                        &mut main.blend_buffer,
-                        &mut main.barrel_buffer,
-                        emulator_state,
-                    )
-                };
+                let frame = capture_prepared_frame(
+                    shared,
+                    &mut main.frame_buffer,
+                    emulator_state,
+                    &mut main.blend_buffer,
+                    &mut main.barrel_buffer,
+                );
                 save_emulator_screenshot(frame);
             }
 
@@ -3258,15 +3387,13 @@ impl App {
             // owns the blend buffers) and handed back to the waiting caller.
             #[cfg(feature = "mcp")]
             if shared.mcp.screenshot.take_request() {
-                let frame = {
-                    let mut cpu = shared.cpu.lock_unpoisoned();
-                    prepare_video_frame(
-                        &mut cpu,
-                        &mut main.blend_buffer,
-                        &mut main.barrel_buffer,
-                        emulator_state,
-                    )
-                };
+                let frame = capture_prepared_frame(
+                    shared,
+                    &mut main.frame_buffer,
+                    emulator_state,
+                    &mut main.blend_buffer,
+                    &mut main.barrel_buffer,
+                );
                 if let Some(bytes) = encode_png_bytes(frame) {
                     shared.mcp.screenshot.serve(bytes);
                 }
@@ -3277,58 +3404,15 @@ impl App {
             // refreshed for the screenshot requests above: `video.frame` is
             // only written while `skip_update` is clear, and that flag is
             // re-armed every period by the render path when a window exists.
-            if self.headless {
-                let mut cpu = shared.cpu.lock_unpoisoned();
-                cpu.bus.video.skip_update = false;
-            }
+            // The flag is set in the input block below, which already holds
+            // the CPU lock.
 
-            if let Some(video) = main.video.as_mut()
-                && !video.window.is_minimized()
-            {
-                // Read and blend the emulator frame (short CPU lock)
-                let processed_frame = {
-                    let mut cpu = shared.cpu.lock_unpoisoned();
-                    cpu.bus.video.skip_update = false;
-                    prepare_video_frame(
-                        &mut cpu,
-                        &mut main.blend_buffer,
-                        &mut main.barrel_buffer,
-                        emulator_state,
-                    )
-                };
-
-                if emulator_state.video.prev_scale != emulator_state.video.scale {
-                    emulator_state.video.prev_scale = emulator_state.video.scale;
-                    let width = (emulator_state.video.scale * Video::WIDTH as f32) as u32;
-                    let height = (emulator_state.video.scale * Video::HEIGHT as f32) as u32
-                        + 2 * MENUBAR_HEIGHT;
-                    let _ = video.window.set_size(width, height);
-                }
-
-                // Upload the texture to the GPU without holding the CPU lock
-                let image_texture_id = upload_gpu_texture(
-                    &mut video.imgui,
-                    &video.device,
-                    &video.sampler,
-                    processed_frame,
-                );
-
-                if let Ok(texture_id) = image_texture_id {
-                    render_frame(
-                        shared,
-                        (&mut main.sdl_context, &video.device, &video.window),
-                        &mut video.imgui,
-                        &mut main.event_pump,
-                        emulator_state,
-                        texture_id,
-                    );
-                }
-            }
-
-            // Update keyboard / mouse state under a short `cpu` lock. The lock
-            // is released before the fullscreen toggle below, whose SDL calls
-            // are potentially blocking (see the EmuShared invariants).
-            {
+            // Everything in this period that needs a consistent view of the
+            // machine behind a single CPU lock: the input state the CPU sees
+            // (always, also while minimized) and the frame to present (only
+            // when there is a visible window). Keeping them together means the
+            // emulator thread is interrupted once per frame instead of twice.
+            let presented_scanline = {
                 let mut cpu = shared.cpu.lock_unpoisoned();
 
                 // While a file dialog is open the emulator must not see input:
@@ -3359,6 +3443,62 @@ impl App {
                     cpu.bus.set_mouse_state(0, 0, &[false, false]);
                 } else {
                     update_mouse_state(&mut cpu, &main.event_pump, emulator_state);
+                }
+
+                let visible = main
+                    .video
+                    .as_ref()
+                    .is_some_and(|video| !video.window.is_minimized());
+                // Headless has no window to present into, but the frame still
+                // has to be generated for screenshot requests (see above).
+                if visible || self.headless {
+                    cpu.bus.video.skip_update = false;
+                }
+                if visible {
+                    Some(capture_video_frame(&mut cpu, &mut main.frame_buffer))
+                } else {
+                    None
+                }
+            };
+
+            if let Some(scanline) = presented_scanline
+                && let Some(video) = main.video.as_mut()
+            {
+                // The blend / barrel distortion run here, with the CPU lock
+                // already released (see `prepare_video_frame`).
+                let processed_frame = prepare_video_frame(
+                    emulator_state,
+                    &main.frame_buffer,
+                    scanline,
+                    &mut main.blend_buffer,
+                    &mut main.barrel_buffer,
+                );
+
+                if emulator_state.video.prev_scale != emulator_state.video.scale {
+                    emulator_state.video.prev_scale = emulator_state.video.scale;
+                    let width = (emulator_state.video.scale * Video::WIDTH as f32) as u32;
+                    let height = (emulator_state.video.scale * Video::HEIGHT as f32) as u32
+                        + 2 * MENUBAR_HEIGHT;
+                    let _ = video.window.set_size(width, height);
+                }
+
+                // Upload the texture to the GPU without holding the CPU lock
+                let image_texture_id = upload_gpu_texture(
+                    &mut video.imgui,
+                    &video.device,
+                    &video.sampler,
+                    processed_frame,
+                );
+
+                if let Ok(texture_id) = image_texture_id {
+                    render_frame(
+                        shared,
+                        (&mut main.sdl_context, &video.device, &video.window),
+                        &mut video.imgui,
+                        &mut main.event_pump,
+                        emulator_state,
+                        texture_id,
+                    );
                 }
             }
 
@@ -3656,6 +3796,7 @@ impl App {
         let game_controller = sdl_context.gamepad()?;
 
         const FRAME_BYTES: usize = Video::WIDTH * Video::HEIGHT * 4;
+        let frame_buffer = vec![0_u8; FRAME_BYTES];
         let blend_buffer = vec![0xff_u8; FRAME_BYTES];
         let barrel_buffer = vec![0xff_u8; FRAME_BYTES];
 
@@ -3768,6 +3909,7 @@ impl App {
                 event_pump,
                 emulator_state,
                 video: video_output,
+                frame_buffer,
                 blend_buffer,
                 barrel_buffer,
                 sdl_context,
@@ -4152,11 +4294,11 @@ fn init_audio_stream(
 }
 
 fn update_emulator_graphics(
-    cpu: &mut CPU,
     ui: &imgui::Ui,
     window: &Window,
     state: &EmulatorState,
     image_texture_id: imgui::TextureId,
+    disk_activity: u8,
 ) {
     let bg_draw_list = ui.get_background_draw_list();
     let window_size = window.size();
@@ -4176,7 +4318,7 @@ fn update_emulator_graphics(
             .build();
     }
 
-    update_gpu_harddisk_status(cpu, &bg_draw_list, window, state);
+    update_gpu_harddisk_status(disk_activity, &bg_draw_list, window, state);
 }
 
 fn prepare_main_menu(ui: &imgui::Ui, state: &mut EmulatorState, shared: &EmuShared) {
@@ -4244,13 +4386,20 @@ fn prepare_speed_menu_item(
     shortcut: &str,
     index: usize,
 ) {
-    let cpu = &mut shared.cpu.lock_unpoisoned();
+    // The selected speed lives in the lock-free `Pacing` block, so the menu is
+    // built without the CPU lock; it is only taken when an item is clicked.
     let speed_index = shared.pacing.speed_index.load(Ordering::Relaxed);
-    build_toggle_menu_item(ui, label, shortcut, speed_index == index, |_| {
+    if ui
+        .menu_item_config(label)
+        .shortcut(shortcut)
+        .selected(speed_index == index)
+        .build()
+    {
+        let cpu = &mut shared.cpu.lock_unpoisoned();
         shared.pacing.speed_index.store(index, Ordering::Relaxed);
         cpu.set_speed(SPEED_MODES[index]);
         update_video_state(cpu, &shared.pacing);
-    });
+    }
 }
 
 fn prepare_speed_menu(ui: &imgui::Ui, shared: &EmuShared) {
@@ -4851,7 +5000,7 @@ fn update_settings(cpu: &mut CPU, settings: &[usize]) -> bool {
     true
 }
 
-fn prepare_settings(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) {
+fn prepare_settings(shared: &EmuShared, ui: &imgui::Ui, state: &mut EmulatorState) {
     let selected = &mut state.current_settings;
     let prev_selected = &mut state.prev_settings;
 
@@ -4859,6 +5008,10 @@ fn prepare_settings(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) {
         .modal_popup_config("Settings##settings")
         .flags(imgui::WindowFlags::NO_RESIZE | imgui::WindowFlags::NO_SAVED_SETTINGS)
         .build(|| {
+            // The lock is taken only here: `build` does not run the closure
+            // while the popup is closed, so the settings window no longer
+            // interrupts the emulator thread once per frame.
+            let mut cpu = shared.cpu.lock_unpoisoned();
             if !cpu.is_apple2e() {
                 let item = &mut selected[0];
                 let items = ["Language Card", "Saturn"];
@@ -4903,7 +5056,7 @@ fn prepare_settings(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) {
             }
 
             if ui.button("Ok") {
-                if update_settings(cpu, selected) {
+                if update_settings(&mut cpu, selected) {
                     *prev_selected = selected.clone();
                 }
                 ui.close_current_popup();
@@ -4919,7 +5072,6 @@ fn prepare_settings(cpu: &mut CPU, ui: &imgui::Ui, state: &mut EmulatorState) {
 }
 
 fn prepare_statusbar(
-    cpu: &CPU,
     ui: &imgui::Ui,
     state: &EmulatorState,
     shared: &EmuShared,
@@ -4960,6 +5112,7 @@ fn prepare_statusbar(
 
             let estimated_mhz = f32::from_bits(shared.stats.estimated_mhz.load(Ordering::Relaxed));
             let fps = f32::from_bits(shared.stats.fps.load(Ordering::Relaxed));
+            let track_info = shared.stats.track_info.load(Ordering::Relaxed);
 
             ui.text(version_text);
             ui.same_line();
@@ -4967,12 +5120,11 @@ fn prepare_statusbar(
             ui.same_line();
             ui.text(format!("MHz: {:.3}", estimated_mhz));
 
-            let track_info = cpu.bus.disk.get_track_info();
             ui.same_line();
             ui.text(format!(
                 "T:{:02}.{:02}",
-                track_info.0 / 4,
-                track_info.0 % 4 * 25
+                track_info / 4,
+                track_info % 4 * 25
             ));
         });
     pad_token.pop();

@@ -1205,6 +1205,15 @@ impl Video {
     }
 
     pub fn write_vertical_blend_frame(&self, frame: &[u8], scanline: bool, display: &mut [u8]) {
+        Self::blend_vertical_frame(frame, scanline, display);
+    }
+
+    /// Vertical blend of `frame` into `display`.
+    ///
+    /// Associated rather than a method because the body only reads `frame`:
+    /// a frontend can snapshot the frame under its CPU lock and run the
+    /// per-pixel work after releasing it.
+    pub fn blend_vertical_frame(frame: &[u8], scanline: bool, display: &mut [u8]) {
         debug_assert!(display.len() >= WIDTH_STEP * Self::HEIGHT);
         let width = Self::WIDTH;
         let height = Self::HEIGHT;
@@ -1278,6 +1287,15 @@ impl Video {
     }
 
     pub fn write_barrel_distorted_frame(&self, frame: &[u8], distortion: f32, display: &mut [u8]) {
+        Self::barrel_distort_frame(frame, distortion, display);
+    }
+
+    /// Barrel distortion of `frame` into `display`.
+    ///
+    /// Associated rather than a method for the same reason as
+    /// [`Self::blend_vertical_frame`]: it can run on a frame snapshot outside
+    /// the caller's CPU lock.
+    pub fn barrel_distort_frame(frame: &[u8], distortion: f32, display: &mut [u8]) {
         debug_assert!(display.len() >= WIDTH_STEP * Self::HEIGHT);
         let width = Self::WIDTH;
         let height = Self::HEIGHT;

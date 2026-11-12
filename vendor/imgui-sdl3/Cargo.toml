@@ -12,7 +12,7 @@ readme = "README.md"
 
 [dependencies]
 imgui = "0.12"
-sdl3 = "0.22"
+sdl3 = "0.22.1"
 
 [build-dependencies]
 shaderc = "0.10.1"
