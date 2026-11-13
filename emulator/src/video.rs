@@ -144,12 +144,6 @@ pub struct Video {
     blink_time: u64,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
-    video_latch: u8,
-
-    #[cfg_attr(feature = "serde_support", serde(default))]
-    prev_video_data: u8,
-
-    #[cfg_attr(feature = "serde_support", serde(default))]
     apple2e: bool,
 
     #[cfg_attr(feature = "serde_support", serde(default))]
@@ -786,8 +780,6 @@ impl Video {
             vid80_mode: false,
             video_page2: false,
             altchar: false,
-            video_latch: 0,
-            prev_video_data: 0,
             apple2e: false,
             apple2e_enh: false,
             apple2c: false,
@@ -831,13 +823,6 @@ impl Video {
         let cycle = self.cycles;
         let (row, col) = (cycle / CYCLES_PER_ROW, cycle % CYCLES_PER_ROW);
 
-        // Video line takes 65 clock cycles
-        // 25 clock cycle of horizontal blank
-        // followed by 40 clock cycles displayed line
-        let video_value = self.read_video_data(cycle, row);
-        self.video_latch = self.prev_video_data;
-        self.prev_video_data = video_value;
-
         if self.skip_update {
             return;
         }
@@ -849,10 +834,14 @@ impl Video {
         let is_shr = self.is_shr_mode();
 
         if (!is_shr && row >= 192) || (is_shr && row >= 200) || col < CYCLES_PER_HBL {
-            self.video_cache[cycle] = video_value as u32;
             return;
         }
 
+        // Video line takes 65 clock cycles
+        // 25 clock cycle of horizontal blank
+        // followed by 40 clock cycles displayed line
+
+        let video_value = self.read_video_data(cycle, row);
         let video_aux_latch = self.read_aux_video_data(cycle, row);
         let visible_col = col - CYCLES_PER_HBL;
         let video_mode = self.video_mode;
@@ -992,7 +981,7 @@ impl Video {
     }
 
     pub fn io_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
-        let mut return_value = self.video_latch;
+        let mut return_value = self.read_latch();
         let io_addr = (addr & 0xff) as u8;
         match io_addr {
             0x0c if self.apple2e && write_flag => {
@@ -1508,7 +1497,7 @@ impl Video {
 
     fn read_aux_video_data(&self, cycle: usize, r: usize) -> u8 {
         if self.disable_aux {
-            return self.video_latch;
+            return self.read_latch();
         }
 
         const MIXED_GRAPHICS_MAX_ROW: usize = 160;
@@ -1608,7 +1597,13 @@ impl Video {
     }
 
     pub fn read_latch(&self) -> u8 {
-        self.video_latch
+        let cycle = if self.cycles == 0 {
+            self.cycle_field - 1
+        } else {
+            self.cycles - 1
+        };
+        let row = cycle / CYCLES_PER_ROW;
+        self.read_video_data(cycle, row)
     }
 
     pub fn set_scanline(&mut self, state: bool) {
