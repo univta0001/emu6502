@@ -734,6 +734,23 @@ fn text_line_of(addr: u16) -> Option<usize> {
     Some(line)
 }
 
+#[inline]
+fn hires_line_of(addr: u16) -> Option<usize> {
+    if !(0x2000..=0x5fff).contains(&addr) {
+        return None;
+    }
+    let offset = (addr as usize) & (HIRES_LEN - 1);
+    // The three lines of a 128-byte block are stored 0, 40 and 80 bytes
+    // into the block, the last eight bytes of the block are not scanned.
+    let high = (offset & 0x7f) / 40;
+    if high > 2 {
+        return None;
+    }
+    let mid = (offset >> 7) & 7;
+    let low = (offset >> 10) & 7;
+    Some((high << 6) | (mid << 3) | low)
+}
+
 impl Video {
     pub const WIDTH: usize = 567;
     pub const HEIGHT: usize = 384;
@@ -964,13 +981,8 @@ impl Video {
                 self.invalidate_video_cache();
             }
         } else if self.is_graphics() && (0x2000..=0x5fff).contains(&addr) {
-            let offset = addr & 0x1fff;
-            let low  = (offset >> 10) & 7;
-            let mid  = (offset >> 7) & 7;
-            let high = (offset & 0x7f) / 40;
-            let row = ((high << 6) | (mid << 3) | low) as usize;
-            if row < 192 {
-                self.video_reparse[row as usize] = 1;
+            if let Some(line) = hires_line_of(addr) {
+                self.video_reparse[line] = 1;
             }
         }
     }
