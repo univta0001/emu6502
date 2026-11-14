@@ -990,6 +990,7 @@ impl Video {
                 if prev_mode {
                     self.update_previous_column_graphics();
                 }
+                self.invalidate_video_cache();
                 self.update_video();
             }
             0x0d if self.apple2e && write_flag => {
@@ -998,6 +999,7 @@ impl Video {
                 if !prev_mode {
                     self.update_previous_column_graphics();
                 }
+                self.invalidate_video_cache();
                 self.update_video();
             }
             0x0e if self.apple2e && write_flag => {
@@ -1006,6 +1008,7 @@ impl Video {
                 if prev_mode {
                     self.update_previous_column_graphics();
                 }
+                self.invalidate_video_cache();
                 self.update_video();
             }
             0x0f if (self.apple2e_enh || self.apple2c) && write_flag => {
@@ -1014,6 +1017,7 @@ impl Video {
                 if !prev_mode {
                     self.update_previous_column_graphics();
                 }
+                self.invalidate_video_cache();
                 self.update_video();
             }
 
@@ -1159,6 +1163,7 @@ impl Video {
 
     pub fn set_vidhd(&mut self, flag: bool) {
         self.vidhd = flag;
+        self.invalidate_video_cache();
     }
 
     pub fn get_mac_lc_dlgr(&self) -> bool {

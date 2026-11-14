@@ -1571,7 +1571,7 @@ impl Mem for Bus {
                     }
                 }
 
-                if !self.mem.slotc3rom {
+                if !self.mem.slotc3rom && !self.mem.intc8rom {
                     self.mem.intc8rom = true;
                 }
 
@@ -1586,7 +1586,7 @@ impl Mem for Bus {
 
             0xc000..=0xc0ff => self.io_access(addr, 0, false),
             0xc800..=0xcfff => {
-                if addr == 0xcfff {
+                if addr == 0xcfff && (self.mem.intc8rom || self.extended_rom != 0) {
                     self.mem.intc8rom = false;
                     self.extended_rom = 0;
                 }
