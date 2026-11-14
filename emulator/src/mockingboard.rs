@@ -401,6 +401,20 @@ struct W65C22 {
     irq_happen: usize,
     latch_addr_valid: bool,
     driving_bus: bool,
+    /// The number of ticks this chip has received.
+    ///
+    /// Only the chips of an active board are ticked, so this is the number of
+    /// ticks since the board became active.
+    #[cfg_attr(feature = "serde_support", serde(skip))]
+    ticks: usize,
+    /// The chip has not been written to since it was created.
+    ///
+    /// Such a chip does not do anything on a tick except counting down its
+    /// two timers, and the values of the counters can be computed from the
+    /// tick count.  The tick can therefore be skipped and the counters are
+    /// only materialized when the chip is written to.
+    #[cfg_attr(feature = "serde_support", serde(skip))]
+    pristine: bool,
 }
 
 impl W65C22 {
@@ -427,11 +441,20 @@ impl W65C22 {
             irq_happen: 0,
             latch_addr_valid: false,
             driving_bus: false,
+            ticks: 0,
+            pristine: true,
         }
     }
 
     #[inline]
     fn tick(&mut self, cycles: usize) {
+        self.ticks = self.ticks.wrapping_add(1);
+        if self.pristine {
+            // The chip has not been written to: a tick only counts down the
+            // two timers and their values are computed when they are read.
+            return;
+        }
+
         let old_t1c = self.t1c;
         self.t1c = old_t1c.wrapping_sub(1);
 
@@ -461,6 +484,64 @@ impl W65C22 {
             self.ay8910[0].tick();
             self.ay8910[1].tick();
         }
+    }
+
+    /// The value of the T1 counter of a chip that has not been written to.
+    ///
+    /// The counter is loaded with 0xffff and counts down to zero.  When it
+    /// underflows it becomes 0xffffffff and the next tick loads it with the
+    /// latch again, so the counter has a period of 65537 ticks.
+    #[inline]
+    fn pristine_t1c(ticks: usize) -> u32 {
+        const PERIOD: usize = 0x1_0001;
+        match ticks % PERIOD {
+            0 => 0xffff,
+            0x1_0000 => 0xffff_ffff,
+            n => (0xffff - n) as u32,
+        }
+    }
+
+    /// The value of the T2 counter of a chip that has not been written to.
+    ///
+    /// The counter is loaded with 0xffff and counts down to zero, where it
+    /// underflows back to 0xffff.
+    #[inline]
+    fn pristine_t2c(ticks: usize) -> u16 {
+        (0xffff - (ticks % 0x1_0000)) as u16
+    }
+
+    /// The current value of the T1 counter.
+    #[inline]
+    fn t1c_value(&self) -> u32 {
+        if self.pristine {
+            Self::pristine_t1c(self.ticks)
+        } else {
+            self.t1c
+        }
+    }
+
+    /// The current value of the T2 counter.
+    #[inline]
+    fn t2c_value(&self) -> u16 {
+        if self.pristine {
+            Self::pristine_t2c(self.ticks)
+        } else {
+            self.t2c
+        }
+    }
+
+    /// Switch the chip from the fast path to the normal one.
+    ///
+    /// The timers have been counting down since the chip was created, so
+    /// their current values are computed from the tick count before the chip
+    /// starts counting them down again.
+    fn materialize(&mut self) {
+        if !self.pristine {
+            return;
+        }
+        self.pristine = false;
+        self.t1c = Self::pristine_t1c(self.ticks);
+        self.t2c = Self::pristine_t2c(self.ticks);
     }
 
     fn reset(&mut self) {
@@ -538,6 +619,12 @@ impl W65C22 {
     }
 
     fn io_access(&mut self, addr: u8, value: u8, write_flag: bool) -> u8 {
+        if write_flag {
+            // A write changes the chip, so the timers have to be brought into
+            // the state the per-cycle tick would have produced.
+            self.materialize();
+        }
+
         let mut return_addr: u8 = 0;
 
         match addr & 0x0f {
@@ -599,7 +686,7 @@ impl W65C22 {
                 } else {
                     self.ifr &= !0x40;
                     self.maybe_clear_irq();
-                    return_addr = (self.t1c & 0xff) as u8;
+                    return_addr = (self.t1c_value() & 0xff) as u8;
                 }
             }
 
@@ -613,7 +700,7 @@ impl W65C22 {
                     self.t1c = self.t1c.wrapping_add(1);
                     self.t1_loaded = true;
                 } else {
-                    return_addr = (self.t1c >> 8) as u8;
+                    return_addr = (self.t1c_value() >> 8) as u8;
                 }
             }
 
@@ -644,7 +731,7 @@ impl W65C22 {
                 } else {
                     self.ifr &= !0x20;
                     self.maybe_clear_irq();
-                    return_addr = (self.t2c & 0xff) as u8;
+                    return_addr = (self.t2c_value() & 0xff) as u8;
                 }
             }
 
@@ -657,7 +744,7 @@ impl W65C22 {
                     self.ifr &= !0x20;
                     self.maybe_clear_irq();
                 } else {
-                    return_addr = (self.t2c >> 8) as u8;
+                    return_addr = (self.t2c_value() >> 8) as u8;
                 }
             }
 
@@ -755,6 +842,7 @@ impl Mockingboard {
         }
     }
 
+    #[inline]
     pub fn tick(&mut self) {
         self.cycles += 1;
         if self.active {
@@ -876,6 +964,169 @@ mod test {
         // Write to T1C-H and T2C-H
         w65c22.io_access(0x05, 0x00, true);
         w65c22.io_access(0x09, 0x00, true);
+    }
+
+    /// A chip that counts its timers down on every tick.
+    ///
+    /// It is the reference for the chips that use the fast path, which skip
+    /// the tick and compute the counter values instead.
+    fn reference(name: &str) -> W65C22 {
+        let mut chip = W65C22::new(name);
+        chip.pristine = false;
+        chip
+    }
+
+    /// The fast path has to produce the same counters as the per-cycle tick.
+    #[test]
+    fn w65c22_pristine_counters_match_reference() {
+        let mut fast = W65C22::new("_1");
+        let mut reference = reference("_1");
+
+        // More than two periods of the T1 counter (65537 ticks) and four of
+        // the T2 counter (65536 ticks).
+        for cycles in 0..200_000 {
+            fast.tick(cycles);
+            reference.tick(cycles);
+
+            assert_eq!(
+                fast.t1c_value(),
+                reference.t1c_value(),
+                "T1 counter after {cycles} ticks"
+            );
+            assert_eq!(
+                fast.t2c_value(),
+                reference.t2c_value(),
+                "T2 counter after {cycles} ticks"
+            );
+            assert_eq!(fast.ifr, reference.ifr, "IFR after {cycles} ticks");
+            assert_eq!(
+                fast.t1_loaded, reference.t1_loaded,
+                "T1 loaded after {cycles} ticks"
+            );
+            assert_eq!(
+                fast.t2_loaded, reference.t2_loaded,
+                "T2 loaded after {cycles} ticks"
+            );
+            assert_eq!(
+                fast.irq_happen, reference.irq_happen,
+                "IRQ timestamp after {cycles} ticks"
+            );
+        }
+    }
+
+    /// Reading the counters has to return the same values with and without
+    /// the fast path.
+    #[test]
+    fn w65c22_pristine_reads_match_reference() {
+        for ticks in [
+            0usize, 1, 2, 100, 65534, 65535, 65536, 65537, 131_073, 200_000,
+        ] {
+            let mut fast = W65C22::new("_1");
+            let mut reference = reference("_1");
+            for cycles in 0..ticks {
+                fast.tick(cycles);
+                reference.tick(cycles);
+            }
+
+            for addr in [0x04, 0x05, 0x08, 0x09] {
+                assert_eq!(
+                    fast.io_access(addr, 0, false),
+                    reference.io_access(addr, 0, false),
+                    "register {addr:#04x} after {ticks} ticks"
+                );
+            }
+        }
+    }
+
+    /// A write has to bring the chip into the state the per-cycle tick would
+    /// have produced.
+    #[test]
+    fn w65c22_pristine_write_matches_reference() {
+        for ticks in [0usize, 1, 100, 65535, 65536, 65537, 131_073] {
+            let mut fast = W65C22::new("_1");
+            let mut reference = reference("_1");
+            for cycles in 0..ticks {
+                fast.tick(cycles);
+                reference.tick(cycles);
+            }
+
+            // A write that does not touch the timers.
+            fast.io_access(0x02, 0x5a, true);
+            reference.io_access(0x02, 0x5a, true);
+            assert!(!fast.pristine, "the chip should not be pristine any more");
+
+            for cycles in 0..10 {
+                fast.tick(cycles);
+                reference.tick(cycles);
+                assert_eq!(
+                    fast.t1c_value(),
+                    reference.t1c_value(),
+                    "T1 counter after {cycles} ticks"
+                );
+                assert_eq!(
+                    fast.t2c_value(),
+                    reference.t2c_value(),
+                    "T2 counter after {cycles} ticks"
+                );
+                assert_eq!(fast.ifr, reference.ifr, "IFR after {cycles} ticks");
+            }
+
+            // The register reads have to return the same values as well.
+            for addr in [0x04, 0x05, 0x08, 0x09] {
+                assert_eq!(
+                    fast.io_access(addr, 0, false),
+                    reference.io_access(addr, 0, false),
+                    "register {addr:#04x} after {ticks} ticks"
+                );
+            }
+        }
+    }
+
+    /// Writing the counter latches has to behave the same with and without
+    /// the fast path.
+    #[test]
+    fn w65c22_pristine_latch_write_matches_reference() {
+        for ticks in [0usize, 1, 100, 65535, 65536, 65537] {
+            let mut fast = W65C22::new("_1");
+            let mut reference = reference("_1");
+            for cycles in 0..ticks {
+                fast.tick(cycles);
+                reference.tick(cycles);
+            }
+
+            fast.io_access(0x04, 0x34, true);
+            reference.io_access(0x04, 0x34, true);
+            fast.io_access(0x05, 0x12, true);
+            reference.io_access(0x05, 0x12, true);
+            fast.io_access(0x08, 0x78, true);
+            reference.io_access(0x08, 0x78, true);
+            fast.io_access(0x09, 0x56, true);
+            reference.io_access(0x09, 0x56, true);
+
+            for cycles in 0..10 {
+                fast.tick(cycles);
+                reference.tick(cycles);
+                assert_eq!(
+                    fast.t1c_value(),
+                    reference.t1c_value(),
+                    "T1 counter after {cycles} ticks"
+                );
+                assert_eq!(
+                    fast.t2c_value(),
+                    reference.t2c_value(),
+                    "T2 counter after {cycles} ticks"
+                );
+                assert_eq!(fast.ifr, reference.ifr, "IFR after {cycles} ticks");
+                assert_eq!(
+                    fast.t1_loaded, reference.t1_loaded,
+                    "T1 loaded after {cycles} ticks"
+                );
+                assert_eq!(
+                    fast.t2_loaded, reference.t2_loaded,
+                    "T2 loaded after {cycles} ticks"
+                );
+            }
+        }
     }
 
     #[test]

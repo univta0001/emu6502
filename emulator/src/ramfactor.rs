@@ -562,8 +562,6 @@ pub struct RamFactor {
 fn as_hex<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
     let mut map = BTreeMap::new();
     let mut addr = 0;
-    let mut count = 0;
-    let mut s = String::new();
     let mut all_zeroes = true;
 
     for value in v {
@@ -586,23 +584,16 @@ fn as_hex<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
         }
     }
 
-    for value in gz_vector {
-        if count >= 0x40 {
-            let addr_key = format!("{addr:06X}");
-            map.insert(addr_key, s);
-            s = String::new();
-            count = 0;
-            addr += 0x40;
+    for chunk in gz_vector.chunks(0x40) {
+        let mut s = String::with_capacity(chunk.len() * 2);
+        for &value in chunk {
+            use std::fmt::Write;
+            write!(s, "{value:02X}").unwrap();
         }
-        let hex = format!("{value:02X}");
-        s.push_str(&hex);
-        count += 1;
+        map.insert(format!("{addr:06X}"), s);
+        addr += 0x40;
     }
 
-    if !s.is_empty() {
-        let addr_key = format!("{addr:06X}");
-        map.insert(addr_key, s);
-    }
     BTreeMap::serialize(&map, serializer)
 }
 

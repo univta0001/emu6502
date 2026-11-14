@@ -42,9 +42,6 @@ pub fn as_opt_hex<S: Serializer>(
 #[cfg(all(feature = "serde_support", feature = "flate"))]
 fn as_hex_6bytes<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
     let mut map = BTreeMap::new();
-    let mut addr = 0;
-    let mut count = 0;
-    let mut s = String::new();
     let mut gz_vector = Vec::new();
     {
         let mut gz = GzEncoder::new(&mut gz_vector, Compression::fast());
@@ -54,58 +51,44 @@ fn as_hex_6bytes<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Err
         }
     }
 
-    for value in gz_vector {
-        if count >= 0x40 {
-            let addr_key = format!("{addr:06X}");
-            map.insert(addr_key, s);
-            s = String::new();
-            count = 0;
-            addr += 0x40;
+    for (i, chunk) in gz_vector.chunks(0x40).enumerate() {
+        let current_addr = i * 0x40;
+        let addr_key = format!("{current_addr:06X}");
+        let mut s = String::with_capacity(chunk.len() * 2);
+        for &value in chunk {
+            use std::fmt::Write;
+            write!(s, "{value:02X}").unwrap();
         }
-        let hex = format!("{value:02X}");
-        s.push_str(&hex);
-        count += 1;
-    }
-
-    if !s.is_empty() {
-        let addr_key = format!("{addr:06X}");
         map.insert(addr_key, s);
     }
+
     BTreeMap::serialize(&map, serializer)
 }
 
 #[cfg(feature = "serde_support")]
 pub fn as_hex<S: Serializer>(v: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
     let mut map = BTreeMap::new();
-    let mut addr = 0;
-    let mut count = 0;
-    let mut s = String::new();
     let format_addr_6bytes = v.len() >= 0x10000;
-    for value in v {
-        if count >= 0x40 {
-            let addr_key = if format_addr_6bytes {
-                format!("{addr:06X}")
-            } else {
-                format!("{addr:04X}")
-            };
-            map.insert(addr_key, s);
-            s = String::new();
-            count = 0;
-            addr += 0x40;
-        }
-        let hex = format!("{value:02X}");
-        s.push_str(&hex);
-        count += 1;
-    }
 
-    if !s.is_empty() {
+    for (i, chunk) in v.chunks(0x40).enumerate() {
+        let current_addr = i * 0x40;
+
         let addr_key = if format_addr_6bytes {
-            format!("{addr:06X}")
+            format!("{current_addr:06X}")
         } else {
-            format!("{addr:04X}")
+            format!("{current_addr:04X}")
         };
+
+        // Pre-allocate exact capacity (2 hex chars per byte)
+        let mut s = String::with_capacity(chunk.len() * 2);
+        for &value in chunk {
+            use std::fmt::Write;
+            write!(s, "{value:02X}").unwrap();
+        }
+
         map.insert(addr_key, s);
     }
+
     BTreeMap::serialize(&map, serializer)
 }
 
