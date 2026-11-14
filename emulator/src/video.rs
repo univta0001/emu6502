@@ -718,6 +718,22 @@ const CHAR_APPLE2E_ROM: [u8; 4096] = [
     0x7e, 0x7e, 0x77, 0xdd, 0x7e, 0x7e, 0xff, 0xff, 0xfe, 0xfe, 0xff, 0xff, 0xfe, 0xfe, 0xff, 0xff,
 ];
 
+#[inline]
+fn text_line_of(addr: u16) -> Option<usize> {
+    let offset = (addr as usize) & (TEXT_LEN - 1);
+    // The three groups of eight text lines are stored 0, 40 and 80 bytes
+    // into every 128-byte block of the page.
+    let group = (offset % 128) / 40;
+    if group > 2 {
+        return None;
+    }
+    let line = group * 8 + (offset - group * 40) / 128;
+    if line > 23 {
+        return None;
+    }
+    Some(line)
+}
+
 impl Video {
     pub const WIDTH: usize = 567;
     pub const HEIGHT: usize = 384;
@@ -929,11 +945,11 @@ impl Video {
         mem[addr as usize] = value;
 
         if !self.is_graphics() && (0x0400..0x0c00).contains(&addr) {
-            // 000000cd eabab000 -> 000abcde
-            let row = ((addr & 0x18) | ((addr >> 7) & 0x06) | ((addr & 0x80) >> 7)) * 8;
-            let start = row as usize;
-            for i in start..start + 8 {
-                self.video_reparse[i] = 1;
+             if let Some(line) = text_line_of(addr) {
+                let start = line * 8;
+                for i in start..start + 8 {
+                    self.video_reparse[i] = 1;
+                }
             }
         } else if self.is_shr_mode() && (0x2000..=0x9fff).contains(&addr) {
             let row = (addr - 0x2000) as usize / 160;
@@ -948,9 +964,14 @@ impl Video {
                 self.invalidate_video_cache();
             }
         } else if self.is_graphics() && (0x2000..=0x5fff).contains(&addr) {
-            // 000fghcd eabab000 -> abcdefgh
-            let row = ((addr << 1) & 0xc0) | ((addr >> 4) & 0x38) | ((addr >> 10) & 0x07);
-            self.video_reparse[row as usize] = 1;
+            let offset = addr & 0x1fff;
+            let low  = (offset >> 10) & 7;
+            let mid  = (offset >> 7) & 7;
+            let high = (offset & 0x7f) / 40;
+            let row = ((high << 6) | (mid << 3) | low) as usize;
+            if row < 192 {
+                self.video_reparse[row as usize] = 1;
+            }
         }
     }
 
