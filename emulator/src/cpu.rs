@@ -838,6 +838,7 @@ impl CPU {
         }
     }
 
+    #[inline]
     pub(crate) fn tick(&mut self) {
         self.bus.tick();
         self.irq_penultimate_tick = (self.irq_penultimate_tick << 1)

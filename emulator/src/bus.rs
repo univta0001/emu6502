@@ -408,6 +408,7 @@ impl Bus {
         }
     }
 
+    #[inline]
     pub fn tick(&mut self) {
         self.cycles += 1;
 
@@ -437,12 +438,9 @@ impl Bus {
         }
     }
 
+    #[inline]
     pub fn get_cycles(&self) -> usize {
         self.cycles
-    }
-
-    pub fn set_cycles(&mut self, cycles: usize) {
-        self.cycles = cycles;
     }
 
     /// Seed the crate-wide fastrand generator. Used by tests to make the
@@ -450,6 +448,11 @@ impl Bus {
     /// Must be called before `Bus::new` seeds its own`init_memory` pattern.
     pub fn seed_rand(seed: u64) {
         fastrand::seed(seed)
+    }
+
+    #[inline]
+    pub fn set_cycles(&mut self, cycles: usize) {
+        self.cycles = cycles;
     }
 
     pub fn set_apple2c(&mut self, flag: bool) {
@@ -888,10 +891,12 @@ impl Bus {
         }
     }
 
+    #[inline]
     pub fn poll_nmi_status(&mut self) -> Option<u8> {
         None
     }
 
+    #[inline]
     pub fn poll_halt_status(&mut self) -> Option<()> {
         if !self.halt_cpu {
             return None;
@@ -900,6 +905,7 @@ impl Bus {
         Some(())
     }
 
+    #[inline]
     pub fn irq(&mut self) -> Option<usize> {
         if !self.disable_video
             && let Some(irq_val) = self.mouse.poll_irq()
@@ -1544,19 +1550,13 @@ impl Bus {
     }
 }
 
-impl Mem for Bus {
-    fn addr_read(&mut self, addr: u16) -> u8 {
-        let value = self.unclocked_addr_read(addr);
-        self.tick();
-        value
-    }
-
-    fn addr_write(&mut self, addr: u16, data: u8) {
-        self.unclocked_addr_write(addr, data);
-        self.tick();
-    }
-
-    fn unclocked_addr_read(&mut self, addr: u16) -> u8 {
+// The `$C000-$CFFF` halves of `Bus::unclocked_addr_read` / `_write`.
+// They are kept out of line: they are big, they are cold relative to RAM/ROM
+// accesses, and keeping them out of the caller is what lets the plain-memory
+// path inline into the CPU.
+impl Bus {
+    /// The `$C000-$CFFF` half of [`Bus::unclocked_addr_read`].
+    fn unclocked_addr_read_io(&mut self, addr: u16) -> u8 {
         match addr {
             // Unused slots should be random values
             0xc100..=0xc2ff | 0xc400..=0xc7ff => self.iodevice_rom_access(addr, 0, false),
@@ -1607,7 +1607,8 @@ impl Mem for Bus {
         }
     }
 
-    fn unclocked_addr_write(&mut self, addr: u16, data: u8) {
+    /// The `$C000-$CFFF` half of [`Bus::unclocked_addr_write`].
+    fn unclocked_addr_write_io(&mut self, addr: u16, data: u8) {
         match addr {
             0xc000..=0xc0ff => {
                 let _write = self.io_access(addr, data, true);
@@ -1617,23 +1618,60 @@ impl Mem for Bus {
                 self.iodevice_rom_access(addr, data, true);
             }
 
-            0xcfff => {
+            _ => {
                 self.mem.intc8rom = false;
                 self.extended_rom = 0;
             }
-
-            _ => {
-                self.mem.unclocked_addr_write(addr, data);
-                if (0x400..0xc00).contains(&addr)
-                    || (0x2000..=0x9fff).contains(&addr)
-                    || (!self.video.is_apple2e() && (0x1400..0x1c00).contains(&addr))
-                {
-                    self.shadow_memory_to_vram(addr, data);
-                }
-            }
         }
     }
+}
 
+impl Mem for Bus {
+    #[inline]
+    fn addr_read(&mut self, addr: u16) -> u8 {
+        let value = self.unclocked_addr_read(addr);
+        self.tick();
+        value
+    }
+
+    #[inline]
+    fn addr_write(&mut self, addr: u16, data: u8) {
+        self.unclocked_addr_write(addr, data);
+        self.tick();
+    }
+
+    #[inline]
+    fn unclocked_addr_read(&mut self, addr: u16) -> u8 {
+        // Hot path: everything outside the 4 KB I/O window is plain memory
+        // (motherboard/aux/banked RAM, or ROM).  Instruction fetches and data
+        // accesses live here, so the test is worth doing before the I/O
+        // dispatch: the MMU path inlines and the I/O match - which is the
+        // biggest part of this function - stays out of the inlined body.
+        if addr.wrapping_sub(0xc000) > 0x0fff {
+            return self.mem.unclocked_addr_read(addr);
+        }
+        self.unclocked_addr_read_io(addr)
+    }
+
+    #[inline]
+    fn unclocked_addr_write(&mut self, addr: u16, data: u8) {
+        // Hot path: see `unclocked_addr_read`.  Writes below the I/O page are
+        // plain memory plus the screen shadow write, which the CPU does not
+        // wait for.
+        if addr.wrapping_sub(0xc000) > 0x0fff {
+            self.mem.unclocked_addr_write(addr, data);
+            if (0x400..0xc00).contains(&addr)
+                || (0x2000..=0x9fff).contains(&addr)
+                || (!self.video.is_apple2e() && (0x1400..0x1c00).contains(&addr))
+            {
+                self.shadow_memory_to_vram(addr, data);
+            }
+            return;
+        }
+        self.unclocked_addr_write_io(addr, data);
+    }
+
+    #[inline]
     fn mem_read(&self, addr: u16) -> u8 {
         self.mem.mem_read(addr)
     }

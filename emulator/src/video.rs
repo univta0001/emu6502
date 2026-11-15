@@ -962,7 +962,7 @@ impl Video {
         mem[addr as usize] = value;
 
         if !self.is_graphics() && (0x0400..0x0c00).contains(&addr) {
-             if let Some(line) = text_line_of(addr) {
+            if let Some(line) = text_line_of(addr) {
                 let start = line * 8;
                 for i in start..start + 8 {
                     self.video_reparse[i] = 1;

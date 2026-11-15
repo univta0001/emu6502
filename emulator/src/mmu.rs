@@ -204,7 +204,7 @@ impl Mmu {
         self.prewrite = false;
         self.intcxrom = false;
         self.saturn_bank = 0;
-        self.rom_bank = false;
+        self.set_rom_bank(false);
         self.a2cp = false;
         self.a2c = false;
         self.mig_bank = 0;
@@ -213,7 +213,7 @@ impl Mmu {
     pub fn reset_mig(&mut self) {
         self.reset_mig_bank();
         self.mig_state = 0;
-        self.rom_bank = false;
+        self.set_rom_bank(false);
     }
 
     pub fn reset_mig_bank(&mut self) {
@@ -244,6 +244,7 @@ impl Mmu {
         self.bank2_memory = vec![0; 0x3000 * 8 * count];
     }
 
+    #[inline]
     pub fn is_aux_memory(&self, addr: u16, write_flag: bool) -> bool {
         let mut aux_flag = false;
         if write_flag {
@@ -294,6 +295,7 @@ impl Mmu {
         }
     }
 
+    #[inline]
     pub fn mem_read(&self, addr: u16) -> u8 {
         if (0xc100..=0xffff).contains(&addr) {
             if !self.rom_bank {
@@ -306,6 +308,7 @@ impl Mmu {
         }
     }
 
+    #[inline]
     pub fn mem_write(&mut self, addr: u16, data: u8) {
         self.cpu_memory[addr as usize] = data
     }
@@ -374,6 +377,7 @@ impl Mmu {
         ret_value
     }
 
+    #[inline]
     pub fn mem_bank1_read(&self, addr: u16) -> u8 {
         let offset = self.saturn_bank as usize * 0x3000 + 0x3000 * 8 * self.saturn_slot as usize;
         let index = offset + addr as usize;
@@ -392,6 +396,7 @@ impl Mmu {
         }
     }
 
+    #[inline]
     pub fn mem_bank2_read(&self, addr: u16) -> u8 {
         let offset = self.saturn_bank as usize * 0x3000 + 0x3000 * 8 * self.saturn_slot as usize;
         let index = offset + addr as usize;
@@ -410,6 +415,7 @@ impl Mmu {
         }
     }
 
+    #[inline]
     pub fn mem_aux_read(&self, addr: u16) -> u8 {
         if self.aux_bank == 0 {
             self.aux_memory[addr as usize]
@@ -421,6 +427,7 @@ impl Mmu {
         }
     }
 
+    #[inline]
     pub fn mem_aux_write(&mut self, addr: u16, data: u8) {
         if self.aux_bank == 0 {
             self.aux_memory[addr as usize] = data;
@@ -432,6 +439,7 @@ impl Mmu {
         }
     }
 
+    #[inline]
     pub fn mem_aux_bank1_read(&self, addr: u16) -> u8 {
         if self.aux_bank == 0 {
             self.aux_bank1_memory[addr as usize]
@@ -454,6 +462,7 @@ impl Mmu {
         }
     }
 
+    #[inline]
     pub fn mem_aux_bank2_read(&self, addr: u16) -> u8 {
         if self.aux_bank == 0 {
             self.aux_bank2_memory[addr as usize]
@@ -476,6 +485,7 @@ impl Mmu {
         }
     }
 
+    #[inline]
     pub fn unclocked_addr_read(&self, addr: u16) -> u8 {
         match addr {
             0x0..=0x1ff => {
@@ -542,6 +552,7 @@ impl Mmu {
         }
     }
 
+    #[inline]
     pub fn unclocked_addr_write(&mut self, addr: u16, data: u8) {
         match addr {
             0x0..=0x1ff => {
