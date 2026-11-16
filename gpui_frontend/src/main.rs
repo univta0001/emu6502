@@ -395,6 +395,8 @@ impl EmulatorCore {
 const MCP_NO_BUDGET: usize = usize::MAX;
 #[cfg(feature = "mcp")]
 const MCP_NO_PC: u32 = u32::MAX;
+#[cfg(feature = "mcp")]
+const MCP_NO_CYCLE: u64 = u64::MAX;
 
 #[cfg(feature = "mcp")]
 struct McpControl {
@@ -412,6 +414,11 @@ struct McpControl {
     resume_cv: Condvar,
     step_budget: AtomicUsize,
     run_until_pc: AtomicU32,
+    /// Absolute CPU cycle count (`cpu.bus.get_cycles()`) at which the run loop
+    /// parks. `MCP_NO_CYCLE` when no cycle target is pending. This is the
+    /// cycle-level counterpart of `run_until_pc`: the pause and run_until
+    /// tools use it to stop at a cycle instead of at the next frame boundary.
+    run_until_cycle: AtomicU64,
     breakpoints: Mutex<Vec<u16>>,
     has_breakpoints: AtomicBool,
     /// True while the run loop has to inspect the control plane after every
@@ -431,6 +438,7 @@ impl McpControl {
             resume_cv: Condvar::new(),
             step_budget: AtomicUsize::new(MCP_NO_BUDGET),
             run_until_pc: AtomicU32::new(MCP_NO_PC),
+            run_until_cycle: AtomicU64::new(MCP_NO_CYCLE),
             breakpoints: Mutex::new(Vec::new()),
             has_breakpoints: AtomicBool::new(false),
             armed: AtomicBool::new(false),
@@ -446,6 +454,8 @@ impl McpControl {
     fn resume(&self) {
         self.step_budget.store(MCP_NO_BUDGET, Ordering::Release);
         self.run_until_pc.store(MCP_NO_PC, Ordering::Release);
+        self.run_until_cycle
+            .store(MCP_NO_CYCLE, Ordering::Release);
         self.pause_requested.store(false, Ordering::Release);
         self.resume_epoch.fetch_add(1, Ordering::AcqRel);
         self.armed
@@ -473,7 +483,8 @@ impl McpControl {
             self.has_breakpoints.load(Ordering::Acquire)
                 || self.pause_requested.load(Ordering::Acquire)
                 || self.step_budget.load(Ordering::Acquire) != MCP_NO_BUDGET
-                || self.run_until_pc.load(Ordering::Acquire) != MCP_NO_PC,
+                || self.run_until_pc.load(Ordering::Acquire) != MCP_NO_PC
+                || self.run_until_cycle.load(Ordering::Acquire) != MCP_NO_CYCLE,
             Ordering::Release,
         );
     }
@@ -491,6 +502,8 @@ impl McpControl {
 
     fn step(&self, instructions: usize) {
         self.run_until_pc.store(MCP_NO_PC, Ordering::Release);
+        self.run_until_cycle
+            .store(MCP_NO_CYCLE, Ordering::Release);
         self.step_budget
             .store(instructions.max(1), Ordering::Release);
         self.pause_requested.store(false, Ordering::Release);
@@ -502,7 +515,27 @@ impl McpControl {
 
     fn run_until(&self, pc: u16) {
         self.step_budget.store(MCP_NO_BUDGET, Ordering::Release);
+        self.run_until_cycle
+            .store(MCP_NO_CYCLE, Ordering::Release);
         self.run_until_pc.store(pc as u32, Ordering::Release);
+        self.pause_requested.store(false, Ordering::Release);
+        self.resume_epoch.fetch_add(1, Ordering::AcqRel);
+        self.armed.store(true, Ordering::Release);
+        *self.paused.lock_unpoisoned() = false;
+        self.resume_cv.notify_all();
+    }
+
+    /// Run until the CPU's cycle counter reaches `cycle`, then park.
+    ///
+    /// The run loop compares the target after every emulated instruction, so
+    /// the machine stops at the first instruction boundary at or after
+    /// `cycle` - not at the next video-frame boundary. Because an instruction
+    /// is the smallest unit the interpreter can stop at, the parked cycle
+    /// count can exceed the target by at most one instruction's cycles.
+    fn run_until_cycle(&self, cycle: u64) {
+        self.step_budget.store(MCP_NO_BUDGET, Ordering::Release);
+        self.run_until_pc.store(MCP_NO_PC, Ordering::Release);
+        self.run_until_cycle.store(cycle, Ordering::Release);
         self.pause_requested.store(false, Ordering::Release);
         self.resume_epoch.fetch_add(1, Ordering::AcqRel);
         self.armed.store(true, Ordering::Release);
@@ -795,6 +828,23 @@ fn emulator_thread(
                             pause_now = true;
                             break;
                         }
+                        // Cycle-level run control: stop as soon as the target
+                        // has been reached. This also covers a target that is
+                        // already in the past (or equal to the current
+                        // cycle), so the machine parks immediately instead of
+                        // running on to the next frame boundary.
+                        let cycle_target =
+                            shared.mcp.run_until_cycle.load(Ordering::Relaxed);
+                        if cycle_target != MCP_NO_CYCLE
+                            && cpu.bus.get_cycles() as u64 >= cycle_target
+                        {
+                            shared
+                                .mcp
+                                .run_until_cycle
+                                .store(MCP_NO_CYCLE, Ordering::Relaxed);
+                            pause_now = true;
+                            break;
+                        }
                         let budget = shared.mcp.step_budget.load(Ordering::Relaxed);
                         if budget != MCP_NO_BUDGET && executed >= budget {
                             shared
@@ -846,6 +896,21 @@ fn emulator_thread(
                         let target = shared.mcp.run_until_pc.load(Ordering::Relaxed);
                         if target != MCP_NO_PC && cpu.program_counter as u32 == target {
                             shared.mcp.run_until_pc.store(MCP_NO_PC, Ordering::Relaxed);
+                            pause_now = true;
+                            break;
+                        }
+                        // Cycle-level target: comparison against
+                        // `bus.get_cycles()` after each instruction gives the
+                        // first instruction boundary at or after the target.
+                        let cycle_target =
+                            shared.mcp.run_until_cycle.load(Ordering::Relaxed);
+                        if cycle_target != MCP_NO_CYCLE
+                            && cpu.bus.get_cycles() as u64 >= cycle_target
+                        {
+                            shared
+                                .mcp
+                                .run_until_cycle
+                                .store(MCP_NO_CYCLE, Ordering::Relaxed);
                             pause_now = true;
                             break;
                         }

@@ -45,8 +45,13 @@ pub fn list() -> Value {
         ),
         tool(
             "pause",
-            "Pause the emulator (the CPU stops stepping).",
-            json!({ "type": "object", "properties": {} })
+            "Pause the emulator at the next instruction boundary. With `cycles`, run until the CPU cycle counter reaches that value and pause there instead (cycle-level run control).",
+            json!({
+                "type": "object",
+                "properties": {
+                    "cycles": { "type": "string", "description": "Absolute CPU cycle count to pause at, as reported by `cpu_registers.cycles` (optional; decimal or 0x-prefixed)." }
+                }
+            })
         ),
         tool(
             "resume",
@@ -65,11 +70,13 @@ pub fn list() -> Value {
         ),
         tool(
             "run_until",
-            "Resume and pause again when the program counter reaches `pc`.",
+            "Resume and pause again when the program counter reaches `pc` or the CPU cycle counter reaches `cycles`. The cycle target is checked after every instruction, so the machine stops at the first instruction boundary at or after it rather than at the next video-frame boundary.",
             json!({
                 "type": "object",
-                "properties": { "pc": { "type": "string", "description": "Target address, e.g. 0x0300 or $0300." } },
-                "required": ["pc"]
+                "properties": {
+                    "pc": { "type": "string", "description": "Target address, e.g. 0x0300 or $0300." },
+                    "cycles": { "type": "string", "description": "Absolute CPU cycle count, e.g. 123456." }
+                }
             })
         ),
         tool(
@@ -392,8 +399,16 @@ pub fn call(shared: &EmuShared, name: &str, args: &Value) -> Result<Value, Strin
             Ok(json!({ "ok": true, "hard": hard }))
         }
         "pause" => {
-            shared.mcp.pause();
-            Ok(json!({ "ok": true, "paused": true }))
+            // With a cycle target this is a cycle-level "run until then
+            // pause": the run loop parks at the first instruction boundary
+            // at or after the requested cycle instead of at a frame boundary.
+            if let Some(cycle) = args.get("cycles").and_then(parse_int) {
+                shared.mcp.run_until_cycle(cycle);
+                Ok(json!({ "ok": true, "paused": false, "cycles": cycle }))
+            } else {
+                shared.mcp.pause();
+                Ok(json!({ "ok": true, "paused": true }))
+            }
         }
         "resume" => {
             shared.mcp.resume();
@@ -405,9 +420,14 @@ pub fn call(shared: &EmuShared, name: &str, args: &Value) -> Result<Value, Strin
             Ok(json!({ "ok": true, "instructions": count }))
         }
         "run_until" => {
-            let pc = arg_addr(args, "pc")?;
-            shared.mcp.run_until(pc);
-            Ok(json!({ "ok": true, "pc": pc }))
+            if let Some(cycle) = args.get("cycles").and_then(parse_int) {
+                shared.mcp.run_until_cycle(cycle);
+                Ok(json!({ "ok": true, "cycles": cycle }))
+            } else {
+                let pc = arg_addr(args, "pc")?;
+                shared.mcp.run_until(pc);
+                Ok(json!({ "ok": true, "pc": pc }))
+            }
         }
         "set_speed" => set_speed(shared, args),
         "set_model" => set_model(shared, args),
@@ -560,6 +580,7 @@ fn status(shared: &EmuShared) -> Result<Value, String> {
         "model": model_name(&cpu),
         "paused": shared.mcp.is_paused(),
         "program_counter": cpu.program_counter,
+        "cycles": cpu.bus.get_cycles(),
         "speed_index": speed_index,
         "speed": SPEED_NAMES.get(speed_index).copied().unwrap_or("unknown"),
         "video_50hz": cpu.bus.video.is_video_50hz(),
