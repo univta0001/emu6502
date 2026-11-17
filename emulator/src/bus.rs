@@ -575,7 +575,7 @@ impl Bus {
             if !self.mem.vidhd {
                 match self.mem.aux_type {
                     AuxType::Ext80 | AuxType::RW3 => {
-                        self.video.update_shadow_memory(aux_memory, addr, data)
+                        self.video.update_shadow_memory(aux_memory, addr, data);
                     }
                     AuxType::Std80 => {
                         if addr < 0x800 {
@@ -599,6 +599,15 @@ impl Bus {
         }
     }
 
+    fn extended_rom_available(&self, slot: usize) -> bool {
+        let slot_value = self.io_slot[slot];
+        match slot_value {
+            IODevice::RamFactor => true,
+            IODevice::Videoterm => true,
+            _ => false,
+        }
+    }
+
     fn iodevice_io_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
         let slot = (((addr & 0x00ff) - 0x0080) >> 4) as usize;
         let floating_value = self.read_floating_bus();
@@ -610,7 +619,7 @@ impl Bus {
         let slot_value = self.io_slot[slot];
         //eprintln!("IOAccess - {:04x} {} {}",addr,slot,io_addr);
 
-        if self.extended_rom == 0 {
+        if self.extended_rom == 0 && self.extended_rom_available(slot) {
             self.extended_rom = slot as u8;
         }
 
@@ -680,13 +689,17 @@ impl Bus {
                 // Handle the extended rom separately
                 let slot = self.extended_rom as usize;
                 if slot == 0 {
-                    return floating_value;
+                    if addr == 0xc800 {
+                        return 0;
+                    } else {
+                        return floating_value;
+                    }
                 }
                 let slot_value = self.io_slot[slot];
                 return match slot_value {
                     IODevice::RamFactor => self.ramfactor.rom_access(addr, value, write_flag),
                     IODevice::Videoterm => self.videoterm.rom_access(addr, value, write_flag),
-                    _ => self.mem.mem_read(addr),
+                    _ => unimplemented!("Not reachable"),
                 };
             }
 
@@ -705,7 +718,11 @@ impl Bus {
                     }
                 }
 
-                if self.extended_rom == 0 {
+                if !self.mem.slotc3rom && slot == 3 {
+                    self.mem.intc8rom = true;
+                }
+
+                if self.extended_rom == 0 && self.extended_rom_available(slot) {
                     self.extended_rom = slot as u8;
                 }
 
@@ -1589,11 +1606,12 @@ impl Bus {
 
             0xc000..=0xc0ff => self.io_access(addr, 0, false),
             0xc800..=0xcfff => {
-                if addr == 0xcfff && (self.mem.intc8rom || self.extended_rom != 0) {
+                let internal = self.mem.intcxrom || self.mem.intc8rom || self.is_apple2c;
+                if addr == 0xcfff {
                     self.mem.intc8rom = false;
                     self.extended_rom = 0;
                 }
-                if self.mem.intcxrom || self.mem.intc8rom || self.is_apple2c {
+                if internal {
                     if self.mem.a2cp && self.mem.rom_bank && (0xcc00..=0xceff).contains(&addr) {
                         let ret_value = self.mem_read(addr);
                         self.mem
@@ -1621,10 +1639,12 @@ impl Bus {
                 self.iodevice_rom_access(addr, data, true);
             }
 
-            _ => {
+            0xcfff => {
                 self.mem.intc8rom = false;
                 self.extended_rom = 0;
             }
+
+            _ => unimplemented!("IO address is from 0xc000 to 0xcfff only")
         }
     }
 }
@@ -1650,10 +1670,11 @@ impl Mem for Bus {
         // accesses live here, so the test is worth doing before the I/O
         // dispatch: the MMU path inlines and the I/O match - which is the
         // biggest part of this function - stays out of the inlined body.
-        if addr.wrapping_sub(0xc000) > 0x0fff {
-            return self.mem.unclocked_addr_read(addr);
+        if (0xc000..=0xcfff).contains(&addr) {
+            self.unclocked_addr_read_io(addr)
+        } else {
+            self.mem.unclocked_addr_read(addr)
         }
-        self.unclocked_addr_read_io(addr)
     }
 
     #[inline]
@@ -1661,7 +1682,9 @@ impl Mem for Bus {
         // Hot path: see `unclocked_addr_read`.  Writes below the I/O page are
         // plain memory plus the screen shadow write, which the CPU does not
         // wait for.
-        if addr.wrapping_sub(0xc000) > 0x0fff {
+        if (0xc000..=0xcfff).contains(&addr) {
+            self.unclocked_addr_write_io(addr, data);
+        } else {
             self.mem.unclocked_addr_write(addr, data);
             if (0x400..0xc00).contains(&addr)
                 || (0x2000..=0x9fff).contains(&addr)
@@ -1671,7 +1694,6 @@ impl Mem for Bus {
             }
             return;
         }
-        self.unclocked_addr_write_io(addr, data);
     }
 
     #[inline]
