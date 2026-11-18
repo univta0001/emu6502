@@ -420,17 +420,10 @@ impl Bus {
         }
 
         if !self.disable_audio {
-            if self.audio.ready_update_disk_sound() {
-                let motor_on = self.disk.is_motor_on();
-                let sample_value = if motor_on {
-                    self.disk.update_disk_sound_sample(motor_on);
-                    self.disk.get_disk_sound_sample()
-                } else {
-                    0
-                };
-                self.audio.update_disk_sound(sample_value);
-            }
-            self.audio.tick();
+            // Sampling the disk sound belongs to the audio clock: it has to
+            // happen on the cycle a sample is taken, just before it.
+            let (audio, disk) = (&mut self.audio, &mut self.disk);
+            audio.tick_with_disk(disk);
         }
 
         if !self.disable_disk && self.disk.is_motor_off_pending() {
@@ -601,11 +594,7 @@ impl Bus {
 
     fn extended_rom_available(&self, slot: usize) -> bool {
         let slot_value = self.io_slot[slot];
-        match slot_value {
-            IODevice::RamFactor => true,
-            IODevice::Videoterm => true,
-            _ => false,
-        }
+        matches!(slot_value, IODevice::RamFactor | IODevice::Videoterm)
     }
 
     fn iodevice_io_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
@@ -1644,7 +1633,7 @@ impl Bus {
                 self.extended_rom = 0;
             }
 
-            _ => unimplemented!("IO address is from 0xc000 to 0xcfff only")
+            _ => unimplemented!("IO address is from 0xc000 to 0xcfff only"),
         }
     }
 }
@@ -1692,7 +1681,6 @@ impl Mem for Bus {
             {
                 self.shadow_memory_to_vram(addr, data);
             }
-            return;
         }
     }
 

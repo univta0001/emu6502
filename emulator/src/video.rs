@@ -980,10 +980,11 @@ impl Video {
             } else if (0x9e00..=0x9fff).contains(&addr) {
                 self.invalidate_video_cache();
             }
-        } else if self.is_graphics() && (0x2000..=0x5fff).contains(&addr) {
-            if let Some(line) = hires_line_of(addr) {
-                self.video_reparse[line] = 1;
-            }
+        } else if self.is_graphics()
+            && (0x2000..=0x5fff).contains(&addr)
+            && let Some(line) = hires_line_of(addr)
+        {
+            self.video_reparse[line] = 1;
         }
     }
 

@@ -181,17 +181,27 @@ impl AudioFilter {
         [c1, c2]
     }
 
-    fn filter_response(&mut self, value: Channel) -> f32 {
+    /// Advance the filter by one clock cycle.
+    ///
+    /// This is the part that has to run on every cycle: the taps carry the
+    /// speaker's state.  The normalised output, which needs a division and a
+    /// clamp, is only used when a sample is taken (see `filter_output`), so it
+    /// is not computed here.
+    #[inline]
+    fn filter_step(&mut self, value: Channel) {
         let c1 = self.filter_parameter[0];
         let c2 = self.filter_parameter[1];
         // First order harmonics
         let y = c1 * self.filter_tap[0] - c2 * self.filter_tap[1] + (value as f32) / 32768.0;
         self.filter_tap[1] = self.filter_tap[0];
         self.filter_tap[0] = y;
+    }
 
-        let mut return_value = y / 14327.0;
-        return_value = return_value.clamp(-1.0, 1.0);
-        return_value
+    /// The normalised speaker level after the last `filter_step`.
+    #[inline]
+    fn filter_output(&self) -> f32 {
+        let return_value = self.filter_tap[0] / 14327.0;
+        return_value.clamp(-1.0, 1.0)
     }
 
     fn filter_parameter(sample_rate: f32, resonance_freq: f32, damping: f32) -> (f32, f32) {
@@ -399,6 +409,23 @@ impl Audio {
         }
 
         ((phase as f32 * self.dc_filter as f32) / 70000.0) as Channel
+    }
+
+    /// The DC-blocked speaker level of the cycle a sample is taken on.
+    ///
+    /// This is the value `dc_filter` would return for the filter output of
+    /// this cycle, without the countdown (which `tick` does per cycle).
+    #[inline]
+    fn sample_beep(&self) -> Channel {
+        if self.dc_filter == 0 {
+            return 0;
+        }
+        let response = (self.audio_filter.filter_output() * 32767.0) as Channel;
+        if self.dc_filter >= 70000 {
+            response
+        } else {
+            ((response as f32 * self.dc_filter as f32) / 70000.0) as Channel
+        }
     }
 
     // Extract tape handling to avoid code duplication
@@ -770,6 +797,24 @@ impl Audio {
 
 impl Tick for Audio {
     fn tick(&mut self) {
+        self.tick_cycles(None);
+    }
+}
+
+impl Audio {
+    /// One clock cycle, refreshing the disk-sound sample first when this is
+    /// the cycle that produces an audio sample.
+    ///
+    /// `Bus::tick` needs the two to happen in that order, and doing the
+    /// "is the next cycle a sample" test in here instead of in `Bus::tick`
+    /// keeps it off the per-cycle path twice.
+    #[inline]
+    pub fn tick_with_disk(&mut self, disk: &mut crate::disk::DiskDrive) {
+        self.tick_cycles(Some(disk));
+    }
+
+    #[inline]
+    fn tick_cycles(&mut self, disk: Option<&mut crate::disk::DiskDrive>) {
         self.cycles += 1;
         self.fcycles += 1.0;
 
@@ -777,35 +822,33 @@ impl Tick for Audio {
             mb.tick();
         }
 
-        let filter_response = if self.filter_enabled {
-            if self.dc_filter > 0 {
-                let response = self.audio_filter.filter_response(self.data.phase);
-                self.dc_filter((response * 32767.0) as Channel) as f32
-            } else {
-                0.0
-            }
-        } else {
-            if self.data.phase > 0 {
-                self.level += self.data.phase as f32;
-            }
-            // For, Low pass averaging, the return value is not used.
-            // It only relies on the self.level
-            0.0
-        };
-
-        /*
         if self.filter_enabled {
-            self.audio_filter.add_to_buffer(beep);
+            if self.dc_filter > 0 {
+                // The filter itself has to see every cycle: its taps are the
+                // speaker state the sample is read from.  Everything that
+                // follows it -- the normalisation, the clamp, the scaling and
+                // the DC blocking -- is only observable on the cycle a sample
+                // is taken, so it is deferred to `sample_beep`.
+                self.audio_filter.filter_step(self.data.phase);
+                self.audio_active = true;
+                self.dc_filter -= 1;
+            }
+        } else if self.data.phase > 0 {
+            self.level += self.data.phase as f32;
         }
-        */
 
         if self.fcycles >= (self.fcycles_per_sample) {
             //if self.fcycles >= 21.0 {
-            /*
-            if self.filter_enabled {
-                beep = self.audio_filter.filter();
+            if let Some(disk) = disk {
+                let motor_on = disk.is_motor_on();
+                let sample_value = if motor_on {
+                    disk.update_disk_sound_sample(motor_on);
+                    disk.get_disk_sound_sample()
+                } else {
+                    0
+                };
+                self.update_disk_sound(sample_value);
             }
-            */
 
             self.handle_tape_sample();
 
@@ -815,7 +858,7 @@ impl Tick for Audio {
                 self.level = 0.0;
                 self.dc_filter(avg)
             } else {
-                filter_response as Channel
+                self.sample_beep()
             };
 
             self.fcycles -= self.fcycles_per_sample;
