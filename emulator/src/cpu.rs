@@ -1007,6 +1007,10 @@ impl CPU {
 
         self.bus.reset();
 
+        #[cfg(feature = "z80")]
+        {
+            self.z80cpu.signal_reset();
+        }
         // RESET CPU takes 7 cycles;
         self.program_counter = self.bus.mem_read_u16(0xfffc);
         for _ in 0..7 {
