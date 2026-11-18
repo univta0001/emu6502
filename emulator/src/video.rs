@@ -201,6 +201,10 @@ impl Tick for Video {
             self.update_blink_state();
         }
 
+        if self.skip_update {
+            return;
+        }
+
         self.update_video();
     }
 }
@@ -855,10 +859,6 @@ impl Video {
     pub fn update_video(&mut self) {
         let cycle = self.cycles;
         let (row, col) = (cycle / CYCLES_PER_ROW, cycle % CYCLES_PER_ROW);
-
-        if self.skip_update {
-            return;
-        }
 
         if (CYCLES_PER_BURST_START..=CYCLES_PER_BURST_END).contains(&col) {
             self.update_color_burst();
