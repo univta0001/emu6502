@@ -682,18 +682,11 @@ impl Bus {
             if addr >= 0xc800 {
                 // Handle the extended rom separately
                 let slot = self.extended_rom as usize;
-                if slot == 0 {
-                    if addr == 0xc800 {
-                        return 0;
-                    } else {
-                        return self.read_floating_bus();
-                    }
-                }
                 let slot_value = self.io_slot[slot];
                 return match slot_value {
                     IODevice::RamFactor => self.ramfactor.rom_access(addr, value, write_flag),
                     IODevice::Videoterm => self.videoterm.rom_access(addr, value, write_flag),
-                    _ => unimplemented!("Not reachable"),
+                    _ => self.read_floating_bus() & 0x7f,
                 };
             }
 
