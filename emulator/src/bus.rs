@@ -599,10 +599,9 @@ impl Bus {
 
     fn iodevice_io_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
         let slot = (((addr & 0x00ff) - 0x0080) >> 4) as usize;
-        let floating_value = self.read_floating_bus();
 
         if slot >= self.io_slot.len() {
-            return floating_value;
+            return self.read_floating_bus();
         }
 
         let slot_value = self.io_slot[slot];
@@ -612,11 +611,15 @@ impl Bus {
             self.extended_rom = slot as u8;
         }
 
+        // Sample the floating bus only for the cards that look at it. On reads
+        // the printer, Disk II and Uthernet II ignore the value entirely, and
+        // the Disk II boot ROM reads its data register in a tight loop.
         match slot_value {
             IODevice::Printer => {
-                card_io_access!(self, self.parallel, addr, value, floating_value, write_flag)
+                card_io_access!(self, self.parallel, addr, value, 0, write_flag)
             }
             IODevice::RamFactor => {
+                let floating_value = self.read_floating_bus();
                 card_io_access!(
                     self,
                     self.ramfactor,
@@ -627,6 +630,7 @@ impl Bus {
                 )
             }
             IODevice::Videoterm => {
+                let floating_value = self.read_floating_bus();
                 card_io_access!(
                     self,
                     self.videoterm,
@@ -637,42 +641,43 @@ impl Bus {
                 )
             }
             IODevice::Mouse => {
+                let floating_value = self.read_floating_bus();
                 card_io_access!(self, self.mouse, addr, value, floating_value, write_flag)
             }
             IODevice::Disk => {
-                card_io_access!(self, self.disk, addr, value, floating_value, write_flag)
+                card_io_access!(self, self.disk, addr, value, 0, write_flag)
             }
             IODevice::Disk13 => {
                 self.disk.force_disk_rom13();
-                card_io_access!(self, self.disk, addr, value, floating_value, write_flag)
+                card_io_access!(self, self.disk, addr, value, 0, write_flag)
             }
             IODevice::HardDisk => {
+                let floating_value = self.read_floating_bus();
                 card_io_access!(self, self.harddisk, addr, value, floating_value, write_flag)
             }
-            IODevice::Mockingboard(_) => floating_value & 0x7f,
+            IODevice::Mockingboard(_) => self.read_floating_bus() & 0x7f,
             #[cfg(feature = "z80")]
-            IODevice::Z80 => floating_value & 0x7f,
+            IODevice::Z80 => self.read_floating_bus() & 0x7f,
             #[cfg(not(target_os = "wasi"))]
             IODevice::Uthernet2 => {
-                card_io_access!(
-                    self,
-                    self.uthernet2,
-                    addr,
-                    value,
-                    floating_value,
-                    write_flag
-                )
+                card_io_access!(self, self.uthernet2, addr, value, 0, write_flag)
             }
             IODevice::Saturn(no) => {
                 let mut saturn = Saturn(no);
+                let floating_value = self.read_floating_bus();
                 card_io_access!(self, saturn, addr, value, floating_value, write_flag)
             }
-            _ => floating_value & 0x7f,
+            _ => self.read_floating_bus() & 0x7f,
         }
     }
 
     fn iodevice_rom_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
-        let floating_value = self.read_floating_bus();
+        // The floating bus is only observable through the slots that have no
+        // ROM of their own (and by the few cards that pass it through). Most
+        // card ROMs, the Disk II one included, ignore it completely, so do not
+        // render the video latch up front: a tight loop running from a slot
+        // ROM (such as the Disk II boot PROM) would otherwise pay for a video
+        // sample on every instruction fetch.
         if !self.mem.intcxrom {
             if addr >= 0xc800 {
                 // Handle the extended rom separately
@@ -681,7 +686,7 @@ impl Bus {
                     if addr == 0xc800 {
                         return 0;
                     } else {
-                        return floating_value;
+                        return self.read_floating_bus();
                     }
                 }
                 let slot_value = self.io_slot[slot];
@@ -717,29 +722,19 @@ impl Bus {
 
                 match slot_value {
                     IODevice::Printer => {
-                        card_rom_access!(
-                            self,
-                            self.parallel,
-                            addr,
-                            value,
-                            floating_value,
-                            write_flag
-                        )
+                        // This card's ROM ignores the bus value.
+                        card_rom_access!(self, self.parallel, addr, value, 0, write_flag)
                     }
                     IODevice::RamFactor => {
-                        card_rom_access!(
-                            self,
-                            self.ramfactor,
-                            addr,
-                            value,
-                            floating_value,
-                            write_flag
-                        )
+                        // This card's ROM ignores the bus value.
+                        card_rom_access!(self, self.ramfactor, addr, value, 0, write_flag)
                     }
                     IODevice::VidHD => {
+                        let floating_value = self.read_floating_bus();
                         card_rom_access!(self, self.vidhd, addr, value, floating_value, write_flag)
                     }
                     IODevice::Videoterm => {
+                        let floating_value = self.read_floating_bus();
                         card_rom_access!(
                             self,
                             self.videoterm,
@@ -750,43 +745,40 @@ impl Bus {
                         )
                     }
                     IODevice::Mouse => {
-                        card_rom_access!(self, self.mouse, addr, value, floating_value, write_flag)
+                        // This card's ROM ignores the bus value.
+                        card_rom_access!(self, self.mouse, addr, value, 0, write_flag)
                     }
                     IODevice::Disk => {
-                        card_rom_access!(self, self.disk, addr, value, floating_value, write_flag)
+                        // This card's ROM ignores the bus value.
+                        card_rom_access!(self, self.disk, addr, value, 0, write_flag)
                     }
                     IODevice::Disk13 => {
                         self.disk.force_disk_rom13();
-                        card_rom_access!(self, self.disk, addr, value, floating_value, write_flag)
+                        card_rom_access!(self, self.disk, addr, value, 0, write_flag)
                     }
                     IODevice::HardDisk => {
-                        card_rom_access!(
-                            self,
-                            self.harddisk,
-                            addr,
-                            value,
-                            floating_value,
-                            write_flag
-                        )
+                        // This card's ROM ignores the bus value.
+                        card_rom_access!(self, self.harddisk, addr, value, 0, write_flag)
                     }
                     #[cfg(feature = "z80")]
                     IODevice::Z80 => {
                         if write_flag {
                             self.halt_cpu = true;
                         }
-                        floating_value
+                        self.read_floating_bus()
                     }
                     IODevice::Mockingboard(device_no) => {
+                        let floating_value = self.read_floating_bus();
                         if let Some(mb) = self.audio.mboard.get_mut(device_no) {
                             card_rom_access!(self, mb, addr, value, floating_value, write_flag)
                         } else {
                             floating_value
                         }
                     }
-                    _ => floating_value,
+                    _ => self.read_floating_bus(),
                 }
             } else {
-                floating_value
+                self.read_floating_bus()
             }
         } else {
             if self.is_apple2c
@@ -973,6 +965,15 @@ impl Bus {
 
     pub fn io_access(&mut self, addr: u16, value: u8, write_flag: bool) -> u8 {
         let io_addr = (addr & 0xff) as u8;
+
+        // Slot I/O is common while booting (the Disk II ROM polls its data
+        // register every few cycles), and only some cards observe the floating
+        // bus. Dispatch it before sampling the video latch; `iodevice_io_access`
+        // samples the latch itself for the cards that need it.
+        if io_addr >= 0x90 {
+            return self.iodevice_io_access(addr, value, write_flag);
+        }
+
         let floating_bus = self.read_floating_bus();
 
         match io_addr {
@@ -1525,8 +1526,6 @@ impl Bus {
                 self.mem.io_access(addr, value, write_flag);
                 floating_bus
             }
-
-            0x90..=0xff => self.iodevice_io_access(addr, value, write_flag),
 
             _ => {
                 /*

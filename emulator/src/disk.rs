@@ -2883,10 +2883,32 @@ impl Card for DiskDrive {
         value: u8,
         write_flag: bool,
     ) -> u8 {
-        self.update_cycles(cycles);
-
         let slot = (((addr & 0x00ff) - 0x0080) >> 4) as usize;
         let io_addr = ((addr & 0x00ff) - ((slot as u16) << 4)) as u8;
+
+        // An empty drive can only return noise from the data register, but the
+        // Disk II boot ROM polls that register in a tight loop while the motor
+        // spins. Running the full catch-up path for every poll (track lookup,
+        // modulo, one random bit per four cycles) made that spin the dominant
+        // cost of an empty drive at high speed. Shift one random bit per poll
+        // instead and leave the head/timing state alone; there is no track to
+        // keep in sync when no disk is inserted.
+        if io_addr == LOC_DRIVEREAD
+            && !write_flag
+            && self.is_motor_on()
+            && !self.iwm
+            && !self.q6
+            && !self.q7
+            && !self.is_loaded(self.drive_select)
+        {
+            self.cycles = cycles;
+            self.request_fast_disk();
+            self.prev_latch = self.latch;
+            self.latch = self.latch << 1 | Self::get_random_disk_bit(self.random_one_rate);
+            return self.get_value();
+        }
+
+        self.update_cycles(cycles);
         match io_addr {
             LOC_PHASE0OFF => {
                 self.set_phase(0, false);

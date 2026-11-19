@@ -106,6 +106,10 @@ impl NoSlotClock {
         self.clock_register_enabled
     }
 
+    // Called for every slot ROM access, including instruction fetches (the
+    // clock sees the whole bus of its socket). Keep it inline so a boot ROM
+    // executing from a slot does not pay a call per fetch.
+    #[inline]
     pub fn io_access(&mut self, addr: u16, _value: u8, write_flag: bool) -> u8 {
         if !write_flag {
             if addr & 0x04 > 0 {
