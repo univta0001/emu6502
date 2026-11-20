@@ -1495,7 +1495,15 @@ impl DiskDrive {
             };
 
             let disk_loaded = self.is_loaded(self.drive_select);
-            let steps = cycles.saturating_sub(self.cycles) % track_bits;
+            let delta = cycles.saturating_sub(self.cycles);
+            let steps = if track_bits == 0 {
+                0
+            } else if delta < track_bits {
+                delta
+            } else {
+                delta % track_bits
+            };
+
             if disk_loaded {
                 for _ in 0..steps {
                     self.tick_internal();
