@@ -5064,9 +5064,11 @@ fn prepare_settings(shared: &EmuShared, ui: &imgui::Ui, state: &mut EmulatorStat
     let selected = &mut state.current_settings;
     let prev_selected = &mut state.prev_settings;
 
+    let mut is_open = true;
     let _ = ui
         .modal_popup_config("Settings##settings")
         .flags(imgui::WindowFlags::NO_RESIZE | imgui::WindowFlags::NO_SAVED_SETTINGS)
+        .opened(&mut is_open)
         .build(|| {
             // The lock is taken only here: `build` does not run the closure
             // while the popup is closed, so the settings window no longer
