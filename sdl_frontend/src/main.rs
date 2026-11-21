@@ -5080,7 +5080,7 @@ fn prepare_settings(shared: &EmuShared, ui: &imgui::Ui, state: &mut EmulatorStat
                 ui.align_text_to_frame_padding();
                 ui.text(format!("Slot {:3}:", 0));
                 ui.same_line();
-                ui.set_next_item_width(200.0);
+                ui.set_next_item_width(250.0);
                 ui.combo_simple_string("##slot_0", item, &items);
             }
 
@@ -5089,7 +5089,7 @@ fn prepare_settings(shared: &EmuShared, ui: &imgui::Ui, state: &mut EmulatorStat
                 ui.align_text_to_frame_padding();
                 ui.text(format!("Slot {i:3}:"));
                 ui.same_line();
-                ui.set_next_item_width(200.0);
+                ui.set_next_item_width(250.0);
                 ui.combo_simple_string(format!("##slot_{i}"), item, &items);
             }
 
@@ -5099,7 +5099,7 @@ fn prepare_settings(shared: &EmuShared, ui: &imgui::Ui, state: &mut EmulatorStat
                 ui.align_text_to_frame_padding();
                 ui.text("Slot Aux:");
                 ui.same_line();
-                ui.set_next_item_width(200.0);
+                ui.set_next_item_width(250.0);
                 ui.combo_simple_string("##aux_type", item, &items);
             }
 
